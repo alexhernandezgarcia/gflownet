@@ -534,6 +534,7 @@ class Tetris(GFlowNetEnv):
         k_top: int = 10,
         n_rows: int = 2,
         dpi: int = 150,
+        **kwargs,
     ):
         """
         Plot tetris boards of top K samples.
@@ -543,7 +544,7 @@ class Tetris(GFlowNetEnv):
         samples : list
             List of terminating states sampled from the policy.
         rewards : list
-            List of terminating states.
+            Rewards of the samples.
         k_top : int
             The number of samples that will be included in the plot. The k_top samples
             with the highest reward are selected.

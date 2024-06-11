@@ -1,11 +1,10 @@
 # @package _global_
-# No constraints:
-# - no charge check
-# - no composition to space group constraint
-# - no space group to lattice parameters constraint
+#
+# Forward trajectories (10) + Replay buffer (5) + Train set (5)
+# Learning rate decay
 
 defaults:
-  - override /env: crystals/ccrystal
+  - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
   - override /proxy: crystals/dave
   - override /logger: wandb
@@ -15,11 +14,15 @@ device: cpu
 # Environment
 env:
   do_composition_to_sg_constraints: False
+  do_sg_to_composition_constraints: False
   do_sg_to_lp_constraints: False
+  do_sg_before_composition: True
   composition_kwargs:
-    elements: [1, 3, 6, 7, 8, 9, 12, 14, 15, 16, 17, 26]
-    min_atoms: 2
-    max_atoms: 50
+    elements: [1, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 23, 25, 26, 27, 28, 29, 34]
+    max_diff_elem: 5
+    min_diff_elem: 1
+    min_atoms: 1
+    max_atoms: 80
     min_atom_i: 1
     max_atom_i: 16
     do_charge_check: False
@@ -47,17 +50,17 @@ env:
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
   buffer:
-    replay_capacity: 0
+    replay_capacity: 1000
+    train:
+      type: csv
+      path: /network/projects/crystalgfn/data/eform/train.csv
+      output_csv: crystal_train.csv
+      output_pkl: crystal_train.pkl
     test:
-      type: pkl
-      path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_l0.9-100_a50-150_val_12_SGinter_states_energy.pkl
-      output_csv: ccrystal_val.csv
-      output_pkl: ccrystal_val.pkl
-
-# Proxy
-proxy:
-  reward_function: exponential
-  beta: 8
+      type: csv
+      path: /network/projects/crystalgfn/data/eform/val.csv
+      output_csv: crystal_val.csv
+      output_pkl: crystal_val.pkl
 
 # GFlowNet hyperparameters
 gflownet:
@@ -65,13 +68,16 @@ gflownet:
   optimizer:
     batch_size:
       forward: 10
-      backward_replay: -1
+      backward_replay: 5
+      backward_dataset: 5
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 50000
-    lr_decay_period: 1000000
+    n_train_steps: 100000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
   replay_sampling: weighted
+  train_sampling: permutation
 
 # Policy
 policy:
@@ -87,6 +93,30 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Proxy (eform)
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+  release: 0.3.4 # Formation energy release
+  # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -8.0
+    alpha: 1.0
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: -1
+  checkpoints_period: 500
+  n_trajs_logprobs: 100
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
 # WandB
 logger:
   lightweight: True
@@ -94,22 +124,13 @@ logger:
   tags:
     - gflownet
     - crystals
+    - stack
     - matbench
-    - workshop23
-  checkpoints:
-    period: 500
+    - formationenergy
   do:
     online: true
-  test:
-    n_trajs_logprobs: 10
-    period: 500
-    n: 10
-    n_top_k: 5000
-    top_k: 100
-    top_k_period: -1
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/workshop23/discrete-matbench/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
-
+    dir: ${user.logdir.root}/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}

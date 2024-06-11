@@ -15,7 +15,7 @@ from tqdm import tqdm
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from gflownet.gflownet import GFlowNetAgent
-from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
 
 
@@ -33,6 +33,15 @@ def add_args(parser):
         default=None,
         type=str,
         help="Path to Hydra run containing config.yaml",
+    )
+    parser.add_argument(
+        "--conditional_env_config_path",
+        default=None,
+        type=str,
+        help="Path to a configuration YAML file containing the properties of an "
+        "environment to be used to do conditional sampling, that is constrain the "
+        "action space at sampling time. If the file is stored in the same directory "
+        "as the main config, the argument may be just the file name (not a path).",
     )
     parser.add_argument(
         "--n_samples",
@@ -128,6 +137,18 @@ def set_device(device: str):
         return torch.device("cpu")
 
 
+def path_compatible(str):
+    """
+    Replace all non-alphanumeric characters with underscores
+
+    Parameters
+    ----------
+    str : str
+        The string to be made compatible
+    """
+    return "".join([c if c.isalnum() else "_" for c in str])
+
+
 def main(args):
     if args.randominit:
         prefix = "randominit"
@@ -153,41 +174,47 @@ def main(args):
 
     if not args.samples_only:
         gflownet.logger.test.n = args.n_samples
-        (
-            l1,
-            kl,
-            jsd,
-            corr_prob_traj_rew,
-            var_logrew_logp,
-            nll,
-            figs,
-            env_metrics,
-        ) = gflownet.test()
-        # Save figures
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
-        fignames = ["samples", "kde_gfn", "kde_reward"]
+        eval_results = gflownet.evaluator.eval()
+
+        # TODO-V: legacy -> ok to remove?
+        # keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        # fignames = ["samples", "kde_gfn", "kde_reward"]
 
         output_dir = base_dir / "figures"
         print("output_dir: ", str(output_dir))
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for fig, figname in zip(figs, fignames):
-            output_fig = output_dir / figname
+        for figname, fig in eval_results["figs"].items():
+            output_fig = output_dir / (path_compatible(figname) + ".pdf")
             if fig is not None:
                 fig.savefig(output_fig, bbox_inches="tight")
         print(f"Saved figures to {output_dir}")
 
         # Print metrics
-        print(f"L1: {l1}")
-        print(f"KL: {kl}")
-        print(f"JSD: {jsd}")
-        print(f"Corr (exp(logp), rewards): {corr_prob_traj_rew}")
-        print(f"Var (log(R) - logp): {var_logrew_logp}")
-        print(f"NLL: {nll}")
+        print("Metrics:")
+        for k, v in eval_results["metrics"].items():
+            print(f"\t{k}: {v:.4f}")
 
     # ------------------------------------------
     # -----  Sample GFlowNet  -----
     # ------------------------------------------
+
+    # Read conditional environment config, if provided
+    # TODO: implement allow passing just name of config
+    if args.conditional_env_config_path is not None:
+        config_cond_env = read_hydra_config(
+            config_name=args.conditional_env_config_path
+        )
+        if "env" in config_cond_env:
+            config_cond_env = config_cond_env.env
+        env_cond = instantiate(
+            config_cond_env,
+            proxy=env.proxy,
+            device=config.device,
+            float_precision=config.float_precision,
+        )
+    else:
+        env_cond = None
 
     # Handle output directory
     output_dir = base_dir / "eval" / "samples"
@@ -203,7 +230,9 @@ def main(args):
         for i, bs in enumerate(
             tqdm(get_batch_sizes(args.n_samples, args.sampling_batch_size))
         ):
-            batch, times = gflownet.sample_batch(n_forward=bs, train=False)
+            batch, times = gflownet.sample_batch(
+                n_forward=bs, env_cond=env_cond, train=False
+            )
             x_sampled = batch.get_terminating_states(proxy=True)
             energies = env.proxy(x_sampled)
             x_sampled = batch.get_terminating_states()

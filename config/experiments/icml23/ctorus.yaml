@@ -2,10 +2,10 @@
 
 defaults:
    - override /env: ctorus
+   - override /evaluator: base
    - override /gflownet: trajectorybalance
    - override /proxy: torus
    - override /logger: wandb
-   - override /user: alex
 
 # Environment
 env:
@@ -32,6 +32,12 @@ gflownet:
     lr_z_mult: 1000
     n_train_steps: 5000
 
+# Evaluator
+evaluator:
+  period: 25
+  n: 1000
+  checkpoints_period: 500
+
 # Policy
 policy:
   forward:
@@ -50,15 +56,10 @@ policy:
 logger:
   lightweight: True
   project_name: "Continuous GFlowNet"
-  tags: 
+  tags:
     - gflownet
     - continuous
     - ctorus
-  test:
-    period: 25
-    n: 1000
-  checkpoints:
-    period: 500
 
 # Hydra
 hydra:

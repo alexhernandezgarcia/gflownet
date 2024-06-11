@@ -10,34 +10,35 @@ import sys
 import hydra
 import pandas as pd
 
-from gflownet.utils.common import chdir_random_subdir
 from gflownet.utils.policy import parse_policy_config
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
-    # TODO: fix race condition in a more elegant way
-    chdir_random_subdir()
 
-    # Get current directory and set it as root log dir for Logger
-    cwd = os.getcwd()
-    config.logger.logdir.root = cwd
-    print(f"\nLogging directory of this run:  {cwd}\n")
+    # Print working and logging directory
+    print(f"\nWorking directory of this run: {os.getcwd()}")
+    print(
+        "Logging directory of this run: "
+        f"{hydra.core.hydra_config.HydraConfig.get().runtime.output_dir}"
+    )
 
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds
     set_seeds(config.seed)
 
+    # Initialize GFlowNet from config
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring: might be an oracle or a model
+
+    # The proxy is required by the GFlowNetAgent for computing rewards
     proxy = hydra.utils.instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
-    # The proxy is passed to env and used for computing rewards
+
     # Using Hydra's partial instantiation, see:
     # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
     env_maker = hydra.utils.instantiate(
@@ -47,6 +48,10 @@ def main(config):
         _partial_=True,
     )
     env = env_maker()
+    
+    # The evaluator is used to compute metrics and plots
+    evaluator = hydra.utils.instantiate(config.evaluator)
+
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
@@ -76,6 +81,7 @@ def main(config):
     else:
         state_flow = None
     # GFlowNet Agent
+
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -87,6 +93,7 @@ def main(config):
         state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
+        evaluator=evaluator,
     )
 
     # Train GFlowNet
@@ -100,7 +107,7 @@ def main(config):
         x_sampled = batch.get_terminating_states()
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(x) for x in x_sampled],
+                "readable": [gflownet.env.state2readable(x) for x in x_sampled],
                 "energies": energies.tolist(),
             }
         )

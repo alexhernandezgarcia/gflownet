@@ -1,5 +1,5 @@
 logdir:
-  root: ~/gflownet/logs
+  root: ./logs
 data:
-  root: ~/gflownet/data
+  root: ./data
   alanine_dipeptide: ~/gflownet/data/alanine_dipeptide_conformers_1.npy

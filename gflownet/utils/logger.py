@@ -1,6 +1,8 @@
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,10 +24,6 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
-        train: dict,
-        test: dict,
-        oracle: dict,
-        checkpoints: dict,
         progress: bool,
         lightweight: bool,
         debug: bool,
@@ -33,14 +31,11 @@ class Logger:
         tags: list = None,
         context: str = "0",
         notes: str = None,
+        entity: str = None,
     ):
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
-        self.train = train
-        self.test = test
-        self.oracle = oracle
-        self.checkpoints = checkpoints
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
 
         if run_name is None:
@@ -61,7 +56,11 @@ class Logger:
             if slurm_job_id:
                 wandb_config["slurm_job_id"] = slurm_job_id
             self.run = self.wandb.init(
-                config=wandb_config, project=project_name, name=run_name, notes=notes
+                config=wandb_config,
+                project=project_name,
+                name=run_name,
+                notes=notes,
+                entity=entity,
             )
         else:
             self.wandb = None
@@ -73,50 +72,15 @@ class Logger:
         self.debug = debug
         # Log directory
         self.logdir = Path(logdir.root)
-        if self.logdir.exists() or logdir.overwrite:
+        if not self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
-            # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")
+            sys.exit(1)
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
         # Write wandb URL
         self.write_url_file()
-
-    def do_train(self, step):
-        if self.train.period is None or self.train.period < 0:
-            return False
-        else:
-            return not step % self.train.period
-
-    def do_test(self, step):
-        if self.test.period is None or self.test.period < 0:
-            return False
-        elif step == 1 and self.test.first_it:
-            return True
-        else:
-            return not step % self.test.period
-
-    def do_top_k(self, step):
-        if self.test.top_k is None or self.test.top_k < 0:
-            return False
-
-        if self.test.top_k_period is None or self.test.top_k_period < 0:
-            return False
-
-        return step == 2 or step % self.test.top_k_period == 0
-
-    def do_oracle(self, step):
-        if self.oracle.period is None or self.oracle.period < 0:
-            return False
-        else:
-            return not step % self.oracle.period
-
-    def do_checkpoints(self, step):
-        if self.checkpoints.period is None or self.checkpoints.period < 0:
-            return False
-        else:
-            return not step % self.checkpoints.period
 
     def write_url_file(self):
         if self.wandb is not None:
@@ -181,17 +145,24 @@ class Logger:
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
-    def log_plots(self, figs: list, step, fig_names=None, use_context=True):
+    def log_plots(self, figs: Union[dict, list], step, use_context=True):
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = fig_names or [f"Figure {i} at step {step}" for i in range(len(figs))]
+        if isinstance(figs, dict):
+            keys = figs.keys()
+            figs = list(figs.values())
+        else:
+            assert isinstance(figs, list), "figs must be a list or a dict"
+            keys = [f"Figure {i} at step {step}" for i in range(len(figs))]
+
         for key, fig in zip(keys, figs):
             if use_context:  # fixme
                 context = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
+
         self.close_figs(figs)
 
     def close_figs(self, figs: list):
@@ -203,7 +174,8 @@ class Logger:
         if not self.do.online:
             return
         for key, value in metrics.items():
-            self.log_metric(key, value, step=step, use_context=use_context)
+            if value is not None:
+                self.log_metric(key, value, step=step, use_context=use_context)
 
     def log_summary(self, summary: dict):
         if not self.do.online:
@@ -222,8 +194,6 @@ class Logger:
         step: int,
         use_context: bool,
     ):
-        if not self.do.online or not self.do_train(step):
-            return
         if logz is None:
             logz = 0.0
         else:
@@ -282,7 +252,7 @@ class Logger:
     ):
         if not self.do.online:
             return
-        if self.do_test(step):
+        if self.should_eval(step):
             test_metrics = dict(
                 zip(
                     [
@@ -299,17 +269,6 @@ class Logger:
                 test_metrics,
                 use_context=use_context,
             )
-
-    def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
-        if not self.do.online:
-            return
-        if step.do_oracle(step):
-            energies_sorted = np.sort(energies)
-            dict_topk = {}
-            for k in self.oracle.k:
-                mean_topk = np.mean(energies_sorted[:k])
-                dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
-            self.log_metrics(dict_topk, use_context=use_context)
 
     def log_losses(
         self,
@@ -330,79 +289,41 @@ class Logger:
             use_context=use_context,
         )
 
-    def log_test_metrics(
-        self,
-        l1: float,
-        kl: float,
-        jsd: float,
-        corr_prob_traj_rewards: float,
-        var_logrewards_logp: float,
-        nll_tt: float,
-        mean_logprobs_std: float,
-        mean_probs_std: float,
-        logprobs_std_nll_ratio: float,
-        step: int,
-        use_context: bool,
-    ):
-        if not self.do.online:
-            return
-        metrics = dict(
-            zip(
-                [
-                    "L1 error",
-                    "KL Div.",
-                    "Jensen Shannon Div.",
-                    "Corr. (test probs., rewards)",
-                    "Var(logR - logp) test",
-                    "NLL of test data",
-                    "Mean BS Std(logp)",
-                    "Mean BS Std(p)",
-                    "BS Std(logp) / NLL",
-                ],
-                [
-                    l1,
-                    kl,
-                    jsd,
-                    corr_prob_traj_rewards,
-                    var_logrewards_logp,
-                    nll_tt,
-                    mean_logprobs_std,
-                    mean_probs_std,
-                    logprobs_std_nll_ratio,
-                ],
-            )
-        )
-        self.log_metrics(
-            metrics,
-            use_context=use_context,
-            step=step,
-        )
-
     def save_models(
         self, forward_policy, backward_policy, state_flow, step: int = 1e9, final=False
     ):
-        if self.do_checkpoints(step) or final:
-            if final:
-                ckpt_id = "final"
-            else:
-                ckpt_id = "_iter{:06d}".format(step)
-            if forward_policy.is_model and self.pf_ckpt_path is not None:
-                stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pf_ckpt_path.parent / stem
-                torch.save(forward_policy.model.state_dict(), path)
-            if (
-                backward_policy
-                and backward_policy.is_model
-                and self.pb_ckpt_path is not None
-            ):
-                stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pb_ckpt_path.parent / stem
-                torch.save(backward_policy.model.state_dict(), path)
+        if final:
+            ckpt_id = "final"
+            if self.debug:
+                print(f"Saving final models in {self.ckpts_dir}")
+        else:
+            ckpt_id = "_iter{:06d}".format(step)
+            if self.debug:
+                print(f"Saving models at step {step} in {self.ckpts_dir}")
 
-            if state_flow is not None and self.sf_ckpt_path is not None:
-                stem = self.sf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.sf_ckpt_path.parent / stem
-                torch.save(state_flow.model.state_dict(), path)
+        if forward_policy.is_model and self.pf_ckpt_path is not None:
+            stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.pf_ckpt_path.parent / stem
+            torch.save(forward_policy.model.state_dict(), path)
+            if self.debug:
+                print(f"Forward policy saved in {path}")
+        if (
+            backward_policy
+            and backward_policy.is_model
+            and self.pb_ckpt_path is not None
+        ):
+            stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.pb_ckpt_path.parent / stem
+            torch.save(backward_policy.model.state_dict(), path)
+            if self.debug:
+                print(f"Backward policy saved in {path}")
+
+        if state_flow is not None and self.sf_ckpt_path is not None:
+            stem = self.sf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.sf_ckpt_path.parent / stem
+            torch.save(state_flow.model.state_dict(), path)
+            if self.debug:
+                print(f"State flow saved in {path}")
 
     def log_time(self, times: dict, use_context: bool):
         if self.do.times:

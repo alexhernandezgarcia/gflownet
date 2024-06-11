@@ -1567,6 +1567,6 @@ class Tree(GFlowNetEnv):
                     test_predictions[top_k_indices], self.y_test
                 )
                 for k, v in top_k_scores.items():
-                    result[f"test_top_k_{k}"] = v
+                    result[f"eval_top_k_{k}"] = v
 
         return result

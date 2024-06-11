@@ -52,6 +52,9 @@ jobs:
         height: 10
       gflownet: flowmatch
       proxy: tetris
+      evaluator:
+        top_k: 10
+        n_top_k: 100
   - slurm:
       job_name: sanity-tetris-tb
     script:
@@ -61,6 +64,9 @@ jobs:
         height: 10
       gflownet: trajectorybalance
       proxy: tetris
+      evaluator:
+        top_k: 10
+        n_top_k: 100
   # Mini-Tetris
   - slurm:
       job_name: sanity-mintetris-fm
@@ -75,6 +81,9 @@ jobs:
         __value__: tetris
         reward_function: exponential
       gflownet: flowmatch
+      evaluator:
+        top_k: 10
+        n_top_k: 100
   - slurm:
       job_name: sanity-mintetris-tb
     script:
@@ -88,6 +97,9 @@ jobs:
         __value__: tetris
         reward_function: exponential
       gflownet: trajectorybalance
+      evaluator:
+        top_k: 10
+        n_top_k: 100
   - slurm:
       job_name: sanity-mintetris-fl
     script:
@@ -101,11 +113,13 @@ jobs:
         __value__: tetris
         reward_function: exponential
       gflownet: forwardlooking
+      evaluator:
+        top_k: 10
+        n_top_k: 100
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
-      logger:
-        test:
-          period: 500
+      evalutor:
+        period: 500

@@ -7,7 +7,6 @@ defaults:
    - override /gflownet: trajectorybalance
    - override /proxy: box/corners
    - override /logger: wandb
-   - override /user: alex
 
 # Environment
 env:
@@ -68,4 +67,4 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/ccube/${now:%Y-%m-%d_%H-%M-%S}

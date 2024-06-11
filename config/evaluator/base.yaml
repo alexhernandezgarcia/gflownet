@@ -1,0 +1,26 @@
+_target_: gflownet.evaluator.base.BaseEvaluator
+
+# config formerly from logger.test
+first_it: True
+period: 100
+n: 100
+kde:
+  bandwidth: 0.1
+  kernel: gaussian
+n_top_k: 5000
+top_k: 100
+top_k_period: -1
+# Number of backward trajectories to estimate the log likelihood of each test data point
+n_trajs_logprobs: 10
+logprobs_batch_size: 100
+logprobs_bootstrap_size: 10000
+# Maximum number of test data points to compute log likelihood probs.
+max_data_logprobs: 1e5
+# Number of points to obtain a grid to estimate the reward density
+n_grid: 40000
+train_log_period: 1
+checkpoints_period: 1000
+# List of metrics as per gflownet/eval/evaluator.py:METRICS_NAMES
+# Set to null for all of them
+# Values must be comma separated like `metrics: "l1, kl, js"` (spaces are optional)
+metrics: all
