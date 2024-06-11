@@ -20,7 +20,5 @@ buffer:
   data_path: null
   train:
     type: all
-    output_csv: composition_train.csv
   test:
     type: all
-    output_csv: composition_test.csv

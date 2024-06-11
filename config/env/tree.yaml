@@ -35,5 +35,3 @@ buffer:
   test:
     type: random
     n: 1000
-    output_csv: tree_test.csv
-    output_pkl: tree_test.pkl

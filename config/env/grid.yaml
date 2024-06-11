@@ -21,5 +21,3 @@ buffer:
   train: null
   test:
     type: all
-    output_csv: grid_test.csv
-    output_pkl: grid_test.pkl

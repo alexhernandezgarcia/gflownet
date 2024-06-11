@@ -55,13 +55,9 @@ env:
     train:
       type: csv
       path: /network/projects/crystalgfn/data/bandgap/train.csv
-      output_csv: crystal_train.csv
-      output_pkl: crystal_train.pkl
     test:
       type: csv
       path: /network/projects/crystalgfn/data/bandgap/val.csv
-      output_csv: crystal_val.csv
-      output_pkl: crystal_val.pkl
 
 # GFlowNet hyperparameters
 gflownet:

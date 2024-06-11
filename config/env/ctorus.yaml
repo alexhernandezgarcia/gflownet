@@ -26,5 +26,3 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: ctorus_test.csv
-    output_pkl: ctorus_test.pkl

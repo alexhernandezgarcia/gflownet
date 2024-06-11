@@ -26,5 +26,3 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: htorus_test.csv
-    output_pkl: htorus_test.pkl

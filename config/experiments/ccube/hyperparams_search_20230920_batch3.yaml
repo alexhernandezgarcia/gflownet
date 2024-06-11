@@ -24,8 +24,6 @@ shared:
         test:
           type: grid
           n: 1000
-          output_csv: ccube_test.csv
-          output_pkl: ccube_test.pkl
     # Proxy
     proxy: box/corners
     # GFlowNet config
