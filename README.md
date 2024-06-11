@@ -1,25 +1,16 @@
 # GFlowNet
 
-This repository implements GFlowNets, generative flow networks for probabilistic modelling, on PyTorch. A design guideline behind this implementation is the separation of the logic of the GFlowNet agent and the environments on which the agent can be trained on. In other words, this implementation facilitates the extension with new environments for new applications. The configuration is handled via the use of [Hydra](https://hydra.cc/docs/intro/).
+This repository implements GFlowNets, generative flow networks for probabilistic modelling, on PyTorch. A design guideline behind this implementation is the separation of the logic of the GFlowNet agent and the environments on which the agent can be trained on. In other words, this implementation facilitates the extension with new environments for new applications. 
 
-## Installation
+<div style="text-align: center;">
+    <img src="docs/images/image.png" alt="Tetris Environment" width="600" height="600"/>
+    <br>
+    <em>Figure 1: The Tetris environment</em>
+</div>
 
-**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+Figure 1 illustrates the Tetris environment implemented in our library. This environment is a simplified version of Tetris, where the action space includes choosing different Tetris pieces, rotating them, and deciding where to drop them on the game board. Each action affects the game state, demonstrating the potential of GFlowNets to manage complex, dynamic environments. The Tetris environment provides a familiar yet complex example of applying GFlowNets to problem spaces that are both spatial and temporal.
 
-+ This project **requires** `python 3.10` and `cuda 11.8`.
-+ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
-+ The recommend installation is as follows:
-
-```bash
-python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
-source ~/envs/gflownet/bin/activate  # Activate your environment.
-./prereq_ubuntu.sh  # Installs some packages required by dependencies.
-./prereq_python.sh  # Installs python packages with specific wheels.
-./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
-pip install .[all]  # Install the remaining elements of this package.
-```
-
-Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
+For more details on how to configure and interact with the Tetris environment using our GFlowNet library, refer to our [detailed documentation](link-to-detailed-docs) or check out [this example](link-to-example) which walks through setting up and training a GFlowNet in this environment.
 
 ## Main Components of the GFlowNet Library
 
@@ -37,7 +28,7 @@ In the library, we make it easy adding new enviroments for your own task. In the
 
 ### Proxy
 
-The Proxy plays a crucial role in computing rewards for the actions taken within an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a transformation function `R(x) = g(e(x))`, where `e(x)` represents an encoding or transformation or computes the score of the generated output `x`, and `g` translates this into a reward (i.e. `R(x)`). For example, if the word `Alex` is sampled in our Scrabble environment and is valid in our vocabulary, it might receive a score of 39. If `g` is the identity function, then our reward would directly be equal to the proxy score. While in many environments the proxy functions is a simple scorer, in more complex settings (like molecule generation where it could be an energy function), we consistently refer to it as the Proxy in the GFlowNet library.
+The Proxy plays a crucial role in computing rewards for the actions taken within an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a transformation function `R(x) = g(e(x))`, where `e(x)` represents an encoding or transformation or computes the score of the generated output `x`, and `g` translates this into a reward (i.e. `R(x)`). For example, if the word `Alex` is sampled in our Scrabble environment and is valid in our vocabulary, it might receive a score of 39. If `g` is the identity function, then our reward would directly be equal to the proxy score (i.e. `e(x)`). While in many environments the proxy functions is a simple scorer, in more complex settings (like molecule generation where it could be an energy function), we consistently refer to it as the Proxy in the GFlowNet library.
 
 ### Policies (Forward and Backward)
 
@@ -45,7 +36,7 @@ The policies are neural networks that model the probability distributions of pos
 
 ### GFlowNet Agent
 
-The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy to conduct training and generation tasks. The agent manages the training setup, action sampling, trajectory generation, and metrics logging. Some of the features and functionalities are initializing and configuring the environment and proxy to ensure they are ready for training and evaluation. The agent also manages both forward and backward policies to determine the next actions based on the current state. The agent utilizes various types of loss functions, such as flow matching, trajectory balance, and detailed balance to optimize model's performance during training. 
+The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy to conduct training and generation tasks. The agent manages the training setup, action sampling, trajectory generation, and metrics logging. Some of the features and functionalities of the agent are initializing and configuring the environment and proxy to ensure they are ready for training and evaluation. The agent also manages both forward and backward policies to determine the next actions based on the current state. The agent can utilize the various types of loss functions implemented in the library, such as flow matching, trajectory balance, and detailed balance to optimize model's performance during training. 
 
 #### Exploring the Scrabble Environment
 
@@ -55,7 +46,7 @@ When initializing any GFlowNet agent, it's useful to explore the properties of t
 
 1. Checking the Initial State 
 
-Before training the agent, you can observe the initial state of the environment. For Scrabble environment, this would be an empty board or sequence:
+You can observe the initial state of the environment. For Scrabble environment, this would be an empty board or sequence:
 
 ```python
 env.state
@@ -67,7 +58,7 @@ env.state
 env.get_action_space()
 >>> [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (11,), (12,), (13,), (14,), (15,), (16,), (17,), (18,), (19,), (20,), (21,), (22,), (23,), (24,), (25,), (26,), (-1,)]
 ```
-This action space includes actions for adding each letter of the alphabet to the sequence, represented by indices from 1 to 26. The action (-1,) represents the end-of-sequence (EOS) action, indicating the termination of word formation.
+For Scrabble environment, the action space is all english alphabet letters indexed from 1 to 26. The action (-1,) represents the end-of-sequence (EOS) action, indicating the termination of word formation.
 
 3. Taking a Random Step
 
@@ -149,9 +140,50 @@ env.state2readable(batch.states[0])
 >>> 'T T U C'
 ```
 
+We can also compute the rewards and the proxy for all states or single state.
+
+```python
+proxy(env.states2proxy(batch.states))
+>>> tensor([ 6., 19., 39.])
+```
+Or single state
+
+```python
+proxy(env.state2proxy(batch.states[0]))
+>>> tensor([6.])
+```
+
+The `state2proxy` and `states2proxy` are helper functions that transform the input to appropriate format. For example to tensor. 
+
+We can also compute the rewards, and since our transformation function `g` is the identity, the rewards should be equal to the proxy directly. 
+
+```python
+proxy.rewards(env.states2proxy(batch.states))
+>>> tensor([ 6., 19., 39.])
+```
+
+## Installation
+
+**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+
++ This project **requires** `python 3.10` and `cuda 11.8`.
++ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
++ The recommend installation is as follows:
+
+```bash
+python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
+source ~/envs/gflownet/bin/activate  # Activate your environment.
+./prereq_ubuntu.sh  # Installs some packages required by dependencies.
+./prereq_python.sh  # Installs python packages with specific wheels.
+./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
+pip install .[all]  # Install the remaining elements of this package.
+```
+
+Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
+
 ## How to train a GFlowNet model
 
-To train a GFlowNet model with the default configuration, simply run
+The configuration is handled via the use of [Hydra](https://hydra.cc/docs/intro/). To train a GFlowNet model with the default configuration, simply run
 
 ```bash
 python main.py user.logdir.root=<path/to/log/files/>
@@ -171,7 +203,7 @@ python main.py gflownet=trajectorybalance env=ctorus proxy=torus
 
 The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
 
-Hydra configuration is hierarchical. For instance, a handy variable to change while debugging our code is to avoid logging to wandb. You can do this by setting `logger.do.online=False`.
+Hydra configuration is hierarchical. For instance, You can seamlessly modify exisiting flag or variable in the configuration by setting `logger.do.online=False`. For more, feel free to read the [Hydra documentation](https://hydra.cc/docs/intro/). 
 
 ## GFlowNet loss functions
 
