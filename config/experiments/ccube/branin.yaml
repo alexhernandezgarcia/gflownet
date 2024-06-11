@@ -7,7 +7,6 @@ defaults:
    - override /gflownet: trajectorybalance
    - override /proxy: box/branin
    - override /logger: wandb
-   - override /user: alex
 
 # Environment
 env:
