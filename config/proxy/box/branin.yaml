@@ -1,0 +1,5 @@
+_target_: gflownet.proxy.box.branin.Branin
+
+fidelity: 1.0
+do_domain_map: True
+negate: False
