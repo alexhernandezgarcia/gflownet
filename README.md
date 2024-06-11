@@ -24,7 +24,7 @@ The Scrabble environment simulates a simple letter arrangement game where sequen
 
 ``Actions`` in the Scrabble environment are single-element tuples containing the index of the letter to be added to the sequence. For instance, the end of the sequence (EOS) action is denoted by (-1,). The tuple format allows us to represent more than single action, because certain enviroments could have multiple actions. 
 
-In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. 
+In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. You can also watch a live coding tutorial on how to add your custom enviroment [here](https://www.youtube.com/watch?v=tMVJnzFqa6w&t=5h22m35s)
 
 ### Proxy
 
