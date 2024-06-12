@@ -2,11 +2,8 @@
 
 This repository implements GFlowNets, generative flow networks for probabilistic modelling, on PyTorch. A design guideline behind this implementation is the separation of the logic of the GFlowNet agent and the environments on which the agent can be trained on. In other words, this implementation facilitates the extension with new environments for new applications. 
 
-<div style="text-align: center;">
-    <img src="docs/images/image.png" alt="Tetris Environment" width="600" height="600"/>
-    <br>
-    <em>Figure 1: The Tetris environment</em>
-</div>
+![Tetris Environment](docs/images/image.png)
+*Figure 1: The Tetris environment*
 
 Figure 1 illustrates the Tetris environment implemented in our library. This environment is a simplified version of Tetris, where the action space includes choosing different Tetris pieces, rotating them, and deciding where to drop them on the game board. Each action affects the game state, demonstrating the potential of GFlowNets to manage complex, dynamic environments. The Tetris environment provides a familiar yet complex example of applying GFlowNets to problem spaces that are both spatial and temporal.
 
