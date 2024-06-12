@@ -1,12 +1,22 @@
-# GFlowNet
+# gflownet
 
-This repository implements GFlowNets, generative flow networks for probabilistic modelling, on PyTorch. A design guideline behind this implementation is the separation of the logic of the GFlowNet agent and the environments on which the agent can be trained on. In other words, this implementation facilitates the extension with new environments for new applications. 
-![Tetris Environment](docs/images/image.png)
-*Figure 1: The Tetris environment*
+gflownet is a library built upon [PyTorch](https://pytorch.org/) to easily train and extend [GFlowNets](https://arxiv.org/abs/2106.04399), also known as GFN or generative flow networks. GFlowNets are a machine learning framework for probabilistic and generative modelling, with a wide range of applications, especially in [scientific discovery](https://pubs.rsc.org/en/content/articlelanding/2023/dd/d3dd00002h) problems.
 
-Figure 1 illustrates the Tetris environment implemented in our library. This environment is a simplified version of Tetris, where the action space includes choosing different Tetris pieces, rotating them, and deciding where to drop them on the game board. Each action affects the game state, demonstrating the potential of GFlowNets to manage complex, dynamic environments. The Tetris environment provides a familiar yet complex example of applying GFlowNets to problem spaces that are both spatial and temporal.
+In a nutshell, GFlowNets can be regarded as a generative model designed to sample objects $x \in \mathcal{X}$ proportionally to a reward function $R(x)$. This results in the potential of sampling diverse objects with high rewards. For example, given the reward landscape depicted below, defined over a two-dimensional space, a well-trained GFlowNet will be able to sample from the four high-reward corners with high probability.
 
-For more details on how to configure and interact with the Tetris environment using our GFlowNet library, refer to our [detailed documentation](link-to-detailed-docs) or check out [this example](link-to-example) which walks through setting up and training a GFlowNet in this environment.
+<p align="center">
+  <img width="400" src="docs/images/reward_landscape.png" />
+</p>
+
+GFlowNets rely on the principle of **compositionality** to generate samples. A meaningful decomposition of samples $x$ into multiple intermediate states $s_0\rightarrow s_1 \rightarrow \dots \rightarrow x$ can yield generalisable patterns. These patterns can then be learned by neural networks trained to model the value of transitions $F_{\theta}(s_t \rightarrow s_{t+1})$.
+
+Consider the problem of generating [Tetris](https://en.wikipedia.org/wiki/Tetris)-like boards. A natural decomposition of the sample generation process would be to add one piece at a time, starting from an empty board. For any state representing a board with pieces, we could identify its valid parents and children, as illustrated in the figure below.
+
+<p align="center">
+  <img width="400" src="docs/images/tetris_flows.png" />
+</p>
+
+We could define a reward function $R(x)$ as the number of cells occupied by pieces, for instance. The goal of training a GFlowNet on this task would be to discover (sample) diverse solutions (boards with pieces) with high rewards. This represents an intuitive yet complex problem where GFlowNets can be used, which is [implemented in this library](https://github.com/alexhernandezgarcia/gflownet/blob/ahg/313-update-readme-components/gflownet/envs/tetris.py). Many problems in scientific discoveries, such as the inverse design of proteins, molecules, or crystals share similarties with this intuitive task.
 
 ## Main Components of the GFlowNet Library
 
