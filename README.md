@@ -8,12 +8,11 @@ In a nutshell, GFlowNets can be regarded as a generative model designed to sampl
 
 GFlowNets rely on the principle of **compositionality** to generate samples. A meaningful decomposition of samples $x$ into multiple intermediate states $s_0\rightarrow s_1 \rightarrow \dots \rightarrow x$ can yield generalisable patterns. These patterns can then be learned by neural networks trained to model the value of transitions $F_{\theta}(s_t \rightarrow s_{t+1})$.
 
-![Tetris Environment](docs/images/image.png)
-*Figure 1: The Tetris environment*
+Consider the problem of generating [Tetris](https://en.wikipedia.org/wiki/Tetris)-like boards. A natural decomposition of the sample generation process would be to add one piece at a time, starting from an empty board. For any state representing a board with pieces, we could identify its valid parents and children, as illustrated in the figure below.
 
-Figure 1 illustrates the Tetris environment implemented in our library. This environment is a simplified version of Tetris, where the action space includes choosing different Tetris pieces, rotating them, and deciding where to drop them on the game board. Each action affects the game state, demonstrating the potential of GFlowNets to manage complex, dynamic environments. The Tetris environment provides a familiar yet complex example of applying GFlowNets to problem spaces that are both spatial and temporal.
+![Tetris Environment](docs/images/tetris_flows.png)
 
-For more details on how to configure and interact with the Tetris environment using our GFlowNet library, refer to our [detailed documentation](link-to-detailed-docs) or check out [this example](link-to-example) which walks through setting up and training a GFlowNet in this environment.
+We could define a reward function $R(x)$ as the number of cells occupied by pieces, for instance. The goal of training a GFlowNet on this task would be to discover (sample) diverse solutions (boards with pieces) with high rewards. This represents an intuitive yet complex problem where GFlowNets can be used. Many problems in scientific discoveries, such as the inverse design of proteins, molecules, or crystals share similarties with this intuitive task.
 
 ## Main Components of the GFlowNet Library
 
