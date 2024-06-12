@@ -30,7 +30,7 @@ The Scrabble environment simulates a simple letter arrangement game where sequen
 
 ``Actions`` in the Scrabble environment are single-element tuples containing the index of the letter to be added to the sequence. For instance, the end of the sequence (EOS) action is denoted by (-1,). The tuple format allows us to represent more than single action, because certain enviroments could have multiple actions. 
 
-In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. 
+In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. You can also watch a live coding tutorial on how to add your custom enviroment [here](https://www.youtube.com/watch?v=tMVJnzFqa6w&t=5h22m35s)
 
 ### Proxy
 
@@ -228,7 +228,7 @@ The library also has Logger class which helps to manage all logging activities d
 
 ## Contributors
 
-Many wonderful scientists and developers have contributed to this repository: [Alex Hernandez-Garcia](https://github.com/alexhernandezgarcia), [Nikita Saxena](https://github.com/nikita-0209), [Alexandra Volokhova](https://github.com/AlexandraVolokhova), [Michał Koziarski](https://github.com/michalkoziarski), [Divya Sharma](https://github.com/sh-divya), [Pierre Luc Carrier](https://github.com/carriepl) and [Victor Schmidt](https://github.com/vict0rsch). The GFlowNet implementation was initially part of [github.com/InfluenceFunctional/ActiveLearningPipeline](https://github.com/InfluenceFunctional/ActiveLearningPipeline).
+Many wonderful scientists and developers have contributed to this repository: [Alex Hernandez-Garcia](https://github.com/alexhernandezgarcia), [Nikita Saxena](https://github.com/nikita-0209), [Alexandra Volokhova](https://github.com/AlexandraVolokhova), [Michał Koziarski](https://github.com/michalkoziarski), [Divya Sharma](https://github.com/sh-divya), [Pierre Luc Carrier](https://github.com/carriepl) and [Victor Schmidt](https://github.com/vict0rsch).
 
 ## Research
 
