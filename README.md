@@ -5,7 +5,7 @@ gflownet is library built upon [PyTorch](https://pytorch.org/) to easily train a
 In a nutshell, GFlowNets can be regarded as a generative model designed to sample objects $x \in \mathcal{X}$ proportionally to a reward function $R(x)$. This results in the potential of sampling diverse objects with high rewards. For example, given the reward landscape depicted below, defined over a two-dimensional space, a well-trained GFlowNet will be able to sample from the four high-reward corners with high probability.
 
 <p align="center">
-  <img style="max-width: 50px" src="docs/images/reward_landscape.png"/>
+  <img width="50" src="docs/images/reward_landscape.png" />
 </p>
 
 GFlowNets rely on the principle of **compositionality** to generate samples. A meaningful decomposition of samples $x$ into multiple intermediate states $s_0\rightarrow s_1 \rightarrow \dots \rightarrow x$ can yield generalisable patterns. These patterns can then be learned by neural networks trained to model the value of transitions $F_{\theta}(s_t \rightarrow s_{t+1})$.
