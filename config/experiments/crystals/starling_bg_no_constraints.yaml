@@ -95,12 +95,11 @@ proxy:
   reward_min: 1e-08
   do_clip_rewards: True
   release: 1.0.0 # Bandgap release
-  release: 1.0.0 # Bandgap release
   # RBF exponential, to compute the proximity to a target
   reward_function: rbf_exponential
   # Parameters of the reward function
   reward_function_kwargs:
-    beta: 8.0
+    beta: -8.0
     alpha: 1.0
     center: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
     distance: squared
