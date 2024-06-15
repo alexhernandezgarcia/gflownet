@@ -20,7 +20,7 @@ We could define a reward function $R(x)$ as the number of cells occupied by piec
 
 ## Main Components of the GFlowNet Library
 
-The GFlowNet library comprises four core components, each playing a crucial role in the network's operation. Understanding these components is essential for effectively using and extending the library for your tasks. These components are the Environment, Proxy, Policies (Forward and Backward), and the GFlowNet Agent.
+The GFlowNet library comprises four core componentsi: environment, proxy, policy models (forward and backward), and GFlowNet agent.
 
 ### Environment
 
