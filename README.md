@@ -32,7 +32,9 @@ Using the gflownet library for a new task will typically require implementing yo
 
 ### Proxy
 
-The Proxy plays a crucial role in computing rewards for the actions taken within an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a transformation function `R(x) = g(e(x))`, where `e(x)` represents an encoding or transformation or computes the score of the generated output `x`, and `g` translates this into a reward (i.e. `R(x)`). For example, if the word `Alex` is sampled in our Scrabble environment and is valid in our vocabulary, it might receive a score of 39. If `g` is the identity function, then our reward would directly be equal to the proxy score (i.e. `e(x)`). While in many environments the proxy functions is a simple scorer, in more complex settings (like molecule generation where it could be an energy function), we consistently refer to it as the Proxy in the GFlowNet library.
+We use the term "[proxy](gflownet/proxy/base.py)" to refer to the function or model that provides the rewards for the states of an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a function $E(x)$ from which the reward is derived: $R(x) = g(E(x))$, where $g$ is a function that transforms the proxy values into non-zero rewards, that is "the higher the reward the better". For example, we can implement a proxy that simulates the scores of a word in the Scrabble game. That is, the [`ScrabbleScorer`](gflownet/proxy/scrabble.py) proxy computes the sum of the score of each letter of a word. For the word "CAT" that is $E(x) = 3 + 1 + 1 = 5$. While in many environments the proxy functions is a simple scorer, more complex settings like molecule or [crystal generation](gflownet/proxy/crystals/dave.py) may be use proxies that represent the energy or a property predicted by a pre-trained machine learning model.
+
+Adapting the gflownet library for a new task will also likely require implementing your own proxy, which is usually fairly simple, as illustrated in the documentation.
 
 ### Policies (Forward and Backward)
 
