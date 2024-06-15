@@ -20,17 +20,15 @@ We could define a reward function $R(x)$ as the number of cells occupied by piec
 
 ## Main Components of the GFlowNet Library
 
-The GFlowNet library comprises four core componentsi: environment, proxy, policy models (forward and backward), and GFlowNet agent.
+The GFlowNet library comprises four core components: environment, proxy, policy models (forward and backward), and GFlowNet agent.
 
 ### Environment
 
-The Environment is the main and most important component of the GFlowNet Library. To illustrate this, consider a simple environment currently implemented in the library: the Scrabble environment. 
+The environment defines the state space $\mathcal{S}$ and action space $\mathbb{A} of a particular problem, for example the Tetris task. To illustrate the environment, let's consider an even simpler environment currently implemented in the library: the [Scrabble](https://en.wikipedia.org/wiki/Scrabble) environment, inspired by the popular board game. 
 
-The Scrabble environment simulates a simple letter arrangement game where sequences are constructed by adding one letter at a time, up to a maximum sequence length (in our case 7). Each environment has State Representations and Actions. For instance, in the Scrabble enviroment, Each `State` is a list of indices corresponding to letters. These indices start from 1 and are padded with index 0 to denote unused slots up to the maximum length. For example, if our sequence length is 7, and our constructed word is `Alex`, it would be represented as `[1, 11, 4, 23, 0, 0, 0]`. The library includes helper functions that automatically format and convert states to and from a human-readable format. 
+The Scrabble environment simulates a simple letter arrangement game where words are constructed by adding one letter at a time, up to a maximum sequence length (typically 7). Therefore, the action space is the set of all English letters plus a special end-of-sequence (EOS) action; and the state space is the set of all possible words with up to 7 letters. We can represent each `state` as a list of indices corresponding to the letters, padded with zeroes to the maximum length. For example, the state for the word "CAT" would be represented as `[3, 1, 20, 0, 0, 0, 0]`. Actions in the Scrabble environment are single-element tuples containing the index of the letter, plus the end-of-sequence (EOS) action `(-1,)`.
 
-``Actions`` in the Scrabble environment are single-element tuples containing the index of the letter to be added to the sequence. For instance, the end of the sequence (EOS) action is denoted by (-1,). The tuple format allows us to represent more than single action, because certain enviroments could have multiple actions. 
-
-In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. You can also watch a live coding tutorial on how to add your custom enviroment [here](https://www.youtube.com/watch?v=tMVJnzFqa6w&t=5h22m35s)
+Using the gflownet library for a new task will typically require implementing your own environment. The library is particularly designed to make such extensions as easy as possible. In the documentation, we show how to do it step by step. You can also watch [this live-coding tutorial](https://www.youtube.com/watch?v=tMVJnzFqa6w&t=5h22m35s) on how to code the Scrabble environment.
 
 ### Proxy
 
