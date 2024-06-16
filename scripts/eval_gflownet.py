@@ -173,7 +173,7 @@ def main(args):
     # ---------------------------------
 
     if not args.samples_only:
-        gflownet.logger.test.n = args.n_samples
+        gflownet.evaluator.n = args.n_samples
         eval_results = gflownet.evaluator.eval()
 
         # TODO-V: legacy -> ok to remove?
@@ -184,16 +184,18 @@ def main(args):
         print("output_dir: ", str(output_dir))
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for figname, fig in eval_results["figs"].items():
-            output_fig = output_dir / (path_compatible(figname) + ".pdf")
-            if fig is not None:
-                fig.savefig(output_fig, bbox_inches="tight")
-        print(f"Saved figures to {output_dir}")
+        if "figs" in eval_results:
+            for figname, fig in eval_results["figs"].items():
+                output_fig = output_dir / (path_compatible(figname) + ".pdf")
+                if fig is not None:
+                    fig.savefig(output_fig, bbox_inches="tight")
+            print(f"Saved figures to {output_dir}")
 
         # Print metrics
-        print("Metrics:")
-        for k, v in eval_results["metrics"].items():
-            print(f"\t{k}: {v:.4f}")
+        if "metrics" in eval_results:
+            print("Metrics:")
+            for k, v in eval_results["metrics"].items():
+                print(f"\t{k}: {v:.4f}")
 
     # ------------------------------------------
     # -----  Sample GFlowNet  -----
@@ -209,7 +211,6 @@ def main(args):
             config_cond_env = config_cond_env.env
         env_cond = instantiate(
             config_cond_env,
-            proxy=env.proxy,
             device=config.device,
             float_precision=config.float_precision,
         )
@@ -234,7 +235,7 @@ def main(args):
                 n_forward=bs, env_cond=env_cond, train=False
             )
             x_sampled = batch.get_terminating_states(proxy=True)
-            energies = env.proxy(x_sampled)
+            energies = gflownet.proxy(x_sampled)
             x_sampled = batch.get_terminating_states()
             df = pd.DataFrame(
                 {

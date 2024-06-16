@@ -385,6 +385,7 @@ def load_gflow_net_from_run_path(
     if forward_final is None:
         print("Warning: no forward policy checkpoint found")
     else:
+        print(f"\nLoading forward policy checkpoint: {str(forward_final)}")
         gflownet.forward_policy.model.load_state_dict(
             torch.load(forward_final, map_location=set_device(device))
         )
@@ -393,6 +394,7 @@ def load_gflow_net_from_run_path(
     if backward_final is None:
         print("Warning: no backward policy checkpoint found")
     else:
+        print(f"Loading backward policy checkpoint: {str(backward_final)}\n")
         gflownet.backward_policy.model.load_state_dict(
             torch.load(backward_final, map_location=set_device(device))
         )
