@@ -36,13 +36,13 @@ We use the term "[proxy](gflownet/proxy/base.py)" to refer to the function or mo
 
 Adapting the gflownet library for a new task will also likely require implementing your own proxy, which is usually fairly simple, as illustrated in the documentation.
 
-### Policies (Forward and Backward)
+### Policy models
 
-The policies are neural networks that model the probability distributions of possible actions given a current state. They are key to deciding the next state given previous state in the network's exploration of the environment. Both forward and backward policies receive the current state as input and output a flow distribution over possible actions. We use the term "flow" here, because the idea of GFlowNet is to flow a sequence of intermediate steps before generating the final object `x` (e.g. to generate `x` we might take the steps `s_1 -> s_2 -> s_3 -> ... -> x`). Particularly, the forward policy determines the next state, while the backward policy determines the previous state (i.e. helps retrace steps to a previous state).
+The policy models are neural networks that model the forward and backward transitions between states, $F_F_{\theta}(s_t \rightarrow s_{t+1})$ (forward) and $F_B_{\theta}(s_{t+1} \rightarrow s_t)$ (backward). These models take a state as input and output a distribution over the actions in the action space. For continuous environments, the outputs are the parameters of a probability distribution to sample continuous-valued actions. For many tasks, simple multi-layer perceptrons with a few layers do the job, but technically any architecture could be used as policy model. 
 
 ### GFlowNet Agent
 
-The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy to conduct training and generation tasks. The agent manages the training setup, action sampling, trajectory generation, and metrics logging. Some of the features and functionalities of the agent are initializing and configuring the environment and proxy to ensure they are ready for training and evaluation. The agent also manages both forward and backward policies to determine the next actions based on the current state. The agent can utilize the various types of loss functions implemented in the library, such as flow matching, trajectory balance, and detailed balance to optimize model's performance during training. 
+The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: flow matching (FM), trajectory balance (TB), and detailed balance (TB) and forward-looking (FL). 
 
 #### Exploring the Scrabble Environment
 
