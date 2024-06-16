@@ -38,7 +38,7 @@ Adapting the gflownet library for a new task will also likely require implementi
 
 ### Policy models
 
-The policy models are neural networks that model the forward and backward transitions between states, $F_F_{\theta}(s_t \rightarrow s_{t+1})$ (forward) and $F_B_{\theta}(s_{t+1} \rightarrow s_t)$ (backward). These models take a state as input and output a distribution over the actions in the action space. For continuous environments, the outputs are the parameters of a probability distribution to sample continuous-valued actions. For many tasks, simple multi-layer perceptrons with a few layers do the job, but technically any architecture could be used as policy model. 
+The policy models are neural networks that model the forward and backward transitions between states, $F_{F_{\theta}}(s_t \rightarrow s_{t+1})$ (forward) and $F_{B_{\theta}}(s_{t+1} \rightarrow s_t)$ (backward). These models take a state as input and output a distribution over the actions in the action space. For continuous environments, the outputs are the parameters of a probability distribution to sample continuous-valued actions. For many tasks, simple multi-layer perceptrons with a few layers do the job, but technically any architecture could be used as policy model. 
 
 ### GFlowNet Agent
 
