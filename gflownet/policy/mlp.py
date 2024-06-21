@@ -1,4 +1,5 @@
 from torch import nn
+from omegaconf import OmegaConf
 from gflownet.policy.base import Policy
 
 
@@ -59,11 +60,15 @@ class MLPPolicy(Policy):
             )
 
     def parse_config(self, config):
-        self.checkpoint = config.get("checkpoint", False)
+        if config is None:
+            config = OmegaConf.create()
+            config.type = "mlp"  
+        self.checkpoint = config.get("checkpoint", None)
         self.shared_weights = config.get("shared_weights", False)
-        self.n_hid = config.get("n_hid", None)
-        self.n_layers = config.get("n_layers", None)
+        self.n_hid = config.get("n_hid", 128)
+        self.n_layers = config.get("n_layers", 2)
         self.tail = config.get("tail", [])
+        self.reload_ckpt = config.get("reload_ckpt", False)
 
     def instantiate(self):
         self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
