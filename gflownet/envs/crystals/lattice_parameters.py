@@ -576,7 +576,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         elif self.lattice_system == MONOCLINIC:
             # Constraint : alpha == gamma == 90 degrees
-            ignored_dims = [True, False, True, False, False, False]
+            self.ignored_dims = [True, False, True, False, False, False]
             self.projection_tied_values = [None] * 6
             self.projection_fixed_values = [0, None, 0, None, None, None]
             self.lattice_params_tied_values = [None] * 6
@@ -584,7 +584,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         elif self.lattice_system == ORTHORHOMBIC:
             # Constraint : alpha == beta == gamma == 90 degrees
-            ignored_dims = [True, True, True, False, False, False]
+            self.ignored_dims = [True, True, True, False, False, False]
             self.projection_tied_values = [None] * 6
             self.projection_fixed_values = [0, 0, 0, None, None, None]
             self.lattice_params_tied_values = [None] * 6
@@ -594,7 +594,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # Constraints :
             # - alpha == beta == gamma == 90 degrees
             # - a == b
-            ignored_dims = [True, True, True, True, False, False]
+            self.ignored_dims = [True, True, True, True, False, False]
             self.projection_tied_values = [None] * 6
             self.projection_fixed_values = [0, 0, 0, 0, None, None]
             self.lattice_params_tied_values = [None, 0, None, None, None, None]
@@ -605,7 +605,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # - alpha == beta == 90 degrees
             # - gamma == 120 degrees
             # - a == b
-            ignored_dims = [True, True, True, True, False, False]
+            self.ignored_dims = [True, True, True, True, False, False]
             self.projection_tied_values = [None] * 6
             self.projection_fixed_values = [-numpy.log(3) / 2, 0, 0, 0, None, None]
             self.lattice_params_tied_values = [None, 0, None, None, None, None]
@@ -615,7 +615,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # Constraints :
             # alpha == beta == gamma != 90 degrees
             # a == b == c
-            ignored_dims = [False, True, True, True, True, False]
+            self.ignored_dims = [False, True, True, True, True, False]
             self.projection_tied_values = [None, 0, 0, None, None, None]
             self.projection_fixed_values = [None, None, None, 0, 0, None]
             self.lattice_params_tied_values = [None, 0, 0, None, 3, 3]
@@ -625,7 +625,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # Constraints :
             # - alpha == beta == gamma == 90 degrees
             # - a == b == c
-            ignored_dims = [True, True, True, True, True, False]
+            self.ignored_dims = [True, True, True, True, True, False]
             self.projection_tied_values = [None] * 6
             self.projection_fixed_values = [0, 0, 0, 0, 0, None]
             self.lattice_params_tied_values = [None, 0, 0, None, None, None]
