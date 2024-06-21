@@ -9,10 +9,10 @@ import sys
 
 import hydra
 import pandas as pd
+from crystalrandom import generate_random_crystals_uniform
+
 from gflownet.utils.common import chdir_random_subdir
 from gflownet.utils.policy import parse_policy_config
-
-from crystalrandom import generate_random_crystals_uniform
 
 
 @hydra.main(config_path="../../config", config_name="main", version_base="1.1")
