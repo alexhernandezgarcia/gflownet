@@ -1,5 +1,6 @@
-from torch import nn
 from omegaconf import OmegaConf
+from torch import nn
+
 from gflownet.policy.base import Policy
 
 
