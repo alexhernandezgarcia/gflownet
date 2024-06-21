@@ -2,6 +2,7 @@
 A simple script to determine which space group symbols are different in pyxtal and
 pymatgen.
 """
+
 from argparse import ArgumentParser
 
 from pymatgen.symmetry.groups import (

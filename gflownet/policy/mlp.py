@@ -62,7 +62,7 @@ class MLPPolicy(Policy):
     def parse_config(self, config):
         if config is None:
             config = OmegaConf.create()
-            config.type = "mlp"  
+            config.type = "mlp"
         self.checkpoint = config.get("checkpoint", None)
         self.shared_weights = config.get("shared_weights", False)
         self.n_hid = config.get("n_hid", 128)

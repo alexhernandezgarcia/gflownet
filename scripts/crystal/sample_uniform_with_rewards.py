@@ -3,6 +3,7 @@ Script for sampling uniform crystals (w/o constraints) and evaluating them with 
 should be run with the same config as main.py, e.g. 
 python sample_uniform_with_rewards.py +experiments=crystals/albatross_sg_first logger.do.online=False user=sasha
 """
+
 import pickle
 import sys
 
