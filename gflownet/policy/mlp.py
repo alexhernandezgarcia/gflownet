@@ -1,17 +1,16 @@
-# policy_models/mlp_policy.py
-
-import torch
 from torch import nn
-from gflownet.policy.base import ModelBase
+from gflownet.policy.base import Policy
 
 
-class MLPPolicy(ModelBase):
+class MLPPolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(config, env, device, float_precision, base)
-        self.instantiate()
-
-    def instantiate(self):
-        self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
+        super().__init__(
+            config=config,
+            env=env,
+            device=device,
+            float_precision=float_precision,
+            base=base,
+        )
         self.is_model = True
 
     def make_mlp(self, activation):
@@ -58,3 +57,16 @@ class MLPPolicy(ModelBase):
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
+
+    def parse_config(self, config):
+        self.checkpoint = config.get("checkpoint", False)
+        self.shared_weights = config.get("shared_weights", False)
+        self.n_hid = config.get("n_hid", None)
+        self.n_layers = config.get("n_layers", None)
+        self.tail = config.get("tail", [])
+
+    def instantiate(self):
+        self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
+
+    def __call__(self, states):
+        return self.model(states)
