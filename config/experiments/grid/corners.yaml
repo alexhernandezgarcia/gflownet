@@ -1,0 +1,61 @@
+# @package _global_
+# A configuration that works well with a 10x10 Grid environment and the corners proxy.
+
+defaults:
+   - override /env: grid
+   - override /gflownet: trajectorybalance
+   - override /proxy: box/corners
+   - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 2
+  length: 10
+  max_increment: 1
+  max_dim_per_action: 1
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+    checkpoint: forward
+  backward:
+    shared_weights: True
+    checkpoint: backward
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "grid"
+  tags: 
+    - gflownet
+    - grid
+    - corners
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
