@@ -44,7 +44,52 @@ The policy models are neural networks that model the forward and backward transi
 
 The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: flow matching (FM), trajectory balance (TB), and detailed balance (TB) and forward-looking (FL). 
 
-#### Exploring the Scrabble Environment
+## Installation
+
+**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+
++ This project **requires** `python 3.10` and `cuda 11.8`.
++ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
++ The recommend installation is as follows:
+
+```bash
+python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
+source ~/envs/gflownet/bin/activate  # Activate your environment.
+./prereq_ubuntu.sh  # Installs some packages required by dependencies.
+./prereq_python.sh  # Installs python packages with specific wheels.
+./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
+pip install .[all]  # Install the remaining elements of this package.
+```
+
+Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
+
+## Quickstart: How to train a GFlowNet model
+
+The gflownet library uses [Hydra](https://hydra.cc/docs/intro/) to handle configuration files. This allows, for instance, to easily train a GFlowNet with the configuration of a specific YAML file. For example, to train a GFlowNet with a 10x10 Grid environment and the corners proxy, with the configuration from `./config/experiments/grid/corners.yaml`, we can simply run:
+
+```bash
+python main.py +experiments=grid/corners
+```
+
+Alternatively, we can explicitly indicate the environment and the proxy as follows:
+
+```bash
+python main.py env=grid proxy=box/corners
+```
+
+The above command will train a GFlowNet with the default configuration, except for the environment, which will use `./config/env/grid.yaml`; and the proxy, which will use `./config/proxy/box/corners.yaml`.
+
+All other configurable options are handled similarly. For example, we recommend creating a user configuration file in `./config/user/myusername.yaml` specifying the directory for the log files in `logdir.root`. Then, it can be included in the command with `user=myusername` or `user=$USER` if the name of the YAML file matches our system username.
+
+As another example, you may also want to configure the functionality of the Logger, the class which helps manage logging to [Weights & Biases](https://wandb.ai/) during the training and evaluation of the model. Logging to WandB is disabled by default. In order to enable it, make sure to set up your WandB API key and set the configuration variable `logger.do.online` to `True` in your experiment config file or via the command line:
+
+```bash
+python main.py +experiments=grid/corners logger.do.online=True
+```
+
+Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
+
+## Exploring the Scrabble Environment
 
 To better understand the GFlowNet components, let us explore the Scrabble environment in more detail below.
 
@@ -168,51 +213,6 @@ proxy.rewards(env.states2proxy(batch.states))
 >>> tensor([ 6., 19., 39.])
 ```
 
-## Installation
-
-**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
-
-+ This project **requires** `python 3.10` and `cuda 11.8`.
-+ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
-+ The recommend installation is as follows:
-
-```bash
-python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
-source ~/envs/gflownet/bin/activate  # Activate your environment.
-./prereq_ubuntu.sh  # Installs some packages required by dependencies.
-./prereq_python.sh  # Installs python packages with specific wheels.
-./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
-pip install .[all]  # Install the remaining elements of this package.
-```
-
-Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
-
-## How to train a GFlowNet model
-
-The configuration is handled via the use of [Hydra](https://hydra.cc/docs/intro/). To train a GFlowNet model with the default configuration, simply run
-
-```bash
-python main.py user.logdir.root=<path/to/log/files/>
-```
-
-Alternatively, you can create a user configuration file in `config/user/<username>.yaml` specifying a `logdir.root` and run
-
-```bash
-python main.py user=<username>
-```
-
-Using Hydra, you can easily specify any variable of the configuration in the command line. For example, to train GFlowNet with the trajectory balance loss, on the continuous torus (`ctorus`) environment and the corresponding proxy:
-
-```bash
-python main.py gflownet=trajectorybalance env=ctorus proxy=torus
-```
-
-The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
-
-Hydra configuration is hierarchical. For instance, You can seamlessly modify exisiting flag or variable in the configuration by setting `logger.do.online=False`. For more, feel free to read the [Hydra documentation](https://hydra.cc/docs/intro/). 
-
-Note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
-
 ## GFlowNet loss functions
 
 Currently, the implementation includes the following GFlowNet losses:
@@ -221,10 +221,6 @@ Currently, the implementation includes the following GFlowNet losses:
 - [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
 - [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
 - [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
-
-## Logger 
-
-The library also has Logger class which helps to manage all logging activities during the training and evaluation of the network. It captures and stores logs to track the model's performance and debugging information. For instance, it logs details such as training progress, performance metrics, and any potential errors or warnings that occur. It also integrates to [wandb.ai](https://wandb.ai) providing a cloud-based platform for logging the train and evaluation metrics to [wandb.ai](https://wandb.ai). The WandB is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
 
 ## Contributors
 
