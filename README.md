@@ -42,7 +42,7 @@ The policy models are neural networks that model the forward and backward transi
 
 ### GFlowNet Agent
 
-The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: flow matching (FM), trajectory balance (TB), and detailed balance (TB) and forward-looking (FL). 
+The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: [flow matching (FM)](https://arxiv.org/abs/2106.04399), [trajectory balance (TB)](https://arxiv.org/abs/2201.13259), [detailed balance (TB)](https://arxiv.org/abs/2201.13259) and [forward-looking (FL)](https://arxiv.org/abs/2302.01687).
 
 ## Installation
 
@@ -90,6 +90,14 @@ A typical use case of the gflownet library is to extend it with a new environmen
 ```bash
 python main.py env=myenv proxy=myproxy
 ```
+
+The objective function to optimise is selected directly via the `gflownet` configuration. The following GFlowNet objectives are supported:
+
+- [Flow-matching (FM)](https://arxiv.org/abs/2106.04399): `gflownet=flowmatch`
+- [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
+- [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
+- [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
+
 
 All other configurable options are handled similarly. For example, we recommend creating a user configuration file in `./config/user/myusername.yaml` specifying the directory for the log files in `logdir.root`. Then, it can be included in the command with `user=myusername` or `user=$USER` if the name of the YAML file matches our system username.
 
@@ -224,15 +232,6 @@ We can also compute the rewards, and since our transformation function `g` is th
 proxy.rewards(env.states2proxy(batch.states))
 >>> tensor([ 6., 19., 39.])
 ```
-
-## GFlowNet loss functions
-
-Currently, the implementation includes the following GFlowNet losses:
-
-- [Flow-matching (FM)](https://arxiv.org/abs/2106.04399): `gflownet=flowmatch`
-- [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
-- [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
-- [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
 
 ## Contributors
 
