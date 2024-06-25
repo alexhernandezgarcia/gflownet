@@ -46,7 +46,13 @@ The GFlowNet Agent is the central component that ties all others together. It or
 
 ## Installation
 
-**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+**If you simply want to install everything, clone the repo and run `setup_all.sh`:**
+
+```bash
+git clone git@github.com:alexhernandezgarcia/gflownet.git
+cd gflownet
+./setup_all.sh
+```
 
 + This project **requires** `python 3.10` and `cuda 11.8`.
 + Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
