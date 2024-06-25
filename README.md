@@ -109,79 +109,98 @@ python main.py +experiments=grid/corners logger.do.online=True
 
 Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
 
-## Exploring the Scrabble Environment
+## Exploring the Scrabble environment
 
-To better understand the GFlowNet components, let us explore the Scrabble environment in more detail below.
+To better understand the functionality and implementation of GFlowNet environments, let us explore the Scrabble environment in more detail.
 
-When initializing any GFlowNet agent, it's useful to explore the properties of the environment. The library offers various functionalities for this purpose. Below are some detailed examples, among others:
+1. Instantiating a Scrabble environment
 
-1. Checking the Initial State 
+```python
+from gflownet.envs.scrabble import Scrabble
+env = Scrabble()
+```
 
-You can observe the initial state of the environment. For Scrabble environment, this would be an empty board or sequence:
+2. Checking the initial (source) state
+
+Every environment has a `state` attribute, which gets updated as actions are performed. The initial state correspond to the `source` state:
 
 ```python
 env.state
 >>> [0, 0, 0, 0, 0, 0, 0]
+env.equal(env.state, env.source)
+>>> True
 ```
 
-2. Exploring the Action Space
+In the Scrabble environment, the state is represented by a list of letter indices, padded by 0's up to the maximum word length (7 by default).
+
+3. Checking the action space
+
+The actions of every environment are represented by tuples, and the set of all possible actions makes the action space:
+
 ```python
-env.get_action_space()
+env.action_space
 >>> [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (11,), (12,), (13,), (14,), (15,), (16,), (17,), (18,), (19,), (20,), (21,), (22,), (23,), (24,), (25,), (26,), (-1,)]
 ```
-For Scrabble environment, the action space is all english alphabet letters indexed from 1 to 26. The action (-1,) represents the end-of-sequence (EOS) action, indicating the termination of word formation.
 
-3. Taking a Random Step
+In the Scrabble environment, the actions to append a letter from the English alphabet is represented by a single-element tuple with the letter index, from 1 to 26. The action space also contains (-1,) which represents the end-of-sequence (EOS) action, indicating the termination of word formation.
 
 ```python
-new_state, action_taken, valid = env.step_random()
-print("New State:", new_state)
-print("Action Taken:", action_taken)
-print("Action Valid:", valid)
-
->>> New State: [24, 0, 0, 0, 0, 0, 0]
->>> Action Taken: (24,)
->>> Action Valid: True
+env.eos
+>>> (-1,)
 ```
 
-This function randomly selects a valid action (adding a letter or ending the sequence) and applies it to the environment. The output shows the new state, the action taken, and whether the action was valid.
+4. Performing a step
 
-4. Performing a Specific Action
+We can apply one action from the action space to perform a state transition via the `step()` method:
 
 ```python
 action = (1,)  # Action to add 'A'
 new_state, performed_action, is_valid = env.step(action)
-print("Updated State:", new_state)
-print("Performed Action:", performed_action)
-print("Was the Action Valid:", is_valid)
->>> Updated State: [24, 1, 0, 0, 0, 0, 0]
->>> Performed Action: (1,)
->>> Was the Action Valid: True
+print("Updated state:", new_state)
+print("Performed action:", performed_action)
+print("Action was valid:", is_valid)
+>>> Updated state: [1, 0, 0, 0, 0, 0, 0]
+>>> Performed action: (1,)
+>>> Action was valid: True
+env.equal(env.state, new_state)
+>>> True
 ```
 
-5. Displaying the State as a human readable
+This function randomly selects a valid action (adding a letter or ending the sequence) and applies it to the environment. The output shows the new state, the action taken, and whether the action was valid.
+
+5. Performing a random step
+
+We can also use the method `step_random()` to perform a randomly sampled action:
 
 ```python
-env.state2readable(env.state)
->>> 'X A'
+new_state, performed_action, is_valid = env.step_random()
+print("Updated state:", new_state)
+print("Performed action:", performed_action)
+print("Action was valid:", is_valid)
+>>> Updated state: [1, 24, 0, 0, 0, 0, 0]
+>>> Performed action: (24,)
+>>> Action was valid: True
 ```
 
-6. Interpreting Actions as a human readable
+6. Unfolding a full random trajectory
+
+Similarly, we can also unfold a complete random trajectory, that is a sequence of actions terminated by the EOS action:
 
 ```python
-print("Action Meaning:", env.idx2token[action[0]])
->>> Action Meaning: A
+final_state, trajectory_actions = env.trajectory_random()
+print("Final state:", final_state)
+print("Sequence of actions:", trajectory_actions)
+print("Trajectory is done:", env.done)
+>>> Final state: [1, 24, 10, 6, 4, 21, 21]
+>>> Sequence of actions: [(1,), (24,), (10,), (6,), (4,), (21,), (21,), (-1,)]
+>>> Trajectory is done: True
 ```
 
-7. Sampling a Random Trajectory
+7. Displaying the state as a human readable string
 
 ```python
-new_state, action_sequence = env.trajectory_random()
-print("New State:", new_state)
-print("Action Sequence:" action_sequence)
-
->>> New State: [16, 16, 17, 20, 11, 16, 0]
->>> Action Sequence: [(16,), (16,), (17,), (20,), (11,), (16,), (-1,)]
+env.state2readable()
+>>> 'A X J F D U U'
 ```
 
 8. Reset enviroment 
@@ -192,9 +211,9 @@ env.state
 >>> [0, 0, 0, 0, 0, 0, 0]
 ```
 
-So far, we've discussed how to manually set actions or use random actions in the GFlowNet environment. This approach is useful for testing or understanding the basic mechanics of the environment. However, in practice, the goal of a GFlowNet agent is to learn from its experiences to take increasingly effective actions that are driven by a learned policy. 
+So far, we've seen how to manually set actions or use random actions in the GFlowNet environment. This approach is useful for testing or understanding the basic mechanics of the environment. However, in practice, the goal of a GFlowNet agent is to adjust the parameters of the policy model to sample actions that result in trajectories with likelihoods proportional to the reward.
 
-As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train a policy network, which models the probability distribution of possible actions given the current state. Over time, the policy network learns to favor actions that lead to more successful outcomes with higher reward, optimizing the agent's performance.
+As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train the policy networks, which model the probability of state transitions given the current state.
 
 9. Sample a batch of trajectories from a trained agent 
 
