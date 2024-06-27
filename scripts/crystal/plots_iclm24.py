@@ -639,88 +639,6 @@ def plot_gfn_energies_violins(
     return fig_paths
 
 
-def sample_gflownet(gflownet, n_samples=1e3, batch_size=10, energy_key="energy"):
-    """
-    Generate samples from a GFlowNet model.
-
-    Args:
-        gflownet (object): GFlowNet model.
-        n_samples (int, optional): Number of samples to generate. Default is 1000.
-        batch_size (int, optional): Batch size for sampling. Default is 10.
-        energy_key (str, optional): Key to store energy values in the output dictionary.
-            Default is "energy".
-
-    """
-    n_batches = int(np.ceil(n_samples / batch_size))
-    samples = []
-    for _ in tqdm(range(n_batches), total=n_batches):
-        batch, times = gflownet.sample_batch(
-            n_forward=batch_size, env_cond=None, train=False
-        )
-        x_sampled = batch.get_terminating_states(proxy=True)
-        proxy_energies = gflownet.env.proxy(x_sampled)
-        x_sampled = batch.get_terminating_states()
-        samples.append({"x": x_sampled, energy_key: proxy_energies.tolist()})
-
-    output = {"x": [], energy_key: []}
-    for dct in samples:
-        output["x"].extend(dct["x"])
-        output[energy_key].extend(dct[energy_key])
-    return output
-
-
-def gfn_samples_to_df(samples, gfn_els_zs, sg_key="Space Group", energy_key="energy"):
-    # Warning: this implementetion is old and expects composition to be a list of integers, not a dictionary
-    """
-    Convert the samples from the GFlowNet to a DataFrame.
-
-    Args:
-        samples (dict): Dictionary containing sampled data.
-        gfn_els_zs (list): List of atomic numbers corresponding to elements in the samples.
-        sg_key (str, optional): Key to store the space group in the DataFrame. Default is "Space Group".
-        energy_key (str, optional): Key to store energy values in the DataFrame. Default is "energy".
-
-    Returns:
-        pandas.DataFrame: DataFrame containing the converted samples.
-            Columns:
-                - idx: Index of the sample.
-                - Space Group: Space group of the sample.
-                - a: Lattice parameter 'a' of the sample.
-                - b: Lattice parameter 'b' of the sample.
-                - c: Lattice parameter 'c' of the sample.
-                - alpha: Lattice parameter 'alpha' of the sample.
-                - beta: Lattice parameter 'beta' of the sample.
-                - gamma: Lattice parameter 'gamma' of the sample.
-                - element1, element2, ...: Composition of elements in the sample.
-                - energy_key: Energy value associated with the sample.
-    """
-    df = []
-    for i, (x, e) in enumerate(zip(samples["x"], samples[energy_key])):
-        _, (_, _, sg), comp, (a, b, c, alpha, beta, gamma) = x
-        s = {
-            "idx": i,
-            "Space Group": sg,
-            "a": a,
-            "b": b,
-            "c": c,
-            "alpha": alpha,
-            "beta": beta,
-            "gamma": gamma,
-            energy_key: e,
-        }
-        for k, v in enumerate(comp):
-            el_name = ELS_TABLE[gfn_els_zs[k] - 1]
-            s[el_name] = v
-        df.append(s)
-    df = pd.DataFrame(df)
-    cols = (
-        ["idx", sg_key, "a", "b", "c", "alpha", "beta", "gamma"]
-        + sort_names_for_z([ELS_TABLE[i - 1] for i in gfn_els_zs])
-        + [energy_key]
-    )
-    return df[cols]
-
-
 def sort_names_for_z(element_names):
     return sorted(element_names, key=lambda x: ELS_TABLE.tolist().index(x))
 
@@ -783,37 +701,20 @@ def pkl_samples_to_df(samples, elements_names, sg_key="Space Group", energy_key=
 
 
 def load_gfn_samples(
-    element_names, pkl_path=None, ckpt_path=None, n_samples=1e3, batch_size=10
-):
+    element_names, pkl_path):
     """
-    Load samples from either pickled data or a trained GFlowNet model and convert them to a DataFrame.
+    Load samples from pickled data and convert them to a DataFrame.
 
     Args:
         element_names (list): List of names of the elements present in the samples.
-        pkl_path (str, optional): Path to the pickled data. Default is None.
-        ckpt_path (str, optional): Path to the trained GFlowNet model. Default is None.
-        n_samples (int, optional): Number of samples to generate fro the model. Default is 1000.
-        batch_size (int, optional): Batch size for sampling. Default is 10.
+        pkl_path (str): Path to the pickled data. Default is None.
 
     Returns:
         pandas.DataFrame: DataFrame containing the loaded and converted samples.
     """
-    if pkl_path is not None:
-        with open(pkl_path, "rb") as f:
-            samples = pickle.load(f)
-        return pkl_samples_to_df(samples, element_names)
-    if ckpt_path is not None:
-        gflownet, gflownet_config = load_gflow_net_from_run_path(
-            run_path=ckpt_path,
-            device="cpu",
-            no_wandb=True,
-            print_config=False,
-            load_final_ckpt=True,
-        )
-        samples = sample_gflownet(gflownet, n_samples=n_samples, batch_size=batch_size)
-        gfn_elements = gflownet_config["env"]["composition_kwargs"]["elements"]
-        return gfn_samples_to_df(samples, gfn_els_zs=gfn_elements)
-    raise ValueError("Either pkl_path or ckpt_path must be given.")
+    with open(pkl_path, "rb") as f:
+        samples = pickle.load(f)
+    return pkl_samples_to_df(samples, element_names)
 
 
 def load_uniform_samples(element_names, pkl_path, config):
@@ -916,11 +817,6 @@ def filter_df(
     sg_set = set(space_groups_subset)
     df = df[df[sg_key].apply(lambda x: x in sg_set)]
     return df
-
-
-def make_plots_from_gflownet(gfn_config, gfn_samples):
-    ...
-    make_plots(...)
 
 
 def make_plots(
@@ -1115,10 +1011,7 @@ if __name__ == "__main__":
 
     sdf = load_gfn_samples(
         elements_names,
-        pkl_path=args.pkl_path,
-        ckpt_path=gfn_path,
-        n_samples=args.n_samples,
-        batch_size=args.batch_size,
+        pkl_path=args.pkl_path
     )
     print("Loaded gfn samples: ", sdf.shape)
 
@@ -1132,10 +1025,7 @@ if __name__ == "__main__":
     if args.random_pkl_path or args.random_gfn_path:
         rdf = load_gfn_samples(  # random init
             elements_names,
-            pkl_path=args.random_pkl_path,
-            ckpt_path=args.random_gfn_path,
-            n_samples=args.n_samples,
-            batch_size=args.batch_size,
+            pkl_path=args.random_pkl_path
         )
         print("Loaded random samples: ", rdf.shape)
 
