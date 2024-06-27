@@ -16,6 +16,7 @@ from mendeleev.fetch import fetch_table
 from tqdm import tqdm
 
 from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.crystals.constants import ELEMENT_NAMES
 
 warnings.filterwarnings("ignore")
 
@@ -81,13 +82,13 @@ def now_to_str():
     return now.strftime("%Y-%m-%d/%H-%M-%S")
 
 
-def get_top_els(df, comp_cols, n=10):
-    """Get the top n elements in the dataset."""
-    sums = df[comp_cols].sum(axis=0)
-    sums = sums.sort_values(ascending=False, inplace=False)
-    if n is None or n < 0:
-        return sums.index.tolist()
-    return sums.index[:n].tolist()
+# def get_top_els(df, comp_cols, n=10):
+#     """Get the top n elements in the dataset."""
+#     sums = df[comp_cols].sum(axis=0)
+#     sums = sums.sort_values(ascending=False, inplace=False)
+#     if n is None or n < 0:
+#         return sums.index.tolist()
+#     return sums.index[:n].tolist()
 
 
 def plot_sg_dist(
@@ -434,6 +435,8 @@ def plot_lat_params(
         fig.savefig(fig_paths[-1], bbox_inches="tight")
         print(f"\n ✅ Saved {output_path / name} and .png\n")
 
+    return fig_paths
+
 
 def plot_lat_params_reward(
     tdf,
@@ -667,6 +670,7 @@ def sample_gflownet(gflownet, n_samples=1e3, batch_size=10, energy_key="energy")
 
 
 def gfn_samples_to_df(samples, gfn_els_zs, sg_key="Space Group", energy_key="energy"):
+    # Warning: this implementetion is old and expects composition to be a list of integers, not a dictionary
     """
     Convert the samples from the GFlowNet to a DataFrame.
 
@@ -721,13 +725,13 @@ def sort_names_for_z(element_names):
     return sorted(element_names, key=lambda x: ELS_TABLE.tolist().index(x))
 
 
-def pkl_samples_to_df(samples, top_elements, sg_key="Space Group", energy_key="energy"):
+def pkl_samples_to_df(samples, elements_names, sg_key="Space Group", energy_key="energy"):
     """
     Convert samples from a pickled file to a DataFrame.
 
     Args:
         samples (dict): Dictionary containing sampled data.
-        top_elements (list): List of top elements present in the samples.
+        elements_names (list): List of names of the elements present in the samples.
         sg_key (str, optional): Key to represent the space group in the DataFrame. Default is "Space Group".
         energy_key (str, optional): Key to represent the energy values in the DataFrame. Default is "energy".
 
@@ -745,29 +749,12 @@ def pkl_samples_to_df(samples, top_elements, sg_key="Space Group", energy_key="e
                 - element1, element2, ...: Composition of elements in the sample.
                 - energy_key: Energy value associated with the sample.
     """
-    sample = samples["x"][0]
-    flat = True
-    if isinstance(sample[1], list):
-        flat = False
-    n_dummy = 1
-    n_sg = 3
-    n_lps = 6
-    total = len(sample)
-    n_elements = total - n_dummy - n_sg - n_lps if flat else len(sample[2])
     df = []
-    pkl_elements = top_elements[:n_elements]
+
     for i, (x, e) in tqdm(
         enumerate(zip(samples["x"], samples[energy_key])), total=len(samples["x"])
     ):
-        if flat:
-            _, (_, _, sg), comp, (a, b, c, alpha, beta, gamma) = (
-                x[:n_dummy],
-                x[n_dummy : n_dummy + n_sg],
-                x[n_dummy + n_sg : n_dummy + n_sg + n_elements],
-                x[n_dummy + n_sg + n_elements :],
-            )
-        else:
-            _, (_, _, sg), comp, (a, b, c, alpha, beta, gamma) = x
+        _, (_, _, sg), comp, (a, b, c, alpha, beta, gamma) = x
         s = {
             "idx": i,
             "Space Group": sg,
@@ -779,27 +766,30 @@ def pkl_samples_to_df(samples, top_elements, sg_key="Space Group", energy_key="e
             "gamma": gamma,
             energy_key: e,
         }
-        for k, v in enumerate(comp):
-            el_name = pkl_elements[k]
-            s[el_name] = v
+        for k, v in comp.items():
+            el_name = ELEMENT_NAMES[k]
+            s[el_name] = int(v)
         df.append(s)
     df = pd.DataFrame(df)
     cols = (
         ["idx", sg_key, "a", "b", "c", "alpha", "beta", "gamma"]
-        + sort_names_for_z(pkl_elements)
+        + sort_names_for_z(elements_names)
         + [energy_key]
     )
-    return df[cols]
+    df = df[cols]
+    # set zeros for elements that are not present in the samples
+    df[elements_names] = df[elements_names].fillna(0) 
+    return df
 
 
 def load_gfn_samples(
-    top_elements, pkl_path=None, ckpt_path=None, n_samples=1e3, batch_size=10
+    element_names, pkl_path=None, ckpt_path=None, n_samples=1e3, batch_size=10
 ):
     """
     Load samples from either pickled data or a trained GFlowNet model and convert them to a DataFrame.
 
     Args:
-        top_elements (list): List of top elements.
+        element_names (list): List of names of the elements present in the samples.
         pkl_path (str, optional): Path to the pickled data. Default is None.
         ckpt_path (str, optional): Path to the trained GFlowNet model. Default is None.
         n_samples (int, optional): Number of samples to generate fro the model. Default is 1000.
@@ -811,7 +801,7 @@ def load_gfn_samples(
     if pkl_path is not None:
         with open(pkl_path, "rb") as f:
             samples = pickle.load(f)
-        return pkl_samples_to_df(samples, top_elements)
+        return pkl_samples_to_df(samples, element_names)
     if ckpt_path is not None:
         gflownet, gflownet_config = load_gflow_net_from_run_path(
             run_path=ckpt_path,
@@ -826,19 +816,19 @@ def load_gfn_samples(
     raise ValueError("Either pkl_path or ckpt_path must be given.")
 
 
-def load_uniform_samples(top_elements, pkl_path, config):
+def load_uniform_samples(element_names, pkl_path, config):
     """
     Load uniform samples from pickled data, compute rewards based on the energy values in the pkl file
 
     Args:
-        top_elements (list): List of top elements.
+        element_names (list): List of names of the elements present in the samples.
         pkl_path (str): Path to the pickled data.
         config (dict): Config parameters used during training of the model. Needed to extract the right limits for uniform sampling
 
     Returns:
         pandas.DataFrame: DataFrame containing the uniform samples woth corresponding rewards.
     """
-    df = load_gfn_samples(top_elements, pkl_path=pkl_path)
+    df = load_gfn_samples(element_names, pkl_path=pkl_path)
 
     reward_func = config["env"]["reward_func"]
 
@@ -1049,7 +1039,7 @@ if __name__ == "__main__":
         "--pkl_path", type=str, default=None, help="gflownet samples path"
     )
     parser.add_argument(
-        "--random_gfn_path", type=str, default=None, help="random (init only) gfn path"
+        "--random_gfn_path", type=str, default=None, help="random (init only) gfn path (checkpoint)"
     )
     parser.add_argument(
         "--random_pkl_path",
@@ -1066,7 +1056,6 @@ if __name__ == "__main__":
         "--target", type=str, default="eform", choices=["eform", "bandgap", "density"]
     )
     parser.add_argument("--batch_size", type=int, default=10)
-    parser.add_argument("--top_els", type=int, default=-1)
     parser.add_argument("--output_path", type=str, default=None)
     parser.add_argument("--sg_key", type=str, default="Space Group")
     parser.add_argument("--energy_key", type=str, default="energy")
@@ -1077,7 +1066,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_suptitles", action="store_true", default=False, help="Prevent suptitles"
     )
-    # parser.add_argument("--config_yaml", type=str)
     args = parser.parse_args()
 
     tdf = rdf = vdf = udf = None
@@ -1102,28 +1090,31 @@ if __name__ == "__main__":
 
     if args.target == "eform":
         ftdf, fvdf = load_mb_eform(energy_key=args.energy_key)
-        config_path = ROOT / "config/experiments/crystals/starling.yaml"
+        config_path = ROOT / "config/experiments/crystals/starling_fe.yaml"
     elif args.target == "bandgap":
         ftdf, fvdf = load_mb_bandgap(energy_key=args.energy_key)
         config_path = ROOT / "config/experiments/crystals/starling_bg.yaml"
     elif args.target == "density":
         # TODO: incorrect "energies" here, need to change it once we have
         # datasets with computed densities
+        # TODO: double check what's happening here
         ftdf, fvdf = load_mb_eform(energy_key=args.energy_key)
-        config_path = ROOT / "config/experiments/crystals/eagle.yaml"
+        config_path = ROOT / "config/experiments/crystals/starling_density.yaml"
     else:
         raise ValueError("Unknown target")
 
     print("Initial full data sets:")
     print(f"Train: {ftdf.shape}")
     print(f"Val: {fvdf.shape}")
-    comp_cols = [c for c in ftdf.columns if c in set(ELS_TABLE)]
-    all_top_train_elements = get_top_els(ftdf, comp_cols, n=-1)
 
     config = yaml.safe_load(open(config_path, "r"))
 
+    # List atomic numbers of the utilised elements
+    elements_anums = config['env']['composition_kwargs']['elements']
+    elements_names = [ELEMENT_NAMES[anum] for anum in elements_anums]
+
     sdf = load_gfn_samples(
-        all_top_train_elements,
+        elements_names,
         pkl_path=args.pkl_path,
         ckpt_path=gfn_path,
         n_samples=args.n_samples,
@@ -1131,14 +1122,16 @@ if __name__ == "__main__":
     )
     print("Loaded gfn samples: ", sdf.shape)
 
+
+
     if args.uniform_pkl_path:
         udf = load_uniform_samples(
-            all_top_train_elements, pkl_path=args.uniform_pkl_path, config=config
+            elements_names, pkl_path=args.uniform_pkl_path, config=config
         )
         print("Loaded uniform samples: ", udf.shape)
     if args.random_pkl_path or args.random_gfn_path:
         rdf = load_gfn_samples(  # random init
-            all_top_train_elements,
+            elements_names,
             pkl_path=args.random_pkl_path,
             ckpt_path=args.random_gfn_path,
             n_samples=args.n_samples,
@@ -1146,16 +1139,18 @@ if __name__ == "__main__":
         )
         print("Loaded random samples: ", rdf.shape)
 
-    samples_els = [c for c in sdf.columns if c in set(ELS_TABLE)]
-    print("Using elements: ", ", ".join(samples_els))
+    print("Using elements: ", ", ".join(elements_names))
 
     sg_subset = config["env"]["space_group_kwargs"]["space_groups_subset"]
     assert len(sg_subset) > 0
     print(f"Using {len(sg_subset)} SGs: ", ", ".join(map(str, sg_subset)))
 
+
+    comp_cols = [c for c in ftdf.columns if c in set(ELS_TABLE)]
+
     tdf = filter_df(
         ftdf,
-        samples_els,
+        elements_names,
         comp_cols,
         sg_subset,
         min_length=args.min_length,
@@ -1166,7 +1161,7 @@ if __name__ == "__main__":
 
     vdf = filter_df(
         fvdf,
-        samples_els,
+        elements_names,
         comp_cols,
         sg_subset,
         min_length=args.min_length,
@@ -1186,7 +1181,7 @@ if __name__ == "__main__":
         samples_df=sdf,
         uniform_df=udf,
         random_df=rdf,
-        samples_els=samples_els,
+        samples_els=elements_names,
         output_path=output_path,
         target=args.target,
         min_length=args.min_length,
@@ -1194,39 +1189,3 @@ if __name__ == "__main__":
         min_angle=args.min_angle,
         max_angle=args.max_angle,
     )
-
-# ^better way to import because it'll change per env -> in the env?
-
-
-# class GflownetAgent:
-#     ...
-
-#     def test(self, *args, **kwargs):
-#         ...
-
-#         if self.logger.do_val_plots(it):
-#            self.env.make_plots_from_gflownet(self)
-
-# env.py
-# from gflownet.plots.plot_crystals import make_plots_from_gflownet
-#
-# class CrystalEnv:
-#     def __init__(self, ...):
-#         self._make_plots_from_gflownet = make_plots_from_gflownet
-
-#     def make_plots_from_gflownet(self, gfna, **kwargs):
-#         ...
-#         self._make_plots_from_gflownet
-
-# eval.yaml
-# eval.py
-# class Evaluator:
-#    def __init__(self, ...):
-#
-#    @staticmethod
-#    def init_from_dir(self, ...):
-#
-#    def plot(self, ...):
-#
-#    def compute_metrics(self, ...):
-#
