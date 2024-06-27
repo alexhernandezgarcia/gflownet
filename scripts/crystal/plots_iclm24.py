@@ -82,15 +82,6 @@ def now_to_str():
     return now.strftime("%Y-%m-%d/%H-%M-%S")
 
 
-# def get_top_els(df, comp_cols, n=10):
-#     """Get the top n elements in the dataset."""
-#     sums = df[comp_cols].sum(axis=0)
-#     sums = sums.sort_values(ascending=False, inplace=False)
-#     if n is None or n < 0:
-#         return sums.index.tolist()
-#     return sums.index[:n].tolist()
-
-
 def plot_sg_dist(
     tdf, vdf, sdf, udf=None, sg_key="Space Group", output_path=None, target=None
 ):
@@ -926,16 +917,7 @@ def make_plots(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--gfn_path",
-        type=str,
-        default=None,
-        help="Path to a gfn checkpoint date folder (.../$SLURM_JOB_ID/$DATE_$TIME)",
-    )
-    parser.add_argument(
         "--pkl_path", type=str, default=None, help="gflownet samples path"
-    )
-    parser.add_argument(
-        "--random_gfn_path", type=str, default=None, help="random (init only) gfn path (checkpoint)"
     )
     parser.add_argument(
         "--random_pkl_path",
@@ -946,12 +928,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--uniform_pkl_path", type=str, default=None, help="uniform samples path"
     )
-    parser.add_argument("--n_samples", type=int, default=1e3)
     # target: either eform or bandgap:
     parser.add_argument(
         "--target", type=str, default="eform", choices=["eform", "bandgap", "density"]
     )
-    parser.add_argument("--batch_size", type=int, default=10)
     parser.add_argument("--output_path", type=str, default=None)
     parser.add_argument("--sg_key", type=str, default="Space Group")
     parser.add_argument("--energy_key", type=str, default="energy")
@@ -968,16 +948,8 @@ if __name__ == "__main__":
 
     USE_SUPTITLES = not args.no_suptitles
 
-    gfn_path = (
-        args.gfn_path
-        or "/network/scratch/s/schmidtv/crystals/logs/icml24/crystalgfn/4085128/2024-01-30_04-38-24"
-    )
-
     print("Arguments:")
     print("\n".join(f"{k:15}: {v}" for k, v in vars(args).items()))
-
-    if args.pkl_path and args.gfn_path:
-        raise ValueError("Only one of pkl_path and gfn_path can be given.")
 
     now = now_to_str()
     output_path = ROOT / "external" / "plots" / "icml24" / now
