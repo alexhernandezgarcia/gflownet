@@ -12,11 +12,10 @@ import pandas as pd
 import seaborn as sns
 import torch
 import yaml
-from mendeleev.fetch import fetch_table
-from tqdm import tqdm
-
 from gflownet.utils.common import load_gflow_net_from_run_path
 from gflownet.utils.crystals.constants import ELEMENT_NAMES
+from mendeleev.fetch import fetch_table
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -634,7 +633,9 @@ def sort_names_for_z(element_names):
     return sorted(element_names, key=lambda x: ELS_TABLE.tolist().index(x))
 
 
-def pkl_samples_to_df(samples, elements_names, sg_key="Space Group", energy_key="energy"):
+def pkl_samples_to_df(
+    samples, elements_names, sg_key="Space Group", energy_key="energy"
+):
     """
     Convert samples from a pickled file to a DataFrame.
 
@@ -687,12 +688,11 @@ def pkl_samples_to_df(samples, elements_names, sg_key="Space Group", energy_key=
     )
     df = df[cols]
     # set zeros for elements that are not present in the samples
-    df[elements_names] = df[elements_names].fillna(0) 
+    df[elements_names] = df[elements_names].fillna(0)
     return df
 
 
-def load_gfn_samples(
-    element_names, pkl_path):
+def load_gfn_samples(element_names, pkl_path):
     """
     Load samples from pickled data and convert them to a DataFrame.
 
@@ -978,16 +978,11 @@ if __name__ == "__main__":
     config = yaml.safe_load(open(config_path, "r"))
 
     # List atomic numbers of the utilised elements
-    elements_anums = config['env']['composition_kwargs']['elements']
+    elements_anums = config["env"]["composition_kwargs"]["elements"]
     elements_names = [ELEMENT_NAMES[anum] for anum in elements_anums]
 
-    sdf = load_gfn_samples(
-        elements_names,
-        pkl_path=args.pkl_path
-    )
+    sdf = load_gfn_samples(elements_names, pkl_path=args.pkl_path)
     print("Loaded gfn samples: ", sdf.shape)
-
-
 
     if args.uniform_pkl_path:
         udf = load_uniform_samples(
@@ -996,8 +991,7 @@ if __name__ == "__main__":
         print("Loaded uniform samples: ", udf.shape)
     if args.random_pkl_path or args.random_gfn_path:
         rdf = load_gfn_samples(  # random init
-            elements_names,
-            pkl_path=args.random_pkl_path
+            elements_names, pkl_path=args.random_pkl_path
         )
         print("Loaded random samples: ", rdf.shape)
 
@@ -1006,7 +1000,6 @@ if __name__ == "__main__":
     sg_subset = config["env"]["space_group_kwargs"]["space_groups_subset"]
     assert len(sg_subset) > 0
     print(f"Using {len(sg_subset)} SGs: ", ", ".join(map(str, sg_subset)))
-
 
     comp_cols = [c for c in ftdf.columns if c in set(ELS_TABLE)]
 
