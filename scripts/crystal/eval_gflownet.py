@@ -8,19 +8,19 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import torch
 from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from crystalrandom import generate_random_crystals_uniform
-from hydra.utils import instantiate
-
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
+from hydra.utils import instantiate
+
+from crystalrandom import generate_random_crystals_uniform
 
 
 def add_args(parser):
@@ -229,30 +229,30 @@ def main(args):
         env.proxy.is_bandgap = False
 
         # Test
-#         samples = [env.readable2state(readable) for readable in gflownet.buffer.test["samples"]]
-#         energies = env.proxy(env.states2proxy(samples))
-#         df = pd.DataFrame(
-#             {
-#                 "readable": gflownet.buffer.test["samples"],
-#                 "energies": energies.tolist(),
-#             }
-#         )
-#         df.to_csv(output_dir / f"val.csv")
-#         dct = {"x": samples, "energy": energies.tolist()}
-#         pickle.dump(dct, open(output_dir / f"val.pkl", "wb"))
-# 
-#         # Train
-#         samples = [env.readable2state(readable) for readable in gflownet.buffer.train["samples"]]
-#         energies = env.proxy(env.states2proxy(samples))
-#         df = pd.DataFrame(
-#             {
-#                 "readable": gflownet.buffer.train["samples"],
-#                 "energies": energies.tolist(),
-#             }
-#         )
-#         df.to_csv(output_dir / f"train.csv")
-#         dct = {"x": samples, "energy": energies.tolist()}
-#         pickle.dump(dct, open(output_dir / f"train.pkl", "wb"))
+    #         samples = [env.readable2state(readable) for readable in gflownet.buffer.test["samples"]]
+    #         energies = env.proxy(env.states2proxy(samples))
+    #         df = pd.DataFrame(
+    #             {
+    #                 "readable": gflownet.buffer.test["samples"],
+    #                 "energies": energies.tolist(),
+    #             }
+    #         )
+    #         df.to_csv(output_dir / f"val.csv")
+    #         dct = {"x": samples, "energy": energies.tolist()}
+    #         pickle.dump(dct, open(output_dir / f"val.pkl", "wb"))
+    #
+    #         # Train
+    #         samples = [env.readable2state(readable) for readable in gflownet.buffer.train["samples"]]
+    #         energies = env.proxy(env.states2proxy(samples))
+    #         df = pd.DataFrame(
+    #             {
+    #                 "readable": gflownet.buffer.train["samples"],
+    #                 "energies": energies.tolist(),
+    #             }
+    #         )
+    #         df.to_csv(output_dir / f"train.csv")
+    #         dct = {"x": samples, "energy": energies.tolist()}
+    #         pickle.dump(dct, open(output_dir / f"train.pkl", "wb"))
 
     if args.n_samples > 0 and args.n_samples <= 1e5 and not args.random_only:
         print(
