@@ -15,8 +15,7 @@ from pymatgen.analysis.phase_diagram import PhaseDiagram
 from pymatgen.core import Composition, Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from smact import Element
-from smact.data_loader import \
-    lookup_element_oxidation_states_custom as oxi_custom
+from smact.data_loader import lookup_element_oxidation_states_custom as oxi_custom
 from smact.screening import pauling_test, smact_filter
 from tqdm import tqdm
 
