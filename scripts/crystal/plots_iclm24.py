@@ -34,7 +34,7 @@ USE_SUPTITLES = True
 SUPTITLES = {
     "eform": "Formation Energy (↓)",
     "bandgap": "Bang Gap target (1.34 eV)",
-    "density": "Density (↓)",
+    "density": "Density (↑)",
 }
 CRYSTALGFNs = {
     "eform": "Crystal-GFN (FE)",
@@ -539,6 +539,7 @@ def plot_lat_params_reward(
 
     fig.tight_layout()
     sns.despine()
+
     if USE_SUPTITLES:
         plt.suptitle(
             SUPTITLES[target],
@@ -626,6 +627,41 @@ def plot_gfn_energies_violins(
         fig.savefig(fig_paths[-1], bbox_inches="tight")
         print(f"\n ✅ Saved {output_path / name} and .png\n")
 
+    return fig_paths
+
+def plot_topk_elements(sdf, els_cols, output_path=None,
+    target=None, k=100, energy_key="energy"):
+    # sdf_topk = sdf.sort_values(by=energy_key)[:k]
+    sdf_topk = sdf.sort_values(by=energy_key, ascending = target=='eform')[:k]
+
+    sdf_el_counts = (sdf_topk[els_cols] > 0).sum(axis=0)
+    sdf_el_counts = sdf_el_counts / len(sdf_topk)
+
+
+    fig, ax = plt.subplots(figsize=(10, 5), constrained_layout=True)
+    sdf_el_counts.plot.bar(ax=ax)
+    ax.set_ylabel(f"Frequency [0/1 presence] in top-{k}", fontsize=16)
+    # ax.set_xlabel("Element", fontsize=16)
+    # ax.legend(fontsize=14, loc="upper right")
+    ax.set_xticklabels(sdf_el_counts.index, rotation=360, fontsize=14)
+    ax.set_yticklabels([f"{x:.2f}" for x in ax.get_yticks()], fontsize=14)
+    fig.tight_layout()
+    ax.grid(False)
+    sns.despine()
+
+    if USE_SUPTITLES:
+        plt.suptitle(
+            SUPTITLES[target],
+            fontsize=20,
+        )
+    fig_paths = []
+    if output_path is not None:
+        name = f"{target}_elem_bin_counts_top{k}.pdf"
+        fig_paths.append(output_path / name)
+        fig.savefig(fig_paths[-1], bbox_inches="tight")
+        fig_paths.append(output_path / name.replace(".pdf", ".png"))
+        fig.savefig(fig_paths[-1], bbox_inches="tight")
+        print(f"\n ✅ Saved {output_path / name} and .png\n")
     return fig_paths
 
 
@@ -825,6 +861,8 @@ def make_plots(
     min_angle=None,
     max_angle=None,
     format="png",
+    energy_key="energy",
+    k=100,
 ):
     """
     Make all the plots for Crystal GFN:
@@ -890,6 +928,16 @@ def make_plots(
         min_angle=min_angle,
         max_angle=max_angle,
     )
+    # don't plot this for bandgap as it is not clear how to choose topk
+    if target in ["eform", "density"]:
+        fig_paths += plot_topk_elements(
+            samples_df,
+            samples_els,
+            output_path=output_path,
+            target=target,
+            k=k,
+            energy_key=energy_key,
+        )
 
     if uniform_df is not None:
         fig_paths += plot_lat_params_reward(
@@ -904,10 +952,11 @@ def make_plots(
             min_angle=min_angle,
             max_angle=max_angle,
         )
-
-    if random_df is not None:
+    
+    # TODO: remove second condition once we have dataset with computed densities
+    if random_df is not None and target in ['eform', 'bandgap']:
         fig_paths += plot_gfn_energies_violins(
-            val_df, samples_df, random_df, output_path=output_path, target=target
+            val_df, samples_df, random_df, output_path=output_path, target=target, energy_key=energy_key
         )
 
     plt.close("all")
@@ -942,6 +991,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--no_suptitles", action="store_true", default=False, help="Prevent suptitles"
     )
+    parser.add_argument("--k", type=int, default=100)
     args = parser.parse_args()
 
     tdf = rdf = vdf = udf = None
@@ -965,7 +1015,6 @@ if __name__ == "__main__":
     elif args.target == "density":
         # TODO: incorrect "energies" here, need to change it once we have
         # datasets with computed densities
-        # TODO: double check what's happening here
         ftdf, fvdf = load_mb_eform(energy_key=args.energy_key)
         config_path = ROOT / "config/experiments/crystals/starling_density.yaml"
     else:
@@ -1043,4 +1092,6 @@ if __name__ == "__main__":
         max_length=args.max_length,
         min_angle=args.min_angle,
         max_angle=args.max_angle,
+        energy_key=args.energy_key,
+        k=args.k,
     )
