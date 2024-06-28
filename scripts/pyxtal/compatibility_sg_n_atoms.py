@@ -3,6 +3,7 @@ Calculates the compatibility between space groups and stoichiometries for all th
 combinations spanned by the N_SYMMETRY_GROUPS, N_SPECIES and MAX_N_ATOMS. The results
 are printed to stdout.
 """
+
 import itertools
 import time
 
