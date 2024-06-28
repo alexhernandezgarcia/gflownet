@@ -24,8 +24,14 @@ from gflownet.evaluator.base import BaseEvaluator
 from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import (bootstrap_samples, set_device,
-                                   set_float_precision, tbool, tfloat, tlong)
+from gflownet.utils.common import (
+    bootstrap_samples,
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tlong,
+)
 
 
 class GFlowNetAgent:

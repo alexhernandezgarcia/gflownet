@@ -16,8 +16,11 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
-    get_space_group, space_group_check_compatible,
-    space_group_lowest_free_wp_multiplicity, space_group_wyckoff_gcd)
+    get_space_group,
+    space_group_check_compatible,
+    space_group_lowest_free_wp_multiplicity,
+    space_group_wyckoff_gcd,
+)
 
 N_ELEMENTS_ORACLE = 94
 

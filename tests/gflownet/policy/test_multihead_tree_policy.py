@@ -4,10 +4,13 @@ import torch
 from torch_geometric.data import Batch
 
 from gflownet.envs.tree import Attribute, Operator, Tree
-from gflownet.policy.multihead_tree import (Backbone, FeatureSelectionHead,
-                                            LeafSelectionHead,
-                                            OperatorSelectionHead,
-                                            ThresholdSelectionHead)
+from gflownet.policy.multihead_tree import (
+    Backbone,
+    FeatureSelectionHead,
+    LeafSelectionHead,
+    OperatorSelectionHead,
+    ThresholdSelectionHead,
+)
 
 N_OBSERVATIONS = 17
 N_FEATURES = 5

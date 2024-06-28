@@ -19,8 +19,7 @@ from crystalrandom import generate_random_crystals_uniform
 from hydra.utils import instantiate
 
 from gflownet.gflownet import GFlowNetAgent
-from gflownet.utils.common import (load_gflow_net_from_run_path,
-                                   read_hydra_config)
+from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
 
 

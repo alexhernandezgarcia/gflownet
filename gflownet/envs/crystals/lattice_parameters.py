@@ -15,9 +15,15 @@ from torchtyping import TensorType
 
 from gflownet.envs.cube import ContinuousCube
 from gflownet.utils.common import copy, tfloat
-from gflownet.utils.crystals.constants import (CUBIC, HEXAGONAL, MONOCLINIC,
-                                               ORTHORHOMBIC, RHOMBOHEDRAL,
-                                               TETRAGONAL, TRICLINIC)
+from gflownet.utils.crystals.constants import (
+    CUBIC,
+    HEXAGONAL,
+    MONOCLINIC,
+    ORTHORHOMBIC,
+    RHOMBOHEDRAL,
+    TETRAGONAL,
+    TRICLINIC,
+)
 
 LENGTH_PARAMETER_NAMES = ("a", "b", "c")
 ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
