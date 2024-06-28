@@ -11,8 +11,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from metrics import (SG2LP, SMACT, Comp2SG, Eform, Ehull, NumberOfElements,
-                     Rediscovery)
+from metrics import SG2LP, SMACT, Comp2SG, Eform, Ehull, NumberOfElements, Rediscovery
 
 
 # put all metrics to be computed here:
