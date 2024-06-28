@@ -629,14 +629,15 @@ def plot_gfn_energies_violins(
 
     return fig_paths
 
-def plot_topk_elements(sdf, els_cols, output_path=None,
-    target=None, k=100, energy_key="energy"):
+
+def plot_topk_elements(
+    sdf, els_cols, output_path=None, target=None, k=100, energy_key="energy"
+):
     # sdf_topk = sdf.sort_values(by=energy_key)[:k]
-    sdf_topk = sdf.sort_values(by=energy_key, ascending = target=='eform')[:k]
+    sdf_topk = sdf.sort_values(by=energy_key, ascending=target == "eform")[:k]
 
     sdf_el_counts = (sdf_topk[els_cols] > 0).sum(axis=0)
     sdf_el_counts = sdf_el_counts / len(sdf_topk)
-
 
     fig, ax = plt.subplots(figsize=(10, 5), constrained_layout=True)
     sdf_el_counts.plot.bar(ax=ax)
@@ -952,11 +953,16 @@ def make_plots(
             min_angle=min_angle,
             max_angle=max_angle,
         )
-    
+
     # TODO: remove second condition once we have dataset with computed densities
-    if random_df is not None and target in ['eform', 'bandgap']:
+    if random_df is not None and target in ["eform", "bandgap"]:
         fig_paths += plot_gfn_energies_violins(
-            val_df, samples_df, random_df, output_path=output_path, target=target, energy_key=energy_key
+            val_df,
+            samples_df,
+            random_df,
+            output_path=output_path,
+            target=target,
+            energy_key=energy_key,
         )
 
     plt.close("all")
