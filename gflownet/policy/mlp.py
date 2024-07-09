@@ -13,7 +13,6 @@ class MLPPolicy(Policy):
             float_precision=float_precision,
             base=base,
         )
-        self.is_model = True
 
     def make_mlp(self, activation):
         """
@@ -61,9 +60,9 @@ class MLPPolicy(Policy):
             )
 
     def parse_config(self, config):
+        super().parse_config(config)
         if config is None:
             config = OmegaConf.create()
-            config.type = "mlp"
         self.checkpoint = config.get("checkpoint", None)
         self.shared_weights = config.get("shared_weights", False)
         self.n_hid = config.get("n_hid", 128)
@@ -73,6 +72,7 @@ class MLPPolicy(Policy):
 
     def instantiate(self):
         self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
+        self.is_model = True
 
     def __call__(self, states):
         return self.model(states)

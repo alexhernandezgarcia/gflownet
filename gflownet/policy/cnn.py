@@ -15,7 +15,6 @@ class CNNPolicy(Policy):
             float_precision=float_precision,
             base=base,
         )
-        self.is_model = True
 
     def make_cnn(self):
         """
@@ -73,6 +72,7 @@ class CNNPolicy(Policy):
         return model.to(self.device)
 
     def parse_config(self, config):
+        super().parse_config(config)
         if config is None:
             config = OmegaConf.create()
         self.checkpoint = config.get("checkpoint", None)
@@ -85,6 +85,7 @@ class CNNPolicy(Policy):
 
     def instantiate(self):
         self.model = self.make_cnn()
+        self.is_model = True
 
     def __call__(self, states):
         states = states.unsqueeze(1)  # (batch_size, channels, height, width)
