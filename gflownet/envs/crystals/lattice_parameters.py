@@ -400,7 +400,11 @@ class LatticeParametersSGCCG(ContinuousCube):
 
     This version of the LatticeParameters environment implements the projection method
     outlined in the SPACE GROUP CONSTRAINED CRYSTAL GENERATION
-    (https://arxiv.org/pdf/2402.03992) article.
+    (https://arxiv.org/pdf/2402.03992) article. This projection method ensures that the
+    lattice parameters remain valid throughout a trajectory in this environment. As a
+    consequence of this method, this environment implements three different
+    spaces/representations for lattice parameters :
+    state space <--> projection space <--> lattice parameter space.
     """
 
     def __init__(
@@ -437,7 +441,22 @@ class LatticeParametersSGCCG(ContinuousCube):
         # self.ignored_dims overriden by the Cube initialization
         self._setup_constraints()
 
-    def _state2projection(self, state):
+    def _state2projection(self, state=None):
+        """
+        Transforms a state into its equivalent representation in the projection space
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format. If None, then the current state will be used
+            instead
+
+        Returns
+        -------
+        proj : list
+            Projection space representation equivalent to the provided state
+            representation.
+        """
         state = self._get_state(state)
         proj = [
             min_proj_v + s * (max_proj_v - min_proj_v)
@@ -448,6 +467,21 @@ class LatticeParametersSGCCG(ContinuousCube):
         return proj
 
     def _projection2state(self, projection):
+        """
+        Transforms a representation in the projection space into its equivalent
+        representation in the state space
+
+        Parameters
+        ----------
+        projection : list
+            A representation in projection space.
+
+        Returns
+        -------
+        state : list
+            Environment state equivalent to the provided representation in projection
+            space.
+        """
         state = [
             (proj - min_proj_v) / (max_proj_v - min_proj_v)
             for proj, min_proj_v, max_proj_v in zip(
@@ -457,6 +491,21 @@ class LatticeParametersSGCCG(ContinuousCube):
         return state
 
     def _projection2lattice(self, projection):
+        """
+        Transforms a representation in the projection space into its equivalent
+        representation in the space of lattice parameters
+
+        Parameters
+        ----------
+        projection : list
+            A representation in projection space.
+
+        Returns
+        -------
+        list
+            Lattice parameters (a, b, c, alpha, beta, gamma) corresponding to the input
+            representation in the projection space
+        """
         # Convert the vector of the projection state to the symmetric matrix exp_s
         k1, k2, k3, k4, k5, k6 = projection
         s = k1 * B1 + k2 * B2 + k3 * B3 + k4 * B4 + k5 * B5 + k6 * B6
@@ -470,9 +519,24 @@ class LatticeParametersSGCCG(ContinuousCube):
         beta = numpy.rad2deg(numpy.arccos(exp_s[0, 2] / (a * c)))
         gamma = numpy.rad2deg(numpy.arccos(exp_s[0, 1] / (a * b)))
 
-        return a, b, c, alpha, beta, gamma
+        return [a, b, c, alpha, beta, gamma]
 
     def _lattice2projection(self, lattice_params):
+        """
+        Transforms a set of lattice parameters into its equivalent representation in
+        the projection space.
+
+        Parameters
+        ----------
+        lattice_params : list
+            A set of lattice parameter. In order : a, b, c, alpha, beta, gamma.
+
+        Returns
+        -------
+        list
+            Representation in projection space equivalent to the input lattice
+            parameters.
+        """
         # Extract the values of the individual lattice params
         a, b, c, alpha, beta, gamma = lattice_params
 
@@ -497,9 +561,25 @@ class LatticeParametersSGCCG(ContinuousCube):
         k6 = (s[0, 0] + s[1, 1] + s[2, 2]) / 3
         k5 = (s[0, 0] + s[1, 1]) / 2 - k6
         k4 = s[0, 0] - (k5 + k6)
-        return k1, k2, k3, k4, k5, k6
+        return [k1, k2, k3, k4, k5, k6]
 
     def state2lattice(self, state=None):
+        """
+        Transforms a state into its equivalent lattice parameters
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format. If None, then the current state will be used
+            instead
+
+        Returns
+        -------
+        proj : list
+            Lattice parameters equivalent to the provided state representation. In
+            format [[a, b, c], [alpha, beta, gamma]] for compatibility with previous
+            lattice parameter environment.
+        """
         # Obtain the vector of projection coefficients satistying the env constraints
         state = self._get_state(state)
         projection_vector = self._state2projection(state)
@@ -507,9 +587,23 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         lattice_params = self._projection2lattice(projection_vector)
         a, b, c, alpha, beta, gamma = self.apply_lattice_constraints(lattice_params)
-        return (a, b, c), (alpha, beta, gamma)
+        return [[a, b, c], [alpha, beta, gamma]]
 
     def apply_projection_constraints(self, projection_vector):
+        """
+        Apply the environment constraints to a state representation in projection space.
+
+        Args
+        ----
+        projection_vector : list
+            State representation in projection space
+
+        Returns
+        -------
+        constrained_projection_vector : list
+            State representation in projection space, compatible with the environment
+            constraints.
+        """
         # Alter the vector of projection coefficients to enforce the env constraints
         constrained_projection_vector = []
         for i in range(len(self.projection_tied_values)):
@@ -532,6 +626,20 @@ class LatticeParametersSGCCG(ContinuousCube):
         return constrained_projection_vector
 
     def apply_lattice_constraints(self, lattice_params):
+        """
+        Apply the environment constraints to a set of lattice parameters.
+
+        Args
+        ----
+        lattice_params : list
+            Lattice parameters, in order (a, b, c, alpha, beta, gamma).
+
+        Returns
+        -------
+        constrained_lattice_params : list
+            Lattice parameters in the same order as in the input, modified if needed to
+            be compatible with the environment constraints.
+        """
         # Alter the lattice parameters to enforce the env constraints
         constrained_lattice_params = []
         for i in range(len(self.lattice_params_tied_values)):
@@ -556,14 +664,21 @@ class LatticeParametersSGCCG(ContinuousCube):
     def set_lattice_system(self, lattice_system: str):
         """
         Sets the lattice system of the unit cell and updates the constraints.
+
+        Args
+        ----
+        lattice_system : str
+            Name of the lattice system for which to produce lattice parameters.
         """
         self.lattice_system = lattice_system
         self._setup_constraints()
 
     def _setup_constraints(self):
         """
-        Computes the mask of ignored dimensions, given the constraints imposed by the
-        lattice system. Sets self.ignored_dims.
+        Sets up environment constraints based on the environment lattice system. This
+        involves setting up the ignored dimensions as well as the dimensions, in
+        projection and lattice parameters space, which may have fixed values or values
+        tied to other dimensions.
         """
 
         if self.lattice_system == TRICLINIC:
@@ -640,8 +755,30 @@ class LatticeParametersSGCCG(ContinuousCube):
         backward: bool,
     ) -> Tuple[List[float], Tuple[float], bool]:
         """
-        Updates the dimensions of the state corresponding to the ignored dimensions
-        after a call to the Cube's _step().
+        Updates self.state given a non-EOS action. This method is called by both step()
+        and step_backwards(), with the corresponding value of argument backward.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a tuple of length n_dim, with the
+            absolute increment for each dimension.
+
+        backward : bool
+            If True, perform backward step. Otherwise (default), perform forward step.
+
+        Returns
+        -------
+        self.state : list
+            The environment state after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+
         """
         # Apply action to the state
         state, action, valid = super()._step(action, backward)
@@ -723,7 +860,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
     def readable2state(self, readable: str) -> List[float]:
         """
-        Converts a human-readable representation of a state into the standard format.
+        Converts a human-readable representation of a state into the state format.
         """
         for c in ["(", ")", " "]:
             readable = readable.replace(c, "")
