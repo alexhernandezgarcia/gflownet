@@ -373,6 +373,29 @@ def test__env_can_represent_desired_lattice_params(env, lattice_system):
 
 
 @pytest.mark.parametrize(
+    "lattice_system",
+    [TRICLINIC],
+)
+def test__env_produces_valid_lattice_params(env, lattice_system):
+
+    # Sample random trajectories from the environment and ensure that every intermediate
+    # state represents valid lattice parameters
+    env = env.reset()
+    while not env.done:
+        env.step_random()
+
+        # Obtain the lattice parameters and ensure that they all have valid values
+        (a, b, c), (alpha, beta, gamma) = env.state2lattice()
+        assert min(a, b, c) > 0
+        assert min(alpha, beta, gamma) > 0
+        assert max(alpha, beta, gamma) < 360
+        assert 0 < alpha + beta + gamma < 360
+        assert 0 < -alpha + beta + gamma < 360
+        assert 0 < alpha - beta + gamma < 360
+        assert 0 < alpha + beta - gamma < 360
+
+
+@pytest.mark.parametrize(
     "lattice_system, expected_output",
     [
         (CUBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
