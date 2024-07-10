@@ -2,7 +2,7 @@
 Base Policy class for GFlowNet policy models.
 """
 
-from typing import Union
+from typing import Tuple, Union
 
 import torch
 from omegaconf import OmegaConf
