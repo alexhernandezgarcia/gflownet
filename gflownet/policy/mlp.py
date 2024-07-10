@@ -5,14 +5,8 @@ from gflownet.policy.base import Policy
 
 
 class MLPPolicy(Policy):
-    def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(
-            config=config,
-            env=env,
-            device=device,
-            float_precision=float_precision,
-            base=base,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def make_mlp(self, activation):
         """
