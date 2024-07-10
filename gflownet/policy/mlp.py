@@ -8,17 +8,17 @@ class MLPPolicy(Policy):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def make_mlp(self, activation):
+    def make_mlp(self, activation: nn.Module):
         """
         Defines an MLP with no top layer activation
-        If share_weight == True,
-            baseModel (the model with which weights are to be shared) must be provided
-        Args
-        ----
-        layers_dim : list
-            Dimensionality of each layer
-        activation : Activation
-            Activation function
+
+        If config.share_weights is True, the base model with which weights are to be
+        shared must be provided.
+
+        Parameters
+        ----------
+        activation : nn.Module
+            Activation function of the MLP layers
         """
         if self.shared_weights == True and self.base is not None:
             mlp = nn.Sequential(
