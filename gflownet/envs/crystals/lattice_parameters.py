@@ -634,13 +634,6 @@ class LatticeParametersSGCCG(ContinuousCube):
         else:
             raise ValueError(f"{self.lattice_system} is not a valid lattice system")
 
-        """
-        # Ensure that the state satisfies the constraints
-        projection_vector = self._state2projection(self.state)
-        projection_vector = self.apply_projection_constraints(projection_vector)
-        self.state = self._projection2state(projection_vector)
-        """
-
     def _step(
         self,
         action: Tuple[float],
