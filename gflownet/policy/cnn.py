@@ -22,9 +22,16 @@ class CNNPolicy(Policy):
         # Base init
         super().__init__(**kwargs)
 
-    def make_cnn(self):
+    def make_model(self):
         """
-        Defines an CNN with no top layer activation
+        Instantiates a CNN with no top layer activation.
+
+        Returns
+        -------
+        model : torch.nn.Module
+            A torch model containing the CNN.
+        is_model : bool
+            True because a CNN is a model.
         """
         if self.shared_weights and self.base is not None:
             layers = list(self.base.model.children())[:-1]
@@ -33,14 +40,15 @@ class CNNPolicy(Policy):
             )
 
             model = nn.Sequential(*layers, last_layer).to(self.device)
-            return model
+            return model, True
 
         current_channels = 1
         conv_module = nn.Sequential()
 
         if len(self.kernel_sizes) != self.n_layers:
             raise ValueError(
-                f"Inconsistent dimensions kernel_sizes != n_layers, {len(self.kernel_sizes)} != {self.n_layers}"
+                f"Inconsistent dimensions kernel_sizes != n_layers, "
+                "{len(self.kernel_sizes)} != {self.n_layers}"
             )
 
         for i in range(self.n_layers):
@@ -65,21 +73,19 @@ class CNNPolicy(Policy):
             in_channels = conv_module(dummy_input).numel()
             if in_channels >= 500_000:  # TODO: this could better be handled
                 raise RuntimeWarning(
-                    "Input channels for the dense layer are too big, this will increase number of parameters"
+                    "Input channels for the dense layer are too big, this will "
+                    "increase number of parameters"
                 )
         except RuntimeError as e:
             raise RuntimeError(
-                "Failed during convolution operation. Ensure that the kernel sizes and strides are appropriate for the input dimensions."
+                "Failed during convolution operation. Ensure that the kernel sizes "
+                "and strides are appropriate for the input dimensions."
             ) from e
 
         model = nn.Sequential(
             conv_module, nn.Flatten(), nn.Linear(in_channels, self.output_dim)
         )
-        return model.to(self.device)
-
-    def instantiate(self):
-        self.model = self.make_cnn()
-        self.is_model = True
+        return model.to(self.device), True
 
     def __call__(self, states):
         states = states.unsqueeze(1)  # (batch_size, channels, height, width)

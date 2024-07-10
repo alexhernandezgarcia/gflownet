@@ -54,15 +54,24 @@ class Policy:
         # Checkpoint, defaults to None
         self.checkpoint = config.get("checkpoint", None)
         # Instantiate the model
-        self.instantiate()
+        self.model, self.is_model = self.make_model()
 
-    def instantiate(self):
+    def make_model(self) -> Tuple[Union[torch.Tensor, torch.nn.Module], bool]:
+        """
+        Instantiates the model of the policy.
+
+        Returns
+        -------
+        model : torch.tensor or torch.nn.Module
+            A tensor representing the output of the policy or a torch model.
+        is_model : bool
+            True if the policy is a model (for example, a neural network) and False if
+            it is a fixed tensor (for example to make a uniform distribution).
+        """
         if self.type == "fixed":
-            self.model = self.fixed_distribution
-            self.is_model = False
+            return self.fixed_distribution, False
         elif self.type == "uniform":
-            self.model = self.uniform_distribution
-            self.is_model = False
+            return self.uniform_distribution, False
         else:
             raise "Policy model type not defined"
 
