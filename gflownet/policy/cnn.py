@@ -7,6 +7,7 @@ from gflownet.policy.base import Policy
 
 class CNNPolicy(Policy):
     def __init__(self, **kwargs):
+        config = self._get_config(kwargs["config"])
         # Shared weights, defaults to False
         self.shared_weights = config.get("shared_weights", False)
         # Reload checkpoint, defaults to False
