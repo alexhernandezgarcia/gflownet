@@ -1,13 +1,41 @@
-from abc import ABC, abstractmethod
+"""
+Base Policy class for GFlowNet policy models.
+"""
+
+from typing import Union
 
 import torch
 from omegaconf import OmegaConf
+from omegaconf.dictconfig import DictConfig
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import set_device, set_float_precision
 
 
 class Policy:
-    def __init__(self, config, env, device, float_precision, base=None):
+    def __init__(
+        self,
+        config: Union[dict, DictConfig],
+        env: GFlowNetEnv,
+        device: Union[str, torch.device],
+        float_precision: [int, torch.dtype],
+        base=None,
+    ):
+        """
+        Base Policy class for a :class:`GFlowNetAgent`.
+
+        Parameters
+        ----------
+        config : dict or DictConfig
+            The configuration dictionary to set up the policy model.
+        env : GFlowNetEnv
+            The environment used to train the :class:`GFlowNetAgent`, used to extract
+            needed properties.
+        device : str or torch.device
+            The device to be passed to torch tensors.
+        float_precision : int or torch.dtype
+            The floating point precision to be passed to torch tensors.
+        """
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
