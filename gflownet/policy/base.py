@@ -36,9 +36,7 @@ class Policy:
         float_precision : int or torch.dtype
             The floating point precision to be passed to torch tensors.
         """
-        # If config is None, instantiate an empty config (defaults will be used)
-        if config is None:
-            config = OmegaConf.create()
+        config = self._get_config(config)
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
@@ -55,6 +53,26 @@ class Policy:
         self.checkpoint = config.get("checkpoint", None)
         # Instantiate the model
         self.model, self.is_model = self.make_model()
+
+    @staticmethod
+    def _get_config(config: Union[dict, DictConfig]) -> Union[dict, DictConfig]:
+        """
+        Returns a configuration dictionary, even if the input is None.
+
+        Parameters
+        ----------
+        config : dict or DictConfig
+            The configuration dictionary to set up the policy model. It may be None, in
+            which an empty config is created and the defaults will be used.
+
+        Returns
+        -------
+        config : dict or DictConfig
+            The configuration dictionary to set up the policy model.
+        """
+        if config is None:
+            config = OmegaConf.create()
+        return config
 
     def make_model(self) -> Tuple[Union[torch.Tensor, torch.nn.Module], bool]:
         """
