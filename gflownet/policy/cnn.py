@@ -6,15 +6,9 @@ from gflownet.policy.base import Policy
 
 
 class CNNPolicy(Policy):
-    def __init__(self, config, env, device, float_precision, base=None):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.env = env
-        super().__init__(
-            config=config,
-            env=env,
-            device=device,
-            float_precision=float_precision,
-            base=base,
-        )
 
     def make_cnn(self):
         """
