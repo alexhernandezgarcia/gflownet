@@ -35,6 +35,8 @@ class Policy:
             The device to be passed to torch tensors.
         float_precision : int or torch.dtype
             The floating point precision to be passed to torch tensors.
+        base: Policy (optional)
+            A base policy to be used as backbone for the backward policy.
         """
         config = self._get_config(config)
         # Device and float precision
