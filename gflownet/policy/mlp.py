@@ -1,3 +1,5 @@
+from typing import List
+
 from omegaconf import OmegaConf
 from torch import nn
 
@@ -5,16 +7,23 @@ from gflownet.policy.base import Policy
 
 
 class MLPPolicy(Policy):
-    def __init__(self, **kwargs):
-        config = self._get_config(kwargs["config"])
-        # Shared weights, defaults to False
-        self.shared_weights = config.get("shared_weights", False)
-        # Reload checkpoint, defaults to False
-        self.reload_ckpt = config.get("reload_ckpt", False)
+    def __init__(self, n_layers: int = 2, n_hid: int = 128, tail: List = [], **kwargs):
+        """
+        MLP Policy class for a :class:`GFlowNetAgent`.
+
+        Parameters
+        ----------
+        n_layers : int
+            The number of layers in the MLP architecture.
+        n_hid : int
+            The number of hidden units per layer.
+        tail : list
+            A list of layers to conform the top (tail) of the MLP architecture.
+        """
         # MLP features: number of layers, number of hidden units, tail, etc.
-        self.n_layers = config.get("n_layers", 2)
-        self.n_hid = config.get("n_hid", 128)
-        self.tail = config.get("tail", [])
+        self.n_layers = n_layers
+        self.n_hid = n_hid
+        self.tail = tail
         # Base init
         super().__init__(**kwargs)
 
@@ -71,6 +80,3 @@ class MLPPolicy(Policy):
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
-
-    def __call__(self, states):
-        return self.model(states)

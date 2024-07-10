@@ -6,17 +6,47 @@ from gflownet.policy.base import Policy
 
 
 class CNNPolicy(Policy):
-    def __init__(self, **kwargs):
-        config = self._get_config(kwargs["config"])
-        # Shared weights, defaults to False
-        self.shared_weights = config.get("shared_weights", False)
-        # Reload checkpoint, defaults to False
-        self.reload_ckpt = config.get("reload_ckpt", False)
+    def __init__(
+        self,
+        n_layers: int = 2,
+        channels: Union[int, List] = [16, 32],
+        kernels: Union[int, List] =  [[3, 3], [2, 2]],
+        strides: Union[int, List] = [[1, 1], [1, 1]],
+        **kwargs,
+    ):
+        """
+        CNN Policy class for a :class:`GFlowNetAgent`.
+
+        Parameters
+        ----------
+        n_layers : int
+            The number of layers in the CNN architecture.
+        channels : int or list
+            The number of channels in the convolutional layers or a list of number of
+            channels for each layer.
+        kernels : int or list
+            The kernel size of the convolutions or a list of kernel sizes for each
+            layer.
+        strides : int or list
+            The stride of the convolutions or a list of strides for each layer.
+        """
         # CNN features: number of layers, number of channels, kernel sizes, strides
-        self.n_layers = config.get("n_layers", 3)
-        self.channels = config.get("channels", [16] * self.n_layers)
-        self.kernel_sizes = config.get("kernel_sizes", [(3, 3)] * self.n_layers)
-        self.strides = config.get("strides", [(1, 1)] * self.n_layers)
+        self.n_layers = n_layers
+        if isinstance(channels, int):
+            self.channels = [channels] * self.n_layers
+        else:
+            # TODO: check if valid
+            self.channels = channels
+        if isinstance(kernels, int):
+            self.kernels = [(kernels, kernels)] * self.n_layers
+        else:
+            # TODO: check if valid
+            self.kernels = kernels
+        if isinstance(strides, int):
+            self.strides = [(stride, stride)] * self.n_layers
+        else:
+            # TODO: check if valid
+            self.strides = strides
         # Environment
         # TODO: rethink whether storing the whole environment is needed
         self.env = env
@@ -46,10 +76,10 @@ class CNNPolicy(Policy):
         current_channels = 1
         conv_module = nn.Sequential()
 
-        if len(self.kernel_sizes) != self.n_layers:
+        if len(self.kernels) != self.n_layers:
             raise ValueError(
-                f"Inconsistent dimensions kernel_sizes != n_layers, "
-                "{len(self.kernel_sizes)} != {self.n_layers}"
+                f"Inconsistent dimensions kernels != n_layers, "
+                "{len(self.kernels)} != {self.n_layers}"
             )
 
         for i in range(self.n_layers):
@@ -58,7 +88,7 @@ class CNNPolicy(Policy):
                 nn.Conv2d(
                     in_channels=current_channels,
                     out_channels=self.channels[i],
-                    kernel_size=tuple(self.kernel_sizes[i]),
+                    kernel_size=tuple(self.kernels[i]),
                     stride=tuple(self.strides[i]),
                     padding=0,
                     padding_mode="zeros",  # Constant zero padding

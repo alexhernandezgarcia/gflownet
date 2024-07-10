@@ -1,0 +1,5 @@
+_target_: gflownet.policy.base.Policy
+
+base: null
+shared_weights: False
+checkpoint: null
