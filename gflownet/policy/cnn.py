@@ -7,8 +7,20 @@ from gflownet.policy.base import Policy
 
 class CNNPolicy(Policy):
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # Shared weights, defaults to False
+        self.shared_weights = config.get("shared_weights", False)
+        # Reload checkpoint, defaults to False
+        self.reload_ckpt = config.get("reload_ckpt", False)
+        # CNN features: number of layers, number of channels, kernel sizes, strides
+        self.n_layers = config.get("n_layers", 3)
+        self.channels = config.get("channels", [16] * self.n_layers)
+        self.kernel_sizes = config.get("kernel_sizes", [(3, 3)] * self.n_layers)
+        self.strides = config.get("strides", [(1, 1)] * self.n_layers)
+        # Environment
+        # TODO: rethink whether storing the whole environment is needed
         self.env = env
+        # Base init
+        super().__init__(**kwargs)
 
     def make_cnn(self):
         """
@@ -64,18 +76,6 @@ class CNNPolicy(Policy):
             conv_module, nn.Flatten(), nn.Linear(in_channels, self.output_dim)
         )
         return model.to(self.device)
-
-    def parse_config(self, config):
-        super().parse_config(config)
-        if config is None:
-            config = OmegaConf.create()
-        self.checkpoint = config.get("checkpoint", None)
-        self.shared_weights = config.get("shared_weights", False)
-        self.reload_ckpt = config.get("reload_ckpt", False)
-        self.n_layers = config.get("n_layers", 3)
-        self.channels = config.get("channels", [16] * self.n_layers)
-        self.kernel_sizes = config.get("kernel_sizes", [(3, 3)] * self.n_layers)
-        self.strides = config.get("strides", [(1, 1)] * self.n_layers)
 
     def instantiate(self):
         self.model = self.make_cnn()

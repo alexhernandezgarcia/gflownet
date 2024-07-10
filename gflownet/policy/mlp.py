@@ -6,13 +6,22 @@ from gflownet.policy.base import Policy
 
 class MLPPolicy(Policy):
     def __init__(self, **kwargs):
+        # Shared weights, defaults to False
+        self.shared_weights = config.get("shared_weights", False)
+        # Reload checkpoint, defaults to False
+        self.reload_ckpt = config.get("reload_ckpt", False)
+        # MLP features: number of layers, number of hidden units, tail, etc.
+        self.n_layers = config.get("n_layers", 2)
+        self.n_hid = config.get("n_hid", 128)
+        self.tail = config.get("tail", [])
+        # Base init
         super().__init__(**kwargs)
 
     def make_mlp(self, activation: nn.Module):
         """
         Defines an MLP with no top layer activation
 
-        If config.share_weights is True, the base model with which weights are to be
+        If self.shared_weights is True, the base model with which weights are to be
         shared must be provided.
 
         Parameters
@@ -52,17 +61,6 @@ class MLPPolicy(Policy):
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
-
-    def parse_config(self, config):
-        super().parse_config(config)
-        if config is None:
-            config = OmegaConf.create()
-        self.checkpoint = config.get("checkpoint", None)
-        self.shared_weights = config.get("shared_weights", False)
-        self.n_hid = config.get("n_hid", 128)
-        self.n_layers = config.get("n_layers", 2)
-        self.tail = config.get("tail", [])
-        self.reload_ckpt = config.get("reload_ckpt", False)
 
     def instantiate(self):
         self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
