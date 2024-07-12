@@ -105,6 +105,7 @@ class Batch:
         self.logrewards_available = False
         self.logrewards_parents_available = False
         self.logrewards_source_available = False
+        self.proxy_values_available = False
 
     def __len__(self):
         return self.size
@@ -881,7 +882,7 @@ class Batch:
         force_recompute : bool
             If True, the rewards are recomputed even if they are available.
         do_non_terminating : bool
-            If True, compute the actual rewards of the non-terminating states. If
+            If True, return the actual rewards of the non-terminating states. If
             False, non-terminating states will be assigned reward 0.
         """
         if self.rewards_available is False or force_recompute is True:
@@ -890,6 +891,26 @@ class Batch:
             return self.logrewards
         else:
             return self.rewards
+
+    def get_proxy_values(
+        self,
+        force_recompute: Optional[bool] = False,
+        do_non_terminating: Optional[bool] = False,
+    ) -> TensorType["n_states"]:
+        """
+        Returns the proxy values of all states in the batch (including not done).
+
+        Parameters
+        ----------
+        force_recompute : bool
+            If True, the proxy values are recomputed even if they are available.
+        do_non_terminating : bool
+            If True, return the actual proxy values of the non-terminating states. If
+            False, non-terminating states will be assigned value inf.
+        """
+        if self.proxy_values_available is False or force_recompute is True:
+            self._compute_rewards(do_non_terminating=do_non_terminating)
+        return self.proxy_values
 
     def _compute_rewards(
         self, log: bool = False, do_non_terminating: Optional[bool] = False
@@ -904,19 +925,27 @@ class Batch:
             If True, compute the logarithm of the rewards.
         do_non_terminating : bool
             If True, compute the rewards of the non-terminating states instead of
-            assigning reward 0.
+            assigning reward 0 and proxy value inf.
         """
 
         if do_non_terminating:
-            rewards = self.proxy.rewards(self.states2proxy(), log)
+            rewards, proxy_values = self.proxy.rewards(
+                self.states2proxy(), log, return_proxy=True
+            )
         else:
             rewards = self.proxy.get_min_reward(log) * torch.ones(
                 len(self), dtype=self.float, device=self.device
             )
+            proxy_values = torch.full_like(rewards, torch.inf)
             done = self.get_done()
             if len(done) > 0:
                 states_proxy_done = self.get_terminating_states(proxy=True)
-                rewards[done] = self.proxy.rewards(states_proxy_done, log)
+                rewards[done], proxy_values[done] = self.proxy.rewards(
+                    states_proxy_done, log, return_proxy=True
+                )
+
+        self.proxy_values = proxy_values
+        self.proxy_values_available = True
         if log:
             self.logrewards = rewards
             self.logrewards_available = True
@@ -1124,6 +1153,39 @@ class Batch:
             return self.logrewards[indices][done]
         else:
             return self.rewards[indices][done]
+
+    def get_terminating_proxy_values(
+        self,
+        sort_by: str = "insertion",
+        force_recompute: Optional[bool] = False,
+    ) -> TensorType["n_trajectories"]:
+        """
+        Returns the proxy values of the terminating states in the batch, that is all
+        states with done = True. The returned proxy values may be sorted by order of
+        insertion (sort_by = "insert[ion]", default) or by trajectory index (sort_by =
+        "traj[ectory]".
+
+        Parameters
+        ----------
+        sort_by : str
+            Indicates how to sort the output:
+                - insert[ion]: sort by order of insertion (proxy values of trajectories
+                  that reached the terminating state first come first)
+                - traj[ectory]: sort by trajectory index (the order in the ordered
+                  dict self.trajectories)
+        force_recompute : bool
+            If True, the proxy_values are recomputed even if they are available.
+        """
+        if sort_by == "insert" or sort_by == "insertion":
+            indices = np.arange(len(self))
+        elif sort_by == "traj" or sort_by == "trajectory":
+            indices = np.argsort(self.traj_indices)
+        else:
+            raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
+        if self.proxy_values_available is False or force_recompute is True:
+            self._compute_rewards(log, do_non_terminating=False)
+        done = self.get_done()[indices]
+        return self.proxy_values[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
         """
