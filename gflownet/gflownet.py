@@ -1168,35 +1168,34 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            # TODO: the current implementation recomputes the proxy values of the
-            # terminating states in order to store the proxy values in the Buffer.
-            # Depending on the computational cost of the proxy, this may be very
-            # inneficient. For example, proxy.rewards() could return the proxy values,
-            # which could be stored in the Batch.
-            if it == 0:
-                print(
-                    "IMPORTANT: The current implementation recomputes the proxy "
-                    "values of the terminating states in order to store the proxy "
-                    "values in the Buffer. Depending on the computational cost of "
-                    "the proxy, this may be very inneficient."
-                )
             states_term = batch.get_terminating_states(sort_by="trajectory")
-            states_proxy_term = batch.get_terminating_states(
-                proxy=True, sort_by="trajectory"
-            )
-            proxy_vals = self.proxy(states_proxy_term)
-            rewards = self.proxy.proxy2reward(proxy_vals)
-            rewards = rewards.tolist()
+            proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
             proxy_vals = proxy_vals.tolist()
+            # The batch will typically have the log-rewards available, since they are
+            # used to compute the losses. In order to avoid recalculating the proxy
+            # values, the natural rewards are computed by taking the exponential of the
+            # log-rewards. In case the rewards are available in the batch but not the
+            # log-rewards, the latter are computed by taking the log of the rewards.
+            # Numerical issues are not critical in this case, since the derived values
+            # are only used for reporting purposes.
+            if batch.rewards_available:
+                rewards = batch.get_terminating_rewards(sort_by="trajectory")
+            if batch.logrewards_available:
+                logrewards = batch.get_terminating_rewards(
+                    sort_by="trajectory", log=True
+                )
+            if not batch.rewards_available:
+                assert batch.logrewards_available
+                rewards = torch.exp(logrewards)
+            if batch.logrewards_available:
+                assert batch.rewards_available
+                logrewards = torch.log(rewards)
+            rewards = rewards.tolist()
+            logrewards = logrewards.tolist()
             actions_trajectories = batch.get_actions_trajectories()
-            self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
+            self.buffer.add(states_term, actions_trajectories, logrewards, it)
             self.buffer.add(
-                states_term,
-                actions_trajectories,
-                rewards,
-                proxy_vals,
-                it,
-                buffer="replay",
+                states_term, actions_trajectories, logrewards, it, buffer="replay"
             )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
