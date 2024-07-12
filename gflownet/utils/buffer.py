@@ -36,13 +36,12 @@ class Buffer:
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
-        self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
+        self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
         self.replay = pd.DataFrame(
             np.empty((self.replay_capacity, 5), dtype=object),
-            columns=["state", "traj", "reward", "energy", "iter"],
+            columns=["state", "traj", "reward", "iter"],
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
-        self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
@@ -127,16 +126,7 @@ class Buffer:
                 f,
             )
 
-    def add(
-        self,
-        states,
-        trajs,
-        rewards,
-        energies,
-        it,
-        buffer="main",
-        criterion="greater",
-    ):
+    def add(self, states, trajs, rewards, it, buffer="main", criterion="greater"):
         if buffer == "main":
             self.main = pd.concat(
                 [
@@ -146,7 +136,6 @@ class Buffer:
                             "state": [self.env.state2readable(s) for s in states],
                             "traj": [self.env.traj2readable(p) for p in trajs],
                             "reward": rewards,
-                            "energy": energies,
                             "iter": it,
                         }
                     ),
@@ -156,20 +145,10 @@ class Buffer:
             )
         elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
-                self.replay = self._add_greater(states, trajs, rewards, energies, it)
+                self.replay = self._add_greater(states, trajs, rewards, it)
 
-    def _add_greater(
-        self,
-        states,
-        trajs,
-        rewards,
-        energies,
-        it,
-        allow_duplicate_states=False,
-    ):
-        for idx, (state, traj, reward, energy) in enumerate(
-            zip(states, trajs, rewards, energies)
-        ):
+    def _add_greater(self, states, trajs, rewards, it, allow_duplicate_states=False):
+        for idx, (state, traj, reward) in enumerate(zip(states, trajs, rewards)):
             if not allow_duplicate_states:
                 if isinstance(state, torch.Tensor):
                     is_duplicate = False
@@ -189,7 +168,6 @@ class Buffer:
                     "state": self.env.state2readable(state),
                     "traj": self.env.traj2readable(traj),
                     "reward": reward,
-                    "energy": energy,
                     "iter": it,
                 }
                 self.replay_states[(idx, it)] = state
