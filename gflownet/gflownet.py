@@ -1187,7 +1187,7 @@ class GFlowNetAgent:
             if not batch.rewards_available:
                 assert batch.logrewards_available
                 rewards = torch.exp(logrewards)
-            if batch.logrewards_available:
+            if not batch.logrewards_available:
                 assert batch.rewards_available
                 logrewards = torch.log(rewards)
             rewards = rewards.tolist()

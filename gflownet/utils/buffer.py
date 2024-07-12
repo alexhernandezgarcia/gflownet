@@ -163,13 +163,15 @@ class Buffer:
                 axis=0,
                 join="outer",
             )
-        elif buffer == "replay" and self.replay_capacity > 0:
-            if criterion == "greater":
-                self.replay = self._add_greater(states, trajs, rewards, it)
-            else:
-                raise ValueError(
-                    f"Unknown criterion identifier. Received {buffer}, expected greater"
-                )
+        elif buffer == "replay":
+            if self.replay_capacity > 0:
+                if criterion == "greater":
+                    self.replay = self._add_greater(states, trajs, rewards, it)
+                else:
+                    raise ValueError(
+                        f"Unknown criterion identifier. Received {buffer}, "
+                        "expected greater"
+                    )
         else:
             raise ValueError(
                 f"Unknown buffer identifier. Received {buffer}, expected main or replay"
