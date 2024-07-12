@@ -99,10 +99,10 @@ class Batch:
         self.parents_all_available = False
         self.masks_forward_available = False
         self.masks_backward_available = False
-        self.rewards_available = False
+        self._rewards_available = False
         self.rewards_parents_available = False
         self.rewards_source_available = False
-        self.logrewards_available = False
+        self._logrewards_available = False
         self.logrewards_parents_available = False
         self.logrewards_source_available = False
         self.proxy_values_available = False
@@ -138,6 +138,26 @@ class Batch:
 
     def idx2state_idx(self, idx: int):
         return self.trajectories[self.traj_indices[idx]].index(idx)
+
+    def rewards_available(self, log: bool = False) -> bool:
+        """
+        Returns True if the (log)rewards are available.
+
+        Parameters
+        ----------
+        log : bool
+            If True, check self._logrewards_available. Otherwise (default), check
+            self._rewards_available.
+
+        Returns
+        -------
+        bool
+            True if the (log)rewards are available, False otherwise.
+        """
+        if log:
+            return self._logrewards_available
+        else:
+            return self._rewards_available
 
     def set_env(self, env: GFlowNetEnv):
         """
@@ -256,8 +276,8 @@ class Batch:
         self.masks_backward_available = False
         self.parents_policy_available = False
         self.parents_all_available = False
-        self.rewards_available = False
-        self.logrewards_available = False
+        self._rewards_available = False
+        self._logrewards_available = False
 
     def get_n_trajectories(self) -> int:
         """
@@ -885,7 +905,7 @@ class Batch:
             If True, return the actual rewards of the non-terminating states. If
             False, non-terminating states will be assigned reward 0.
         """
-        if self.rewards_available is False or force_recompute is True:
+        if self.rewards_available(log) is False or force_recompute is True:
             self._compute_rewards(log, do_non_terminating)
         if log:
             return self.logrewards
@@ -948,10 +968,10 @@ class Batch:
         self.proxy_values_available = True
         if log:
             self.logrewards = rewards
-            self.logrewards_available = True
+            self._logrewards_available = True
         else:
             self.rewards = rewards
-            self.rewards_available = True
+            self._rewards_available = True
 
     def get_rewards_parents(self, log: bool = False) -> TensorType["n_states"]:
         """
@@ -1146,7 +1166,7 @@ class Batch:
             indices = np.argsort(self.traj_indices)
         else:
             raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
-        if self.rewards_available is False or force_recompute is True:
+        if self.rewards_available(log) is False or force_recompute is True:
             self._compute_rewards(log, do_non_terminating=False)
         done = self.get_done()[indices]
         if log:
@@ -1305,11 +1325,11 @@ class Batch:
                 self.parents_all = extend(self.parents_all, batch.parents_all)
             else:
                 self.parents_all = None
-            if self.rewards_available and batch.rewards_available:
+            if self._rewards_available and batch._rewards_available:
                 self.rewards = extend(self.rewards, batch.rewards)
             else:
                 self.rewards = None
-            if self.logrewards_available and batch.logrewards_available:
+            if self._logrewards_available and batch._logrewards_available:
                 self.logrewards = extend(self.logrewards, batch.logrewards)
             else:
                 self.logrewards = None

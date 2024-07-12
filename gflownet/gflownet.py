@@ -1178,17 +1178,17 @@ class GFlowNetAgent:
             # log-rewards, the latter are computed by taking the log of the rewards.
             # Numerical issues are not critical in this case, since the derived values
             # are only used for reporting purposes.
-            if batch.rewards_available:
+            if batch.rewards_available(log=False):
                 rewards = batch.get_terminating_rewards(sort_by="trajectory")
-            if batch.logrewards_available:
+            if batch.rewards_available(log=True):
                 logrewards = batch.get_terminating_rewards(
                     sort_by="trajectory", log=True
                 )
-            if not batch.rewards_available:
-                assert batch.logrewards_available
+            if not batch.rewards_available(log=False):
+                assert batch.rewards_available(log=True)
                 rewards = torch.exp(logrewards)
-            if not batch.logrewards_available:
-                assert batch.rewards_available
+            if not batch.rewards_available(log=True):
+                assert batch.rewards_available(log=False)
                 logrewards = torch.log(rewards)
             rewards = rewards.tolist()
             logrewards = logrewards.tolist()
