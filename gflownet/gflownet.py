@@ -1214,6 +1214,7 @@ class GFlowNetAgent:
                 self.logger.log_train(
                     losses=losses,
                     rewards=rewards,
+                    logrewards=logrewards,
                     proxy_vals=proxy_vals,
                     states_term=states_term,
                     batch_size=len(batch),
