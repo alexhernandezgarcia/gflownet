@@ -105,8 +105,11 @@ class Proxy(ABC):
         pass
 
     def rewards(
-        self, states: Union[TensorType, List, npt.NDArray], log: bool = False
-    ) -> TensorType:
+        self,
+        states: Union[TensorType, List, npt.NDArray],
+        log: bool = False,
+        return_proxy: bool = False,
+    ) -> Union[TensorType, Tuple[TensorType, TensorType]]:
         """
         Computes the rewards of a batch of states.
 
@@ -120,16 +123,27 @@ class Proxy(ABC):
         log : bool
             If True, returns the logarithm of the rewards. If False (default), returns
             the natural rewards.
+        return_proxy : bool
+            If True, returns the proxy values, alongside the rewards, as the second
+            element in the returned tuple.
 
         Returns
         -------
-        tensor
-            The reward of all elements in the batch.
+        rewards
+            The reward or log-reward of all elements in the batch.
+        tensor (optional)
+            The proxy value of all elements in the batch. Included only if return_proxy
+            is True.
         """
+        proxy_values = self(states)
         if log:
-            return self.proxy2logreward(self(states))
+            rewards = self.proxy2logreward(proxy_values)
         else:
-            return self.proxy2reward(self(states))
+            rewards = self.proxy2reward(proxy_values)
+        if return_proxy:
+            return rewards, proxy_values
+        else:
+            return rewards
 
     def proxy2reward(self, proxy_values: TensorType) -> TensorType:
         """
