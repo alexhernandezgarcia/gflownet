@@ -1066,7 +1066,7 @@ if __name__ == "__main__":
 
     config = OmegaConf.create(yaml.safe_load(open(config_path, "r")))
 
-    env = Crystal(config.env)
+    env = Crystal(**config.env)
     tdf, vdf = load_mb_data(
         env, args.target, energy_key=args.energy_key, data_root_dir=args.data_root_dir
     )
