@@ -8,16 +8,16 @@ implementations.
 
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
-from torchtyping import TensorType
-from tqdm import tqdm
-
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.crystals.constants import TRICLINIC
+from torchtyping import TensorType
+from tqdm import tqdm
 
 
 class Crystal(Stack):
@@ -181,22 +181,37 @@ class Crystal(Stack):
         for row in tqdm(df.iterrows(), total=len(df), disable=not progress):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
-            state = {}
-            state[self.stage_composition] = self.subenvs[
-                self.stage_composition
-            ].readable2state(row["Formulae"])
-            state[self.stage_spacegroup] = self.subenvs[
-                self.stage_spacegroup
-            ]._set_constrained_properties([0, 0, row["Space Group"]])
-            state[self.stage_latticeparameters] = self.subenvs[
-                self.stage_latticeparameters
-            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
-            is_valid_subenvs = [
-                subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
-            ]
-            if all(is_valid_subenvs):
+            if self._is_valid_datarow(row):
                 # TODO: Consider making stack state a dict which would avoid having to
                 # do this, among other advantages
+                state = self._state_from_datarow(row)
                 state_stack = [2] + [state[stage] for stage in self.subenvs]
                 data_valid.append(state_stack)
         return data_valid
+
+    def _state_from_datarow(self, row):
+        state = {}
+        state[self.stage_composition] = self.subenvs[
+            self.stage_composition
+        ].readable2state(row["Formulae"])
+        state[self.stage_spacegroup] = self.subenvs[
+            self.stage_spacegroup
+        ]._set_constrained_properties([0, 0, row["Space Group"]])
+        state[self.stage_latticeparameters] = self.subenvs[
+            self.stage_latticeparameters
+        ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
+        return state
+
+    def _is_valid_datarow(self, row):
+        state = self._state_from_datarow(row)
+        is_valid_subenvs = [
+            subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
+        ]
+        return all(is_valid_subenvs)
+
+    def filter_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
+        is_valid = []
+        for row in df.iterrows():
+            row = row[1]
+            is_valid.append(self._is_valid_datarow(row))
+        return df[np.array(is_valid)]

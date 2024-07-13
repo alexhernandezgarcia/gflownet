@@ -1,6 +1,7 @@
 import argparse
 import datetime
 import pickle
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -12,9 +13,11 @@ import pandas as pd
 import seaborn as sns
 import torch
 import yaml
+from gflownet.envs.crystals.crystal import Crystal
 from gflownet.utils.common import load_gflow_net_from_run_path
 from gflownet.utils.crystals.constants import ELEMENT_NAMES
 from mendeleev.fetch import fetch_table
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
@@ -45,31 +48,62 @@ CRYSTALGFNs = {
 sys.path.append(str(ROOT))
 
 
-def load_mb_eform(energy_key="energy"):
-    """Load the materials project eform dataset and returns train and val df."""
-    train_df_path = "/network/scratch/s/schmidtv/crystals-proxys/data/materials_dataset_v3/data/matbench_mp_e_form/train_data.csv"
-    val_df_path = "/network/scratch/s/schmidtv/crystals-proxys/data/materials_dataset_v3/data/matbench_mp_e_form/val_data.csv"
-    tdf = pd.read_csv(train_df_path)
-    vdf = pd.read_csv(val_df_path)
-    tdf[energy_key] = tdf["Eform"]
-    vdf[energy_key] = vdf["Eform"]
-    tdf = tdf.drop(columns=["Eform", "cif"])
-    vdf = vdf.drop(columns=["Eform", "cif"])
-    return tdf, vdf
+def parse_formula(x):
+    element_pattern = r"([A-Z][a-z]?)(\d*)"
+    matches = re.findall(element_pattern, x["Formulae"])
+    for element, count in matches:
+        x[element] = int(count)
+    return x
 
 
-def load_mb_bandgap(energy_key="energy"):
-    """
-    Load the materials project bandgap dataset and returns train and val df.
-    """
-    train_df_path = "/network/scratch/s/schmidtv/crystals-proxys/data/materials_dataset_v3/data/matbench_mp_gap/train_data.csv"
-    val_df_path = "/network/scratch/s/schmidtv/crystals-proxys/data/materials_dataset_v3/data/matbench_mp_gap/val_data.csv"
-    tdf = pd.read_csv(train_df_path)
-    vdf = pd.read_csv(val_df_path)
-    tdf[energy_key] = tdf["Band Gap"]
-    vdf[energy_key] = vdf["Band Gap"]
-    tdf = tdf.drop(columns=["Band Gap", "cif"])
-    vdf = vdf.drop(columns=["Band Gap", "cif"])
+def add_elements_columns(df):
+    for el in ELEMENT_NAMES.values():
+        if el not in df.columns:
+            df[el] = 0
+    df = df.apply(lambda x: parse_formula(x), axis=1)
+    return df
+
+
+def load_mb_data(env, target, energy_key="energy"):
+    paths = {
+        "eform": {
+            "train": "/network/projects/crystalgfn/data/eform/train.csv",
+            "val": "/network/projects/crystalgfn/data/eform/val.csv",
+        },
+        "bandgap": {
+            "train": "/network/projects/crystalgfn/data/bandgap/train.csv",
+            "val": "/network/projects/crystalgfn/data/bandgap/val.csv",
+        },
+        "density": {
+            # TODO: incorrect "energies" here, need to change it once we have
+            # datasets with computed densities
+            "train": "/network/projects/crystalgfn/data/eform/train.csv",
+            "val": "/network/projects/crystalgfn/data/eform/val.csv",
+        },
+    }
+    names = {
+        "eform": "Eform",
+        "bandgap": "Band Gap",
+        "density": "Eform",
+    }
+
+    tdf = pd.read_csv(paths[target]["train"])
+    vdf = pd.read_csv(paths[target]["val"])
+    print("Initial full data sets:")
+    print(f"Train: {tdf.shape}")
+    print(f"Val: {vdf.shape}")
+    tdf = add_elements_columns(tdf)
+    vdf = add_elements_columns(vdf)
+    tdf[energy_key] = tdf[names[target]]
+    vdf[energy_key] = vdf[names[target]]
+    tdf = env.filter_dataset(tdf)
+    vdf = env.filter_dataset(vdf)
+    tdf = tdf.drop(columns=[names[target], "Formulae"])
+    vdf = vdf.drop(columns=[names[target], "Formulae"])
+    print("Filtered data sets:")
+    print(f"Train: {tdf.shape}")
+    print(f"Val: {vdf.shape}")
+    print()
     return tdf, vdf
 
 
@@ -1013,24 +1047,18 @@ if __name__ == "__main__":
     print(f"Saving plots to {output_path}")
 
     if args.target == "eform":
-        ftdf, fvdf = load_mb_eform(energy_key=args.energy_key)
         config_path = ROOT / "config/experiments/crystals/starling_fe.yaml"
     elif args.target == "bandgap":
-        ftdf, fvdf = load_mb_bandgap(energy_key=args.energy_key)
         config_path = ROOT / "config/experiments/crystals/starling_bg.yaml"
     elif args.target == "density":
-        # TODO: incorrect "energies" here, need to change it once we have
-        # datasets with computed densities
-        ftdf, fvdf = load_mb_eform(energy_key=args.energy_key)
         config_path = ROOT / "config/experiments/crystals/starling_density.yaml"
     else:
         raise ValueError("Unknown target")
 
-    print("Initial full data sets:")
-    print(f"Train: {ftdf.shape}")
-    print(f"Val: {fvdf.shape}")
+    config = OmegaConf.create(yaml.safe_load(open(config_path, "r")))
 
-    config = yaml.safe_load(open(config_path, "r"))
+    env = Crystal(config.env)
+    tdf, vdf = load_mb_data(env, args.target, energy_key=args.energy_key)
 
     # List atomic numbers of the utilised elements
     elements_anums = config["env"]["composition_kwargs"]["elements"]
@@ -1055,35 +1083,6 @@ if __name__ == "__main__":
     sg_subset = config["env"]["space_group_kwargs"]["space_groups_subset"]
     assert len(sg_subset) > 0
     print(f"Using {len(sg_subset)} SGs: ", ", ".join(map(str, sg_subset)))
-
-    comp_cols = [c for c in ftdf.columns if c in set(ELS_TABLE)]
-
-    tdf = filter_df(
-        ftdf,
-        elements_names,
-        comp_cols,
-        sg_subset,
-        min_length=args.min_length,
-        max_length=args.max_length,
-        min_angle=args.min_angle,
-        max_angle=args.max_angle,
-    )
-
-    vdf = filter_df(
-        fvdf,
-        elements_names,
-        comp_cols,
-        sg_subset,
-        min_length=args.min_length,
-        max_length=args.max_length,
-        min_angle=args.min_angle,
-        max_angle=args.max_angle,
-    )
-
-    print("Filtered data sets:")
-    print(f"Train: {tdf.shape}")
-    print(f"Val: {vdf.shape}")
-    print()
 
     make_plots(
         train_df=tdf,
