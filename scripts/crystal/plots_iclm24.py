@@ -99,8 +99,8 @@ def load_mb_data(
     vdf = add_elements_columns(vdf)
     tdf[energy_key] = tdf[names[target]]
     vdf[energy_key] = vdf[names[target]]
-    tdf = env.filter_dataset(tdf)
-    vdf = env.filter_dataset(vdf)
+    tdf = env.process_data_set(tdf, return_type="dataframe")
+    vdf = env.process_data_set(vdf, return_type="dataframe")
     tdf = tdf.drop(columns=[names[target], "Formulae"])
     vdf = vdf.drop(columns=[names[target], "Formulae"])
     print("Filtered data sets:")

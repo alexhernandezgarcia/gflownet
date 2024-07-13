@@ -155,7 +155,9 @@ class Crystal(Stack):
             dim=1,
         )
 
-    def process_data_set(self, df: pd.DataFrame, progress=False) -> List[List]:
+    def process_data_set(
+        self, df: pd.DataFrame, return_type: str = "state", progress=False
+    ) -> List[List]:
         """
         Converts a data set passed as a pandas DataFrame into a list of states in
         environment format.
@@ -170,6 +172,10 @@ class Crystal(Stack):
         df : DataFrame
             A pandas DataFrame containing the necessary columns to represent a crystal
             as described above.
+        return_type: str
+            Identifier of the data format to be return. Options:
+                - state: list of states in environment format (default)
+                - dataframe: pandas DataFrame
         progress : bool
             Whether to display a progress bar.
 
@@ -178,17 +184,29 @@ class Crystal(Stack):
         list
             A list of states in environment format.
         """
-        data_valid = []
+        is_valid = []
+        states_valid = []
         for row in tqdm(df.iterrows(), total=len(df), disable=not progress):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
-            if self._is_valid_datarow(row):
-                # TODO: Consider making stack state a dict which would avoid having to
-                # do this, among other advantages
-                state = self._state_from_datarow(row)
-                state_stack = [2] + [state[stage] for stage in self.subenvs]
-                data_valid.append(state_stack)
-        return data_valid
+            if return_type.lower() == "dataframe":
+                is_valid.append(self._is_valid_datarow(row))
+            elif return_type.lower().startswith("state"):
+                if self._is_valid_datarow(row):
+                    # TODO: Consider making stack state a dict which would avoid having
+                    # to do this, among other advantages
+                    state = self._state_from_datarow(row)
+                    state_stack = [2] + [state[stage] for stage in self.subenvs]
+                    states_valid.append(state_stack)
+            else:
+                raise ValueError(
+                    f"Unknown return_type. Received {return_type}, expected state or "
+                    "dataframe"
+                )
+        if return_type.lower() == "dataframe":
+            return df[np.array(is_valid)]
+        else:
+            return states_valid
 
     def _state_from_datarow(self, row):
         state = {}
@@ -209,10 +227,3 @@ class Crystal(Stack):
             subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
         ]
         return all(is_valid_subenvs)
-
-    def filter_dataset(self, df: pd.DataFrame) -> pd.DataFrame:
-        is_valid = []
-        for row in df.iterrows():
-            row = row[1]
-            is_valid.append(self._is_valid_datarow(row))
-        return df[np.array(is_valid)]
