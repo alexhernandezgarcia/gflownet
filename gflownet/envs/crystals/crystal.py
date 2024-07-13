@@ -11,13 +11,14 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
+from torchtyping import TensorType
+from tqdm import tqdm
+
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.crystals.constants import TRICLINIC
-from torchtyping import TensorType
-from tqdm import tqdm
 
 
 class Crystal(Stack):
