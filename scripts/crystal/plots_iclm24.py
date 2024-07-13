@@ -13,12 +13,13 @@ import pandas as pd
 import seaborn as sns
 import torch
 import yaml
-from gflownet.envs.crystals.crystal import Crystal
-from gflownet.utils.common import load_gflow_net_from_run_path
-from gflownet.utils.crystals.constants import ELEMENT_NAMES
 from mendeleev.fetch import fetch_table
 from omegaconf import OmegaConf
 from tqdm import tqdm
+
+from gflownet.envs.crystals.crystal import Crystal
+from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.crystals.constants import ELEMENT_NAMES
 
 warnings.filterwarnings("ignore")
 
@@ -64,21 +65,23 @@ def add_elements_columns(df):
     return df
 
 
-def load_mb_data(env, target, energy_key="energy"):
+def load_mb_data(
+    env, target, energy_key="energy", data_root_dir="/network/projects/crystalgfn/data"
+):
     paths = {
         "eform": {
-            "train": "/network/projects/crystalgfn/data/eform/train.csv",
-            "val": "/network/projects/crystalgfn/data/eform/val.csv",
+            "train": data_root_dir + "/eform/train.csv",
+            "val": data_root_dir + "/eform/val.csv",
         },
         "bandgap": {
-            "train": "/network/projects/crystalgfn/data/bandgap/train.csv",
-            "val": "/network/projects/crystalgfn/data/bandgap/val.csv",
+            "train": data_root_dir + "/bandgap/train.csv",
+            "val": data_root_dir + "/bandgap/val.csv",
         },
         "density": {
             # TODO: incorrect "energies" here, need to change it once we have
             # datasets with computed densities
-            "train": "/network/projects/crystalgfn/data/eform/train.csv",
-            "val": "/network/projects/crystalgfn/data/eform/val.csv",
+            "train": data_root_dir + "/eform/train.csv",
+            "val": data_root_dir + "/eform/val.csv",
         },
     }
     names = {
@@ -1009,6 +1012,12 @@ if __name__ == "__main__":
         "--pkl_path", type=str, default=None, help="gflownet samples path"
     )
     parser.add_argument(
+        "--data_root_dir",
+        type=str,
+        default="/network/projects/crystalgfn/data",
+        help="Root directory containing the data sets.",
+    )
+    parser.add_argument(
         "--random_pkl_path",
         type=str,
         default=None,
@@ -1058,7 +1067,9 @@ if __name__ == "__main__":
     config = OmegaConf.create(yaml.safe_load(open(config_path, "r")))
 
     env = Crystal(config.env)
-    tdf, vdf = load_mb_data(env, args.target, energy_key=args.energy_key)
+    tdf, vdf = load_mb_data(
+        env, args.target, energy_key=args.energy_key, data_root_dir=args.data_root_dir
+    )
 
     # List atomic numbers of the utilised elements
     elements_anums = config["env"]["composition_kwargs"]["elements"]
