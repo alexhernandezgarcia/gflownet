@@ -129,9 +129,9 @@ class Proxy(ABC):
 
         Returns
         -------
-        rewards
+        rewards : tensor
             The reward or log-reward of all elements in the batch.
-        tensor (optional)
+        proxy_values : tensor (optional)
             The proxy value of all elements in the batch. Included only if return_proxy
             is True.
         """
