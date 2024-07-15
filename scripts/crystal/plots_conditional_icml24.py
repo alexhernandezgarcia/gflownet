@@ -1,31 +1,18 @@
 """
 Script for plotting violin plots for conditional sampling. 
 example cli:
-python scripts/crystal/plots_conditional_icml24.py --pkl_path=/home/mila/a/alexandra.volokhova/projects/gflownet-dev/external/data/starling_fe/samples/gfn_samples.pkl --cond_dir_root=/home/mila/a/alexandra.volokhova/projects/gflownet-dev/external/data/starling_fe_conditional
+PYTHONPATH=/home/mila/a/alexandra.volokhova/projects/gflownet python scripts/crystal/plots_conditional_icml24.py --pkl_path=/home/mila/a/alexandra.volokhova/projects/gflownet/external/starling_fe/samples/gfn_iter50k_samples.pkl --cond_dir_root=/home/mila/a/alexandra.volokhova/projects/gflownet/external/starling_fe_conditional
 """
 
 import argparse
-import datetime
 import os
 import pickle
-import sys
-import warnings
-from collections import OrderedDict
 from pathlib import Path
 
-import matplotlib
-import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-import numpy as np
 import pandas as pd
 import seaborn as sns
-import torch
-import yaml
-from mendeleev.fetch import fetch_table
-from plots_icml24 import load_gfn_samples, now_to_str
-from seaborn_fig2grid import SeabornFig2Grid
-from tqdm import tqdm
+from plots_icml24 import now_to_str
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -116,12 +103,12 @@ if __name__ == "__main__":
     print(f"Saving plots to {output_path}")
 
     USE_SUPTITLES = not args.no_suptitles
-    # elements = ['H', 'Li', 'B', 'C', 'N', 'O', 'F', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'K', 'V', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Se']
+
     sdf = load_energies_only(pkl_path=args.pkl_path)
     dfs = {"Crystal-GFN (FE)": sdf}
     cond_root = Path(args.cond_dir_root)
     cond_paths = {
-        x[-1].upper(): cond_root / x / "eval/samples/gfn_samples.pkl"
+        x[-1].upper(): cond_root / x / f"gfn_iter50k_samples_restricted_{x[-1]}.pkl"
         for x in os.listdir(cond_root)
     }
     cdfs = {k: load_energies_only(pkl_path=v) for k, v in cond_paths.items()}

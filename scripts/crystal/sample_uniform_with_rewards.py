@@ -8,7 +8,6 @@ import sys
 
 import hydra
 import pandas as pd
-
 from crystalrandom import generate_random_crystals_uniform
 
 
