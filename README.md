@@ -24,7 +24,7 @@ The GFlowNet library comprises four core components: environment, proxy, policy 
 
 ### Environment
 
-The environment defines the state space $\mathcal{S}$ and action space $\mathbb{A} of a particular problem, for example the Tetris task. To illustrate the environment, let's consider an even simpler environment currently implemented in the library: the [Scrabble](https://en.wikipedia.org/wiki/Scrabble) environment, inspired by the popular board game. 
+The environment defines the state space $\mathcal{S}$ and action space $\mathbb{A}$ of a particular problem, for example the Tetris task. To illustrate the environment, let's consider an even simpler environment currently implemented in the library: the [Scrabble](https://en.wikipedia.org/wiki/Scrabble) environment, inspired by the popular board game.
 
 The Scrabble environment simulates a simple letter arrangement game where words are constructed by adding one letter at a time, up to a maximum sequence length (typically 7). Therefore, the action space is the set of all English letters plus a special end-of-sequence (EOS) action; and the state space is the set of all possible words with up to 7 letters. We can represent each `state` as a list of indices corresponding to the letters, padded with zeroes to the maximum length. For example, the state for the word "CAT" would be represented as `[3, 1, 20, 0, 0, 0, 0]`. Actions in the Scrabble environment are single-element tuples containing the index of the letter, plus the end-of-sequence (EOS) action `(-1,)`.
 
@@ -42,81 +42,165 @@ The policy models are neural networks that model the forward and backward transi
 
 ### GFlowNet Agent
 
-The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: flow matching (FM), trajectory balance (TB), and detailed balance (TB) and forward-looking (FL). 
+The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy, as well as other auxiliary components such as the Evaluator and the Logger. The GFlowNet can construct training batches by sampling trajectories, optimise the policy models via gradient descent, compute evaluation metrics, log data to [Weights & Biases](https://wandb.ai/), etc. The agent can be configured to optimise any of the following loss functions implemented in the library: [flow matching (FM)](https://arxiv.org/abs/2106.04399), [trajectory balance (TB)](https://arxiv.org/abs/2201.13259), [detailed balance (TB)](https://arxiv.org/abs/2201.13259) and [forward-looking (FL)](https://arxiv.org/abs/2302.01687).
 
-#### Exploring the Scrabble Environment
+## Installation
 
-To better understand the GFlowNet components, let us explore the Scrabble environment in more detail below.
+**If you simply want to install everything, clone the repo and run `setup_all.sh`:**
 
-When initializing any GFlowNet agent, it's useful to explore the properties of the environment. The library offers various functionalities for this purpose. Below are some detailed examples, among others:
+```bash
+git clone git@github.com:alexhernandezgarcia/gflownet.git
+cd gflownet
+./setup_all.sh
+```
 
-1. Checking the Initial State 
++ This project **requires** `python 3.10` and `cuda 11.8`.
++ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
++ The recommend installation is as follows:
 
-You can observe the initial state of the environment. For Scrabble environment, this would be an empty board or sequence:
+```bash
+python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
+source ~/envs/gflownet/bin/activate  # Activate your environment.
+./prereq_ubuntu.sh  # Installs some packages required by dependencies.
+./prereq_python.sh  # Installs python packages with specific wheels.
+./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
+pip install .[all]  # Install the remaining elements of this package.
+```
+
+Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
+
+## Quickstart: How to train a GFlowNet model
+
+The gflownet library uses [Hydra](https://hydra.cc/docs/intro/) to handle configuration files. This allows, for instance, to easily train a GFlowNet with the configuration of a specific YAML file. For example, to train a GFlowNet with a 10x10 Grid environment and the corners proxy, with the configuration from `./config/experiments/grid/corners.yaml`, we can simply run:
+
+```bash
+python main.py +experiments=grid/corners
+```
+
+Alternatively, we can explicitly indicate the environment and the proxy as follows:
+
+```bash
+python main.py env=grid proxy=box/corners
+```
+
+The above command will train a GFlowNet with the default configuration, except for the environment, which will use `./config/env/grid.yaml`; and the proxy, which will use `./config/proxy/box/corners.yaml`.
+
+A typical use case of the gflownet library is to extend it with a new environment and a new proxy to fit your purposes. In that case, you could create their respective configuration files `./config/env/myenv.yaml` and `./config/proxy/myproxy.yaml` and run
+
+```bash
+python main.py env=myenv proxy=myproxy
+```
+
+The objective function to optimise is selected directly via the `gflownet` configuration. The following GFlowNet objectives are supported:
+
+- [Flow-matching (FM)](https://arxiv.org/abs/2106.04399): `gflownet=flowmatch`
+- [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
+- [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
+- [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
+
+
+All other configurable options are handled similarly. For example, we recommend creating a user configuration file in `./config/user/myusername.yaml` specifying the directory for the log files in `logdir.root`. Then, it can be included in the command with `user=myusername` or `user=$USER` if the name of the YAML file matches our system username.
+
+As another example, you may also want to configure the functionality of the Logger, the class which helps manage logging to [Weights & Biases](https://wandb.ai/) during the training and evaluation of the model. Logging to WandB is disabled by default. In order to enable it, make sure to set up your WandB API key and set the configuration variable `logger.do.online` to `True` in your experiment config file or via the command line:
+
+```bash
+python main.py +experiments=grid/corners logger.do.online=True
+```
+
+Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
+
+## Exploring the Scrabble environment
+
+To better understand the functionality and implementation of GFlowNet environments, let us explore the Scrabble environment in more detail.
+
+1. Instantiating a Scrabble environment
+
+```python
+from gflownet.envs.scrabble import Scrabble
+env = Scrabble()
+```
+
+2. Checking the initial (source) state
+
+Every environment has a `state` attribute, which gets updated as actions are performed. The initial state correspond to the `source` state:
 
 ```python
 env.state
 >>> [0, 0, 0, 0, 0, 0, 0]
+env.equal(env.state, env.source)
+>>> True
 ```
 
-2. Exploring the Action Space
+In the Scrabble environment, the state is represented by a list of letter indices, padded by 0's up to the maximum word length (7 by default).
+
+3. Checking the action space
+
+The actions of every environment are represented by tuples, and the set of all possible actions makes the action space:
+
 ```python
-env.get_action_space()
+env.action_space
 >>> [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (11,), (12,), (13,), (14,), (15,), (16,), (17,), (18,), (19,), (20,), (21,), (22,), (23,), (24,), (25,), (26,), (-1,)]
 ```
-For Scrabble environment, the action space is all english alphabet letters indexed from 1 to 26. The action (-1,) represents the end-of-sequence (EOS) action, indicating the termination of word formation.
 
-3. Taking a Random Step
+In the Scrabble environment, the actions to append a letter from the English alphabet is represented by a single-element tuple with the letter index, from 1 to 26. The action space also contains (-1,) which represents the end-of-sequence (EOS) action, indicating the termination of word formation.
 
 ```python
-new_state, action_taken, valid = env.step_random()
-print("New State:", new_state)
-print("Action Taken:", action_taken)
-print("Action Valid:", valid)
-
->>> New State: [24, 0, 0, 0, 0, 0, 0]
->>> Action Taken: (24,)
->>> Action Valid: True
+env.eos
+>>> (-1,)
 ```
 
-This function randomly selects a valid action (adding a letter or ending the sequence) and applies it to the environment. The output shows the new state, the action taken, and whether the action was valid.
+4. Performing a step
 
-4. Performing a Specific Action
+We can apply one action from the action space to perform a state transition via the `step()` method:
 
 ```python
 action = (1,)  # Action to add 'A'
 new_state, performed_action, is_valid = env.step(action)
-print("Updated State:", new_state)
-print("Performed Action:", performed_action)
-print("Was the Action Valid:", is_valid)
->>> Updated State: [24, 1, 0, 0, 0, 0, 0]
->>> Performed Action: (1,)
->>> Was the Action Valid: True
+print("Updated state:", new_state)
+print("Performed action:", performed_action)
+print("Action was valid:", is_valid)
+>>> Updated state: [1, 0, 0, 0, 0, 0, 0]
+>>> Performed action: (1,)
+>>> Action was valid: True
+env.equal(env.state, new_state)
+>>> True
 ```
 
-5. Displaying the State as a human readable
+This function randomly selects a valid action (adding a letter or ending the sequence) and applies it to the environment. The output shows the new state, the action taken, and whether the action was valid.
+
+5. Performing a random step
+
+We can also use the method `step_random()` to perform a randomly sampled action:
 
 ```python
-env.state2readable(env.state)
->>> 'X A'
+new_state, performed_action, is_valid = env.step_random()
+print("Updated state:", new_state)
+print("Performed action:", performed_action)
+print("Action was valid:", is_valid)
+>>> Updated state: [1, 24, 0, 0, 0, 0, 0]
+>>> Performed action: (24,)
+>>> Action was valid: True
 ```
 
-6. Interpreting Actions as a human readable
+6. Unfolding a full random trajectory
+
+Similarly, we can also unfold a complete random trajectory, that is a sequence of actions terminated by the EOS action:
 
 ```python
-print("Action Meaning:", env.idx2token[action[0]])
->>> Action Meaning: A
+final_state, trajectory_actions = env.trajectory_random()
+print("Final state:", final_state)
+print("Sequence of actions:", trajectory_actions)
+print("Trajectory is done:", env.done)
+>>> Final state: [1, 24, 10, 6, 4, 21, 21]
+>>> Sequence of actions: [(1,), (24,), (10,), (6,), (4,), (21,), (21,), (-1,)]
+>>> Trajectory is done: True
 ```
 
-7. Sampling a Random Trajectory
+7. Displaying the state as a human readable string
 
 ```python
-new_state, action_sequence = env.trajectory_random()
-print("New State:", new_state)
-print("Action Sequence:" action_sequence)
-
->>> New State: [16, 16, 17, 20, 11, 16, 0]
->>> Action Sequence: [(16,), (16,), (17,), (20,), (11,), (16,), (-1,)]
+env.state2readable()
+>>> 'A X J F D U U'
 ```
 
 8. Reset enviroment 
@@ -127,9 +211,9 @@ env.state
 >>> [0, 0, 0, 0, 0, 0, 0]
 ```
 
-So far, we've discussed how to manually set actions or use random actions in the GFlowNet environment. This approach is useful for testing or understanding the basic mechanics of the environment. However, in practice, the goal of a GFlowNet agent is to learn from its experiences to take increasingly effective actions that are driven by a learned policy. 
+So far, we've seen how to manually set actions or use random actions in the GFlowNet environment. This approach is useful for testing or understanding the basic mechanics of the environment. However, in practice, the goal of a GFlowNet agent is to adjust the parameters of the policy model to sample actions that result in trajectories with likelihoods proportional to the reward.
 
-As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train a policy network, which models the probability distribution of possible actions given the current state. Over time, the policy network learns to favor actions that lead to more successful outcomes with higher reward, optimizing the agent's performance.
+As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train the policy networks, which model the probability of state transitions given the current state.
 
 9. Sample a batch of trajectories from a trained agent 
 
@@ -167,64 +251,6 @@ We can also compute the rewards, and since our transformation function `g` is th
 proxy.rewards(env.states2proxy(batch.states))
 >>> tensor([ 6., 19., 39.])
 ```
-
-## Installation
-
-**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
-
-+ This project **requires** `python 3.10` and `cuda 11.8`.
-+ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
-+ The recommend installation is as follows:
-
-```bash
-python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
-source ~/envs/gflownet/bin/activate  # Activate your environment.
-./prereq_ubuntu.sh  # Installs some packages required by dependencies.
-./prereq_python.sh  # Installs python packages with specific wheels.
-./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
-pip install .[all]  # Install the remaining elements of this package.
-```
-
-Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
-
-## How to train a GFlowNet model
-
-The configuration is handled via the use of [Hydra](https://hydra.cc/docs/intro/). To train a GFlowNet model with the default configuration, simply run
-
-```bash
-python main.py user.logdir.root=<path/to/log/files/>
-```
-
-Alternatively, you can create a user configuration file in `config/user/<username>.yaml` specifying a `logdir.root` and run
-
-```bash
-python main.py user=<username>
-```
-
-Using Hydra, you can easily specify any variable of the configuration in the command line. For example, to train GFlowNet with the trajectory balance loss, on the continuous torus (`ctorus`) environment and the corresponding proxy:
-
-```bash
-python main.py gflownet=trajectorybalance env=ctorus proxy=torus
-```
-
-The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
-
-Hydra configuration is hierarchical. For instance, You can seamlessly modify exisiting flag or variable in the configuration by setting `logger.do.online=False`. For more, feel free to read the [Hydra documentation](https://hydra.cc/docs/intro/). 
-
-Note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
-
-## GFlowNet loss functions
-
-Currently, the implementation includes the following GFlowNet losses:
-
-- [Flow-matching (FM)](https://arxiv.org/abs/2106.04399): `gflownet=flowmatch`
-- [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
-- [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
-- [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
-
-## Logger 
-
-The library also has Logger class which helps to manage all logging activities during the training and evaluation of the network. It captures and stores logs to track the model's performance and debugging information. For instance, it logs details such as training progress, performance metrics, and any potential errors or warnings that occur. It also integrates to [wandb.ai](https://wandb.ai) providing a cloud-based platform for logging the train and evaluation metrics to [wandb.ai](https://wandb.ai). The WandB is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
 
 ## Contributors
 
