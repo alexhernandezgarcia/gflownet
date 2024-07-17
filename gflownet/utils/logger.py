@@ -193,6 +193,7 @@ class Logger:
         self,
         losses,
         rewards: list,
+        logrewards: list,
         proxy_vals: array,
         states_term: list,
         batch_size: int,
@@ -212,6 +213,8 @@ class Logger:
                 [
                     "mean_reward",
                     "max_reward",
+                    "mean_logreward",
+                    "max_logreward",
                     "mean_proxy",
                     "min_proxy",
                     "max_proxy",
@@ -225,6 +228,8 @@ class Logger:
                 [
                     np.mean(rewards),
                     np.max(rewards),
+                    np.mean(logrewards),
+                    np.max(logrewards),
                     np.mean(proxy_vals),
                     np.min(proxy_vals),
                     np.max(proxy_vals),

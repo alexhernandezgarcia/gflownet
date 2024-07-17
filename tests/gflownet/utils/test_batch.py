@@ -340,6 +340,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
     parents_all = []
     parents_all_a = []
     rewards = []
+    proxy_values = []
     traj_indices = []
     state_indices = []
     states_term_sorted = [None for _ in range(batch_size)]
@@ -372,7 +373,11 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 if env.done:
-                    rewards.append(proxy.rewards(env.state2proxy())[0])
+                    reward, proxy_value = proxy.rewards(
+                        env.state2proxy(), return_proxy=True
+                    )
+                    rewards.append(reward[0])
+                    proxy_values.append(proxy_value[0])
                 else:
                     rewards.append(
                         tfloat(
@@ -380,6 +385,9 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
                             float_type=batch.float,
                             device=batch.device,
                         )
+                    )
+                    proxy_values.append(
+                        tfloat(torch.inf, float_type=batch.float, device=batch.device)
                     )
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
@@ -457,6 +465,15 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
             tfloat(rewards, device=batch.device, float_type=batch.float),
         )
     ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
     states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
@@ -503,6 +520,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     parents_all = []
     parents_all_a = []
     rewards = []
+    proxy_values = []
     traj_indices = []
     state_indices = []
     states_term_sorted = [copy(x) for x in x_batch]
@@ -521,10 +539,17 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
             if not env.continuous:
                 env_parents, env_parents_a = env.get_parents()
             if env.done:
-                reward = proxy.rewards(env.state2proxy())[0]
+                reward, proxy_value = proxy.rewards(
+                    env.state2proxy(), return_proxy=True
+                )
+                reward = reward[0]
+                proxy_value = proxy_value[0]
             else:
                 reward = tfloat(
                     proxy.get_min_reward(), float_type=batch.float, device=batch.device
+                )
+                proxy_value = tfloat(
+                    torch.inf, float_type=batch.float, device=batch.device
                 )
             if env.done:
                 states_term_sorted[env.id] = env.state
@@ -546,6 +571,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 rewards.append(reward)
+                proxy_values.append(proxy_value)
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
@@ -620,6 +646,15 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
             tfloat(rewards, device=batch.device, float_type=batch.float),
         )
     ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
     states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
@@ -657,6 +692,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
     parents_all = []
     parents_all_a = []
     rewards = []
+    proxy_values = []
     traj_indices = []
     state_indices = []
     states_term_sorted = []
@@ -700,7 +736,11 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 if env.done:
-                    rewards.append(proxy.rewards(env.state2proxy())[0])
+                    reward, proxy_value = proxy.rewards(
+                        env.state2proxy(), return_proxy=True
+                    )
+                    rewards.append(reward[0])
+                    proxy_values.append(proxy_value[0])
                 else:
                     rewards.append(
                         tfloat(
@@ -708,6 +748,9 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                             float_type=batch.float,
                             device=batch.device,
                         )
+                    )
+                    proxy_values.append(
+                        tfloat(torch.inf, float_type=batch.float, device=batch.device)
                     )
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
@@ -746,10 +789,17 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
             if not env.continuous:
                 env_parents, env_parents_a = env.get_parents()
             if env.done:
-                reward = proxy.rewards(env.state2proxy())[0]
+                reward, proxy_value = proxy.rewards(
+                    env.state2proxy(), return_proxy=True
+                )
+                reward = reward[0]
+                proxy_value = proxy_value[0]
             else:
                 reward = tfloat(
                     proxy.get_min_reward(), float_type=batch.float, device=batch.device
+                )
+                proxy_value = tfloat(
+                    torch.inf, float_type=batch.float, device=batch.device
                 )
             if env.done:
                 states_term_sorted[env.id] = env.state
@@ -771,6 +821,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 rewards.append(reward)
+                proxy_values.append(proxy_value)
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
@@ -847,6 +898,15 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
             tfloat(rewards, device=batch.device, float_type=batch.float),
         )
     ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
     states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
@@ -884,6 +944,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
     parents_all = []
     parents_all_a = []
     rewards = []
+    proxy_values = []
     traj_indices = []
     state_indices = []
     states_term_sorted = []
@@ -927,13 +988,22 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 if env.done:
-                    rewards.append(proxy.rewards(env.state2proxy())[0])
+                    reward, proxy_value = proxy.rewards(
+                        env.state2proxy(), return_proxy=True
+                    )
+                    rewards.append(reward[0])
+                    proxy_values.append(proxy_value[0])
                 else:
                     rewards.append(
                         tfloat(
                             proxy.get_min_reward(),
                             float_type=batch_fw.float,
                             device=batch_fw.device,
+                        )
+                    )
+                    proxy_values.append(
+                        tfloat(
+                            torch.inf, float_type=batch_fw.float, device=batch_fw.device
                         )
                     )
                 traj_indices.append(env.id)
@@ -973,12 +1043,19 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
             if not env.continuous:
                 env_parents, env_parents_a = env.get_parents()
             if env.done:
-                reward = proxy.rewards(env.state2proxy())[0]
+                reward, proxy_value = proxy.rewards(
+                    env.state2proxy(), return_proxy=True
+                )
+                reward = reward[0]
+                proxy_value = proxy_value[0]
             else:
                 reward = tfloat(
                     proxy.get_min_reward(),
                     float_type=batch_bw.float,
                     device=batch_bw.device,
+                )
+                proxy_value = tfloat(
+                    torch.inf, float_type=batch_bw.float, device=batch_bw.device
                 )
             if env.done:
                 states_term_sorted[env.id + batch_size_forward] = env.state
@@ -1000,6 +1077,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
                 rewards.append(reward)
+                proxy_values.append(proxy_value)
                 traj_indices.append(env.id + batch_size_forward)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
@@ -1081,6 +1159,15 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
             tfloat(rewards, device=batch.device, float_type=batch.float),
         )
     ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
     states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
@@ -1324,6 +1411,40 @@ def test__get_rewards__single_env_returns_expected_non_terminating(
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
+def test__get_proxy_values__single_env_returns_expected_non_terminating(
+    env, proxy, batch, request
+):
+    env = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    proxy.setup(env)
+    env = env.reset()
+    batch.set_env(env)
+    batch.set_proxy(proxy)
+
+    proxy_values = []
+    while not env.done:
+        parent = env.state
+        # Sample random action
+        _, action, valid = env.step_random()
+        # Add to batch
+        batch.add_to_batch([env], [action], [valid])
+        if valid:
+            proxy_values.append(proxy(env.state2proxy())[0])
+    proxy_values_batch = batch.get_proxy_values(do_non_terminating=True)
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+)
 def test__get_logrewards__single_env_returns_expected_non_terminating(
     env, proxy, batch, request
 ):
@@ -1408,6 +1529,63 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
     assert ~torch.any(
         torch.isclose(rewards_batch, torch.zeros_like(rewards_batch))
     ), rewards_batch
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm")],
+)
+def test__get_proxy_values_multiple_env_returns_expected_non_zero_non_terminating(
+    env, proxy, batch, request
+):
+    batch_size = BATCH_SIZE
+    env_ref = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    proxy.setup(env_ref)
+    env_ref = env_ref.reset()
+
+    batch.set_env(env_ref)
+    batch.set_proxy(proxy)
+
+    # Make list of envs
+    envs = []
+    for idx in range(batch_size):
+        env_aux = env_ref.copy().reset(idx)
+        envs.append(env_aux)
+
+    proxy_values = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                proxy_values.append(proxy(env.state2proxy())[0])
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    proxy_values_batch = batch.get_proxy_values(do_non_terminating=True)
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
+    assert ~torch.any(
+        torch.isclose(proxy_values_batch, torch.zeros_like(proxy_values_batch))
+    ), proxy_values_batch
 
 
 @pytest.mark.repeat(N_REPETITIONS)
