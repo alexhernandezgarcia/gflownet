@@ -360,7 +360,6 @@ class Ehull(BaseMetric):
     def compute(
         self, structures: Iterable[Structure], energies: list, **kwargs
     ) -> dict:
-
         all_compositions = [s.composition for s in structures]
         all_energies = energies
         compositions = []

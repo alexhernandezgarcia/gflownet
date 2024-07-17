@@ -66,11 +66,11 @@ def generate_random_crystals_uniform(
         # Atoms per element
         done = False
         while not done:
-            composition = [0] * len(elements)
+            composition = dict()
             for el in elements_selected:
                 n_atoms_el = np.random.randint(low=1, high=max_atom_i + 1)
-                composition[elements.index(el)] = n_atoms_el
-            if sum(composition) <= max_atoms:
+                composition[el] = n_atoms_el
+            if sum(composition.values()) <= max_atoms:
                 done = True
 
         # Space group
