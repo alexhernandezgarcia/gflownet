@@ -391,12 +391,8 @@ class LatticeParametersSGCCG(ContinuousCube):
     from the (continuous) cube environment, creating a mapping between cell position
     and edge length or angle, and imposing lattice system constraints on their values.
 
-    The environment is a hyper cube of dimensionality 6 (the number of lattice
-    parameters), but it takes advantage of the mask of ignored dimensions implemented
-    in the Cube environment.
-
-    The values of the state will remain in the default [0, 1] range of the Cube, but
-    the environment offers methods to map the state values to lattice parameter values.
+    The environment is implemented using a hyper cube of dimensionality 6, and it takes
+    advantage of the mask of ignored dimensions implemented in the Cube environment.
 
     This version of the LatticeParameters environment implements the projection method
     outlined in the SPACE GROUP CONSTRAINED CRYSTAL GENERATION
@@ -405,6 +401,34 @@ class LatticeParametersSGCCG(ContinuousCube):
     consequence of this method, this environment implements three different
     spaces/representations for lattice parameters :
     state space <--> projection space <--> lattice parameter space.
+
+    State space : the state space representation corresponds to the continuous hyper
+    cube state representation of the parent class. This is a 6D continuous space
+    (although some dimensions might be ignored using the mask of ignored dimensions
+    implemented in the Cube environment) where each value is in the default [0, 1] range
+    of the cube class.
+
+    Projection space : this is a 6D continuous space used to represent symmetric 3x3
+    matrices. Each dimension has its own min and max value defined by the environment.
+    Any point in this space can be converted to a symmetric 3x3 matrix by
+    using its coordinates as coefficients for a weighted sum of the matrices B1, B2,
+    B3, B4, B5, and B6. These six matrices form an orthogonal basis for the space of
+    symmetric 3x3 matrices.
+    The mapping between the state space and the projection space is dimension-wise
+    linear. Each dimension in the state space has a linear relationship with the
+    corresponding dimension in this projection space.
+
+    Lattice parameter space : this is a 6D continuous space representing the parameters
+    of a crystal lattice : three lengths (a, b, c) and three angles (alpha, beta, gamma).
+    Lengths must be higher than 0 and angles must be between 0 and 180 degrees. However,
+    not all possible points in this space correspond to valid lattice parameters. When
+    taken together, the 6 lattice parameters must describe a unit cell of strictly
+    positive non-imaginary volume.
+    The mapping between the projection space and the lattice parameter space is
+    complicated and non-linear. It relies on obtain a symmetric 3x3 matrix from the
+    corresponding to the point in projection space and then taking the exponential
+    mapping of that matrix to obtain a matrix from which the lattice parameters can
+    be extracted (see equations 23 and 24 in the paper's A3 appendix).
     """
 
     def __init__(
