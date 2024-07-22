@@ -1266,16 +1266,17 @@ class GFlowNetAgent:
         if self.use_context is False:
             self.logger.end()
 
-    def get_sample_space_and_reward(self):
+    def get_sample_space(self):
         """
-        Returns samples representative of the env state space with their rewards
+        Obtains and returns samples representative of the env state space, in
+        environment format.
+
+        This method sets self.sample_space_batch.
 
         Returns
         -------
-        sample_space_batch : tensor
-            Repressentative terminating states for the environment
-         rewards_sample_space : tensor
-            Rewards associated with the tates in sample_space_batch
+        sample_space_batch : list, tensor, array
+            Representative terminating states (in environment format) for the environment.
         """
         if not hasattr(self, "sample_space_batch"):
             if hasattr(self.env, "get_all_terminating_states"):
@@ -1290,11 +1291,34 @@ class GFlowNetAgent:
                     "environment must implement either get_all_terminating_states() "
                     "or get_grid_terminating_states()"
                 )
-            self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
-        if not hasattr(self, "rewards_sample_space"):
-            self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
+        return self.sample_space_batch
 
-        return self.sample_space_batch, self.rewards_sample_space
+    def get_sample_space_and_reward(self, return_states_proxy: bool = False):
+        """
+        Returns samples representative of the env state space with their rewards.
+
+        Parameters
+        ----------
+        return_states_proxy : bool
+            If True, returns the states in proxy format.
+
+        Returns
+        -------
+        sample_space_batch : list, tensor, array
+            Representative terminating states for the environment. If
+            return_states_proxy, the format returned will be the proxy format.
+            Otherwise, states will be returned in environment fomat.
+        rewards_sample_space : tensor
+            Rewards associated with the tates in sample_space_batch
+        """
+        if return_states_proxy or not hasattr(self, "rewards_sample_space"):
+            sample_space_proxy = self.env.states2proxy(self.get_sample_space())
+        if not hasattr(self, "rewards_sample_space"):
+            self.rewards_sample_space = self.proxy.rewards(sample_space_proxy)
+        if return_states_proxy:
+            return sample_space_proxy, self.rewards_sample_space
+        else:
+            return self.sample_space_batch, self.rewards_sample_space
 
     # TODO: implement other proposal distributions
     # TODO: rethink whether it is needed to convert to reward
