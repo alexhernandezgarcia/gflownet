@@ -2,6 +2,7 @@
 Base class of GFlowNet environments
 """
 
+import numbers
 import uuid
 from abc import abstractmethod
 from copy import deepcopy
@@ -814,6 +815,8 @@ class GFlowNetEnv:
 
     @staticmethod
     def equal(state_x, state_y):
+        if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
+            return state_x == state_y
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -823,11 +826,36 @@ class GFlowNetEnv:
                     return False
                 return torch.equal(state_x[~x_nan], state_y[~y_nan])
             return torch.equal(state_x, state_y)
-        else:
-            return state_x == state_y
+        if isinstance(state_x, dict) and isinstance(state_y, dict):
+            if len(state_x) != len(state_y):
+                return False
+            return all(
+                [
+                    key_x == key_y and GFlowNetEnv.equal(value_x, value_y)
+                    for (key_x, value_x), (key_y, value_y) in zip(
+                        sorted(state_x.items()), sorted(state_y.items())
+                    )
+                ]
+            )
+        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
+            isinstance(state_x, tuple) and isinstance(state_y, tuple)
+        ):
+            if len(state_x) != len(state_y):
+                return False
+            if len(state_x) == 0:
+                return True
+            if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
+                value_type = type(state_x[0])
+                if all([isinstance(sx, value_type) for sx in state_x]) and all(
+                    [isinstance(sy, value_type) for sy in state_y]
+                ):
+                    return state_x == state_y
+        return all([GFlowNetEnv.equal(sx, sy) for sx, sy in zip(state_x, state_y)])
 
     @staticmethod
     def isclose(state_x, state_y, atol=1e-8):
+        if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
+            return np.isclose(state_x, state_y, atol=atol)
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -840,15 +868,30 @@ class GFlowNetEnv:
                 )
             return torch.equal(state_x, state_y)
         if isinstance(state_x, dict) and isinstance(state_y, dict):
-            keys_equal = set(state_x.keys()) == set(state_y.keys())
-            values_close = np.all(
-                np.isclose(
-                    sorted(state_x.values()), sorted(state_y.values()), atol=atol
-                )
+            if len(state_x) != len(state_y):
+                return False
+            return all(
+                [
+                    key_x == key_y and GFlowNetEnv.isclose(value_x, value_y)
+                    for (key_x, value_x), (key_y, value_y) in zip(
+                        sorted(state_x.items()), sorted(state_y.items())
+                    )
+                ]
             )
-            return keys_equal and values_close
-        else:
-            return np.all(np.isclose(state_x, state_y, atol=atol))
+        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
+            isinstance(state_x, tuple) and isinstance(state_y, tuple)
+        ):
+            if len(state_x) != len(state_y):
+                return False
+            if len(state_x) == 0:
+                return True
+            if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
+                value_type = type(state_x[0])
+                if all([isinstance(sx, value_type) for sx in state_x]) and all(
+                    [isinstance(sy, value_type) for sy in state_y]
+                ):
+                    return np.all(np.isclose(state_x, state_y, atol=atol))
+        return all([GFlowNetEnv.isclose(sx, sy) for sx, sy in zip(state_x, state_y)])
 
     def get_max_traj_length(self):
         return 1e3
