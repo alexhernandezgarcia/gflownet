@@ -1,0 +1,135 @@
+# @package _global_
+#
+# Restricted sampling C: only cubic lattices
+#   Space groups: 194,198,199, 205, 206, 216, 217, 220, 221, 224, 225, 227, 229, 230
+#
+# Forward trajectories (10) + Replay buffer (5) + Train set (5)
+# Learning rate decay
+
+defaults:
+  - override /env: crystals/crystal
+  - override /gflownet: trajectorybalance
+  - override /proxy: crystals/dave
+  - override /logger: wandb
+
+device: cpu
+
+# Environment
+env:
+  do_composition_to_sg_constraints: False
+  do_sg_to_composition_constraints: True
+  do_sg_to_lp_constraints: True
+  do_sg_before_composition: True
+  composition_kwargs:
+    elements: [1, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 23, 25, 26, 27, 28, 29, 34]
+    max_diff_elem: 5
+    min_diff_elem: 1
+    min_atoms: 1
+    max_atoms: 80
+    min_atom_i: 1
+    max_atom_i: 16
+    do_charge_check: True
+  space_group_kwargs:
+    space_groups_subset: [194,198,199, 205, 206, 216, 217, 220, 221, 224, 225, 227, 229, 230]
+  lattice_parameters_kwargs:
+    min_length: 0.9
+    max_length: 100.0
+    min_angle: 50.0
+    max_angle: 150.0
+    n_comp: 5
+    beta_params_min: 0.1
+    beta_params_max: 100.0
+    min_incr: 0.1
+    fixed_distr_params:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_eos_prob: 0.1
+      bernoulli_bts_prob: 0.1
+    random_distr_params:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_eos_prob: 0.1
+      bernoulli_bts_prob: 0.1
+  buffer:
+    replay_capacity: 1000
+    train:
+      type: csv
+      path: /network/projects/crystalgfn/data/eform/train.csv
+    test:
+      type: csv
+      path: /network/projects/crystalgfn/data/eform/val.csv
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay: 5
+      backward_dataset: 5
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 100000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
+  replay_sampling: weighted
+  train_sampling: permutation
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+    checkpoint: backward
+
+# Proxy (eform)
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+  release: 0.3.4 # Formation energy release
+  # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -8.0
+    alpha: 1.0
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: -1
+  checkpoints_period: 500
+  n_trajs_logprobs: 100
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "crystal-gfn"
+  tags:
+    - gflownet
+    - crystals
+    - stack
+    - matbench
+    - formationenergy
+  do:
+    online: true
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}

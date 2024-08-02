@@ -14,6 +14,8 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+from hydra.utils import instantiate
+
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
@@ -202,11 +204,13 @@ def main(args):
     # ------------------------------------------
 
     # Read conditional environment config, if provided
-    # TODO: implement allow passing just name of config
     if args.conditional_env_config_path is not None:
-        config_cond_env = read_hydra_config(
-            config_name=args.conditional_env_config_path
-        )
+        conditional_env_config_path = Path(args.conditional_env_config_path)
+        if conditional_env_config_path.parent == Path("."):
+            conditional_env_config_path = (
+                Path(args.run_path) / ".hydra" / conditional_env_config_path.name
+            )
+        config_cond_env = read_hydra_config(config_name=conditional_env_config_path)
         if "env" in config_cond_env:
             config_cond_env = config_cond_env.env
         env_cond = instantiate(
