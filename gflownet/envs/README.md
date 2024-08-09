@@ -14,7 +14,7 @@ Note that the mask of invalid actions indeed flags _invalid_ actions, as opposed
 
 ## Buffer, train data and test data
 
-A train and a test set can be created at the beginning of training. The train set may be used to sample offline (backward) trajectories. The test set may be used to compute metrics during and after training. These sets may be created in different ways, specificied by the configuration variables `env.buffer.train.type` and `env.buffer.test.type`. Options for the data set `type` are
+A train and a test set can be created at the beginning of training. The train set may be used to sample offline (backward) trajectories. The test set may be used to compute metrics during and after training (e.g. JSD, correlation). These sets may be created in different ways, specificied by the configuration variables `env.buffer.train.type` and `env.buffer.test.type`. Options for the data set `type` are
 
 - `all`: all terminating states in the output space $\mathcal{X}$ will be added - Convenient but only feasible for small, synthetic environments like the hyper-grid.
 - `grid`: a grid of points in the output space $\mathcal{X}$ - Only available in certain environments where obtaining a grid of points is meaningful. This mode also requires specifying the number of points via `env.buffer.<train/test>.n`.
@@ -52,3 +52,12 @@ To use the replay buffer (once enabled) for backward sampling, one can specify `
 :::{tip}
 You can use [MyST](https://myst-parser.readthedocs.io/en/latest/syntax/admonitions.html) in the documentation. This is expected to fail on Github.
 :::
+
+## Evaluator
+Evaluator's parameters define which method is used for sampling from reward (`nested` or `rejection` sampling), and how many points will be sampled `evaluator.n`. evaluator.n_grid is used only for plotting and defines, if applicable, the number of grid points for visualizing KDEs.
+```yaml
+evaluator:
+  reward_sampling_method: nested
+  n_grid: 1000 # number of grid points to visualize KDEs
+  n: 1000 # number of samples from reward and from gfn
+  ```

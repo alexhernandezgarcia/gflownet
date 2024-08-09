@@ -1,5 +1,6 @@
 _target_: gflownet.evaluator.base.BaseEvaluator
 
+reward_sampling_method: rejection
 # config formerly from logger.test
 first_it: True
 period: 100

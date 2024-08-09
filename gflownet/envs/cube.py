@@ -1449,7 +1449,6 @@ class ContinuousCube(CubeBase):
         bandwidth : float
             The bandwidth of the kernel.
         """
-        samples = torch2np(samples)
         return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
     def plot_reward_samples(
@@ -1489,8 +1488,6 @@ class ContinuousCube(CubeBase):
         """
         if self.n_dim != 2:
             return None
-        samples = torch2np(samples)
-        samples_reward = torch2np(samples_reward)
         rewards = torch2np(rewards)
         # Create mesh grid from samples_reward
         n_per_dim = int(np.sqrt(samples_reward.shape[0]))
@@ -1543,7 +1540,6 @@ class ContinuousCube(CubeBase):
         """
         if self.n_dim != 2:
             return None
-        samples = torch2np(samples)
         # Create mesh grid from samples
         n_per_dim = int(np.sqrt(samples.shape[0]))
         assert n_per_dim**2 == samples.shape[0]
