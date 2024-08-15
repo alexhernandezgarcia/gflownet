@@ -345,6 +345,9 @@ def test__states_are_compatible_with_pymatgen(env):
         sg = pmgg.SpaceGroup(sg_int)
         assert sg.int_number == env.state[env.sg_idx]
         assert sg.crystal_system == env.crystal_system
+        # If this test is the only one failing, you might have
+        # an older version of pymatgen in which there was a typo
+        # in the space group name P2_12_12_1
         assert sg.symbol == env.space_group_symbol
         assert sg.point_group == env.point_group
 
