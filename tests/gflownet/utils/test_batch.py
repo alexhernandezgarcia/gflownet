@@ -1641,7 +1641,7 @@ def test__get_logrewards_multiple_env_returns_expected_non_zero_non_terminating(
         )
     ), (logrewards, logrewards_batch)
     assert ~torch.any(
-        torch.isclose(logrewards_batch, torch.zeros_like(logrewards_batch), atol=1e-10)
+        torch.isclose(logrewards_batch, torch.zeros_like(logrewards_batch))
     ), logrewards_batch
 
 
