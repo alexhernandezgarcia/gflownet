@@ -42,7 +42,7 @@ def set_device(device: Union[str, torch.device]):
     """
     if isinstance(device, torch.device):
         return device
-    if device.lower() == "cuda" and torch.cuda.is_available():
+    if device.lower() in ["cuda", "gpu"] and torch.cuda.is_available():
         return torch.device("cuda")
     else:
         return torch.device("cpu")
@@ -140,8 +140,8 @@ def torch2np(x):
     np.ndarray
         Converted data.
     """
-    if hasattr(x, "is_cuda") and x.is_cuda:
-        x = x.detach().cpu()
+    if torch.is_tensor(x):
+        return np.array(x.detach().cpu())
     return np.array(x)
 
 
@@ -462,6 +462,9 @@ def tfloat(x, device, float_type):
         return torch.stack(x).to(device=device, dtype=float_type)
     if torch.is_tensor(x):
         return x.to(device=device, dtype=float_type)
+    elif hasattr(x, "tfloat"):
+        x = x.tfloat(float_type)
+        return x.to(device=device)
     else:
         return torch.tensor(x, dtype=float_type, device=device)
 
@@ -579,7 +582,7 @@ def concat_items(list_of_items, indices=None):
         result = np.concatenate(list_of_items)
         if indices is not None:
             if torch.is_tensor(indices[0]):
-                indices = indices.cpu().numpy()
+                indices = indices.detach().cpu().numpy()
             result = result[indices]
     elif torch.is_tensor(list_of_items[0]):
         result = torch.cat(list_of_items)

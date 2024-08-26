@@ -3,7 +3,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, TorsionFingerprints, rdMolTransforms
 from rdkit.Geometry.rdGeometry import Point3D
 
-from gflownet.utils.molecule import constants
+from gflownet.utils.molecule.constants import AD_ATOM_TYPES, AD_FREE_TAS, AD_SMILES
 
 
 def get_torsion_angles_atoms_list(mol):
@@ -24,20 +24,20 @@ def get_all_torsion_angles(mol, conf):
 
 
 def get_dummy_ad_atom_positions():
-    rmol = Chem.MolFromSmiles(constants.ad_smiles)
+    rmol = Chem.MolFromSmiles(AD_SMILES)
     rmol = Chem.AddHs(rmol)
     AllChem.EmbedMolecule(rmol)
     rconf = rmol.GetConformer()
     return rconf.GetPositions()
 
 
-def get_dummy_ad_conf_base():
+def get_dummy_ad_rdkconf():
     pos = get_dummy_ad_atom_positions()
-    conf = ConformerBase(pos, constants.ad_smiles, constants.ad_free_tas)
+    conf = RDKitConformer(pos, AD_SMILES, AD_FREE_TAS)
     return conf
 
 
-class ConformerBase:
+class RDKitConformer:
     def __init__(self, atom_positions, smiles, freely_rotatable_tas=None):
         """
         :param atom_positions: numpy.ndarray of shape [num_atoms, 3] of dtype float64
@@ -134,16 +134,14 @@ class ConformerBase:
 if __name__ == "__main__":
     from tabulate import tabulate
 
-    rmol = Chem.MolFromSmiles(constants.ad_smiles)
+    rmol = Chem.MolFromSmiles(AD_SMILES)
     rmol = Chem.AddHs(rmol)
     AllChem.EmbedMolecule(rmol)
     rconf = rmol.GetConformer()
     test_pos = rconf.GetPositions()
     initial_tas = get_all_torsion_angles(rmol, rconf)
 
-    conf = ConformerBase(
-        test_pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
-    )
+    conf = RDKitConformer(test_pos, AD_SMILES, AD_ATOM_TYPES, AD_FREE_TAS)
     # check torsion angles randomisation
     conf.randomize_freely_rotatable_tas()
     conf_tas = conf.get_all_torsion_angles()

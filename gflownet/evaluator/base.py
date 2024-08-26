@@ -34,8 +34,7 @@ from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class BaseEvaluator(AbstractEvaluator):
-
-    def __init__(self, gfn_agent=None, **config):
+    def __init__(self, gfn_agent=None, reward_sampling_method="rejection", **config):
         """
         Base evaluator class for GFlowNetAgent.
 
@@ -56,6 +55,7 @@ class BaseEvaluator(AbstractEvaluator):
         details about other methods and attributes, including the
         :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
         """
+        self.reward_sampling_method = reward_sampling_method
         super().__init__(gfn_agent, **config)
 
     def define_new_metrics(self):
@@ -223,6 +223,7 @@ class BaseEvaluator(AbstractEvaluator):
             "summary": summary,
         }
 
+    @torch.no_grad()
     def compute_log_prob_metrics(self, x_tt, metrics=None):
         """
         Compute log-probability metrics for the given test data.
@@ -275,10 +276,12 @@ class BaseEvaluator(AbstractEvaluator):
 
         if "reward_batch" in reqs:
             rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
+            if torch.is_tensor(rewards_x_tt):
+                rewards_x_tt = rewards_x_tt.detach().cpu().numpy()
 
             if "corr_prob_traj_rewards" in metrics:
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
-                    np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+                    np.exp(logprobs_x_tt.detach().cpu().numpy()), rewards_x_tt
                 )[0, 1]
 
             if "var_logrewards_logp" in metrics:
@@ -304,6 +307,7 @@ class BaseEvaluator(AbstractEvaluator):
             "metrics": lp_metrics,
         }
 
+    @torch.no_grad()
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
         """
         Compute density metrics for the given test data.
@@ -371,9 +375,9 @@ class BaseEvaluator(AbstractEvaluator):
         elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states(proxy=True)
+            x_sampled = self.gfn.env.states2kde(batch.get_terminating_states())
             # TODO make it work with conditional env
-            x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
+            x_tt = self.gfn.env.states2kde(x_tt)
             kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
                 kernel=self.config.kde.kernel,
@@ -384,8 +388,10 @@ class BaseEvaluator(AbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.gfn.env.states2proxy(
-                    self.gfn.sample_from_reward(n_samples=self.config.n)
+                x_from_reward = self.gfn.env.states2kde(
+                    self.gfn.sample_from_reward(
+                        n_samples=self.config.n, method=self.reward_sampling_method
+                    )
                 )
                 # Fit KDE with samples from reward
                 kde_true = self.gfn.env.fit_kde(
@@ -444,6 +450,7 @@ class BaseEvaluator(AbstractEvaluator):
             "data": density_data,
         }
 
+    @torch.no_grad()
     def eval(self, metrics=None, **plot_kwargs):
         """
         Evaluate the GFlowNetAgent and compute metrics and plots.
@@ -560,9 +567,11 @@ class BaseEvaluator(AbstractEvaluator):
         fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
-            (sample_space_batch, rewards_sample_space) = (
-                self.gfn.get_sample_space_and_reward()
-            )
+            (
+                sample_space_batch,
+                rewards_sample_space,
+            ) = self.gfn.get_sample_space_and_reward(return_states_proxy=False)
+            sample_space_batch = self.gfn.env.states2kde(sample_space_batch)
             fig_reward_samples = self.gfn.env.plot_reward_samples(
                 x_sampled,
                 sample_space_batch,
@@ -571,7 +580,8 @@ class BaseEvaluator(AbstractEvaluator):
             )
 
         if hasattr(self.gfn.env, "plot_kde"):
-            sample_space_batch, _ = self.gfn.get_sample_space_and_reward()
+            sample_space_batch = self.gfn.get_sample_space()
+            sample_space_batch = self.gfn.env.states2kde(sample_space_batch)
             if kde_pred is not None:
                 fig_kde_pred = self.gfn.env.plot_kde(
                     sample_space_batch, kde_pred, **plot_kwargs

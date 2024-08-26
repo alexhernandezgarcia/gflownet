@@ -250,7 +250,7 @@ class Logger:
         loss_metrics = dict(
             zip(
                 ["Loss", "Loss (terminating)", "Loss (non-term.)"],
-                [loss.item() for loss in losses],
+                losses,
             )
         )
         self.log_metrics(

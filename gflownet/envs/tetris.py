@@ -317,7 +317,7 @@ class Tetris(GFlowNetEnv):
         if isinstance(state, tuple):
             readable = str(np.stack(state))
         else:
-            readable = str(state.cpu().numpy())
+            readable = str(state.detach().cpu().numpy())
         readable = readable.replace("[[", "[").replace("]]", "]").replace("\n ", "\n")
         return readable
 
@@ -581,7 +581,7 @@ class Tetris(GFlowNetEnv):
         linewidth : int
             The width of the separation between cells, in pixels.
         """
-        board = board.clone().numpy()
+        board = board.detach().clone().numpy()
         height = board.shape[0] * cellsize
         width = board.shape[1] * cellsize
         board_img = 128 * np.ones(

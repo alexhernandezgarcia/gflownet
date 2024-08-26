@@ -7,9 +7,9 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
-from gflownet.utils.molecule import constants
-from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
-from gflownet.utils.molecule.conformer_base import ConformerBase
+from gflownet.utils.molecule.constants import AD_FREE_TAS, AD_SMILES
+from gflownet.utils.molecule.datasets import AtomPositionsDataset
+from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 
 
 class AlanineDipeptide(ContinuousTorus):
@@ -26,9 +26,7 @@ class AlanineDipeptide(ContinuousTorus):
             path_to_dataset, url_to_dataset
         )
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = ConformerBase(
-            atom_positions, constants.ad_smiles, constants.ad_free_tas
-        )
+        self.conformer = RDKitConformer(atom_positions, AD_SMILES, AD_FREE_TAS)
         n_dim = len(self.conformer.freely_rotatable_tas)
         super().__init__(**kwargs)
         self.sync_conformer_with_state()
@@ -62,7 +60,7 @@ class AlanineDipeptide(ContinuousTorus):
         -------
         A numpy array containing all the states in the batch.
         """
-        return super().states2proxy(states).numpy()
+        return super().states2proxy(states).detach().cpu().numpy()
 
 
 if __name__ == "__main__":

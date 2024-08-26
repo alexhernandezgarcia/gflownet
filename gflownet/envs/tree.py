@@ -882,7 +882,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state.clone().detach()
-        state = state.cpu().numpy()
+        state = state.detach().cpu().numpy()
         readable = ""
         for idx in range(self.n_nodes):
             attributes = self._attributes_to_readable(state[idx])

@@ -54,6 +54,7 @@ class HybridTorus(GFlowNetEnv):
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.001,
         },
+        reward_sampling_method="rejection",
         **kwargs,
     ):
         assert n_dim > 0
@@ -74,6 +75,9 @@ class HybridTorus(GFlowNetEnv):
         self.source = self.source_angles + [0]
         # End-of-sequence action: (n_dim, 0)
         self.eos = (self.n_dim, 0)
+
+        self.reward_sampling_method = reward_sampling_method
+
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -556,7 +560,6 @@ class HybridTorus(GFlowNetEnv):
         bandwidth : float
             The bandwidth of the kernel.
         """
-        samples = torch2np(samples)
         samples_aug = self.augment_samples(samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
@@ -606,7 +609,6 @@ class HybridTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
-        samples = torch2np(samples)
         rewards = torch2np(rewards)
         n_per_dim = int(np.sqrt(rewards.shape[0]))
         assert n_per_dim**2 == rewards.shape[0]
@@ -677,7 +679,6 @@ class HybridTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
-        samples = torch2np(samples)
         # Create mesh grid from samples
         n_per_dim = int(np.sqrt(samples.shape[0]))
         assert n_per_dim**2 == samples.shape[0]

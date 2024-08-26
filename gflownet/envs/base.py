@@ -17,7 +17,14 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
+from gflownet.utils.common import (
+    copy,
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    torch2np,
+)
 
 CMAP = mpl.colormaps["cividis"]
 """
@@ -49,7 +56,7 @@ class GFlowNetEnv:
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        self.device = set_device(device)
+        self.set_device(set_device(device))
         # Float precision
         self.float = set_float_precision(float_precision)
         # Flag to skip checking if action is valid (computing mask) before step
@@ -72,6 +79,17 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+
+    def set_device(self, device: torch.device):
+        """
+        Set the device of the environment.
+
+        Parameters
+        ----------
+        device : torch.device
+            The device to set the environment to.
+        """
+        self.device = device
 
     @abstractmethod
     def get_action_space(self):
@@ -758,6 +776,15 @@ class GFlowNetEnv:
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
+    def states2kde(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> Union[List, npt.NDArray, TensorType["batch", "kde_dim"]]:
+        """
+        Converts a batch of states into a batch of states suitable for the KDE computations.
+        """
+        states_kde = self.states2proxy(states)
+        return torch2np(states_kde)
+
     def reset(self, env_id: Union[int, str] = None):
         """
         Resets the environment.
@@ -1292,6 +1319,7 @@ class GFlowNetEnv:
 
         return metrics, figs, fig_names
 
+    @torch.no_grad()
     def plot_reward_distribution(
         self, states=None, scores=None, ax=None, title=None, proxy=None, **kwargs
     ):
@@ -1312,7 +1340,7 @@ class GFlowNetEnv:
             states_proxy = self.states2proxy(states)
             scores = self.proxy(states_proxy)
         if isinstance(scores, TensorType):
-            scores = scores.cpu().detach().numpy()
+            scores = scores.detach().cpu().numpy()
         ax.hist(scores)
         ax.set_title(title)
         ax.set_ylabel("Number of Samples")

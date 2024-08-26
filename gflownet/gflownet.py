@@ -1167,96 +1167,101 @@ class GFlowNetAgent:
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Buffer
-            t0_buffer = time.time()
-            states_term = batch.get_terminating_states(sort_by="trajectory")
-            proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
-            proxy_vals = proxy_vals.tolist()
-            # The batch will typically have the log-rewards available, since they are
-            # used to compute the losses. In order to avoid recalculating the proxy
-            # values, the natural rewards are computed by taking the exponential of the
-            # log-rewards. In case the rewards are available in the batch but not the
-            # log-rewards, the latter are computed by taking the log of the rewards.
-            # Numerical issues are not critical in this case, since the derived values
-            # are only used for reporting purposes.
-            if batch.rewards_available(log=False):
-                rewards = batch.get_terminating_rewards(sort_by="trajectory")
-            if batch.rewards_available(log=True):
-                logrewards = batch.get_terminating_rewards(
-                    sort_by="trajectory", log=True
+            with torch.no_grad():
+                t0_buffer = time.time()
+                states_term = batch.get_terminating_states(sort_by="trajectory")
+                proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
+                proxy_vals = proxy_vals.tolist()
+                # The batch will typically have the log-rewards available, since they are
+                # used to compute the losses. In order to avoid recalculating the proxy
+                # values, the natural rewards are computed by taking the exponential of the
+                # log-rewards. In case the rewards are available in the batch but not the
+                # log-rewards, the latter are computed by taking the log of the rewards.
+                # Numerical issues are not critical in this case, since the derived values
+                # are only used for reporting purposes.
+                if batch.rewards_available(log=False):
+                    rewards = batch.get_terminating_rewards(sort_by="trajectory")
+                if batch.rewards_available(log=True):
+                    logrewards = batch.get_terminating_rewards(
+                        sort_by="trajectory", log=True
+                    )
+                if not batch.rewards_available(log=False):
+                    assert batch.rewards_available(log=True)
+                    rewards = torch.exp(logrewards)
+                if not batch.rewards_available(log=True):
+                    assert batch.rewards_available(log=False)
+                    logrewards = torch.log(rewards)
+                rewards = rewards.tolist()
+                logrewards = logrewards.tolist()
+                actions_trajectories = batch.get_actions_trajectories()
+                self.buffer.add(states_term, actions_trajectories, logrewards, it)
+                self.buffer.add(
+                    states_term, actions_trajectories, logrewards, it, buffer="replay"
                 )
-            if not batch.rewards_available(log=False):
-                assert batch.rewards_available(log=True)
-                rewards = torch.exp(logrewards)
-            if not batch.rewards_available(log=True):
-                assert batch.rewards_available(log=False)
-                logrewards = torch.log(rewards)
-            rewards = rewards.tolist()
-            logrewards = logrewards.tolist()
-            actions_trajectories = batch.get_actions_trajectories()
-            self.buffer.add(states_term, actions_trajectories, logrewards, it)
-            self.buffer.add(
-                states_term, actions_trajectories, logrewards, it, buffer="replay"
-            )
-            t1_buffer = time.time()
-            times.update({"buffer": t1_buffer - t0_buffer})
-            # Log
-            if self.logger.lightweight:
-                all_losses = all_losses[-100:]
-            else:
-                all_visited.extend(states_term)
-            # Progress bar
-            self.logger.progressbar_update(
-                pbar, all_losses, rewards, self.jsd, it, self.use_context
-            )
-            # Train logs
-            t0_log = time.time()
-            if self.evaluator.should_log_train(it):
-                self.logger.log_train(
-                    losses=losses,
-                    rewards=rewards,
-                    logrewards=logrewards,
-                    proxy_vals=proxy_vals,
-                    states_term=states_term,
-                    batch_size=len(batch),
-                    logz=self.logZ,
-                    learning_rates=self.lr_scheduler.get_last_lr(),
-                    step=it,
-                    use_context=self.use_context,
+                t1_buffer = time.time()
+                times.update({"buffer": t1_buffer - t0_buffer})
+                # Log
+                if self.logger.lightweight:
+                    all_losses = all_losses[-100:]
+                else:
+                    all_visited.extend(states_term)
+                # Progress bar
+                self.logger.progressbar_update(
+                    pbar, all_losses, rewards, self.jsd, it, self.use_context
                 )
-            t1_log = time.time()
-            times.update({"log": t1_log - t0_log})
-            # Save intermediate models
-            t0_model = time.time()
-            if self.evaluator.should_checkpoint(it):
-                self.logger.save_models(
-                    self.forward_policy, self.backward_policy, self.state_flow, step=it
-                )
-            t1_model = time.time()
-            times.update({"save_interim_model": t1_model - t0_model})
+                # Train logs
+                t0_log = time.time()
+                if self.evaluator.should_log_train(it):
+                    self.logger.log_train(
+                        # convert losses to numbers before logging
+                        losses=[i.item() for i in losses],
+                        rewards=rewards,
+                        logrewards=logrewards,
+                        proxy_vals=proxy_vals,
+                        states_term=states_term,
+                        batch_size=len(batch),
+                        logz=self.logZ,
+                        learning_rates=self.lr_scheduler.get_last_lr(),
+                        step=it,
+                        use_context=self.use_context,
+                    )
+                t1_log = time.time()
+                times.update({"log": t1_log - t0_log})
+                # Save intermediate models
+                t0_model = time.time()
+                if self.evaluator.should_checkpoint(it):
+                    self.logger.save_models(
+                        self.forward_policy,
+                        self.backward_policy,
+                        self.state_flow,
+                        step=it,
+                    )
+                t1_model = time.time()
+                times.update({"save_interim_model": t1_model - t0_model})
 
-            # Moving average of the loss for early stopping
-            if loss_term_ema and loss_flow_ema:
-                loss_term_ema = (
-                    self.ema_alpha * losses[1].item()
-                    + (1.0 - self.ema_alpha) * loss_term_ema
-                )
-                loss_flow_ema = (
-                    self.ema_alpha * losses[2].item()
-                    + (1.0 - self.ema_alpha) * loss_flow_ema
-                )
-                if (
-                    loss_term_ema < self.early_stopping
-                    and loss_flow_ema < self.early_stopping
-                ):
-                    break
-            else:
-                loss_term_ema = losses[1].item()
-                loss_flow_ema = losses[2].item()
+                # Moving average of the loss for early stopping
+                if loss_term_ema and loss_flow_ema:
+                    loss_term_ema = (
+                        self.ema_alpha * losses[1].item()
+                        + (1.0 - self.ema_alpha) * loss_term_ema
+                    )
+                    loss_flow_ema = (
+                        self.ema_alpha * losses[2].item()
+                        + (1.0 - self.ema_alpha) * loss_flow_ema
+                    )
+                    if (
+                        loss_term_ema < self.early_stopping
+                        and loss_flow_ema < self.early_stopping
+                    ):
+                        break
+                else:
+                    loss_term_ema = losses[1].item()
+                    loss_flow_ema = losses[2].item()
 
-            # Log times
-            t1_iter = time.time()
-            times.update({"iter": t1_iter - t0_iter})
-            self.logger.log_time(times, use_context=self.use_context)
+                # Log times
+                t1_iter = time.time()
+                times.update({"iter": t1_iter - t0_iter})
+                self.logger.log_time(times, use_context=self.use_context)
 
         # Save final model
         self.logger.save_models(
@@ -1266,16 +1271,17 @@ class GFlowNetAgent:
         if self.use_context is False:
             self.logger.end()
 
-    def get_sample_space_and_reward(self):
+    def get_sample_space(self):
         """
-        Returns samples representative of the env state space with their rewards
+        Obtains and returns samples representative of the env state space, in
+        environment format.
+
+        This method sets self.sample_space_batch.
 
         Returns
         -------
-        sample_space_batch : tensor
-            Repressentative terminating states for the environment
-         rewards_sample_space : tensor
-            Rewards associated with the tates in sample_space_batch
+        sample_space_batch : list, tensor, array
+            Representative terminating states (in environment format) for the environment.
         """
         if not hasattr(self, "sample_space_batch"):
             if hasattr(self.env, "get_all_terminating_states"):
@@ -1290,25 +1296,86 @@ class GFlowNetAgent:
                     "environment must implement either get_all_terminating_states() "
                     "or get_grid_terminating_states()"
                 )
-            self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+        return self.sample_space_batch
+
+    def get_sample_space_and_reward(self, return_states_proxy: bool = False):
+        """
+        Returns samples representative of the env state space with their rewards.
+
+        Parameters
+        ----------
+        return_states_proxy : bool
+            If True, returns the states in proxy format.
+
+        Returns
+        -------
+        sample_space_batch : list, tensor, array
+            Representative terminating states for the environment. If
+            return_states_proxy, the format returned will be the proxy format.
+            Otherwise, states will be returned in environment fomat.
+        rewards_sample_space : tensor
+            Rewards associated with the tates in sample_space_batch
+        """
+        if return_states_proxy or not hasattr(self, "rewards_sample_space"):
+            sample_space_proxy = self.env.states2proxy(self.get_sample_space())
         if not hasattr(self, "rewards_sample_space"):
-            self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
+            self.rewards_sample_space = self.proxy.rewards(sample_space_proxy)
+        if return_states_proxy:
+            return sample_space_proxy, self.rewards_sample_space
+        else:
+            return self.sample_space_batch, self.rewards_sample_space
 
-        return self.sample_space_batch, self.rewards_sample_space
-
-    # TODO: implement other proposal distributions
-    # TODO: rethink whether it is needed to convert to reward
     def sample_from_reward(
         self,
         n_samples: int,
         proposal_distribution: str = "uniform",
-        epsilon=1e-4,
+        epsilon: float = 1e-4,
+        method: str = "rejection",
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Sampling from reward using rejection sampling or nested sampling.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution for rejection sampling. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+        method : str
+            Identifier of the sampling method. Currently only `rejection` and `nested` are
+            implemented.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        if method == "rejection":
+            return self.sample_from_reward_rejection(
+                n_samples, proposal_distribution, epsilon
+            )
+        elif method == "nested":
+            return self.sample_from_reward_nested(n_samples)
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward_rejection(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon: float = 1e-4,
     ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
         """
         Rejection sampling with proposal the uniform distribution defined over the
         sample space.
 
-        Returns a tensor in GFloNet (state) format.
+        Returns a tensor in GFlowNet (state) format.
 
         Parameters
         ----------
@@ -1349,6 +1416,77 @@ class GFlowNetAgent:
             samples_accepted = [samples_uniform[idx] for idx in indices_accept]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return samples_final
+
+    def sample_from_reward_nested(
+        self, n_samples: int
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Nested sampling from reward, using ultranest.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        import ultranest
+        from wurlitzer import pipes
+
+        def reward_func(angles):
+            # angles here is np array
+            states = np.concatenate(
+                [angles, np.ones((angles.shape[0], 1))], axis=1
+            ).tolist()
+            rewards = (
+                self.proxy.proxy2reward(self.proxy(self.env.states2proxy(states)))
+                .detach()
+                .cpu()
+                .numpy()
+            )
+            return np.log(rewards)
+
+        def prior_transform(cube):
+            params = cube.copy()
+            # transform location parameter: uniform prior
+            low = 0
+            high = 2 * np.pi
+            for idx, elem in enumerate(cube):
+                params[idx] = elem * (high - low) + low
+            return params
+
+        samples = []
+        n_sampled = 0
+        iteration = 0
+        print(f"Running nested sampling (until {n_samples} samples are obtained)...")
+        while n_sampled < n_samples:
+            param_names = [f"theta_{i}" for i in range(self.env.n_dim)]
+
+            with pipes():
+                sampler = ultranest.ReactiveNestedSampler(
+                    param_names,
+                    reward_func,
+                    prior_transform,
+                    vectorized=True,
+                    ndraw_min=1000,
+                )
+                result = sampler.run()
+
+            samples.append(result["samples"])
+            n_sampled += result["samples"].shape[0]
+            print(f"Total samples (iteration #{iteration}): {n_sampled}.")
+            iteration += 1
+        samples = np.concatenate(samples, axis=0)
+        # add dummy step dimension
+        samples = np.concatenate([samples, np.ones((samples.shape[0], 1))], axis=1)
+        np.random.shuffle(samples)
+        return torch.Tensor(samples[:n_samples])
 
 
 def make_opt(params, logZ, config):

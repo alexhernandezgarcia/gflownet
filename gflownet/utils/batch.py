@@ -679,20 +679,36 @@ class Batch:
         self._parents_policy_available is set to True.
         """
         self.states_policy = self.get_states(policy=True)
-        self.parents_policy = torch.zeros_like(self.states_policy)
-        # Iterate over the trajectories to obtain the parents from the states
-        for traj_idx, batch_indices in self.trajectories.items():
-            # parent is source
-            self.parents_policy[batch_indices[0]] = tfloat(
-                self.envs[traj_idx].state2policy(self.envs[traj_idx].source),
-                device=self.device,
-                float_type=self.float,
-            )
-            # parent is not source
-            self.parents_policy[batch_indices[1:]] = self.states_policy[
-                batch_indices[:-1]
-            ]
-        self._parents_policy_available = True
+        # hacky way to check whether it is MoleculeGraph without importing MoleculeGraph here
+        if hasattr(self.states_policy, "num_nodes"):
+            parents_policy = [None] * len(self.states_policy)
+            # Iterate over the trajectories to obtain the parents from the states
+            for traj_idx, batch_indices in self.trajectories.items():
+                # parent is source
+                parents_policy[batch_indices[0]] = tfloat(
+                    self.envs[traj_idx].state2policy(self.envs[traj_idx].source),
+                    device=self.device,
+                    float_type=self.float,
+                )
+                # parent is not source
+                for idx, previous_idx in zip(batch_indices[1:], batch_indices[:-1]):
+                    parents_policy[idx] = self.states_policy[previous_idx]
+            self.parents_policy = self.env.collate_policy_states(parents_policy)
+        else:
+            self.parents_policy = torch.zeros_like(self.states_policy)
+            # Iterate over the trajectories to obtain the parents from the states
+            for traj_idx, batch_indices in self.trajectories.items():
+                # parent is source
+                self.parents_policy[batch_indices[0]] = tfloat(
+                    self.envs[traj_idx].state2policy(self.envs[traj_idx].source),
+                    device=self.device,
+                    float_type=self.float,
+                )
+                # parent is not source
+                self.parents_policy[batch_indices[1:]] = self.states_policy[
+                    batch_indices[:-1]
+                ]
+        self.parents_policy_available = True
 
     def get_parents_all(
         self, policy: bool = False, force_recompute: bool = False
