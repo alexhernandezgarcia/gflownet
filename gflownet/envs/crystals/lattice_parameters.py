@@ -703,6 +703,39 @@ class LatticeParametersSGCCG(ContinuousCube):
         involves setting up the ignored dimensions as well as the dimensions, in
         projection and lattice parameters space, which may have fixed values or values
         tied to other dimensions.
+
+        This method sets the following attributes :
+        - self.ignored_dims
+            This attribute describes which dimension of the parent hypercube state space
+            might be ignored. A dimension is ignored when it isn't required, such as
+            when a particular dimension of the hypercube should have a fixed value or
+            when this dimension should have its value tied to another dimension.
+        - self.projection_tied_values
+            This attributes describes, in projection space, which dimensions should have
+            their value tied to the value of another dimension. This attribute is a list
+            of 6 values, one per projection space dimension. Each value is either None,
+            if the dimension isn't tied to another dimension, or an int representing the
+            index of another dimension to which this dimension should be identical.
+        - self.projection_fixed_values
+            This attributes describes, in projection space, which dimensions should be
+            fixed at a certain value, independant of the agent's action. This attribute
+            is a list of 6 values, one per projection space dimension. Each value is
+            either None, if the value of that dimension isn't fixed, or a float/integer
+            value indicating the value that this dimension should take.
+        - self.lattice_params_tied_values
+            This attributes describes, in lattice parameter space, which parameters
+            should have their value tied to the value of another parameter. This
+            attribute is a list of 6 values, one per lattice parameter. The order is
+            (a, b, c, alpha, beta, gamma). Each value is either None, if the lattice
+            parameter isn't tied to another parameter, or an int representing the
+            index of another parameter to which this parameter should be identical.
+        - self.lattice_params_fixed_values
+            This attributes describes, in lattice parameter space, which parameters
+            should be fixed at a certain value, independant of the agent's action.
+            This attribute is a list of 6 values, one per lattice parameter. The order
+            is (a, b, c, alpha, beta, gamma). Each value is either None, if the value of
+            that lattice parameter isn't fixed, or a float/integer value indicating the
+            value that this lattice parameter should take.
         """
 
         if self.lattice_system == TRICLINIC:
