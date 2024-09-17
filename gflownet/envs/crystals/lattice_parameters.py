@@ -457,8 +457,8 @@ class LatticeParametersSGCCG(ContinuousCube):
         # lattice params might break down). These bounds are also sufficient vast to
         # represent with angles between 10 and 170 degrees and side lengths between
         # 1 and 1000 Angstroms
-        self.min_projection_values = [-3, -3, -3, -9, -6, -3]
-        self.max_projection_values = [3, 3, 3, 9, 6, 14]
+        self.min_projection_values = [-3 / 2, -3 / 2, -3 / 2, -9 / 2, -3, -3 / 2]
+        self.max_projection_values = [3 / 2, 3 / 2, 3 / 2, 9 / 2, 3, 7]
 
         super().__init__(n_dim=6, **kwargs)
         # Setup constraints after the call of super to avoid getting the variable
@@ -530,18 +530,22 @@ class LatticeParametersSGCCG(ContinuousCube):
             Lattice parameters (a, b, c, alpha, beta, gamma) corresponding to the input
             representation in the projection space
         """
-        # Convert the vector of the projection state to the symmetric matrix exp_s
+        # Convert the vector of the projection state to the symmetric matrix s
+        # (see Eq. 24 in the paper)
         k1, k2, k3, k4, k5, k6 = projection
         s = k1 * B1 + k2 * B2 + k3 * B3 + k4 * B4 + k5 * B5 + k6 * B6
-        exp_s = expm(s)
 
-        # Extract the values of the lattice parameters from exp_s
-        a = exp_s[0, 0] ** 0.5
-        b = exp_s[1, 1] ** 0.5
-        c = exp_s[2, 2] ** 0.5
-        alpha = numpy.rad2deg(numpy.arccos(exp_s[1, 2] / (b * c)))
-        beta = numpy.rad2deg(numpy.arccos(exp_s[0, 2] / (a * c)))
-        gamma = numpy.rad2deg(numpy.arccos(exp_s[0, 1] / (a * b)))
+        # Compute the matrix J (see Eqs. 23 and 24 in the paper)
+        j = expm(2 * s)
+
+        # Extract the values of the lattice parameters from matrix J (see Eq. 23 in the
+        # paper)
+        a = j[0, 0] ** 0.5
+        b = j[1, 1] ** 0.5
+        c = j[2, 2] ** 0.5
+        alpha = numpy.rad2deg(numpy.arccos(j[1, 2] / (b * c)))
+        beta = numpy.rad2deg(numpy.arccos(j[0, 2] / (a * c)))
+        gamma = numpy.rad2deg(numpy.arccos(j[0, 1] / (a * b)))
 
         return [a, b, c, alpha, beta, gamma]
 
@@ -564,21 +568,25 @@ class LatticeParametersSGCCG(ContinuousCube):
         # Extract the values of the individual lattice params
         a, b, c, alpha, beta, gamma = lattice_params
 
-        # Compute the s matrix from the values of the lattice parameters
+        # Compute the matrix J from the values of the lattice parameters
+        # (see Eq. 23 in the paper)
         ab_cos_gamma = a * b * numpy.cos(numpy.deg2rad(gamma))
         ac_cos_beta = a * c * numpy.cos(numpy.deg2rad(beta))
         bc_cos_alpha = b * c * numpy.cos(numpy.deg2rad(alpha))
 
-        exp_s = numpy.array(
+        j = numpy.array(
             [
                 [a**2, ab_cos_gamma, ac_cos_beta],
                 [ab_cos_gamma, b**2, bc_cos_alpha],
                 [ac_cos_beta, bc_cos_alpha, c**2],
             ]
         )
-        s = logm(exp_s)
 
-        # Recover the projection coefficients from the matrix 's'
+        # Compute the matrix S from the matrix J (see Eqs. 23 and 24 in the paper)
+        s = logm(j) / 2
+
+        # Recover the projection coefficients from the matrix S
+        # (see Eq. 24 in the paper)
         k1 = s[0, 1]
         k2 = s[0, 2]
         k3 = s[1, 2]
@@ -779,7 +787,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # - a == b
             self.ignored_dims = [True, True, True, True, False, False]
             self.projection_tied_values = [None] * 6
-            self.projection_fixed_values = [-numpy.log(3) / 2, 0, 0, 0, None, None]
+            self.projection_fixed_values = [-numpy.log(3) / 4, 0, 0, 0, None, None]
             self.lattice_params_tied_values = [None, 0, None, None, None, None]
             self.lattice_params_fixed_values = [None, None, None, 90, 90, 120]
 
