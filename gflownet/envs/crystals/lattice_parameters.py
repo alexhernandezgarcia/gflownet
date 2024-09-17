@@ -448,7 +448,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         # TODO : Find better values for these variables? We might make the values of
         # these variables dependant on some input parameters to the environment like
-        # min/max angle/lenghts. However, the relationship between the projection
+        # min/max angle/lengths. However, the relationship between the projection
         # space and the space of lattice parameters involves a matrix exponential so
         # this might be non-trivial to do in practice.
         # These default values were found through empirical testing. They seem to
