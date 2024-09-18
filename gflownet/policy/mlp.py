@@ -5,27 +5,40 @@ from gflownet.policy.base import Policy
 
 
 class MLPPolicy(Policy):
-    def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(
-            config=config,
-            env=env,
-            device=device,
-            float_precision=float_precision,
-            base=base,
-        )
+    def __init__(self, **kwargs):
+        config = self._get_config(kwargs["config"])
+        # Shared weights, defaults to False
+        self.shared_weights = config.get("shared_weights", False)
+        # Reload checkpoint, defaults to False
+        self.reload_ckpt = config.get("reload_ckpt", False)
+        # MLP features: number of layers, number of hidden units, tail, etc.
+        self.n_layers = config.get("n_layers", 2)
+        self.n_hid = config.get("n_hid", 128)
+        self.tail = config.get("tail", [])
+        # Base init
+        super().__init__(**kwargs)
 
-    def make_mlp(self, activation):
+    def make_model(self, activation: nn.Module = nn.LeakyReLU()):
         """
-        Defines an MLP with no top layer activation
-        If share_weight == True,
-            baseModel (the model with which weights are to be shared) must be provided
-        Args
-        ----
-        layers_dim : list
-            Dimensionality of each layer
-        activation : Activation
-            Activation function
+        Instantiates an MLP with no top layer activation as the policy model.
+
+        If self.shared_weights is True, the base model with which weights are to be
+        shared must be provided.
+
+        Parameters
+        ----------
+        activation : nn.Module
+            Activation function of the MLP layers
+
+        Returns
+        -------
+        model : torch.tensor or torch.nn.Module
+            A torch model containing the MLP.
+        is_model : bool
+            True because an MLP is a model.
         """
+        activation.to(self.device)
+
         if self.shared_weights == True and self.base is not None:
             mlp = nn.Sequential(
                 self.base.model[:-1],
@@ -33,7 +46,7 @@ class MLPPolicy(Policy):
                     self.base.model[-1].in_features, self.base.model[-1].out_features
                 ),
             )
-            return mlp
+            return mlp, True
         elif self.shared_weights == False:
             layers_dim = (
                 [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
@@ -53,26 +66,11 @@ class MLPPolicy(Policy):
                     + self.tail
                 )
             )
-            return mlp
+            return mlp, True
         else:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
-
-    def parse_config(self, config):
-        super().parse_config(config)
-        if config is None:
-            config = OmegaConf.create()
-        self.checkpoint = config.get("checkpoint", None)
-        self.shared_weights = config.get("shared_weights", False)
-        self.n_hid = config.get("n_hid", 128)
-        self.n_layers = config.get("n_layers", 2)
-        self.tail = config.get("tail", [])
-        self.reload_ckpt = config.get("reload_ckpt", False)
-
-    def instantiate(self):
-        self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
-        self.is_model = True
 
     def __call__(self, states):
         return self.model(states)
