@@ -17,9 +17,6 @@ class CNNPolicy(Policy):
         self.channels = config.get("channels", [16] * self.n_layers)
         self.kernel_sizes = config.get("kernel_sizes", [(3, 3)] * self.n_layers)
         self.strides = config.get("strides", [(1, 1)] * self.n_layers)
-        # Environment
-        # TODO: rethink whether storing the whole environment is needed
-        self.env = env
         # Base init
         super().__init__(**kwargs)
 
@@ -68,7 +65,7 @@ class CNNPolicy(Policy):
             current_channels = self.channels[i]
 
         dummy_input = torch.ones(
-            (1, 1, self.env.height, self.env.width)
+            (1, 1, self.height, self.width)
         )  # (batch_size, channels, height, width)
         try:
             in_channels = conv_module(dummy_input).numel()
