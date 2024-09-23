@@ -53,6 +53,11 @@ class Policy:
         self.type = config.get("type", "uniform")
         # Checkpoint, defaults to None
         self.checkpoint = config.get("checkpoint", None)
+        # TODO: This could be done better? We could store this only when using CNN policy. e.g. self.type could be "cnn"
+        if hasattr(env, 'height'):
+            self.height = env.height
+        if hasattr(env, 'width'):
+            self.width = env.width
         # Instantiate the model
         self.model, self.is_model = self.make_model()
 
