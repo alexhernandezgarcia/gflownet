@@ -37,7 +37,6 @@ class MLPPolicy(Policy):
         is_model : bool
             True because an MLP is a model.
         """
-        activation.to(self.device)
 
         if self.shared_weights == True and self.base is not None:
             mlp = nn.Sequential(
@@ -66,7 +65,7 @@ class MLPPolicy(Policy):
                     + self.tail
                 )
             )
-            return mlp, True
+            return mlp.to(self.device), True
         else:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
