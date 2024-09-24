@@ -14,6 +14,7 @@ from tqdm import tqdm
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from crystalrandom import generate_random_crystals
+
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.common import load_gflow_net_from_run_path
 from gflownet.utils.policy import parse_policy_config

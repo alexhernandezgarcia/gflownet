@@ -8,6 +8,7 @@ implementations.
 
 from typing import Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 import torch
 from torchtyping import TensorType
@@ -154,7 +155,9 @@ class Crystal(Stack):
             dim=1,
         )
 
-    def process_data_set(self, df: pd.DataFrame, progress=False) -> List[List]:
+    def process_data_set(
+        self, df: pd.DataFrame, return_type: str = "state", progress=False
+    ) -> List[List]:
         """
         Converts a data set passed as a pandas DataFrame into a list of states in
         environment format.
@@ -169,6 +172,10 @@ class Crystal(Stack):
         df : DataFrame
             A pandas DataFrame containing the necessary columns to represent a crystal
             as described above.
+        return_type: str
+            Identifier of the data format to be return. Options:
+                - state: list of states in environment format (default)
+                - dataframe: pandas DataFrame
         progress : bool
             Whether to display a progress bar.
 
@@ -177,26 +184,46 @@ class Crystal(Stack):
         list
             A list of states in environment format.
         """
-        data_valid = []
+        is_valid = []
+        states_valid = []
         for row in tqdm(df.iterrows(), total=len(df), disable=not progress):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
-            state = {}
-            state[self.stage_composition] = self.subenvs[
-                self.stage_composition
-            ].readable2state(row["Formulae"])
-            state[self.stage_spacegroup] = self.subenvs[
-                self.stage_spacegroup
-            ]._set_constrained_properties([0, 0, row["Space Group"]])
-            state[self.stage_latticeparameters] = self.subenvs[
-                self.stage_latticeparameters
-            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
-            is_valid_subenvs = [
-                subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
-            ]
-            if all(is_valid_subenvs):
-                # TODO: Consider making stack state a dict which would avoid having to
-                # do this, among other advantages
-                state_stack = [2] + [state[stage] for stage in self.subenvs]
-                data_valid.append(state_stack)
-        return data_valid
+            if return_type.lower() == "dataframe":
+                is_valid.append(self._is_valid_datarow(row))
+            elif return_type.lower().startswith("state"):
+                if self._is_valid_datarow(row):
+                    # TODO: Consider making stack state a dict which would avoid having
+                    # to do this, among other advantages
+                    state = self._state_from_datarow(row)
+                    state_stack = [2] + [state[stage] for stage in self.subenvs]
+                    states_valid.append(state_stack)
+            else:
+                raise ValueError(
+                    f"Unknown return_type. Received {return_type}, expected state or "
+                    "dataframe"
+                )
+        if return_type.lower() == "dataframe":
+            return df[np.array(is_valid)]
+        else:
+            return states_valid
+
+    def _state_from_datarow(self, row):
+        state = {}
+        state[self.stage_composition] = self.subenvs[
+            self.stage_composition
+        ].readable2state(row["Formulae"])
+        state[self.stage_spacegroup] = self.subenvs[
+            self.stage_spacegroup
+        ]._set_constrained_properties([0, 0, row["Space Group"]])
+        state[self.stage_latticeparameters] = self.subenvs[
+            self.stage_latticeparameters
+        ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
+        return state
+
+    def _is_valid_datarow(self, row):
+        state = self._state_from_datarow(row)
+        is_valid_subenvs = [
+            subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
+        ]
+        return all(is_valid_subenvs)

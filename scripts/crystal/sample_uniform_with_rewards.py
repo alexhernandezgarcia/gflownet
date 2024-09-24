@@ -8,9 +8,6 @@ import sys
 
 import hydra
 import pandas as pd
-from gflownet.utils.common import chdir_random_subdir
-from gflownet.utils.policy import parse_policy_config
-
 from crystalrandom import generate_random_crystals_uniform
 
 
@@ -46,8 +43,8 @@ def main(config):
     )
     env.reset()
 
-    energies = env.proxy(env.states2proxy(x_sampled))
-    rewards = env.proxy2reward(energies)
+    energies = proxy(env.states2proxy(x_sampled))
+    rewards = proxy.proxy2reward(energies)
     readable = [env.state2readable(x) for x in x_sampled]
     result = pd.DataFrame(
         {"readable": readable, "rewards": rewards, "energies": energies, "x": x_sampled}
