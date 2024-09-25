@@ -27,6 +27,9 @@ jobs:
         with:
           python-version: "3.10"
 
+      - name: Display Python version
+        run: python -V
+
       - name: Install code dependencies
         run: bash ./prereq_ci.sh pip install --upgrade
 
@@ -35,6 +38,12 @@ jobs:
 
       - name: Install Pytest and Isort
         run: pip install pytest isort
+
+      - name: Display pip list
+        run: pip list
+      
+      - name: Display system information
+        run: uname -a
 
       - name: Validate import format in main source code
         run: isort --profile black ./gflownet/ --check-only

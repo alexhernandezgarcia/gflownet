@@ -3,7 +3,6 @@ from abc import ABC
 import gpytorch
 import numpy as np
 import torch
-
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.test_functions import Hartmann
@@ -50,8 +49,10 @@ likelihood.train()
 
 from botorch.models.utils import add_output_dim
 from botorch.posteriors.gpytorch import GPyTorchPosterior
-from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
-from gpytorch.likelihoods.gaussian_likelihood import FixedNoiseGaussianLikelihood
+from gpytorch.distributions import (MultitaskMultivariateNormal,
+                                    MultivariateNormal)
+from gpytorch.likelihoods.gaussian_likelihood import \
+    FixedNoiseGaussianLikelihood
 
 
 class myGPModel(SingleTaskGP):
