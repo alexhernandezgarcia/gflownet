@@ -36,13 +36,12 @@ class Buffer:
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
-        self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
+        self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
         self.replay = pd.DataFrame(
-            np.empty((self.replay_capacity, 5), dtype=object),
-            columns=["state", "traj", "reward", "energy", "iter"],
+            np.empty((self.replay_capacity, 4), dtype=object),
+            columns=["state", "traj", "reward", "iter"],
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
-        self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
@@ -127,16 +126,27 @@ class Buffer:
                 f,
             )
 
-    def add(
-        self,
-        states,
-        trajs,
-        rewards,
-        energies,
-        it,
-        buffer="main",
-        criterion="greater",
-    ):
+    def add(self, states, trajs, rewards, it, buffer="main", criterion="greater"):
+        """
+        Adds a batch of states (with the trajectory actions and rewards) to the buffer.
+
+        Note that the rewards may be log-rewards.
+
+        Parameters
+        ----------
+        states : list
+            A batch of terminating states.
+        trajs : list
+            The list of trajectory actions of each terminating state.
+        rewards : list
+            The reward or log-reward of each terminating state.
+        it : int
+            Iteration number.
+        buffer : str
+            Identifier of the buffer: main or replay
+        criterion : str
+            Identifier of the criterion. Currently, only greater is implemented.
+        """
         if buffer == "main":
             self.main = pd.concat(
                 [
@@ -146,7 +156,6 @@ class Buffer:
                             "state": [self.env.state2readable(s) for s in states],
                             "traj": [self.env.traj2readable(p) for p in trajs],
                             "reward": rewards,
-                            "energy": energies,
                             "iter": it,
                         }
                     ),
@@ -154,22 +163,45 @@ class Buffer:
                 axis=0,
                 join="outer",
             )
-        elif buffer == "replay" and self.replay_capacity > 0:
-            if criterion == "greater":
-                self.replay = self._add_greater(states, trajs, rewards, energies, it)
+        elif buffer == "replay":
+            if self.replay_capacity > 0:
+                if criterion == "greater":
+                    self.replay = self._add_greater(states, trajs, rewards, it)
+                else:
+                    raise ValueError(
+                        f"Unknown criterion identifier. Received {buffer}, "
+                        "expected greater"
+                    )
+        else:
+            raise ValueError(
+                f"Unknown buffer identifier. Received {buffer}, expected main or replay"
+            )
 
-    def _add_greater(
-        self,
-        states,
-        trajs,
-        rewards,
-        energies,
-        it,
-        allow_duplicate_states=False,
-    ):
-        for idx, (state, traj, reward, energy) in enumerate(
-            zip(states, trajs, rewards, energies)
-        ):
+    def _add_greater(self, states, trajs, rewards, it, allow_duplicate_states=False):
+        """
+        Adds a batch of states (with the trajectory actions and rewards) to the buffer
+        if the state reward is larger than the minimum reward in the buffer and the
+        trajectory is not yet in the buffer.
+
+        Note that the rewards may be log-rewards. The reward is only used to check the
+        inclusion criterion. Since the logarithm is a monotonic function, using the log
+        or natural rewards is equivalent for this purpose.
+
+        Parameters
+        ----------
+        states : list
+            A batch of terminating states.
+        trajs : list
+            The list of trajectory actions of each terminating state.
+        rewards : list
+            The reward or log-reward of each terminating state.
+        it : int
+            Iteration number.
+        allow_duplicate_states : bool
+            If True, terminating states already present in the buffer will be added
+            provided the trajectory is different and the reward criterion is satisfied.
+        """
+        for idx, (state, traj, reward) in enumerate(zip(states, trajs, rewards)):
             if not allow_duplicate_states:
                 if isinstance(state, torch.Tensor):
                     is_duplicate = False
@@ -189,7 +221,6 @@ class Buffer:
                     "state": self.env.state2readable(state),
                     "traj": self.env.traj2readable(traj),
                     "reward": reward,
-                    "energy": energy,
                     "iter": it,
                 }
                 self.replay_states[(idx, it)] = state

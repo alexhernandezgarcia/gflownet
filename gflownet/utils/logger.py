@@ -193,6 +193,7 @@ class Logger:
         self,
         losses,
         rewards: list,
+        logrewards: list,
         proxy_vals: array,
         states_term: list,
         batch_size: int,
@@ -212,6 +213,8 @@ class Logger:
                 [
                     "mean_reward",
                     "max_reward",
+                    "mean_logreward",
+                    "max_logreward",
                     "mean_proxy",
                     "min_proxy",
                     "max_proxy",
@@ -225,6 +228,8 @@ class Logger:
                 [
                     np.mean(rewards),
                     np.max(rewards),
+                    np.mean(logrewards),
+                    np.max(logrewards),
                     np.mean(proxy_vals),
                     np.min(proxy_vals),
                     np.max(proxy_vals),
@@ -252,48 +257,6 @@ class Logger:
             loss_metrics,
             use_context=use_context,
             step=step,
-        )
-
-    def log_sampler_test(
-        self, corr: array, data_logq: list, step: int, use_context: bool
-    ):
-        if not self.do.online:
-            return
-        if self.should_eval(step):
-            test_metrics = dict(
-                zip(
-                    [
-                        "test_corr_logq_score",
-                        "test_mean_log",
-                    ],
-                    [
-                        corr[0, 1],
-                        np.mean(data_logq),
-                    ],
-                )
-            )
-            self.log_metrics(
-                test_metrics,
-                use_context=use_context,
-            )
-
-    def log_losses(
-        self,
-        losses: list,
-        step: int,
-        use_context: bool,
-    ):
-        if not self.do.online:
-            return
-        loss_metrics = dict(
-            zip(
-                ["loss", "term_loss", "flow_loss"],
-                [loss.item() for loss in losses],
-            )
-        )
-        self.log_metrics(
-            loss_metrics,
-            use_context=use_context,
         )
 
     def save_models(

@@ -1168,35 +1168,34 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            # TODO: the current implementation recomputes the proxy values of the
-            # terminating states in order to store the proxy values in the Buffer.
-            # Depending on the computational cost of the proxy, this may be very
-            # inneficient. For example, proxy.rewards() could return the proxy values,
-            # which could be stored in the Batch.
-            if it == 0:
-                print(
-                    "IMPORTANT: The current implementation recomputes the proxy "
-                    "values of the terminating states in order to store the proxy "
-                    "values in the Buffer. Depending on the computational cost of "
-                    "the proxy, this may be very inneficient."
-                )
             states_term = batch.get_terminating_states(sort_by="trajectory")
-            states_proxy_term = batch.get_terminating_states(
-                proxy=True, sort_by="trajectory"
-            )
-            proxy_vals = self.proxy(states_proxy_term)
-            rewards = self.proxy.proxy2reward(proxy_vals)
-            rewards = rewards.tolist()
+            proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
             proxy_vals = proxy_vals.tolist()
+            # The batch will typically have the log-rewards available, since they are
+            # used to compute the losses. In order to avoid recalculating the proxy
+            # values, the natural rewards are computed by taking the exponential of the
+            # log-rewards. In case the rewards are available in the batch but not the
+            # log-rewards, the latter are computed by taking the log of the rewards.
+            # Numerical issues are not critical in this case, since the derived values
+            # are only used for reporting purposes.
+            if batch.rewards_available(log=False):
+                rewards = batch.get_terminating_rewards(sort_by="trajectory")
+            if batch.rewards_available(log=True):
+                logrewards = batch.get_terminating_rewards(
+                    sort_by="trajectory", log=True
+                )
+            if not batch.rewards_available(log=False):
+                assert batch.rewards_available(log=True)
+                rewards = torch.exp(logrewards)
+            if not batch.rewards_available(log=True):
+                assert batch.rewards_available(log=False)
+                logrewards = torch.log(rewards)
+            rewards = rewards.tolist()
+            logrewards = logrewards.tolist()
             actions_trajectories = batch.get_actions_trajectories()
-            self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
+            self.buffer.add(states_term, actions_trajectories, logrewards, it)
             self.buffer.add(
-                states_term,
-                actions_trajectories,
-                rewards,
-                proxy_vals,
-                it,
-                buffer="replay",
+                states_term, actions_trajectories, logrewards, it, buffer="replay"
             )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
@@ -1215,6 +1214,7 @@ class GFlowNetAgent:
                 self.logger.log_train(
                     losses=losses,
                     rewards=rewards,
+                    logrewards=logrewards,
                     proxy_vals=proxy_vals,
                     states_term=states_term,
                     batch_size=len(batch),
@@ -1350,34 +1350,6 @@ class GFlowNetAgent:
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return samples_final
 
-    def get_log_corr(self, times):
-        data_logq = []
-        times.update(
-            {
-                "test_trajs": 0.0,
-                "test_logq": 0.0,
-            }
-        )
-        # TODO: this could be done just once and store it
-        for statestr, score in tqdm(
-            zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
-        ):
-            t0_test_traj = time.time()
-            traj_list, actions = self.env.get_trajectories(
-                [],
-                [],
-                [self.env.readable2state(statestr)],
-                [self.env.eos],
-            )
-            t1_test_traj = time.time()
-            times["test_trajs"] += t1_test_traj - t0_test_traj
-            t0_test_logq = time.time()
-            data_logq.append(logq(traj_list, actions, self.forward_policy, self.env))
-            t1_test_logq = time.time()
-            times["test_logq"] += t1_test_logq - t0_test_logq
-        corr = np.corrcoef(data_logq, self.buffer.test["energies"])
-        return corr, data_logq, times
-
 
 def make_opt(params, logZ, config):
     """
@@ -1408,36 +1380,3 @@ def make_opt(params, logZ, config):
         gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
-
-
-def logq(traj_list, actions_list, model, env):
-    # TODO: this method is probably suboptimal, since it may repeat forward calls for
-    # the same nodes.
-    log_q = torch.tensor(1.0)
-    for traj, actions in zip(traj_list, actions_list):
-        traj = traj[::-1]
-        actions = actions[::-1]
-        masks = tbool(
-            [env.get_mask_invalid_actions_forward(state, 0) for state in traj],
-            device=self.device,
-        )
-        with torch.no_grad():
-            logits_traj = model(
-                tfloat(
-                    env.states2policy(traj),
-                    device=self.device,
-                    float_type=self.float,
-                )
-            )
-        logits_traj[masks] = -torch.inf
-        logsoftmax = torch.nn.LogSoftmax(dim=1)
-        logprobs_traj = logsoftmax(logits_traj)
-        log_q_traj = torch.tensor(0.0)
-        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-            log_q_traj = log_q_traj + logprobs[a]
-        # Accumulate log prob of trajectory
-        if torch.le(log_q, 0.0):
-            log_q = torch.logaddexp(log_q, log_q_traj)
-        else:
-            log_q = log_q_traj
-    return log_q.item()

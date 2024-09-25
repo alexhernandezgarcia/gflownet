@@ -560,6 +560,7 @@ class TestTetrisCommonFull(common.BaseTestsDiscrete):
         self.env = env_full
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__get_parents__all_parents_are_reached_with_different_actions": 10,
             "test__gflownet_minimal_runs": 0,
         }
         self.n_states = {}  # TODO: Populate.

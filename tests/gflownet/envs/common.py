@@ -373,6 +373,22 @@ class BaseTestsDiscrete(BaseTestsCommon):
                     assert p_a in self.env.action_space
                     assert mask[self.env.action_space.index(p_a)] is False
 
+    def test__get_parents__all_parents_are_reached_with_different_actions(
+        self, n_repeat=1
+    ):
+        if _get_current_method_name() in self.repeats:
+            n_repeat = self.repeats[_get_current_method_name()]
+
+        for _ in range(n_repeat):
+            self.env.reset()
+            while not self.env.done:
+                # Sample random action
+                state_next, action, valid = self.env.step_random()
+                if valid is False:
+                    continue
+                _, parents_a = self.env.get_parents()
+                assert len(set(parents_a)) == len(parents_a)
+
     def test__state2readable__is_reversible(self, n_repeat=1):
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
