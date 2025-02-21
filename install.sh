@@ -10,6 +10,29 @@ DRY_RUN=0
 # Allowed extras set
 VALID_EXTRAS=("minimal" "dev" "materials" "molecules" "all")
 
+# Display help message and exit if --help is in the arguments
+for arg in "$@"; do
+    if [[ "$arg" == "--help" ]]; then
+		echo "Usage: source install.sh [OPTIONS]"
+		echo ""
+		echo "Options:"
+		echo "  --cpu                 Install CPU-only PyTorch (mutually exclusive with --cuda)."
+		echo "  --cuda                Install CUDA-enabled PyTorch (default, and mutually exclusive with --cpu)."
+		echo "  --envpath PATH        Path of the Python virtual environment to be installed. Default: ./gflownet-env"
+		echo "  --extras LIST         Comma-separated list of extras to install. Default: all. Options:"
+		echo "                            - dev: dependencies for development, such as linting and testing packages."
+		echo "                            - materials: dependencies for materials applications, such as the Crystal-GFN."
+		echo "                            - molecules: dependencies for molecular modelling and generation, such the Conformer-GFN."
+		echo "                            - all: all of the above"
+		echo "                            - minimal: none of the above, that is the minimal set of dependencies."
+		echo "  --help                Show this help message and exit."
+		echo ""
+		echo "Example:"
+		echo "    source install.sh --cpu --envpath ~/myenvs/gflownet-env --extras dev,materials"
+		return 0
+    fi
+done
+
 # Function to check if a value is valid
 is_valid_extra() {
     local value="$1"
