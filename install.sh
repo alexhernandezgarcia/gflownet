@@ -25,6 +25,7 @@ for arg in "$@"; do
 		echo "                            - molecules: dependencies for molecular modelling and generation, such the Conformer-GFN."
 		echo "                            - all: all of the above"
 		echo "                            - minimal: none of the above, that is the minimal set of dependencies."
+		echo "  --dry-run             Print the summary of the configuration selected and exit."
 		echo "  --help                Show this help message and exit."
 		echo ""
 		echo "Example:"
