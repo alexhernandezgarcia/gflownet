@@ -3,6 +3,16 @@ import numpy as np
 import pytest
 import torch
 
+# Skip the entire module if pyxtal is not installed / cannot be imported
+try:
+    import pyxtal
+except:
+    pytest.skip(
+        "Skipping all tests in test_composition.py because pyxtal could not be "
+        "imported.",
+        allow_module_level=True,
+    )
+
 from gflownet.envs.crystals.composition import Composition
 from gflownet.utils.common import tfloat, tlong
 

@@ -14,6 +14,16 @@ import pytest
 import torch
 from torch import Tensor
 
+# Skip the entire module if pyxtal is not installed / cannot be imported
+try:
+    import pyxtal
+except:
+    pytest.skip(
+        "Skipping all tests in test_crystal.py because pyxtal could not be "
+        "imported.",
+        allow_module_level=True,
+    )
+
 from gflownet.envs.crystals.crystal import Crystal
 from gflownet.envs.crystals.lattice_parameters import TRICLINIC
 from gflownet.utils.common import tbool, tfloat
