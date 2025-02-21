@@ -1,6 +1,17 @@
 import numpy as np
 import pytest
 import torch
+
+# Skip the entire module if torch_geometric is not installed / cannot be imported
+try:
+    import torch_geometric as pyg
+except:
+    pytest.skip(
+        "Skipping all tests in test_multihead_tree_policy.py because torch_geometric "
+        "could not be imported.",
+        allow_module_level=True,
+    )
+
 from torch_geometric.data import Batch
 
 from gflownet.envs.tree import Attribute, Operator, Tree
