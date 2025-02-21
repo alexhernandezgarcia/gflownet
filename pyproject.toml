@@ -42,9 +42,11 @@ dev = [
     "pytest >=7.4.2",
     "pytest-repeat >=0.9.1"
 ]
+# Consider relaxing the == dependency of pymatgen. As of Feb 2025, the latest version
+# is problematic. ==2024.3.1 is the minimum version required by pyxtal.
 materials = [
     "dave",
-    "pymatgen >=2023.12.18",
+    "pymatgen ==2024.3.1",
     "pyxtal >=0.6.1",
     "pyshtools ==4.10.3"
 ]
