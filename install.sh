@@ -27,7 +27,7 @@ validate_extras() {
     for extra in "${EXTRA_VALUES[@]}"; do
         if ! is_valid_extra "$extra"; then
             echo "Error: Found an invalid value in --extras: '$extra'. Allowed values: ${VALID_EXTRAS[*]}" >&2
-            exit 1
+            return 1
         fi
     done
     return 1 # Extras are valid
@@ -58,7 +58,7 @@ while [[ $# -gt 0 ]]; do
             shift
             if [[ -z "$1" ]]; then
                 echo "Error: --envpath requires a value" >&2
-                exit 1
+                return 1
             fi
             ENV_PATH=$(get_absolute_path "$1")
             ;;
@@ -66,22 +66,39 @@ while [[ $# -gt 0 ]]; do
             shift
             if [[ -z "$1" ]]; then
                 echo "Error: --extras requires at least one value" >&2
-                exit 1
+                return 1
             fi
             EXTRAS="$1"
             ;;
         *)
             echo "Unknown argument: $1" >&2
-            exit 1
+            return 1
             ;;
     esac
     shift
 done
 
+DIR_PATH="/path/to/directory"  # Replace with the actual directory path
+
+# Check if the environment directory exists
+if [[ -d "$ENV_PATH" ]]; then
+    echo "The environment path '$ENV_PATH' already exists."
+    echo "Do you want to continue by updating the existing environment? [Y/n]"
+    read -r response
+
+    if [[ "$response" == "Y" ]]; then
+        echo "Installation will continue on the existing path " "$ENV_PATH"
+    else
+        echo "Exiting"
+        return 1
+    fi
+fi
+
+
 # Ensure mutually exclusive flags --cpu and --cuda
 if [[ "$IS_CPU" -eq 1 && "$IS_CUDA" -eq 1 ]]; then
     echo "Error: --cpu and --cuda are mutually exclusive. Please use only one of these flags." >&2
-    exit 1
+    return 1
 fi
 
 # If neither CPU or CUDA are selected, then resort to CUDA by default
@@ -103,7 +120,7 @@ validate_extras $EXTRAS
 # Check if minimal is used alongside other extras
 if echo "$EXTRAS" | grep -qE '(^|,)minimal(,|$)' && [[ "$EXTRAS" == *,* ]]; then
     echo "Error: the values in --extras are ambiguous. The extras minimal should be used on its own."
-	exit 1
+	return 1
 fi
 
 # If all is in extras, then set EXTRAS to just all
@@ -120,7 +137,7 @@ echo ""
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "Installation will not proceed because --dry-run was included in the arguments."
-	exit 1
+	return 1
 fi
 
 # Install Python environment
