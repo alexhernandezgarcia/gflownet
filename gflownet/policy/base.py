@@ -68,7 +68,7 @@ class ModelBase(ABC):
             return mlp
         elif self.shared_weights == False:
             layers_dim = (
-                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
+                [self.state_dim] + [self.n_hid] * self.n_layers + [self.output_dim]
             )
             mlp = nn.Sequential(
                 *(
