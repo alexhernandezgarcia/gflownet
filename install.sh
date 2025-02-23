@@ -8,7 +8,7 @@ EXTRAS="all"
 DRY_RUN=0
 
 # Allowed extras set
-ALL_EXTRAS=("dev" "materials" "molecules")
+ALL_EXTRAS=("dev" "materials" "molecules" "tree")
 VALID_EXTRAS=("${ALL_EXTRAS[@]}" "minimal" "all")
 
 # Display help message and exit if --help is in the arguments
@@ -24,6 +24,7 @@ for arg in "$@"; do
 		echo "                            - dev: dependencies for development, such as linting and testing packages."
 		echo "                            - materials: dependencies for materials applications, such as the Crystal-GFN."
 		echo "                            - molecules: dependencies for molecular modelling and generation, such the Conformer-GFN."
+		echo "                            - tree: dependencies for training a decision tree sampler."
 		echo "                            - all: all of the above"
 		echo "                            - minimal: none of the above, that is the minimal set of dependencies."
 		echo "  --dry-run             Print the summary of the configuration selected and exit."
