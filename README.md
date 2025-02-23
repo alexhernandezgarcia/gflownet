@@ -62,7 +62,7 @@ source install.sh
 
 The following steps, as well as the script `install.sh`, assume the use of Python virtual environments for the installation.
 
-1. Ensure that you have Python 3.10 and CUDA 11.8. In a cluster that uses [modules](https://hpc-wiki.info/hpc/Modules), you may be able to load Python and CUDA with:
+1. Ensure that you have Python 3.10 and, if you want to install GPU-enabled PyTorch, CUDA 11.8. In a cluster that uses [modules](https://hpc-wiki.info/hpc/Modules), you may be able to load Python and CUDA with:
 
 ```
 module load python/3.10
