@@ -28,7 +28,7 @@ dependencies = [
     "torch ==2.5.1",
     "torchtyping >=0.1.4",
     "tqdm",
-    "wandb >=0.15.11"
+    "wandb >=0.15.11",
 ]
 
 [project.optional-dependencies]
@@ -40,7 +40,7 @@ dev = [
     "jupyter >=1.0.0",
     "pylint >=2.17.6",
     "pytest >=7.4.2",
-    "pytest-repeat >=0.9.1"
+    "pytest-repeat >=0.9.1",
 ]
 
 # TODO: Consider relaxing the == dependency of pymatgen. As of Feb 2025, the latest version
@@ -48,13 +48,13 @@ dev = [
 materials = [
     "dave",
     "pymatgen ==2024.3.1",
-    "pyshtools ==4.10.3"
+    "pyshtools ==4.10.3",
     "pyxtal >=0.6.1",
 ]
 
 # TODO: Dependencies in molecules should to be further tested
 molecules = [
-    "rdkit ==2024.9.5"
+    "rdkit ==2024.9.5",
     "torch-geometric >=2.6.1",
     "torchani >=2.2.4",
 ]
