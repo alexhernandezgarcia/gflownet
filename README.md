@@ -101,8 +101,6 @@ The above command will install the minimum set of dependencies to run the core f
 - `dev`: dependencies for development, such as linting and testing packages.
 - `materials`: dependencies for materials applications, such as the Crystal-GFN.
 - `molecules`: dependencies for molecular modelling and generation, such the Conformer-GFN.
-- `all`: all of the above
-- `minimal`: none of the above, that is the minimal set of dependencies.
 
 Extras can be installed by specifying the tags in square brackets:
 
