@@ -16,12 +16,7 @@ from lattice_constants import (
     POINT_SYMMETRIES,
     RHOMBOHEDRAL_SPACE_GROUPS_WIKIPEDIA,
 )
-from pymatgen.symmetry.groups import (
-    PointGroup,
-    SpaceGroup,
-    SymmetryGroup,
-    sg_symbol_from_int_number,
-)
+from pymatgen.symmetry.groups import SpaceGroup, sg_symbol_from_int_number
 
 N_SPACE_GROUPS = 230
 

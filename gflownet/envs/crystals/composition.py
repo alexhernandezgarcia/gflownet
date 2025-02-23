@@ -2,14 +2,10 @@
 Classes to represent material compositions (stoichiometry)
 """
 
-import itertools
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import torch
-from pyxtal.symmetry import Group
-from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv

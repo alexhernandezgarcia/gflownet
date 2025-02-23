@@ -1,7 +1,7 @@
 """
 Branin objective function, relying on the botorch implementation.
 
-This code is based on the implementation by Nikita Saxena (nikita-0209) in 
+This code is based on the implementation by Nikita Saxena (nikita-0209) in
 https://github.com/alexhernandezgarcia/activelearning
 
 The implementation assumes by default that the inputs will be on [-1, 1] x [-1, 1] and
