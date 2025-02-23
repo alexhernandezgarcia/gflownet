@@ -64,33 +64,6 @@ molecules = [
     "rdkit ==2023.3.1"
 ]
 
-# TODO: It would be good to figure out a better way of handling "all"
-all = [
-    # dev
-    "black >=23.9.1",
-    "flake8 >=6.1.0",
-    "isort >=5.12.0",
-    "ipdb >=0.13.13",
-    "jupyter >=1.0.0",
-    "pylint >=2.17.6",
-    "pytest >=7.4.2",
-    "pytest-repeat >=0.9.1",
-    # materials
-    "dave",
-    "pymatgen ==2024.3.1",
-    "pyxtal >=0.6.1",
-    "pyshtools ==4.10.3",
-    # molecules
-    "pyg_lib ==0.3.1+pt20cu118",
-    "torch-scatter ==2.1.2+pt20cu118",
-    "torch-sparse ==0.6.18+pt20cu118",
-    "torch-cluster ==1.6.3+pt20cu118",
-    "torch-spline-conv ==1.2.2+pt20cu118",
-    "torch-geometric >=2.3.1",
-    "torchani ==2.2.4",
-    "rdkit ==2023.3.1"
-]
-
 [tool.poetry.dependencies]
 dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
 
