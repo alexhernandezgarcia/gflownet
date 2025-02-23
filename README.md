@@ -64,14 +64,14 @@ The following steps, as well as the script `install.sh`, assume the use of Pytho
 
 1. Ensure that you have Python 3.10 and, if you want to install GPU-enabled PyTorch, CUDA 11.8. In a cluster that uses [modules](https://hpc-wiki.info/hpc/Modules), you may be able to load Python and CUDA with:
 
-```
+```bash
 module load python/3.10
 module load cuda/11.8
 ```
 
 2. Create and activate a Python virtual environment with `venv`. For example:
 
-```
+```bash
 python -m venv gflownet-env
 source gflownet-env/bin/activate
 ```
@@ -80,19 +80,19 @@ source gflownet-env/bin/activate
 
 For a CUDA-enabled installation:
 
-```
+```bash
 python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
 ```
 
 For a CPU-only installation:
 
-```
+```bash
 python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 ```
 
 4. Install the rest of the dependencies:
 
-```
+```bash
 python -m pip install .
 ```
 
@@ -106,13 +106,13 @@ The above command will install the minimum set of dependencies to run the core f
 
 Extras can be installed by specifying the tags in square brackets:
 
-```
+```bash
 python -m pip install .[all]
 ```
 
 or
 
-```
+```bash
 python -m pip install .[dev,materials]
 ```
 
@@ -136,7 +136,7 @@ By default, running `source install.sh` will create a Python environment in `./g
 
 For example, you may run:
 
-```
+```bash
 source install.sh --cpu --envpath ~/myenvs/gflownet-env --extras dev,materials
 ```
 
