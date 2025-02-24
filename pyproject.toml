@@ -63,6 +63,7 @@ tree = [
 ]
 
 [tool.poetry.dependencies]
+# TODO: this section is not being used as expected
 dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
 
 [build-system]
