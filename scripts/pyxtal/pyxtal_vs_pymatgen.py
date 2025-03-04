@@ -2,14 +2,11 @@
 A simple script to determine which space group symbols are different in pyxtal and
 pymatgen.
 """
+
 from argparse import ArgumentParser
 
-from pymatgen.symmetry.groups import (
-    PointGroup,
-    SpaceGroup,
-    SymmetryGroup,
-    sg_symbol_from_int_number,
-)
+from pymatgen.symmetry.groups import (PointGroup, SpaceGroup, SymmetryGroup,
+                                      sg_symbol_from_int_number)
 from pyxtal.symmetry import Group
 
 N_SYMMETRY_GROUPS = 230

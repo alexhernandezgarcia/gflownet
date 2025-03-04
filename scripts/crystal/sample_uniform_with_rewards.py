@@ -3,15 +3,16 @@ Script for sampling uniform crystals (w/o constraints) and evaluating them with 
 should be run with the same config as main.py, e.g. 
 python sample_uniform_with_rewards.py +experiments=crystals/albatross_sg_first logger.do.online=False user=sasha
 """
+
 import pickle
 import sys
 
 import hydra
 import pandas as pd
+from crystalrandom import generate_random_crystals_uniform
+
 from gflownet.utils.common import chdir_random_subdir
 from gflownet.utils.policy import parse_policy_config
-
-from crystalrandom import generate_random_crystals_uniform
 
 
 @hydra.main(config_path="../../config", config_name="main", version_base="1.1")
