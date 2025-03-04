@@ -34,6 +34,7 @@ author = "Alex Hernandez-Garcia, Nikita Saxena, Alexandra Volokhova, Michał Koz
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx_math_dollar",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
     "sphinx.ext.viewcode",
@@ -41,9 +42,14 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx.ext.todo",
     "sphinx_markdown_tables",
+    "sphinx_autodoc_typehints",
     "myst_nb",
+    "hoverxref.extension",
     "autoapi.extension",
+    "sphinxext.opengraph",
+    "code_include.extension",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -80,17 +86,17 @@ html_logo = "./figures/reward_landscape.png"
 
 # Napoleon
 # https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
-napoleon_google_docstring = False
+napoleon_google_docstring = True
 napoleon_numpy_docstring = True
-napoleon_include_init_with_doc = True
+napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
 napoleon_include_special_with_doc = True
-napoleon_use_admonition_for_examples = False
+napoleon_use_admonition_for_examples = True
 napoleon_use_admonition_for_notes = True
-napoleon_use_admonition_for_references = False
+napoleon_use_admonition_for_references = True
 napoleon_use_ivar = False
 napoleon_use_param = True
-napoleon_use_rtype = True
+napoleon_use_rtype = False
 napoleon_preprocess_types = False
 napoleon_type_aliases = None
 napoleon_attr_annotations = True
@@ -191,6 +197,6 @@ default_role = "code"
 # def setup(sphinx):
 #     sphinx.connect("autoapi-skip-member", skip_util_classes)
 
-# Update autodoc settings
-autodoc_default_options = {"member-order": "bysource"}
-autodoc_inherit_docstrings = False
+# # Update autodoc settings
+# autodoc_default_options = {"member-order": "bysource"}
+# autodoc_inherit_docstrings = False
