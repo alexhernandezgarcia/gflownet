@@ -52,9 +52,9 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # Source parsers and suffixes
 source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'myst-nb',
-    '.ipynb': 'myst-nb',
+    ".rst": "restructuredtext",
+    ".md": "myst-nb",
+    ".ipynb": "myst-nb",
 }
 
 # -- Options for HTML output -------------------------------------------------
