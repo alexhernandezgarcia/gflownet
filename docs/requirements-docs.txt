@@ -10,3 +10,4 @@ myst-nb>=0.17.1
 sphinx-markdown-tables>=0.0.17
 sphinx-autoapi>=2.0.1
 recommonmark>=0.7.1
+sphinx-code-include
