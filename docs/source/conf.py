@@ -47,7 +47,7 @@ extensions = [
     "sphinx.ext.todo",
     "sphinx_markdown_tables",
     "sphinx_autodoc_typehints",
-    "myst_nb",
+    "myst-parser",
     "hoverxref.extension",
     "autoapi.extension",
     "sphinxext.opengraph",
