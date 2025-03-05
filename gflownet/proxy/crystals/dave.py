@@ -2,11 +2,12 @@ from copy import deepcopy
 from importlib.metadata import PackageNotFoundError, version
 
 import torch
+from dave import DavePredictor
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 
-REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
+REPO_URL = "https://github.com/sh-divya/crystalproxies.git"
 """
 URL to the proxy's code repository. It is used to provide a link to the
 appropriate release link in case of version mismatch between requested
@@ -79,14 +80,10 @@ class DAVE(Proxy):
                 f"{bandgap_target}: {type(bandgap_target)})"
             )
             self.is_bandgap = True
+        elif release.startswith("2."):
+            pass
         else:
-            raise ValueError(f"Unknown release: {release}. Allowed: 0.x.x or 1.x.x")
-
-        self.scaled = False
-        if "clip" in kwargs:
-            self.clip = kwargs["clip"]
-        else:
-            self.clip = False
+            raise ValueError(f"Unknown release: {release}. Allowed: 0.x.x or 1.x.x or 2.x.x.")
 
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
@@ -112,32 +109,8 @@ class DAVE(Proxy):
         print("  Found version:", dave_version)
         print("  Loading model weights...")
 
-        from dave import prepare_for_gfn
-
-        self.model, self.proxy_loaders, self.scales = prepare_for_gfn(
-            ckpt_path, release, self.rescale_outputs
-        )
-
-        self.model.to(self.device)
-
-    def _set_scales(self):
-        """
-        Sets the scales to the device and converts them to float if needed.
-        """
-        if self.scaled:
-            return
-        if self.rescale_outputs:
-            if self.scales["x"]["mean"].device != self.device:
-                self.scales["x"]["mean"] = self.scales["x"]["mean"].to(self.device)
-                self.scales["x"]["std"] = self.scales["x"]["std"].to(self.device)
-                self.scales["y"]["mean"] = self.scales["y"]["mean"].to(self.device)
-                self.scales["y"]["std"] = self.scales["y"]["std"].to(self.device)
-            if self.scales["x"]["mean"].ndim == 1:
-                self.scales["x"]["mean"] = self.scales["x"]["mean"][None, :].float()
-                self.scales["x"]["std"] = self.scales["x"]["std"][None, :].float()
-                self.scales["y"]["mean"] = self.scales["y"]["mean"][None].float()
-                self.scales["y"]["std"] = self.scales["y"]["std"][None].float()
-        self.scaled = True
+        # Initialize Dave model and load weights from checkpoint
+        self.model = DavePredictor(path_to_weights=ckpt_path, device=self.device)
 
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "102"]) -> TensorType["batch"]:
@@ -172,42 +145,17 @@ class DAVE(Proxy):
         torch.Tensor
             Proxy energies. Shape: ``(batch,)``.
         """
-        self._set_scales()
-
         comp = states[:, :-7]
         sg = states[:, -7]
         lat_params = states[:, -6:]
 
-        if self.rescale_outputs:
-            lat_params = (lat_params - self.scales["x"]["mean"]) / self.scales["x"][
-                "std"
-            ]
-
         # model forward
         x = (comp.long(), sg.long(), lat_params.float())
-        y = self.model(x).squeeze(-1)
-
-        if self.rescale_outputs:
-            y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
-
-        if self.clip and self.clip.do:
-            if self.rescale_outputs:
-                if self.clip.min_stds:
-                    y_min = -1.0 * self.clip.min_stds * self.scales["y"]["std"]
-                else:
-                    y_min = None
-                if self.clip.max_stds:
-                    y_max = self.clip.max_stds * self.scales["y"]["std"]
-                else:
-                    y_max = None
-            else:
-                y_min = self.clip.min
-                y_max = self.clip.max
-
-            y = torch.clamp(min=y_min, max=y_max)
+        y = self.model(x, self.rescale_outputs).squeeze(-1)
 
         return y
 
+    # TODO: review whether rescaling is done as expected
     @torch.no_grad()
     def infer_on_train_set(self):
         """
@@ -219,16 +167,11 @@ class DAVE(Proxy):
             ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
                 proxy inference on the proxy's training set as 1D tensors.
         """
-        rso = deepcopy(self.rescale_outputs)
-        self.rescale_outputs = False
-        y_mean = self.scales["y"]["mean"]
-        y_std = self.scales["y"]["std"]
-
         energy = []
         proxy = []
 
         for b in self.proxy_loaders["train"]:
-            x, e_normed = b
+            x, e = b
             for k, t in enumerate(x):
                 if t.ndim == 1:
                     x[k] = t[:, None]
@@ -237,13 +180,9 @@ class DAVE(Proxy):
                 assert (
                     x[k].ndim == 2
                 ), f"t.ndim = {x[k].ndim} != 2 (t.shape: {x[k].shape})"
-            p_normed = self.proxy(torch.cat(x, dim=-1))
-            e = e_normed * y_std + y_mean
-            p = p_normed * y_std + y_mean
+            p = self.proxy(torch.cat(x, dim=-1), self.rescale_outputs)
             energy.append(e)
             proxy.append(p)
-
-        self.rescale_outputs = rso
 
         energy = torch.cat(energy).cpu()
         proxy = torch.cat(proxy).cpu()
