@@ -22,19 +22,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
-# Print debugging information
-print(f"Python version: {sys.version}")
-print(f"Project root path: {ROOT}")
-print(f"Current directory: {os.getcwd()}")
-print(f"Directory contents: {os.listdir(os.getcwd())}")
-
-# Try to import gflownet to verify it's available
-try:
-    import gflownet
-    print(f"Successfully imported gflownet from {gflownet.__file__}")
-except ImportError as e:
-    print(f"Failed to import gflownet: {e}")
-
 # -- Project information -----------------------------------------------------
 
 project = "gflownet"
@@ -139,26 +126,7 @@ intersphinx_mapping = {
 # https://autoapi.readthedocs.io/
 autodoc_typehints = "description"
 autoapi_type = "python"
-
-if os.path.exists(str(ROOT / "gflownet")):
-    autoapi_dirs = [str(ROOT / "gflownet")]
-    print(f"Using autoapi_dirs: {autoapi_dirs}")
-else:
-    # Fallback for ReadTheDocs
-    possible_paths = [
-        "./gflownet",
-        "../gflownet",
-        "../../gflownet",
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            autoapi_dirs = [path]
-            print(f"Using fallback autoapi_dirs: {autoapi_dirs}")
-            break
-    else:
-        print("WARNING: Could not find gflownet package directory!")
-        autoapi_dirs = []
-
+autoapi_dirs = [str(ROOT / "gflownet")]
 autoapi_member_order = "bysource"
 autoapi_template_dir = "_templates/autoapi"
 autoapi_python_class_content = "init"
@@ -230,7 +198,3 @@ default_role = "code"
 
 # def setup(sphinx):
 #     sphinx.connect("autoapi-skip-member", skip_util_classes)
-
-# # Update autodoc settings
-# autodoc_default_options = {"member-order": "bysource"}
-# autodoc_inherit_docstrings = False
