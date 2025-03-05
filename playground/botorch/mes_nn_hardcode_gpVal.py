@@ -2,7 +2,6 @@ from abc import ABC
 
 import numpy as np
 import torch
-
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.test_functions import Hartmann
@@ -57,7 +56,8 @@ for epoch in range(NUM_EPOCHS):
 from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 from botorch.models.model import Model
 from botorch.posteriors.gpytorch import GPyTorchPosterior
-from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
+from gpytorch.distributions import (MultitaskMultivariateNormal,
+                                    MultivariateNormal)
 
 
 class NN_Model(Model):

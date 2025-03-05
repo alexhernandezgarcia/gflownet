@@ -5,15 +5,8 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.tree import (
-    ActionType,
-    Attribute,
-    NodeType,
-    Operator,
-    Stage,
-    Status,
-    Tree,
-)
+from gflownet.envs.tree import (ActionType, Attribute, NodeType, Operator,
+                                Stage, Status, Tree)
 from gflownet.utils.common import tfloat
 
 NAN = float("NaN")
