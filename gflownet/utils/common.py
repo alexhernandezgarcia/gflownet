@@ -186,20 +186,18 @@ def resolve_path(path: str) -> Path:
     return Path(expandvars(str(path))).expanduser().resolve()
 
 
-def find_latest_checkpoint(ckpt_dir, ckpt_name):
+def find_latest_checkpoint(ckpt_dir):
     """
-    Find the latest checkpoint in the directory with the specified name.
+    Find the latest checkpoint in the input directory.
 
-    If the checkpoint name contains the string "final", that checkpoint is returned.
-    Otherwise, the latest checkpoint is returned based on the iteration number.
+    If the directory contains a checkpoint file with the name "final", that checkpoint
+    is returned. Otherwise, the latest checkpoint is returned based on the iteration
+    number set in the file names.
 
     Parameters
     ----------
     ckpt_dir : Union[str, Path]
         Directory in which to search for the checkpoints.
-    ckpt_name : str
-        Name of the checkpoint. Typically, this is the name of forward or backward
-        policy.
 
     Returns
     -------
@@ -209,21 +207,18 @@ def find_latest_checkpoint(ckpt_dir, ckpt_name):
     Raises
     ------
     ValueError
-        If no final checkpoint is found and no other checkpoints are found according to
-        the specified pattern: `{ckpt_name}*`.
+        If no checkpoint files are found in the input directory.
     """
-    if ckpt_name is None:
-        return None
-    ckpt_name = Path(ckpt_name).stem
-    final = list(ckpt_dir.glob(f"{ckpt_name}*final*"))
+    ckpt_dir = Path(ckpt_dir)
+    final = [f for f in ckpt_dir.glob(f"*final*")]
     if len(final) > 0:
         return final[0]
-    ckpts = list(ckpt_dir.glob(f"{ckpt_name}*"))
+    ckpts = [f for f in ckpt_dir.glob(f"iter_*")]
     if not ckpts:
         raise ValueError(
-            f"No final checkpoints found in {ckpt_dir} with pattern {ckpt_name}*final*"
+            f"No checkpoints found in {ckpt_dir} with pattern iter_* or *final*"
         )
-    return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
+    return sorted(ckpts, key=lambda f: float(f.stem.split("iter_")[1]))[-1]
 
 
 def read_hydra_config(run_path=None, config_name="config"):
@@ -329,9 +324,9 @@ def load_gflow_net_from_run_path(
     run_path,
     no_wandb=True,
     print_config=False,
-    device="cuda",
-    load_final_ckpt=True,
-    empty_ok=False,
+    device=None,
+    load_last_checkpoint=True,
+    is_resumed: bool = False,
 ):
     """
     Load GFlowNet from a run path (directory with a `.hydra` directory inside).
@@ -345,11 +340,12 @@ def load_gflow_net_from_run_path(
     print_config : bool, optional
         Whether to print the loaded config, by default False.
     device : str, optional
-        Device to which the models should be moved, by default "cuda".
-    load_final_ckpt : bool, optional
+        Device to which the models should be moved. If None (default), take the device
+        from the loaded config.
+    load_last_checkpoint : bool, optional
         Whether to load the final models, by default True.
-    empty_ok : bool, optional
-        Whether to allow the checkpoints directory to be empty, by default False.
+    is_resumed : bool, optional
+        Whether the GFlowNet is loaded to resume training.
 
     Returns
     -------
@@ -362,48 +358,65 @@ def load_gflow_net_from_run_path(
         If no checkpoints are found in the directory.
     """
     run_path = resolve_path(run_path)
-    config = read_hydra_config(run_path)
+
+    # Read experiment config
+    config = OmegaConf.load(Path(run_path) / ".hydra" / "config.yaml")
+    # Resolve variables
+    config = OmegaConf.to_container(config, resolve=True)
+    # Re-create OmegaCong DictConfig
+    config = OmegaConf.create(config)
 
     if print_config:
         print(OmegaConf.to_yaml(config))
+
+    # Device
+    if device is None:
+        device = config.device
 
     if no_wandb:
         # Disable wandb
         config.logger.do.online = False
 
+    # -----------------------------------------
+    # -----  Load last model checkpoints  -----
+    # -----------------------------------------
+
+    if load_last_checkpoint:
+        checkpoint_latest = find_latest_checkpoint(
+            run_path / config.logger.logdir.ckpts
+        )
+        checkpoint = torch.load(checkpoint_latest, map_location=set_device(device))
+
+        # Set run id in logger to enable WandB resume
+        config.logger.run_id = checkpoint["run_id"]
+
+        # Set up Buffer configuration to load data sets and buffers from run
+        # TODO: Eventually, move all buffer config from env to buffer
+        if checkpoint["buffer"]["train"]:
+            config.env.buffer.train = {
+                "type": "pkl",
+                "path": checkpoint["buffer"]["train"],
+            }
+        if checkpoint["buffer"]["test"]:
+            config.env.buffer.test = {
+                "type": "pkl",
+                "path": checkpoint["buffer"]["test"],
+            }
+        if checkpoint["buffer"]["replay"]:
+            config.buffer.replay_buffer = checkpoint["buffer"]["replay"]
+        # TODO: if conditions could be randomised, then include them in checkpoint and
+        # load them here
+
+        if is_resumed:
+            config.logger.logdir.root = run_path
+            config.logger.is_resumed = True
+
+    # Initialize a GFlowNet agent from the configuration
     gflownet = gflownet_from_config(config)
 
-    if not load_final_ckpt:
-        return gflownet, config
-
-    # -------------------------------
-    # -----  Load final models  -----
-    # -------------------------------
-
-    ckpt_dir = [f for f in run_path.rglob(config.logger.logdir.ckpts) if f.is_dir()][0]
-
-    forward_final = find_latest_checkpoint(ckpt_dir, config.policy.forward.checkpoint)
-    if forward_final is None:
-        print("Warning: no forward policy checkpoint found")
-    else:
-        print(f"\nLoading forward policy checkpoint: {str(forward_final)}")
-        gflownet.forward_policy.model.load_state_dict(
-            torch.load(forward_final, map_location=set_device(device))
-        )
-
-    backward_final = find_latest_checkpoint(ckpt_dir, config.policy.backward.checkpoint)
-    if backward_final is None:
-        print("Warning: no backward policy checkpoint found")
-    else:
-        print(f"Loading backward policy checkpoint: {str(backward_final)}\n")
-        gflownet.backward_policy.model.load_state_dict(
-            torch.load(backward_final, map_location=set_device(device))
-        )
-
-    if forward_final is None and backward_final is None:
-        if not empty_ok:
-            raise ValueError("No checkpoints found in", str(ckpt_dir))
-        print("Warning: no checkpoints found in", str(ckpt_dir))
+    # Load checkpoint into the GFlowNet agent
+    if load_last_checkpoint:
+        gflownet.load_checkpoint(checkpoint)
 
     return gflownet, config
 
