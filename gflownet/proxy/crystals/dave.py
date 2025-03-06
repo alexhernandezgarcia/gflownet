@@ -8,102 +8,52 @@ from torchtyping import TensorType
 from gflownet.proxy.base import Proxy
 
 REPO_URL = "https://github.com/sh-divya/crystalproxies.git"
+RELEASE = "2.0.3"
 """
-URL to the proxy's code repository. It is used to provide a link to the
-appropriate release link in case of version mismatch between requested
-and installed ``dave`` release.
+URL to the proxy's code repository. It is used to provide a link to the appropriate
+release link in case of version mismatch between requested and installed ``dave``
+release.
 """
 
 
 class DAVE(Proxy):
     def __init__(
         self,
-        ckpt_path=None,
-        release=None,
+        ckpt_path=str,
         rescale_outputs=True,
         **kwargs,
     ):
         """
-        Wrapper class around the Divya-Alexandre-Victor proxy.
-
-        * git clone the repo
-        * checkout the appropriate tag/release as per ``release``
-        * import the proxy build function ``make_model`` by updating ``sys.path``
-        * load the checkpoint from ``ckpt_path`` and build the proxy model
-
-        The checkpoint path is resolved as follows: * if ``ckpt_path`` is a dict, it is
-        assumed to be a mapping from cluster or
-             ``$USER`` to path (e.g. ``{mila: /path/ckpt.ckpt, victor:
-             /path/ckpt.ckpt}``)
-        * on the cluster, the path to the ckpt is public so everyone resolves to
-            ``"mila"``. For local dev you need to specify a path in ``dave.yaml`` that
-            maps to your local ``$USER``.
-        * if the resulting path is a dir, it must contain exactly one ``.ckpt`` file
-        * if the resulting path is a file, it must be a ``.ckpt`` file
+        Wrapper class around the Dave (Divya-Alexandre-Victor) proxy.
 
         Parameters
         ----------
-        ckpt_path : dict, optional
-            Mapping from cluster / ``$USER`` to checkpoint, by default None
-        release : str, optional
-            Tag to checkout in the DAVE repo, by default None
+        ckpt_path : str
+            Path to a directory containing the checkpoint of a pre-trained model.
         rescale_outputs : bool, optional
             Whether to rescale the proxy outputs using its training mean and std, by
             default True
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
-        self.release = release
 
         self.is_eform = self.is_bandgap = False
 
-        if release.startswith("0."):
-            self.is_eform = True
-        elif release.startswith("1."):
-            assert self.reward_function.startswith("rbf_exp"), (
-                "The RBF exponential reward function must be used with band gap models "
-                "in order for the reward to reflect proximity to a target value. "
-                f"{self.reward_function} has been used instead."
-            )
-            assert (
-                "center" in self.reward_function_kwargs
-                and self.reward_function_kwargs["center"] is not None
-            ), (
-                "A target band gap (reward_function_kwargs.center must be specified "
-                "for releases 1.x.x (i.e. band gap models)"
-            )
-            bandgap_target = self.reward_function_kwargs["center"]
-            assert (
-                torch.is_tensor(bandgap_target) and bandgap_target.dtype == self.float
-            ), (
-                "reward_function_kwargs.center must be a float (received "
-                f"{bandgap_target}: {type(bandgap_target)})"
-            )
-            self.is_bandgap = True
-        elif release.startswith("2."):
-            pass
-        else:
-            raise ValueError(f"Unknown release: {release}. Allowed: 0.x.x or 1.x.x or 2.x.x.")
-
         print("Initializing DAVE proxy:")
-        print("  Checking out release:", release)
-
-        pip_url = f"{REPO_URL}@{release}"
 
         try:
             dave_version = version("dave")
         except PackageNotFoundError:
             print("  💥 `dave` cannot be imported.")
             print("    Install with:")
-            print(f"    $ pip install git+{pip_url}\n")
-
+            print(f"    $ pip install git+{REPO_URL}@{RELEASE}\n")
             raise PackageNotFoundError("DAVE not found")
 
-        if dave_version != release:
+        if dave_version != RELEASE:
             print("  💥 `dave` version mismatch: ")
-            print(f"    current ({dave_version}) != requested ({release})")
+            print(f"    current ({dave_version}) != requested ({RELEASE})")
             print("    Install the requested version with:")
-            print(f"    $ pip install --upgrade git+{pip_url}\n")
+            print(f"    $ pip install --upgrade git+{REPO_URL}@{RELEASE}\n")
             raise ImportError("Wrong DAVE version")
 
         print("  Found version:", dave_version)
