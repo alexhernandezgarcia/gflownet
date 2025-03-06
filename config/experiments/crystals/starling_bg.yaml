@@ -94,7 +94,6 @@ policy:
 proxy:
   reward_min: 1e-08
   do_clip_rewards: True
-  release: 2.0.3
   ckpt_path: /network/projects/crystalgfn/ckpts/dave/bandgap/
   # RBF exponential, to compute the proximity to a target
   reward_function: rbf_exponential
