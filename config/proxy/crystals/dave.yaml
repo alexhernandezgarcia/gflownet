@@ -3,14 +3,11 @@ defaults:
 
 _target_: gflownet.proxy.crystals.dave.DAVE
 
-# Releases 2.X.X handles Formation Energy and Band Gap in the same model, depending on the checkpoint
-# Releases <2.0.3 are deprecated
 # ckpt_path should be a path to a directory containing a *.cpkt file
 #   Examples:
 #   EForm (default): /network/projects/crystalgfn/ckpts/dave/eform/
 #   Band gap: /network/projects/crystalgfn/ckpts/dave/bandgap/
 ckpt_path: /network/projects/crystalgfn/ckpts/dave/eform/
-release: 2.0.3
 rescale_outputs: true
 
 # Reward function: exponential by default
