@@ -1,14 +1,11 @@
 import pytest
 
 # Skip the entire module if pyxtal is not installed / cannot be imported
-try:
-    import pyxtal
-except:
-    pytest.skip(
-        "Skipping all tests in test_crystal_density.py because pyxtal could not be "
-        "imported.",
-        allow_module_level=True,
-    )
+pytest.importorskip(
+    "pyxtal",
+    reason="Skipping all tests in test_crystal_density.py because pyxtal could not be "
+    "imported",
+)
 
 import torch
 

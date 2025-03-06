@@ -1,15 +1,16 @@
 import pytest
 
 # Skip the entire module if pyxtal or pymatgen is not installed / cannot be imported
-try:
-    import pymatgen
-    import pyxtal
-except:
-    pytest.skip(
-        "Skipping all tests in test_spacegroup.py because pyxtal or pymatgen could "
-        "not be imported.",
-        allow_module_level=True,
-    )
+pytest.importorskip(
+    "pyxtal",
+    reason="Skipping all tests in test_spacegroup.py because pyxtal could "
+    "not be imported",
+)
+pytest.importorskip(
+    "pymatgen",
+    reason="Skipping all tests in test_spacegroup.py because pymatgen could "
+    "not be imported",
+)
 
 import common
 import pymatgen.symmetry.groups as pmgg

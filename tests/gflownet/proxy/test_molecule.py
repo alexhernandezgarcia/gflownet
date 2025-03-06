@@ -2,15 +2,12 @@ import numpy as np
 import pytest
 import torch
 
-# Skip the entire module if torch_geometric is not installed / cannot be imported
-try:
-    import torchani
-except:
-    pytest.skip(
-        "Skipping all tests in test_molecule.py because torch nicould not be "
-        "imported.",
-        allow_module_level=True,
-    )
+# Skip the entire module if torchani is not installed / cannot be imported
+pytest.importorskip(
+    "torchani",
+    reason="Skipping all tests in test_molecule.py because torchani could not be "
+    "imported",
+)
 
 from gflownet.proxy.molecule import TorchANIMoleculeEnergy
 from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
