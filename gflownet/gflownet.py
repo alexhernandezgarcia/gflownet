@@ -1329,7 +1329,7 @@ class GFlowNetAgent:
 
         return times
 
-    def get_sample_space(self):
+    def get_sample_space_and_reward(self):
         """
         Returns samples representative of the env state space with their rewards
 
