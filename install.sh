@@ -182,8 +182,10 @@ python -m pip install --upgrade pip
 echo "Installing " "$INSTALL_TYPE" " PyTorch"
 if [[ "$IS_CPU" -eq 1 ]]; then
 	python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+    python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cpu.html
 else
 	python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+    python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu118.html
 fi
 
 # Install rest of dependencies

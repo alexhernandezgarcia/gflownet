@@ -82,12 +82,14 @@ For a CUDA-enabled installation:
 
 ```bash
 python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu118.html
 ```
 
 For a CPU-only installation:
 
 ```bash
 python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cpu.html
 ```
 
 4. Install the rest of the dependencies:

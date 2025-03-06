@@ -50,6 +50,7 @@ materials = [
     "pymatgen ==2024.3.1",
     "pyshtools ==4.10.3",
     "pyxtal >=0.6.1",
+    "torch_scatter >=2.1.2",
 ]
 
 # TODO: Dependencies in molecules should be further tested
