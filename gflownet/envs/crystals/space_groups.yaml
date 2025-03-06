@@ -182,12 +182,12 @@
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: P2_12_12_1
+  full_symbol: P2_12_121
   lattice_system: orthorhombic
   point_group: '222'
   point_symmetry: enantiomorphic
   point_symmetry_idx: 4
-  symbol: P2_12_12_1
+  symbol: P2_12_121
 20:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -232,12 +232,12 @@
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: I2_12_12_1
+  full_symbol: I2_12_121
   lattice_system: orthorhombic
   point_group: '222'
   point_symmetry: enantiomorphic
   point_symmetry_idx: 4
-  symbol: I2_12_12_1
+  symbol: I2_12_121
 25:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -472,7 +472,7 @@
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: Pnnn
+  full_symbol: Pnnn1
   lattice_system: orthorhombic
   point_group: mmm
   point_symmetry: centrosymmetric
@@ -492,7 +492,7 @@
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: Pban
+  full_symbol: Pban1
   lattice_system: orthorhombic
   point_group: mmm
   point_symmetry: centrosymmetric
@@ -582,7 +582,7 @@
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: Pmmn
+  full_symbol: Pmmn1
   lattice_system: orthorhombic
   point_group: mmm
   point_symmetry: centrosymmetric
@@ -672,7 +672,7 @@
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: Ccce
+  full_symbol: Ccce1
   lattice_system: orthorhombic
   point_group: mmm
   point_symmetry: centrosymmetric
@@ -692,7 +692,7 @@
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
   crystal_system: orthorhombic
-  full_symbol: Fddd
+  full_symbol: Fddd1
   lattice_system: orthorhombic
   point_group: mmm
   point_symmetry: centrosymmetric
@@ -842,7 +842,7 @@
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
   crystal_system: tetragonal
-  full_symbol: P4/n
+  full_symbol: P4/n1
   lattice_system: tetragonal
   point_group: 4/m
   point_symmetry: centrosymmetric
@@ -1242,7 +1242,7 @@
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
   crystal_system: tetragonal
-  full_symbol: P4/nbm
+  full_symbol: P4/nbm1
   lattice_system: tetragonal
   point_group: 4/mmm
   point_symmetry: centrosymmetric
@@ -1252,7 +1252,7 @@
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
   crystal_system: tetragonal
-  full_symbol: P4/nnc
+  full_symbol: P4/nnc1
   lattice_system: tetragonal
   point_group: 4/mmm
   point_symmetry: centrosymmetric
@@ -1282,7 +1282,7 @@
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
   crystal_system: tetragonal
-  full_symbol: P4/nmm
+  full_symbol: P4/nmm1
   lattice_system: tetragonal
   point_group: 4/mmm
   point_symmetry: centrosymmetric
@@ -1292,7 +1292,7 @@
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
   crystal_system: tetragonal
-  full_symbol: P4/ncc
+  full_symbol: P4/ncc1
   lattice_system: tetragonal
   point_group: 4/mmm
   point_symmetry: centrosymmetric
@@ -1452,7 +1452,7 @@
   crystal_class: trigonal-pyramidal
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R3
+  full_symbol: R3H
   lattice_system: rhombohedral
   point_group: '3'
   point_symmetry: enantiomorphic-polar
@@ -1472,7 +1472,7 @@
   crystal_class: rhombohedral
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R-3
+  full_symbol: R-3H
   lattice_system: rhombohedral
   point_group: '-3'
   point_symmetry: centrosymmetric
@@ -1542,7 +1542,7 @@
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R32
+  full_symbol: R32H
   lattice_system: rhombohedral
   point_group: '32'
   point_symmetry: enantiomorphic
@@ -1592,7 +1592,7 @@
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R3m
+  full_symbol: R3mH
   lattice_system: rhombohedral
   point_group: 3m
   point_symmetry: polar
@@ -1602,7 +1602,7 @@
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R3c
+  full_symbol: R3cH
   lattice_system: rhombohedral
   point_group: 3m
   point_symmetry: polar
@@ -1652,7 +1652,7 @@
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R-3m
+  full_symbol: R-3mH
   lattice_system: rhombohedral
   point_group: -3m
   point_symmetry: centrosymmetric
@@ -1662,7 +1662,7 @@
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 5
   crystal_system: trigonal
-  full_symbol: R-3c
+  full_symbol: R-3cH
   lattice_system: rhombohedral
   point_group: -3m
   point_symmetry: centrosymmetric
@@ -2002,7 +2002,7 @@
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Pn-3
+  full_symbol: Pn-31
   lattice_system: cubic
   point_group: m-3
   point_symmetry: centrosymmetric
@@ -2022,7 +2022,7 @@
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Fd-3
+  full_symbol: Fd-31
   lattice_system: cubic
   point_group: m-3
   point_symmetry: centrosymmetric
@@ -2212,7 +2212,7 @@
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Pn-3n
+  full_symbol: Pn-3n1
   lattice_system: cubic
   point_group: m-3m
   point_symmetry: centrosymmetric
@@ -2232,7 +2232,7 @@
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Pn-3m
+  full_symbol: Pn-3m1
   lattice_system: cubic
   point_group: m-3m
   point_symmetry: centrosymmetric
@@ -2262,7 +2262,7 @@
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Fd-3m
+  full_symbol: Fd-3m1
   lattice_system: cubic
   point_group: m-3m
   point_symmetry: centrosymmetric
@@ -2272,7 +2272,7 @@
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
   crystal_system: cubic
-  full_symbol: Fd-3c
+  full_symbol: Fd-3c1
   lattice_system: cubic
   point_group: m-3m
   point_symmetry: centrosymmetric

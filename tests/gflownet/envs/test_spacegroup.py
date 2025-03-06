@@ -1,8 +1,19 @@
-import common
-import numpy as np
-import pymatgen.symmetry.groups as pmgg
 import pytest
-import torch
+
+# Skip the entire module if pyxtal or pymatgen is not installed / cannot be imported
+pytest.importorskip(
+    "pyxtal",
+    reason="Skipping all tests in test_spacegroup.py because pyxtal could "
+    "not be imported",
+)
+pytest.importorskip(
+    "pymatgen",
+    reason="Skipping all tests in test_spacegroup.py because pymatgen could "
+    "not be imported",
+)
+
+import common
+import pymatgen.symmetry.groups as pmgg
 from pyxtal.symmetry import Group
 
 from gflownet.envs.crystals.spacegroup import SpaceGroup
