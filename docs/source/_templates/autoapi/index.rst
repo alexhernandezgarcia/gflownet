@@ -1,4 +1,4 @@
-API Reference
+Package Reference
 =============
 
 This page contains auto-generated API reference documentation [#f1]_ for the ``gflownet`` package.

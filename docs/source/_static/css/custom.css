@@ -1,0 +1,22 @@
+.sidebar-container {
+  width: 20em !important;
+}
+
+.sidebar-brand img {
+  display: block;
+  margin: 0 auto 0.5rem auto;
+  padding-top: 1rem;
+  width: 80%;
+  height: auto;
+}
+
+/* To make toctree captions bold */
+.caption .caption-text {
+  font-weight: bold;
+}
+
+/* To change the color of the first title on the page */
+.article-container>article>section>h1 {
+  color: #904e3d;
+  /* Example: Google blue */
+}
