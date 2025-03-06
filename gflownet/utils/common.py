@@ -257,14 +257,15 @@ def gflownet_from_config(config):
     # Logger
     logger = instantiate(config.logger, config, _recursive_=False)
 
-    # The proxy is required in the env for scoring
+    # The proxy is required by the GFlowNetAgent for computing rewards
     proxy = instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
 
-    # The proxy is passed to env and used for computing rewards
+    # Using Hydra's partial instantiation, see:
+    # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
     env_maker = instantiate(
         config.env,
         device=config.device,
