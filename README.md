@@ -182,6 +182,24 @@ python train.py +experiments=grid/corners logger.do.online=True
 
 Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
 
+## Evaluation of a trained GFlowNet
+
+To evaluate a trained GFlowNet and sample from it, we can use the script `eval.py`. For example:
+
+```
+python eval.py rundir=path/to/run/directory n_samples=1000
+```
+
+Obviously, the run directory must contain the Hydra configuration and checkpoints of a pre-trained GFlowNet. Additional arguments that can be passed to `eval.py` can be consulted in `./config/eval.yaml`.
+
+## Resuming the training of GFlowNet
+
+If the training of a GFlowNet has crashed or simply we want to train it for longer, it is possible to resume training with the script `resume.py`, provided the run direcotory contains the checkpoints of the GFlowNet. By default, the latest checkpoint will be used to reload the model:
+
+```
+python resume.py rundir=path/to/run/directory
+```
+
 ## Exploring the Scrabble environment
 
 To better understand the functionality and implementation of GFlowNet environments, let us explore the Scrabble environment in more detail.
