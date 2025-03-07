@@ -50,7 +50,7 @@ from typing import Union
 
 from omegaconf import OmegaConf
 
-from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.common import load_gflow_net_from_rundir
 
 # purposefully non-documented object, hidden from Sphinx docs
 _sentinel = object()
@@ -265,7 +265,7 @@ class AbstractEvaluator(metaclass=ABCMeta):
         BaseEvaluator
             Instance of BaseEvaluator with the GFlowNetAgent loaded from the run.
         """
-        gfn_agent, _ = load_gflow_net_from_run_path(
+        gfn_agent, _ = load_gflow_net_from_rundir(
             path,
             no_wandb=no_wandb,
             print_config=print_config,
