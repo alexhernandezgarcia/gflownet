@@ -55,9 +55,9 @@ def tmp_local():
         ),
         (
             "pkl",
-            "./data/tests/test_buffer/ctorus_train.pkl",
+            "./tests/data/buffer/ctorus_train.pkl",
             "pkl",
-            "./data/tests/test_buffer/ctorus_test.pkl",
+            "./tests/data/buffer/ctorus_test.pkl",
             36,
             16,
             "ctorus_train.pkl",
@@ -67,9 +67,9 @@ def tmp_local():
         ),
         (
             "csv",
-            "./data/tests/test_buffer/ctorus_train.csv",
+            "./tests/data/buffer/ctorus_train.csv",
             "csv",
-            "./data/tests/test_buffer/ctorus_test.csv",
+            "./tests/data/buffer/ctorus_test.csv",
             36,
             16,
             "ctorus_train.pkl",
