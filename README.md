@@ -147,13 +147,13 @@ to install an environment on `~/myenvs/gflownet-env`, with a CPU-only PyTorch an
 The gflownet library uses [Hydra](https://hydra.cc/docs/intro/) to handle configuration files. This allows, for instance, to easily train a GFlowNet with the configuration of a specific YAML file. For example, to train a GFlowNet with a 10x10 Grid environment and the corners proxy, with the configuration from `./config/experiments/grid/corners.yaml`, we can simply run:
 
 ```bash
-python main.py +experiments=grid/corners
+python train.py +experiments=grid/corners
 ```
 
 Alternatively, we can explicitly indicate the environment and the proxy as follows:
 
 ```bash
-python main.py env=grid proxy=box/corners
+python train.py env=grid proxy=box/corners
 ```
 
 The above command will train a GFlowNet with the default configuration, except for the environment, which will use `./config/env/grid.yaml`; and the proxy, which will use `./config/proxy/box/corners.yaml`.
@@ -161,7 +161,7 @@ The above command will train a GFlowNet with the default configuration, except f
 A typical use case of the gflownet library is to extend it with a new environment and a new proxy to fit your purposes. In that case, you could create their respective configuration files `./config/env/myenv.yaml` and `./config/proxy/myproxy.yaml` and run
 
 ```bash
-python main.py env=myenv proxy=myproxy
+python train.py env=myenv proxy=myproxy
 ```
 
 The objective function to optimise is selected directly via the `gflownet` configuration. The following GFlowNet objectives are supported:
@@ -177,7 +177,7 @@ All other configurable options are handled similarly. For example, we recommend 
 As another example, you may also want to configure the functionality of the Logger, the class which helps manage logging to [Weights & Biases](https://wandb.ai/) during the training and evaluation of the model. Logging to WandB is disabled by default. In order to enable it, make sure to set up your WandB API key and set the configuration variable `logger.do.online` to `True` in your experiment config file or via the command line:
 
 ```bash
-python main.py +experiments=grid/corners logger.do.online=True
+python train.py +experiments=grid/corners logger.do.online=True
 ```
 
 Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.

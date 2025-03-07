@@ -48,7 +48,7 @@ HELP = dedent(
         2. `jobs:` lists configurations for the SLURM jobs that you want to run. The `shared` configuration will be loaded first, then updated from the `run`'s.
     4. Both `shared` and `job` dicts contain (optional) sub-sections:
         1. `slurm:` contains what's necessary to parameterize the SLURM job
-        2. `script:` contains a dict version of the command-line args to give `main.py`
+        2. `script:` contains a dict version of the command-line args to give `train.py`
 
         ```yaml
         script:
@@ -61,13 +61,13 @@ HELP = dedent(
           gflownet.optimizer.lr: 0.001
 
         # and will be translated to
-        python main.py gflownet.optimizer.lr=0.001
+        python train.py gflownet.optimizer.lr=0.001
         ```
 
     5. Launch the SLURM jobs with `python mila/launch.py --jobs=crystals/explore-losses`
         1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
         2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run mila/`python mila/launch.py -h` to see all the known args.
-        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python mila/launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
+        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `train.py`. For instance `python mila/launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
     6. `launch.py` loads a template (`mila/sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
     7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
     8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
@@ -109,11 +109,11 @@ HELP = dedent(
     Then the launch command-line ^ will execute 3 jobs with the following configurations:
 
     ```bash
-    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001
+    python train.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001
 
-    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001 gflownet.policy.backward=None
+    python train.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001 gflownet.policy.backward=None
 
-    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=trajectorybalance gflownet.optimizer.lr=0.0001
+    python train.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=trajectorybalance gflownet.optimizer.lr=0.0001
     ```
 
     And their SLURM configuration will be similar as the `shared.slurm` params, with the following differences:
@@ -288,7 +288,7 @@ def quote(value):
 
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
-    Recursively turns a dict of script args into a string of main.py args
+    Recursively turns a dict of script args into a string of train.py args
     as ``nested.key=value`` pairs
 
     Parameters
@@ -303,7 +303,7 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     Returns
     -------
     str
-        string of main.py args (eg: ``"key=value nested.key2=value2"``)
+        string of train.py args (eg: ``"key=value nested.key2=value2"``)
     """
     if not isinstance(script_dict, dict):
         candidate = f"{nested_key}={quote(script_dict)}"
@@ -563,7 +563,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--code_dir",
         type=str,
-        help="cd before running main.py (defaults to here)."
+        help="cd before running train.py (defaults to here)."
         + f" Defaults to {defaults['code_dir']}",
     )
     parser.add_argument(

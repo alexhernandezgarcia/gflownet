@@ -28,7 +28,7 @@ python mila/launch.py --conda_env=<conda-env-name> --jobs=mila/dev/sanity_check_
 `salloc`:
 
 ```bash
-python main.py user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python train.py user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
@@ -48,7 +48,7 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 `salloc`:
 
 ```bash
-python main.py user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python train.py user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
@@ -73,7 +73,7 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 `salloc`:
 
 ```bash
-python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
+python train.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `virtualenv`:
@@ -93,7 +93,7 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 `salloc`:
 
 ```bash
-python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
+python train.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `virtualenv`:
@@ -116,7 +116,7 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 `salloc`:
 
 ```bash
-python main.py user=$USER +experiments=icml23/ctorus evaluator.period=500 device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python train.py user=$USER +experiments=icml23/ctorus evaluator.period=500 device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
