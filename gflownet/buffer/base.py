@@ -6,12 +6,12 @@ import ast
 import pickle
 from pathlib import Path, PosixPath
 from typing import List, Optional, Tuple, Union
-from torchtyping import TensorType
 
 import numpy as np
 import pandas as pd
 import torch
 from scipy.special import softmax
+from torchtyping import TensorType
 
 from gflownet.utils.common import tfloat
 
@@ -56,9 +56,12 @@ class BaseBuffer:
         self.train_config = train
         self.test_config = test
         self.use_main_buffer = use_main_buffer
-        if use_main_buffer:
-            # TODO: harmonise names of columns in all buffers
-            self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
+        if self.use_main_buffer:
+            self.main = pd.DataFrame(
+                columns=["samples", "trajectories", "rewards", "iter"]
+            )
+        else:
+            self.main = None
         self.replay, self.replay_csv = self.init_replay(replay_buffer)
         self.save_replay()
 
@@ -150,12 +153,12 @@ class BaseBuffer:
                 )
             replay = pd.DataFrame(
                 columns=[
-                    "state",
-                    "traj",
-                    "reward",
+                    "samples",
+                    "trajectories",
+                    "rewards",
                     "iter",
-                    "state_readable",
-                    "traj_readable",
+                    "samples_readable",
+                    "trajectories_readable",
                 ],
             )
             replay_csv = self.datadir / "replay.csv"
@@ -163,12 +166,12 @@ class BaseBuffer:
         return replay, replay_csv
 
     @property
-    def replay_states(self):
-        return self.replay.state.values
+    def replay_samples(self):
+        return self.replay.samples.values
 
     @property
-    def replay_trajs(self):
-        return self.replay.traj.values
+    def replay_trajectories(self):
+        return self.replay.trajectories.values
 
     @property
     def replay_rewards(self):
@@ -179,7 +182,7 @@ class BaseBuffer:
 
     # TODO: there might be environment specific issues with loading csv correctly.
     # TODO: test with other envs
-    def load_replay_from_path(self, path: PosixPath=None):
+    def load_replay_from_path(self, path: PosixPath = None):
         """
         Loads a replay buffer stored as a CSV file.
         """
@@ -190,30 +193,32 @@ class BaseBuffer:
         converter = lambda x: ast.literal_eval(x.replace("inf", "2e308"))
 
         replay = pd.read_csv(
-            path, index_col=0, converters={"state": converter, "traj": converter}
+            path,
+            index_col=0,
+            converters={"samples": converter, "trajectories": converter},
         )
         replay.replace(float("nan"), None, inplace=True)
         return replay
 
     def add(
         self,
-        states,
-        trajs,
+        samples,
+        trajectories,
         rewards,
         it,
         buffer="main",
         criterion="greater",
     ):
         """
-        Adds a batch of states (with the trajectory actions and rewards) to the buffer.
+        Adds a batch of samples (with the trajectory actions and rewards) to the buffer.
 
         Note that the rewards may be log-rewards.
 
         Parameters
         ----------
-        states : list
+        samples : list
             A batch of terminating states.
-        trajs : list
+        trajectories : list
             The list of trajectory actions of each terminating state.
         rewards : list
             The reward or log-reward of each terminating state.
@@ -230,9 +235,11 @@ class BaseBuffer:
                     self.main,
                     pd.DataFrame(
                         {
-                            "state": [self.env.state2readable(s) for s in states],
-                            "traj": [self.env.traj2readable(p) for p in trajs],
-                            "reward": rewards,
+                            "samples": [self.env.state2readable(s) for s in samples],
+                            "trajectories": [
+                                self.env.traj2readable(t) for t in trajectories
+                            ],
+                            "rewards": rewards,
                             "iter": it,
                         }
                     ),
@@ -243,7 +250,7 @@ class BaseBuffer:
         elif buffer == "replay":
             if self.replay_capacity > 0:
                 if criterion == "greater":
-                    self.replay = self._add_greater(states, trajs, rewards, it)
+                    self.replay = self._add_greater(samples, trajectories, rewards, it)
                 else:
                     raise ValueError(
                         f"Unknown criterion identifier. Received {buffer}, "
@@ -257,17 +264,23 @@ class BaseBuffer:
     # TODO: update docstring
     # TODO: consider not saving the replay buffer every iteration. Instead it could be
     # save alongside the model checkpoints.
-    def _add_greater(self, states: List, trajs: List, rewards: Union[List, TensorType], it: int):
+    def _add_greater(
+        self,
+        samples: List,
+        trajectories: List,
+        rewards: Union[List, TensorType],
+        it: int,
+    ):
         """
-        Adds a batch of states (with the trajectory actions and rewards) to the buffer
+        Adds a batch of samples (with the trajectory actions and rewards) to the buffer
         if the state reward is larger than the minimum reward in the buffer and the
         trajectory is not yet in the buffer.
 
         Parameters
         ----------
-        states : list
+        samples : list
             A batch of terminating states.
-        trajs : list
+        trajectories : list
             The list of trajectory actions of each terminating state.
         rewards : list
             The reward or log-reward of each terminating state.
@@ -280,16 +293,16 @@ class BaseBuffer:
         """
         if torch.is_tensor(rewards):
             rewards = rewards.tolist()
-        for state, traj, reward in zip(states, trajs, rewards):
-            self._add_greater_single_state(state, traj, reward, it)
+        for sample, traj, reward in zip(samples, trajectories, rewards):
+            self._add_greater_single_sample(sample, traj, reward, it)
         self.save_replay()
         return self.replay
 
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
-    def _add_greater_single_state(self, state, traj, reward, it):
+    def _add_greater_single_sample(self, sample, trajectory, reward, it):
         """
-        Adds a single state (with the trajectory actions and reward) to the buffer
+        Adds a single sample (with the trajectory actions and reward) to the buffer
         if the state reward is larger than the minimum reward in the buffer and the
         trajectory is not yet in the buffer.
 
@@ -297,14 +310,14 @@ class BaseBuffer:
         inclusion criterion. Since the logarithm is a monotonic function, using the log
         or natural rewards is equivalent for this purpose.
 
-        If the state is similar to any state already present in the buffer, then the
-        state will not be added.
+        If the sample is similar to any sample already present in the buffer, then the
+        sample will not be added.
 
         Parameters
         ----------
-        states : list, tensor, array, dict
-            A terminating states.
-        trajs : list
+        samples : list, tensor, array, dict
+            A terminating state.
+        trajectory : list
             A list of trajectory actions of leading to the terminating state.
         reward : flaot
             The reward or log-reward of the terminating state.
@@ -315,25 +328,25 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
-        # Return without adding if the state is close to any state already present in
+        # Return without adding if the sample is close to any sample already present in
         # the buffer
-        for rstate in self.replay["state"]:
-            if self.env.isclose(state, rstate):
+        for rsample in self.replay["samples"]:
+            if self.env.isclose(sample, rsample):
                 return
 
         # If the buffer is full, check if the reward is larger than the minimum reward
-        # in the buffer. If so, drop the state with the minimum reward.
+        # in the buffer. If so, drop the sample with the minimum reward.
         if len(self.replay) == self.replay_capacity:
-            index_min = self.replay.index[self.replay["reward"].argmin()]
-            if reward > self.replay["reward"].loc[index_min]:
+            index_min = self.replay.index[self.replay["rewards"].argmin()]
+            if reward > self.replay["rewards"].loc[index_min]:
                 self.replay.drop(self.replay.index[index_min], inplace=True)
 
         # If the buffer is not full, add to the buffer
         if len(self.replay) < self.replay_capacity:
-            if torch.is_tensor(state):
-                state = state.tolist()
-            if torch.is_tensor(traj):
-                traj = traj.tolist()
+            if torch.is_tensor(sample):
+                sample = sample.tolist()
+            if torch.is_tensor(trajectory):
+                trajectory = trajectory.tolist()
             if torch.is_tensor(reward):
                 reward = reward.item()
             self.replay = pd.concat(
@@ -341,12 +354,14 @@ class BaseBuffer:
                     self.replay,
                     pd.DataFrame(
                         {
-                            "state": [state],
-                            "traj": [traj],
-                            "reward": [reward],
+                            "samples": [sample],
+                            "trajectories": [trajectory],
+                            "rewards": [reward],
                             "iter": [it],
-                            "state_readable": [self.env.state2readable(state)],
-                            "traj_readable": [self.env.traj2readable(traj)],
+                            "samples_readable": [self.env.state2readable(sample)],
+                            "trajectories_readable": [
+                                self.env.traj2readable(trajectory)
+                            ],
                         }
                     ),
                 ],
@@ -367,7 +382,7 @@ class BaseBuffer:
         print("\nConstructing data set ", end="")
 
         if config.type == "pkl" and "path" in config:
-            # TODO: clean up this mess, avoid recomputing energy from load from path
+            # TODO: clean up this mess, avoid recomputing scores from load from path
             print(f"from pickled file: {config.path}\n")
             with open(config.path, "rb") as f:
                 data_dict = pickle.load(f)
@@ -426,28 +441,28 @@ class BaseBuffer:
             samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
-        rewards, energies = self.proxy.rewards(
+        rewards, scores = self.proxy.rewards(
             self.env.states2proxy(samples), log=False, return_proxy=True
         )
         rewards = rewards.tolist()
-        energies = energies.tolist()
+        scores = scores.tolist()
         df = pd.DataFrame(
             {
                 "samples_readable": [self.env.state2readable(s) for s in samples],
-                "energies": energies,
+                "scores": scores,
                 "samples": samples,
                 "rewards": rewards,
             }
         )
-        return df, {"x": samples, "energy": energies, "reward": rewards}
+        return df, {"samples": samples, "scores": scores, "rewards": rewards}
 
     @staticmethod
     def compute_stats(data):
-        mean_data = data["energies"].mean()
-        std_data = data["energies"].std()
-        min_data = data["energies"].min()
-        max_data = data["energies"].max()
-        data_zscores = (data["energies"] - mean_data) / std_data
+        mean_data = data["scores"].mean()
+        std_data = data["scores"].std()
+        min_data = data["scores"].min()
+        max_data = data["scores"].max()
+        data_zscores = (data["scores"] - mean_data) / std_data
         max_norm_data = data_zscores.max()
         return mean_data, std_data, min_data, max_data, max_norm_data
 
@@ -481,7 +496,7 @@ class BaseBuffer:
             that contain the values of these attributes for all the samples.
             All the values in the data dictionary should have the same length.
             If mode == "weighted", the data dictionary must contain sample scores
-            (key "energy" or "rewards").
+            (key "scores" or "rewards").
 
         n : int
             The number of samples to select from the dictionary.
@@ -515,13 +530,13 @@ class BaseBuffer:
         elif mode == "weighted":
             # Determine which attribute to compute the sample probabilities from
             score = None
-            for name in ["rewards", "reward", "energy", "energies"]:
+            for name in ["rewards", "reward", "score", "scores"]:
                 if name in df:
                     score = name
                     break
             if score is None:
                 raise ValueError(
-                    f"Data set does not contain reward(s) or energy(ies) key. "
+                    f"Data set does not contain reward(s) or score(s) key. "
                     "Cannot sample in weighted mode."
                 )
             scores = df[score].values
