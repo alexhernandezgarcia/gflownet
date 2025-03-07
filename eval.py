@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from hydra.utils import instantiate
 
-from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
+from gflownet.utils.common import load_gflow_net_from_rundir, read_hydra_config
 
 
 @hydra.main(config_path="./config", config_name="eval", version_base="1.1")
@@ -33,9 +33,9 @@ def main(config):
         prefix = "gfn"
         load_last_checkpoint = True
 
-    print(f"Loading GFlowNet from the configuration in {config.run_path}...")
-    gflownet, run_config = load_gflow_net_from_run_path(
-        run_path=config.run_path,
+    print(f"Loading GFlowNet from the configuration in {config.rundir}...")
+    gflownet, run_config = load_gflow_net_from_rundir(
+        rundir=config.rundir,
         device=config.device,
         no_wandb=True,
         print_config=config.print_config,
@@ -43,7 +43,7 @@ def main(config):
     )
     env = gflownet.env
 
-    base_dir = Path(config.output_dir or config.run_path)
+    base_dir = Path(config.output_dir or config.rundir)
 
     # ---------------------------------
     # -----  Test GFlowNet model  -----
@@ -83,7 +83,7 @@ def main(config):
         conditional_env_config_path = Path(config.conditional_env_config_path)
         if conditional_env_config_path.parent == Path("."):
             conditional_env_config_path = (
-                Path(config.run_path) / ".hydra" / conditional_env_config_path.name
+                Path(config.rundir) / ".hydra" / conditional_env_config_path.name
             )
         config_cond_env = read_hydra_config(config_name=conditional_env_config_path)
         if "env" in config_cond_env:

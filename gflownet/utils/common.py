@@ -221,13 +221,13 @@ def find_latest_checkpoint(ckpt_dir):
     return sorted(ckpts, key=lambda f: float(f.stem.split("iter_")[1]))[-1]
 
 
-def read_hydra_config(run_path=None, config_name="config"):
-    if run_path is None:
-        run_path = Path(config_name)
-        hydra_dir = run_path.parent
-        config_name = run_path.name
+def read_hydra_config(rundir=None, config_name="config"):
+    if rundir is None:
+        rundir = Path(config_name)
+        hydra_dir = rundir.parent
+        config_name = rundir.name
     else:
-        hydra_dir = run_path / ".hydra"
+        hydra_dir = rundir / ".hydra"
 
     with initialize_config_dir(
         version_base=None, config_dir=str(hydra_dir), job_name="xxx"
@@ -333,8 +333,8 @@ def gflownet_from_config(config):
     return gflownet
 
 
-def load_gflow_net_from_run_path(
-    run_path,
+def load_gflow_net_from_rundir(
+    rundir,
     no_wandb=True,
     print_config=False,
     device=None,
@@ -346,7 +346,7 @@ def load_gflow_net_from_run_path(
 
     Parameters
     ----------
-    run_path : Union[str, Path]
+    rundir : Union[str, Path]
         Path to the run directory. Must contain a `.hydra` directory.
     no_wandb : bool, optional
         Whether to disable wandb in the GFN init, by default True.
@@ -370,10 +370,10 @@ def load_gflow_net_from_run_path(
     ValueError
         If no checkpoints are found in the directory.
     """
-    run_path = resolve_path(run_path)
+    rundir = resolve_path(rundir)
 
     # Read experiment config
-    config = OmegaConf.load(Path(run_path) / ".hydra" / "config.yaml")
+    config = OmegaConf.load(Path(rundir) / ".hydra" / "config.yaml")
     # Resolve variables
     config = OmegaConf.to_container(config, resolve=True)
     # Re-create OmegaCong DictConfig
@@ -396,7 +396,7 @@ def load_gflow_net_from_run_path(
 
     if load_last_checkpoint:
         checkpoint_latest = find_latest_checkpoint(
-            run_path / config.logger.logdir.ckpts
+            rundir / config.logger.logdir.ckpts
         )
         checkpoint = torch.load(checkpoint_latest, map_location=set_device(device))
 
@@ -421,7 +421,7 @@ def load_gflow_net_from_run_path(
         # load them here
 
         if is_resumed:
-            config.logger.logdir.root = run_path
+            config.logger.logdir.root = rundir
             config.logger.is_resumed = True
 
     # Initialize a GFlowNet agent from the configuration
