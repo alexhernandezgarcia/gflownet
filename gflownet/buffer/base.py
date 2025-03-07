@@ -51,57 +51,27 @@ class BaseBuffer:
         replay_capacity=0,
         train=None,
         test=None,
-        conditions=None,
         use_main_buffer=False,
         **kwargs,
     ):
-        """
-        TODO: write proper docstring
-        if env conditional replay_capacity means capacity per condition
-        """
         self.datadir = datadir
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
         self.train_config = train
         self.test_config = test
-        self.conditions_config = conditions
         self.use_main_buffer = use_main_buffer
         if use_main_buffer:
-            # TODO: adapt for conditional?
             self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
-
         self.init_replay(replay_buffer)
 
         # self.test_csv = None
         # self.test_pkl = None
 
-        # Load conditions sets:
-        # should be one set containing a labels whether this is train or test condition
-        self.conditions = self.load_conditions(conditions)
-
-        if env.conditional and (self.conditions is None):
-            raise ValueError(
-                "Condition datasets are required for conditional environments. "
-                "Please provide conditions in the buffer configuration."
-            )
-
-        train_condition_ids = None
-        test_condition_ids = None
-        if env.conditional:
-            self.env.setup_conditions(self.conditions)
-            train_condition_ids = self.conditions.get_condition_id(label="train")
-            # TODO: add option to use only test labels for test data set
-            test_condition_ids = self.conditions.get_condition_id(label="all")
-
         self.proxy.setup(env)
 
         # Define train data set
-        self.train, dict_tr = self.make_data_set(
-            self.train_config,
-            conditions=self.conditions,
-            condition_ids=train_condition_ids,
-        )
+        self.train, dict_tr = self.make_data_set(self.train_config)
         if self.train is None:
             print(
                 "\tImportant: offline trajectories will NOT be sampled. In order to "
@@ -119,9 +89,7 @@ class BaseBuffer:
                 pickle.dump(dict_tr, f)
 
         # Define test data set
-        self.test, dict_tr = self.make_data_set(
-            test, conditions=self.conditions, condition_ids=test_condition_ids
-        )
+        self.test, dict_tr = self.make_data_set(test)
         if self.test is None:
             print(
                 "\tImportant: test metrics will NOT be computed. In order to compute "
@@ -171,13 +139,14 @@ class BaseBuffer:
             self.replay = self.load_replay_from_path(self.replay_csv)
         else:
             if replay_buffer_path:
-                print(f"Replay buffer file {replay_buffer_path} does not exist, initializing empty buffer.")
+                print(
+                    f"Replay buffer file {replay_buffer_path} does not exist, initializing empty buffer."
+                )
             self.replay = pd.DataFrame(
                 columns=[
                     "state",
                     "traj",
                     "reward",
-                    "condition_id",
                     "iter",
                     "state_readable",
                     "traj_readable",
@@ -197,10 +166,6 @@ class BaseBuffer:
     @property
     def replay_rewards(self):
         return self.replay.reward.values
-
-    @property
-    def replay_condition_ids(self):
-        return self.replay.condition_id.values
 
     def save_replay(self):
         self.replay.to_csv(self.replay_csv)
@@ -225,7 +190,6 @@ class BaseBuffer:
         trajs,
         rewards,
         it,
-        condition_ids=None,
         buffer="main",
         criterion="greater",
     ):
@@ -249,14 +213,6 @@ class BaseBuffer:
         criterion : str
             Identifier of the criterion. Currently, only greater is implemented.
         """
-        if self.env.conditional and condition_ids is None:
-            raise ValueError(
-                "Condition ids are required for conditional environments. "
-                "Please provide condition_ids in the buffer.add call."
-            )
-        if condition_ids is None:
-            condition_ids = [None] * len(states)
-        # TODO: adapt main for conditional?
         if buffer == "main":
             self.main = pd.concat(
                 [
@@ -276,9 +232,7 @@ class BaseBuffer:
         elif buffer == "replay":
             if self.replay_capacity > 0:
                 if criterion == "greater":
-                    self.replay = self._add_greater(
-                        states, trajs, rewards, condition_ids, it
-                    )
+                    self.replay = self._add_greater(states, trajs, rewards, it)
                 else:
                     raise ValueError(
                         f"Unknown criterion identifier. Received {buffer}, "
@@ -289,7 +243,7 @@ class BaseBuffer:
                 f"Unknown buffer identifier. Received {buffer}, expected main or replay"
             )
 
-    def _add_greater(self, states, trajs, rewards, condition_ids, it):
+    def _add_greater(self, states, trajs, rewards, it):
         """
         TODO: update docstring
         Adds a batch of states (with the trajectory actions and rewards) to the buffer
@@ -313,23 +267,13 @@ class BaseBuffer:
         """
         if torch.is_tensor(rewards):
             rewards = rewards.tolist()
-        for state, traj, reward, condition_id in zip(
-            states, trajs, rewards, condition_ids
-        ):
-            self._add_greater_single_state(state, traj, reward, it, condition_id)
+        for state, traj, reward in zip(states, trajs, rewards):
+            self._add_greater_single_state(state, traj, reward, it)
         self.save_replay()
         return self.replay
 
-    def _add_greater_single_state(self, state, traj, reward, it, condition_id=None):
-        if condition_id is not None:
-            # TODO: I (AHG) am adding .item() because a device error when resuming a
-            # run, but this could potentially add time overhead and there might be a
-            # better solution.
-            relevant_replay = self.replay[
-                self.replay["condition_id"] == condition_id.item()
-            ]
-        else:
-            relevant_replay = self.replay
+    def _add_greater_single_state(self, state, traj, reward, it):
+        relevant_replay = self.replay
 
         for rstate in relevant_replay["state"]:
             # TODO: add this method to base env and htorus
@@ -343,24 +287,22 @@ class BaseBuffer:
                     return
 
         if len(relevant_replay) < self.replay_capacity:
-            self._concat_item_to_replay(state, traj, reward, it, condition_id)
+            self._concat_item_to_replay(state, traj, reward, it)
             return
 
         argmin = relevant_replay["reward"].argmin()
         index_argmin = relevant_replay.index[argmin]
         if reward > relevant_replay["reward"].loc[index_argmin]:
             self.replay.drop(self.replay.index[index_argmin], inplace=True)
-            self._concat_item_to_replay(state, traj, reward, it, condition_id)
+            self._concat_item_to_replay(state, traj, reward, it)
 
-    def _concat_item_to_replay(self, state, traj, reward, it, condition_id=None):
+    def _concat_item_to_replay(self, state, traj, reward, it):
         if torch.is_tensor(state):
             state = state.tolist()
         if torch.is_tensor(traj):
             traj = traj.tolist()
         if torch.is_tensor(reward):
             reward = reward.item()
-        if torch.is_tensor(condition_id):
-            condition_id = condition_id.item()
         self.replay = pd.concat(
             [
                 self.replay,
@@ -369,7 +311,6 @@ class BaseBuffer:
                         "state": [state],
                         "traj": [traj],
                         "reward": [reward],
-                        "condition_id": [condition_id],
                         "iter": [it],
                         "state_readable": [self.env.state2readable(state)],
                         "traj_readable": [self.env.traj2readable(traj)],
@@ -379,112 +320,7 @@ class BaseBuffer:
             ignore_index=True,
         )
 
-    def load_conditions(self, config):
-        """
-        Loads conditions data set from a file.
-        """
-        if config is None:
-            return None
-        if "path" not in config:
-            return None
-        path = Path(config.path)
-        if not path.exists():
-            print("\nThe conditions path does not exist: ", path)
-            return None
-        if hasattr(self.env, "load_conditions"):
-            print("\nLoading conditions set from file: ", path)
-            return self.env.load_conditions(path)
-
-    def make_data_set_with_conditions(self, config, conditions, condition_ids=None):
-        # downloading data set from file if path provided
-        if "path" in config and config.type in ["pkl", "csv"]:
-            if config.type == "pkl":
-                print(f"from pickled file: {config.path}\n")
-                with open(config.path, "rb") as f:
-                    data_dict = pickle.load(f)
-                    samples = data_dict["x"]
-                    if "condition_id" not in data_dict:
-                        raise ValueError(
-                            "Condition_id is not provided in the data set."
-                        )
-                    condition_ids = data_dict["condition_id"]
-            elif config.type == "csv":
-                print(f"from CSV: {config.path}\n")
-                df = pd.read_csv(
-                    config.path,
-                    index_col=0,
-                    converters={config.samples_column: ast.literal_eval},
-                )
-                samples = df[config.samples_column].values
-                if config.condition_ids_column not in df.columns:
-                    raise ValueError("Condition_id is not provided in the data set.")
-                condition_ids = df[config.condition_ids_column].values
-            if hasattr(self.env, "process_data_set"):
-                n_samples_orig = len(samples)
-                print(f"The data set containts {n_samples_orig} samples", end="")
-                samples, condition_ids = self.env.process_data_set(
-                    samples, condition_ids, conditions
-                )
-                n_samples_new = len(samples)
-                if n_samples_new != n_samples_orig:
-                    print(
-                        f", but only {n_samples_new} are valid according to the "
-                        "environment settings. Invalid samples have been discarded."
-                    )
-        # various ways to sample dataset if path is not provided
-        elif (
-            config.type == "grid"
-            and "n" in config
-            and hasattr(self.env, "get_grid_terminating_states")
-        ):
-            print(f"by sampling a grid points for each condition\n")
-            samples, condition_ids = self.env.get_grid_terminating_states(
-                config.n, conditions, condition_ids=condition_ids
-            )
-        elif (
-            config.type == "uniform"
-            and "n" in config
-            and hasattr(self.env, "get_uniform_terminating_states")
-        ):
-            print(f"by sampling points uniformly for each condition\n")
-            seed = config.seed if "seed" in config else None
-            samples, condition_ids = self.env.get_uniform_terminating_states(
-                config.n,
-                conditions,
-                condition_ids=condition_ids,
-                seed=seed,
-            )
-        else:
-            print("Dataset type {config.type} is not supported for conditional case")
-            return None, None
-        # reward amd energy mb check the other file?
-        states_proxy = self.env.states2proxy(
-            samples, condition_ids=condition_ids, conditions=conditions
-        )
-
-        rewards, energies = self.proxy.rewards(
-            states_proxy, log=False, return_proxy=True
-        )
-        rewards = rewards.tolist()
-        energies = energies.tolist()
-
-        df = pd.DataFrame(
-            {
-                "samples_readable": [self.env.state2readable(s) for s in samples],
-                "energies": energies,
-                "samples": samples,
-                "rewards": rewards,
-                "condition_id": condition_ids,
-            }
-        )
-        return df, {
-            "x": samples,
-            "energy": energies,
-            "reward": rewards,
-            "condition_id": condition_ids,
-        }
-
-    def make_data_set(self, config, conditions=None, condition_ids=None):
+    def make_data_set(self, config):
         """
         Constructs a data set as a DataFrame according to the configuration.
         """
@@ -496,10 +332,6 @@ class BaseBuffer:
             return None, None
 
         print("\nConstructing data set ", end="")
-        if conditions is not None:
-            return self.make_data_set_with_conditions(
-                config, conditions, condition_ids=condition_ids
-            )
 
         if config.type == "pkl" and "path" in config:
             # TODO: clean up this mess, avoid recompputing energy from load from path
@@ -578,8 +410,6 @@ class BaseBuffer:
 
     @staticmethod
     def compute_stats(data):
-        # TODO: ideally, should be adapted for conditional case,
-        # but it is never used outside buffer, ignoring for now
         mean_data = data["energies"].mean()
         std_data = data["energies"].std()
         min_data = data["energies"].min()
