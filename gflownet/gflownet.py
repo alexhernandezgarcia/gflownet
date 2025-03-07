@@ -585,11 +585,18 @@ class GFlowNetAgent:
         batch_replay = Batch(
             env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
         )
-        if n_replay > 0 and self.buffer.replay is not None:
+        if (
+            n_replay > 0
+            and self.buffer.replay is not None
+            and len(self.buffer.replay) > 0
+        ):
             envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
             n_replay = min(n_replay, len(self.buffer.replay))
             x_replay = self.buffer.select(
-                self.buffer.replay, n_replay, self.replay_sampling, self.rng,
+                self.buffer.replay,
+                n_replay,
+                self.replay_sampling,
+                self.rng,
             )["state"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
