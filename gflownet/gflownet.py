@@ -552,11 +552,9 @@ class GFlowNetAgent:
         )
         if n_train > 0 and self.buffer.train is not None:
             envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
-            with open(self.buffer.train_pkl, "rb") as f:
-                dict_train = pickle.load(f)
-                x_train = self.buffer.select(
-                    self.buffer.train, n_train, self.train_sampling, self.rng
-                ).values.tolist()
+            x_train = self.buffer.select(
+                self.buffer.train, n_train, self.train_sampling, self.rng
+            ).values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
         else:
