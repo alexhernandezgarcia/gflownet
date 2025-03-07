@@ -57,6 +57,7 @@ class BaseBuffer:
         self.test_config = test
         self.use_main_buffer = use_main_buffer
         if use_main_buffer:
+            # TODO: harmonise names of columns in all buffers
             self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
         self.replay, self.replay_csv = self.init_replay(replay_buffer)
         self.save_replay()
