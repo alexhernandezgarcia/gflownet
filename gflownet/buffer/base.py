@@ -14,32 +14,11 @@ from scipy.special import softmax
 
 from gflownet.utils.common import tfloat
 
-# tests for init
-#  - check replay for inti: it is created, capasity is correct, dumped file is the same as self.replay?
-# implement comditional add / select
-# - change allclose in adding to replay buffer
-# test it
-# docstrings
-# adjust gflownet.py to use the new buffer
-#  - (especially new select method)
-#  - replay_csv instead of replay_pkl
-
 
 class BaseBuffer:
     """
     Implements the functionality to manage various buffers of data: the records of
     training samples, the train and test data sets, a replay buffer for training, etc.
-
-    Parameters
-    ----------
-    datadir : str or PosixPath
-        The directory where the data sets and buffers are stored. By default, it is
-        ./data/ but it is first set by the logger and passed as an argument to the
-        Buffer for consistency, especially to handle resumed runs.
-    replay_buffer : str or PosixPath
-        A path to a file containing a replay buffer. If provided, the initial replay
-        buffer will be loaded from this file. This is useful for for resuming runs. By
-        default it is None, which initializes an empty buffer and creates a new file.
     """
 
     def __init__(
@@ -54,6 +33,21 @@ class BaseBuffer:
         use_main_buffer=False,
         **kwargs,
     ):
+        """
+        Initializes the Buffer.
+
+        Parameters
+        ----------
+        datadir : str or PosixPath
+            The directory where the data sets and buffers are stored. By default, it is
+            ./data/ but it is first set by the logger and passed as an argument to the
+            Buffer for consistency, especially to handle resumed runs.
+        replay_buffer : str or PosixPath
+            A path to a file containing a replay buffer. If provided, the initial
+            replay buffer will be loaded from this file. This is useful for for
+            resuming runs. By default it is None, which initializes an empty buffer and
+            creates a new file.
+        """
         self.datadir = datadir
         self.env = env
         self.proxy = proxy
@@ -63,7 +57,8 @@ class BaseBuffer:
         self.use_main_buffer = use_main_buffer
         if use_main_buffer:
             self.main = pd.DataFrame(columns=["state", "traj", "reward", "iter"])
-        self.init_replay(replay_buffer)
+        self.replay, self.replay_csv = self.init_replay(replay_buffer)
+        self.save_replay()
 
         # self.test_csv = None
         # self.test_pkl = None
@@ -124,6 +119,9 @@ class BaseBuffer:
         """
         Initializes the replay buffer.
 
+        If a path to an existing replay buffer file is provided, then the replay buffer
+        is initialized from it. Otherwise, a new empty buffer is created.
+
         Parameters
         ----------
         replay_buffer : str or PosixPath
@@ -131,16 +129,24 @@ class BaseBuffer:
             replay buffer will be loaded from this file. This is useful for for
             resuming runs. By default it is None, which initializes an empty buffer and
             creates a new file.
+
+        Returns
+        -------
+        replay : pandas.DataFrame
+            DataFrame with the initial replay buffer.
+        replay_csv : PosixPath
+            Path of the CSV that will store the replay buffer.
         """
         if replay_buffer_path is not None:
             replay_buffer_path = Path(replay_buffer_path)
         if replay_buffer_path and replay_buffer_path.exists():
-            self.replay_csv = replay_buffer_path
-            self.replay = self.load_replay_from_path(self.replay_csv)
+            replay_csv = replay_buffer_path
+            replay = self.load_replay_from_path(self.replay_csv)
         else:
             if replay_buffer_path:
                 print(
-                    f"Replay buffer file {replay_buffer_path} does not exist, initializing empty buffer."
+                    f"Replay buffer file {replay_buffer_path} does not exist, "
+                    "initializing empty buffer."
                 )
             self.replay = pd.DataFrame(
                 columns=[
@@ -152,8 +158,9 @@ class BaseBuffer:
                     "traj_readable",
                 ],
             )
-            self.replay_csv = self.datadir / "replay.csv"
-            self.save_replay()
+            replay_csv = self.datadir / "replay.csv"
+
+        return replay, replay_csv
 
     @property
     def replay_states(self):
