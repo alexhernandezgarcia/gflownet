@@ -20,57 +20,7 @@ from hydra.utils import instantiate
 from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 
 
-def get_batch_sizes(total, b=1):
-    """
-    Batches an iterable into chunks of size n and returns their expected lengths.
-
-    Example
-    -------
-
-    .. code-block:: python
-
-        >>> get_batch_sizes(10, 3)
-        [3, 3, 3, 1]
-
-    Parameters
-    ----------
-    total : int
-        total samples to produce
-    b : int
-        the batch size
-
-    Returns
-    -------
-    list
-        list of batch sizes
-    """
-    n = total // b
-    chunks = [b] * n
-    if total % b != 0:
-        chunks += [total % b]
-    return chunks
-
-
-def set_device(device: str):
-    if device.lower() == "cuda" and torch.cuda.is_available():
-        return torch.device("cuda")
-    else:
-        return torch.device("cpu")
-
-
-def path_compatible(str):
-    """
-    Replace all non-alphanumeric characters with underscores
-
-    Parameters
-    ----------
-    str : str
-        The string to be made compatible
-    """
-    return "".join([c if c.isalnum() else "_" for c in str])
-
-
-@hydra.main(config_path="../config", config_name="eval", version_base="1.1")
+@hydra.main(config_path="./config", config_name="eval", version_base="1.1")
 def main(config):
 
     # Print configuration
@@ -179,7 +129,9 @@ def main(config):
 
         # Concatenate all samples
         print("Concatenating sample CSVs")
-        df = pd.concat([pd.read_csv(f, index_col=0) for f in tqdm(list(tmp_dir.glob("*.csv")))])
+        df = pd.concat(
+            [pd.read_csv(f, index_col=0) for f in tqdm(list(tmp_dir.glob("*.csv")))]
+        )
         df.to_csv(output_dir / f"{prefix}_samples.csv")
         dct = {k: [] for k in dct_keys}
         for f in tqdm(list(tmp_dir.glob("*.pkl"))):
@@ -195,6 +147,56 @@ def main(config):
             "Skipping sampling from GFlowNet. To enable sampling, set n_samples to an ",
             "integer between 0 and 100,000.",
         )
+
+
+def get_batch_sizes(total, b=1):
+    """
+    Batches an iterable into chunks of size n and returns their expected lengths.
+
+    Example
+    -------
+
+    .. code-block:: python
+
+        >>> get_batch_sizes(10, 3)
+        [3, 3, 3, 1]
+
+    Parameters
+    ----------
+    total : int
+        total samples to produce
+    b : int
+        the batch size
+
+    Returns
+    -------
+    list
+        list of batch sizes
+    """
+    n = total // b
+    chunks = [b] * n
+    if total % b != 0:
+        chunks += [total % b]
+    return chunks
+
+
+def set_device(device: str):
+    if device.lower() == "cuda" and torch.cuda.is_available():
+        return torch.device("cuda")
+    else:
+        return torch.device("cpu")
+
+
+def path_compatible(str):
+    """
+    Replace all non-alphanumeric characters with underscores
+
+    Parameters
+    ----------
+    str : str
+        The string to be made compatible
+    """
+    return "".join([c if c.isalnum() else "_" for c in str])
 
 
 if __name__ == "__main__":
