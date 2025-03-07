@@ -554,7 +554,7 @@ class GFlowNetAgent:
             envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
             x_train = self.buffer.select(
                 self.buffer.train, n_train, self.train_sampling, self.rng
-            ).values.tolist()
+            )["samples"].values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
         else:
@@ -590,7 +590,7 @@ class GFlowNetAgent:
             n_replay = min(n_replay, len(self.buffer.replay))
             x_replay = self.buffer.select(
                 self.buffer.replay, n_replay, self.replay_sampling, self.rng,
-            )
+            )["state"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
         else:
