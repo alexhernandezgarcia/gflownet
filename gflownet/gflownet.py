@@ -5,6 +5,7 @@ TODO:
 """
 
 import copy
+import gc
 import pickle
 import time
 from collections import defaultdict
@@ -21,9 +22,7 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
-from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
-from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
     bootstrap_samples,
     set_device,
@@ -165,12 +164,7 @@ class GFlowNetAgent:
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
-        self.buffer = Buffer(
-            **buffer,
-            env=self.env,
-            proxy=self.proxy,
-            logger=logger,
-        )
+        self.buffer = buffer
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             energies_stats_tr = [

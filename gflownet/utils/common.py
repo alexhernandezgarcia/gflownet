@@ -269,6 +269,19 @@ def gflownet_from_config(config):
     )
     env = env_maker()
 
+    # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
+    # dataset) it has the correct infro from env
+    # proxy.setup(env)
+
+    # TODO: improve - this is likely not the cleanest way of dealing with it
+    config.buffer = {**config.buffer, **instantiate(config.env.buffer)}
+    buffer = instantiate(
+        config.buffer,
+        env=env,
+        proxy=proxy,
+        datadir=logger.datadir,
+    )
+
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
 
@@ -312,7 +325,7 @@ def gflownet_from_config(config):
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,
-        buffer=config.env.buffer,
+        buffer=buffer,
         logger=logger,
         evaluator=evaluator,
     )

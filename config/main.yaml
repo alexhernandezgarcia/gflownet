@@ -7,6 +7,7 @@ defaults:
   - logger: wandb
   - user: default
   - evaluator: base
+  - buffer: base
 
 # Device
 device: cpu
