@@ -1,0 +1,7 @@
+_target_: gflownet.buffer.base.BaseBuffer
+
+replay_buffer: null
+replay_capacity: null
+train: null
+test: null
+use_main_buffer: False
