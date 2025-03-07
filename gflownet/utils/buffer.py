@@ -9,6 +9,7 @@ from typing import List
 import numpy as np
 import pandas as pd
 import torch
+from scipy.special import softmax
 
 
 class Buffer:
@@ -380,6 +381,13 @@ class Buffer:
                 scores = np.fromiter(scores.values(), dtype=float)
             if isinstance(scores, list):
                 scores = np.array(scores, dtype=float)
+
+            # Turn scores into probabilities
+            if np.any(scores < 0):
+                scores = softmax(scores)
+            else:
+                scores = scores / np.sum(scores)
+
             indices = rng.choice(
                 len(samples),
                 size=n,
