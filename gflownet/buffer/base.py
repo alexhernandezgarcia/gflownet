@@ -501,8 +501,8 @@ class BaseBuffer:
         if rng is None:
             rng = np.random.default_rng()
 
-        index = df.index.tolist()
         # Identify the indices of the samples to select
+        index = df.index.tolist()
         if mode in ["permutation", "uniform"]:
             assert rng is not None
             with_replacement = mode == "uniform" or n >= len(index)
@@ -520,10 +520,12 @@ class BaseBuffer:
                     break
             if score is None:
                 raise ValueError(
-                    f"Data set does not contain reward(s) or energy(ies) key, cannot sample in weighted mode"
+                    f"Data set does not contain reward(s) or energy(ies) key. "
+                    "Cannot sample in weighted mode."
                 )
             scores = df[score].values
 
+            # Turn scores into probabilities
             if np.any(scores < 0):
                 scores = softmax(scores)
             else:
