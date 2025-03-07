@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from hydra.utils import instantiate
 
-from gflownet.utils.common import load_gflow_net_from_rundir, read_hydra_config
+from gflownet.utils.common import load_gflownet_from_rundir, read_hydra_config
 
 
 @hydra.main(config_path="./config", config_name="eval", version_base="1.1")
@@ -34,7 +34,7 @@ def main(config):
         load_last_checkpoint = True
 
     print(f"Loading GFlowNet from the configuration in {config.rundir}...")
-    gflownet, run_config = load_gflow_net_from_rundir(
+    gflownet, run_config = load_gflownet_from_rundir(
         rundir=config.rundir,
         device=config.device,
         no_wandb=True,

@@ -333,7 +333,7 @@ def gflownet_from_config(config):
     return gflownet
 
 
-def load_gflow_net_from_rundir(
+def load_gflownet_from_rundir(
     rundir,
     no_wandb=True,
     print_config=False,

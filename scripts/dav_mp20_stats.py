@@ -22,7 +22,7 @@ from collections import Counter
 from external.repos.ActiveLearningMaterials.dave.utils.loaders import make_loaders
 
 from gflownet.proxy.crystals.dave import DAVE
-from gflownet.utils.common import load_gflow_net_from_rundir, resolve_path
+from gflownet.utils.common import load_gflownet_from_rundir, resolve_path
 
 
 def make_str(v):
@@ -427,7 +427,7 @@ if __name__ == "__main__":
     dave_config["rescale_outputs"] = True
     dave = DAVE(**dave_config)
 
-    gflownet, _ = load_gflow_net_from_rundir(args.gflownet_path, device=dave.device)
+    gflownet, _ = load_gflownet_from_rundir(args.gflownet_path, device=dave.device)
 
     loaders = make_loaders(dave.model_config)
     loaders["train"].dataset.ytransform = False
