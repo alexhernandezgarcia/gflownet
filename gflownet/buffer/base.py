@@ -6,6 +6,7 @@ import ast
 import pickle
 from pathlib import Path, PosixPath
 from typing import List, Optional, Tuple, Union
+from torchtyping import TensorType
 
 import numpy as np
 import pandas as pd
@@ -60,9 +61,7 @@ class BaseBuffer:
         self.replay, self.replay_csv = self.init_replay(replay_buffer)
         self.save_replay()
 
-        # self.test_csv = None
-        # self.test_pkl = None
-
+        # Setup proxy
         self.proxy.setup(env)
 
         # Define train data set
@@ -177,8 +176,12 @@ class BaseBuffer:
     def save_replay(self):
         self.replay.to_csv(self.replay_csv)
 
-    def load_replay_from_path(self, path=None):
-        # TODO: there might be environment specific issues with loading csv correctly, test with other envs
+    # TODO: there might be environment specific issues with loading csv correctly.
+    # TODO: test with other envs
+    def load_replay_from_path(self, path: PosixPath=None):
+        """
+        Loads a replay buffer stored as a CSV file.
+        """
         if path is None:
             path = self.replay_csv
 
@@ -250,16 +253,14 @@ class BaseBuffer:
                 f"Unknown buffer identifier. Received {buffer}, expected main or replay"
             )
 
-    def _add_greater(self, states, trajs, rewards, it):
+    # TODO: update docstring
+    # TODO: consider not saving the replay buffer every iteration. Instead it could be
+    # save alongside the model checkpoints.
+    def _add_greater(self, states: List, trajs: List, rewards: Union[List, TensorType], it: int):
         """
-        TODO: update docstring
         Adds a batch of states (with the trajectory actions and rewards) to the buffer
         if the state reward is larger than the minimum reward in the buffer and the
         trajectory is not yet in the buffer.
-
-        Note that the rewards may be log-rewards. The reward is only used to check the
-        inclusion criterion. Since the logarithm is a monotonic function, using the log
-        or natural rewards is equivalent for this purpose.
 
         Parameters
         ----------
@@ -271,6 +272,10 @@ class BaseBuffer:
             The reward or log-reward of each terminating state.
         it : int
             Iteration number.
+
+        Returns
+        -------
+        self.replay : The updated replay buffer
         """
         if torch.is_tensor(rewards):
             rewards = rewards.tolist()
@@ -279,53 +284,73 @@ class BaseBuffer:
         self.save_replay()
         return self.replay
 
+    # TODO: there may be issues with certain state types
+    # TODO: add parameter(s) to control isclose()
     def _add_greater_single_state(self, state, traj, reward, it):
-        relevant_replay = self.replay
+        """
+        Adds a single state (with the trajectory actions and reward) to the buffer
+        if the state reward is larger than the minimum reward in the buffer and the
+        trajectory is not yet in the buffer.
 
-        for rstate in relevant_replay["state"]:
-            # TODO: add this method to base env and htorus
-            if hasattr(self.env, "states_are_close"):
-                # TODO: add this method to base env and htorus
-                # TODO (AHG): or just use isclose
-                if self.env.states_are_close(state, rstate):
-                    return
-            else:
-                if self.env.isclose(state, rstate):
-                    return
+        Note that the rewards may be log-rewards. The reward is only used to check the
+        inclusion criterion. Since the logarithm is a monotonic function, using the log
+        or natural rewards is equivalent for this purpose.
 
-        if len(relevant_replay) < self.replay_capacity:
-            self._concat_item_to_replay(state, traj, reward, it)
-            return
+        If the state is similar to any state already present in the buffer, then the
+        state will not be added.
 
-        argmin = relevant_replay["reward"].argmin()
-        index_argmin = relevant_replay.index[argmin]
-        if reward > relevant_replay["reward"].loc[index_argmin]:
-            self.replay.drop(self.replay.index[index_argmin], inplace=True)
-            self._concat_item_to_replay(state, traj, reward, it)
+        Parameters
+        ----------
+        states : list, tensor, array, dict
+            A terminating states.
+        trajs : list
+            A list of trajectory actions of leading to the terminating state.
+        reward : flaot
+            The reward or log-reward of the terminating state.
+        it : int
+            Iteration number.
 
-    def _concat_item_to_replay(self, state, traj, reward, it):
-        if torch.is_tensor(state):
-            state = state.tolist()
-        if torch.is_tensor(traj):
-            traj = traj.tolist()
-        if torch.is_tensor(reward):
-            reward = reward.item()
-        self.replay = pd.concat(
-            [
-                self.replay,
-                pd.DataFrame(
-                    {
-                        "state": [state],
-                        "traj": [traj],
-                        "reward": [reward],
-                        "iter": [it],
-                        "state_readable": [self.env.state2readable(state)],
-                        "traj_readable": [self.env.traj2readable(traj)],
-                    }
-                ),
-            ],
-            ignore_index=True,
-        )
+        Returns
+        -------
+        self.replay : The updated replay buffer
+        """
+        # Return without adding if the state is close to any state already present in
+        # the buffer
+        for rstate in self.replay["state"]:
+            if self.env.isclose(state, rstate):
+                return
+
+        # If the buffer is full, check if the reward is larger than the minimum reward
+        # in the buffer. If so, drop the state with the minimum reward.
+        if len(self.replay) == self.replay_capacity:
+            index_min = self.replay.index[self.replay["reward"].argmin()]
+            if reward > self.replay["reward"].loc[index_min]:
+                self.replay.drop(self.replay.index[index_min], inplace=True)
+
+        # If the buffer is not full, add to the buffer
+        if len(self.replay) < self.replay_capacity:
+            if torch.is_tensor(state):
+                state = state.tolist()
+            if torch.is_tensor(traj):
+                traj = traj.tolist()
+            if torch.is_tensor(reward):
+                reward = reward.item()
+            self.replay = pd.concat(
+                [
+                    self.replay,
+                    pd.DataFrame(
+                        {
+                            "state": [state],
+                            "traj": [traj],
+                            "reward": [reward],
+                            "iter": [it],
+                            "state_readable": [self.env.state2readable(state)],
+                            "traj_readable": [self.env.traj2readable(traj)],
+                        }
+                    ),
+                ],
+                ignore_index=True,
+            )
 
     def make_data_set(self, config):
         """
@@ -341,7 +366,7 @@ class BaseBuffer:
         print("\nConstructing data set ", end="")
 
         if config.type == "pkl" and "path" in config:
-            # TODO: clean up this mess, avoid recompputing energy from load from path
+            # TODO: clean up this mess, avoid recomputing energy from load from path
             print(f"from pickled file: {config.path}\n")
             with open(config.path, "rb") as f:
                 data_dict = pickle.load(f)
