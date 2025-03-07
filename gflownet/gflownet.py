@@ -167,7 +167,7 @@ class GFlowNetAgent:
         self.buffer = buffer
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
-            energies_stats_tr = [
+            scores_stats_tr = [
                 self.buffer.min_tr,
                 self.buffer.max_tr,
                 self.buffer.mean_tr,
@@ -175,19 +175,19 @@ class GFlowNetAgent:
                 self.buffer.max_norm_tr,
             ]
             print("\nTrain data")
-            print(f"\tMean score: {energies_stats_tr[2]}")
-            print(f"\tStd score: {energies_stats_tr[3]}")
-            print(f"\tMin score: {energies_stats_tr[0]}")
-            print(f"\tMax score: {energies_stats_tr[1]}")
+            print(f"\tMean score: {scores_stats_tr[2]}")
+            print(f"\tStd score: {scores_stats_tr[3]}")
+            print(f"\tMin score: {scores_stats_tr[0]}")
+            print(f"\tMax score: {scores_stats_tr[1]}")
         else:
-            energies_stats_tr = None
+            scores_stats_tr = None
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
-            print(f"\tMean score: {self.buffer.test['energies'].mean()}")
-            print(f"\tStd score: {self.buffer.test['energies'].std()}")
-            print(f"\tMin score: {self.buffer.test['energies'].min()}")
-            print(f"\tMax score: {self.buffer.test['energies'].max()}")
+            print(f"\tMean score: {self.buffer.test['scores'].mean()}")
+            print(f"\tStd score: {self.buffer.test['scores'].std()}")
+            print(f"\tMin score: {self.buffer.test['scores'].min()}")
+            print(f"\tMax score: {self.buffer.test['scores'].max()}")
 
         # Models
         self.forward_policy = forward_policy
@@ -597,7 +597,7 @@ class GFlowNetAgent:
                 n_replay,
                 self.replay_sampling,
                 self.rng,
-            )["state"].values.tolist()
+            )["samples"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
         else:
@@ -937,7 +937,7 @@ class GFlowNetAgent:
         data : list or string
             A data set of terminating states. The data set may be passed directly as a
             list of states, or it may be a string defining the path to a pickled data
-            set where the terminating states are stored in key "x".
+            set where the terminating states are stored in key "samples".
 
         n_trajectories : int
             The number of trajectories per object to sample for estimating the log
@@ -975,7 +975,7 @@ class GFlowNetAgent:
         elif isinstance(data, str) and Path(data).suffix == ".pkl":
             with open(data, "rb") as f:
                 data_dict = pickle.load(f)
-                states_term = data_dict["x"]
+                states_term = data_dict["samples"]
         else:
             raise NotImplementedError(
                 "data must be either a list of states or a path to a .pkl file."

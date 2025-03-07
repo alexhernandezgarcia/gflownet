@@ -480,7 +480,7 @@ class BaseEvaluator(AbstractEvaluator):
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if not hasattr(self.gfn.buffer.test, "pkl"):
+        if self.gfn.buffer.test is None:
             return {
                 "metrics": {
                     k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
@@ -489,12 +489,11 @@ class BaseEvaluator(AbstractEvaluator):
                 "data": {},
             }
 
-        all_data = {}
-        all_metrics = {}
-
         with open(self.gfn.buffer.test_config.pkl, "rb") as f:
             dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
+        x_tt = self.gfn.buffer.test.samples.values.tolist()
+        all_data = {}
+        all_metrics = {}
 
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
