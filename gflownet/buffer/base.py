@@ -140,14 +140,14 @@ class BaseBuffer:
             replay_buffer_path = Path(replay_buffer_path)
         if replay_buffer_path and replay_buffer_path.exists():
             replay_csv = replay_buffer_path
-            replay = self.load_replay_from_path(self.replay_csv)
+            replay = self.load_replay_from_path(replay_csv)
         else:
             if replay_buffer_path:
                 print(
                     f"Replay buffer file {replay_buffer_path} does not exist, "
                     "initializing empty buffer."
                 )
-            self.replay = pd.DataFrame(
+            replay = pd.DataFrame(
                 columns=[
                     "state",
                     "traj",
