@@ -28,4 +28,4 @@ echo "in:"
 echo $(pwd)
 echo "sbatch file name: $0"
 
-python main.py $argshydra
+python train.py $argshydra

@@ -10,10 +10,6 @@ float_precision: 32
 # Path to a Hydra run containing a config.yaml
 rundir: null
 
-# For conditional env only: path to a dataset containing the conditions
-# if not provided uses the same as during the training
-conditions_dataset_path: null
-
 # Path to a configuration YAML file containing the properties of an 
 # environment to be used to do conditional sampling, that is constrain the 
 # action space at sampling time. If the file is stored in the same directory 

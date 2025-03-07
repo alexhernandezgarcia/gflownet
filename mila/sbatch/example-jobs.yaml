@@ -17,7 +17,7 @@ shared:
     mem: 16G # node memory
     cpus_per_task: 2 # task cpus
 
-  # main.py params
+  # train.py params
   script:
     user: $USER
     +experiments: neurips23/crystal-comp-sg-lp.yaml
