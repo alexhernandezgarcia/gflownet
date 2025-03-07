@@ -19,7 +19,7 @@ import sys
 import hydra
 import pandas as pd
 
-from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.common import load_gflow_net_from_rundir
 
 
 @hydra.main(config_path="./config", config_name="resume", version_base="1.1")
@@ -33,8 +33,8 @@ def main(config):
     # Determine whether training should continue from a previous run and set it up
     # TODO: consider merging run_config with config and save it in working directory
     if config.rundir:
-        gflownet, run_config = load_gflow_net_from_run_path(
-            run_path=config.rundir,
+        gflownet, run_config = load_gflow_net_from_rundir(
+            rundir=config.rundir,
             print_config=config.print_config,
             no_wandb=config.no_wandb,
             is_resumed=True,

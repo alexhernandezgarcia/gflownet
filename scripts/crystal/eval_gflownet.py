@@ -19,7 +19,7 @@ from crystalrandom import generate_random_crystals_uniform
 from hydra.utils import instantiate
 
 from gflownet.gflownet import GFlowNetAgent
-from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
+from gflownet.utils.common import load_gflow_net_from_rundir, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
 
 
@@ -143,8 +143,8 @@ def main(args):
         prefix = "gfn"
         load_final_ckpt = True
 
-    gflownet, config = load_gflow_net_from_run_path(
-        run_path=args.run_path,
+    gflownet, config = load_gflow_net_from_rundir(
+        rundir=args.run_path,
         device=args.device,
         no_wandb=True,
         print_config=args.print_config,
