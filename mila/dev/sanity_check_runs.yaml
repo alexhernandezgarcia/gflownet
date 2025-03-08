@@ -67,55 +67,6 @@ jobs:
       evaluator:
         top_k: 10
         n_top_k: 100
-  # Mini-Tetris
-  - slurm:
-      job_name: sanity-mintetris-fm
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: flowmatch
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-tb
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: trajectorybalance
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-fl
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: forwardlooking
-      evaluator:
-        top_k: 10
-        n_top_k: 100
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
