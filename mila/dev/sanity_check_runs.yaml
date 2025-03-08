@@ -72,5 +72,5 @@ jobs:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
-      evalutor:
+      evaluator:
         period: 500
