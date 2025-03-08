@@ -28,19 +28,19 @@ python mila/launch.py --conda_env=<conda-env-name> --jobs=mila/dev/sanity_check_
 `salloc`:
 
 ```bash
-python train.py user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python train.py user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
 
 ```bash
-python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
 
 ```bash
-python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 ### Flow Matching loss
@@ -48,19 +48,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 `salloc`:
 
 ```bash
-python train.py user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python train.py user=$USER env=grid env.length=10 proxy=box/corners gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
 
 ```bash
-python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 proxy=box/corners gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
 
 ```bash
-python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 proxy=box/corners gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 ## Tetris
