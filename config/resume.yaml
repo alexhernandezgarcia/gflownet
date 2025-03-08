@@ -1,13 +1,17 @@
 defaults:
   - _self_
-  - env: grid
-  - gflownet: trajectorybalance
-  - policy: mlp_${gflownet}
-  - proxy: uniform
-  - logger: wandb
   - user: default
-  - evaluator: base
-  - buffer: base
+
+# Path of a previous run to continue the training
+# Training will continue from the latest checkpoints
+rundir: null
+
+# Print the configuration of the loaded run
+print_config: False
+
+# Disable wandb: if True, logging to wandb is disabled regardless of the configuration in
+# the loaded run. Useful for debugging.
+no_wandb: False
 
 # Device
 device: cpu
@@ -23,10 +27,10 @@ hydra:
   # See: https://hydra.cc/docs/configure_hydra/workdir/
   # See: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
   run:
-    dir: ${user.logdir.root}/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${rundir}/resume/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
   sweep:
-    dir: ${user.logdir.root}/${oc.env:SLURM_JOB_ID,local}/multirun/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${rundir}/resume/${oc.env:SLURM_JOB_ID,local}/multirun/${now:%Y-%m-%d_%H-%M-%S_%f}
   job:
     # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
     # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
-    chdir: False
+    chdir: True

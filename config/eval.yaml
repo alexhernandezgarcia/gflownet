@@ -1,0 +1,47 @@
+defaults:
+  - _self_
+  - user: default
+    
+# Device
+device: cpu
+# Float precision
+float_precision: 32
+
+# Path to a Hydra run containing a config.yaml
+rundir: null
+
+# Path to a configuration YAML file containing the properties of an 
+# environment to be used to do conditional sampling, that is constrain the 
+# action space at sampling time. If the file is stored in the same directory 
+# as the main config, the argument may be just the file name (not a path).
+conditional_env_config_path: null
+  
+# Number of trajectories to sample,
+n_samples: 0
+
+# Number of samples to generate at a time to 
+# avoid memory issues. Will sum to n_samples.
+sampling_batch_size: 100
+
+# Path to output directory. If not provided, will use rundir.
+output_dir: null
+
+# Whether to print the configuration file
+print_config: False
+
+# Whether to only sample from the model, without computing metrics
+samples_only: False
+
+# If True, the trajectories are sampled from an untrained GFlowNet
+randominit: False
+
+# Hydra config
+hydra:
+  # See: https://hydra.cc/docs/configure_hydra/workdir/
+  # See: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+  run:
+    dir: ${rundir}/eval
+  job:
+    # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
+    # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
+    chdir: True

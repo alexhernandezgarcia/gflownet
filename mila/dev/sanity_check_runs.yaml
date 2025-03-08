@@ -17,7 +17,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: flowmatch
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-tb
     script:
@@ -25,7 +25,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: trajectorybalance
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-db
     script:
@@ -33,7 +33,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: detailedbalance
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-fl
     script:
@@ -41,7 +41,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: forwardlooking
-      proxy: corners
+      proxy: box/corners
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
@@ -67,59 +67,10 @@ jobs:
       evaluator:
         top_k: 10
         n_top_k: 100
-  # Mini-Tetris
-  - slurm:
-      job_name: sanity-mintetris-fm
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: flowmatch
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-tb
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: trajectorybalance
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-fl
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: forwardlooking
-      evaluator:
-        top_k: 10
-        n_top_k: 100
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
-      evalutor:
+      evaluator:
         period: 500
