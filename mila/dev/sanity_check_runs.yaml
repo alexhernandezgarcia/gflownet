@@ -17,7 +17,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: flowmatch
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-tb
     script:
@@ -25,7 +25,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: trajectorybalance
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-db
     script:
@@ -33,7 +33,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: detailedbalance
-      proxy: corners
+      proxy: box/corners
   - slurm:
       job_name: sanity-grid-fl
     script:
@@ -41,7 +41,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: forwardlooking
-      proxy: corners
+      proxy: box/corners
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
