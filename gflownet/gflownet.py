@@ -1249,7 +1249,10 @@ class GFlowNetAgent:
             proxy_vals_max = proxy_vals.max()
 
             # logZ
-            logz = self.logZ.sum()
+            if self.logZ is not None:
+                logz = self.logZ.sum()
+            else:
+                logz = None
 
             # Trajectory length
             trajectory_lenghts = [len(state) for state in states_term]
