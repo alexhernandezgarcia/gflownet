@@ -48,9 +48,7 @@ class GFlowNetAgent:
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
-        pct_offline,
         logger,
-        num_empirical_loss,
         evaluator,
         state_flow=None,
         use_context=False,
@@ -91,13 +89,9 @@ class GFlowNetAgent:
             Probability of sampling random actions. If None (default),
             self.random_action_prob is used, unless its value is forced to either 0.0 or
             1.0 by other arguments (sampling_method or no_random).
-        pct_offline : float
-            Percentage of offline data to be used for training.
         logger : gflownet.utils.logger.Logger
             Logger object to be used for logging and saving checkpoints
             (`gflownet/utils/logger.py:Logger`).
-        num_empirical_loss : int
-            Number of empirical loss samples to be used for training.
         evaluator : gflownet.evaluator.base.BaseEvaluator
             :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
         state_flow : dict, optional
@@ -159,7 +153,6 @@ class GFlowNetAgent:
         # loss_eps is used only for the flowmatch loss
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
-        self.num_empirical_loss = num_empirical_loss
         self.logger = logger
         # Buffers
         self.replay_sampling = replay_sampling
@@ -223,7 +216,6 @@ class GFlowNetAgent:
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
-        self.pct_offline = pct_offline
         # Metrics
         self.l1 = -1.0
         self.kl = -1.0
