@@ -48,3 +48,4 @@ replay_sampling: permutation
 # Train data set backward sampling
 train_sampling: permutation
 use_context: False
+garbage_collection_period: 0

@@ -54,6 +54,7 @@ class GFlowNetAgent:
         use_context=False,
         replay_sampling="permutation",
         train_sampling="permutation",
+        garbage_collection_period: int = 0,
         **kwargs,
     ):
         """
@@ -106,6 +107,10 @@ class GFlowNetAgent:
         train_sampling : str, optional
             Type of sampling for the train buffer (offline backward trajectories). See
             :meth:`~gflownet.utils.buffer.select`. By default "permutation".
+        garbage_collection_period : int
+            The periodicity to perform garbage collection and empty the cache of the
+            GPU. By default it is 0, so no garbage collection is performed. This is
+            because it can incur a large time overhead unnecessarily.
 
         Raises
         ------
@@ -216,6 +221,7 @@ class GFlowNetAgent:
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
+        self.garbage_collection_period = garbage_collection_period
         # Metrics
         self.l1 = -1.0
         self.kl = -1.0
@@ -1162,10 +1168,14 @@ class GFlowNetAgent:
             times.update({"iter": t1_iter - t0_iter})
             self.logger.log_time(times, use_context=self.use_context)
 
-            # Cleanup gpu memory
-            del batch
-            gc.collect()
-            torch.cuda.empty_cache()
+            # Garbage collection and cleanup GPU memory
+            if (
+                self.garbage_collection_period > 0
+                and self.garbage_collection_period % self.it == 0
+            ):
+                del batch
+                gc.collect()
+                torch.cuda.empty_cache()
 
         # Save final model
         self.logger.save_checkpoint(
