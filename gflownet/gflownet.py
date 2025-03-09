@@ -1461,8 +1461,6 @@ class GFlowNetAgent:
         # Optimizer
         self.opt.load_state_dict(checkpoint["optimizer"])
 
-        # Buffer
-        # TODO
         if self.logger.debug:
             print("\nCheckpoint loaded into GFlowNet agent\n")
 

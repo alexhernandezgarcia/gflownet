@@ -182,6 +182,8 @@ class BaseBuffer:
 
     # TODO: there might be environment specific issues with loading csv correctly.
     # TODO: test with other envs
+    # TODO: alternatively, the replay buffer could be stored as part of the checkpoint
+    # and there is no need to save it every iteration
     def load_replay_from_path(self, path: PosixPath = None):
         """
         Loads a replay buffer stored as a CSV file.

@@ -417,7 +417,6 @@ def load_gflownet_from_rundir(
             }
         if checkpoint["buffer"]["replay"]:
             config.buffer.replay_buffer = checkpoint["buffer"]["replay"]
-        # TODO: if conditions could be randomised, then include them in checkpoint and
         # load them here
 
         if is_resumed:
