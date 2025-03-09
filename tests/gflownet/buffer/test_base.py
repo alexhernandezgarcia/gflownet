@@ -11,9 +11,9 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
+from gflownet.buffer.base import BaseBuffer
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.proxy.torus import Torus
-from gflownet.buffer.base import BaseBuffer
 from gflownet.utils.common import tbool, tfloat, tlong
 
 

@@ -229,30 +229,30 @@ def main(args):
         env.proxy.is_bandgap = False
 
         # Test
-#         samples = [env.readable2state(readable) for readable in gflownet.buffer.test["samples"]]
-#         energies = env.proxy(env.states2proxy(samples))
-#         df = pd.DataFrame(
-#             {
-#                 "readable": gflownet.buffer.test["samples"],
-#                 "energies": energies.tolist(),
-#             }
-#         )
-#         df.to_csv(output_dir / f"val.csv")
-#         dct = {"x": samples, "energy": energies.tolist()}
-#         pickle.dump(dct, open(output_dir / f"val.pkl", "wb"))
-# 
-#         # Train
-#         samples = [env.readable2state(readable) for readable in gflownet.buffer.train["samples"]]
-#         energies = env.proxy(env.states2proxy(samples))
-#         df = pd.DataFrame(
-#             {
-#                 "readable": gflownet.buffer.train["samples"],
-#                 "energies": energies.tolist(),
-#             }
-#         )
-#         df.to_csv(output_dir / f"train.csv")
-#         dct = {"x": samples, "energy": energies.tolist()}
-#         pickle.dump(dct, open(output_dir / f"train.pkl", "wb"))
+    #         samples = [env.readable2state(readable) for readable in gflownet.buffer.test["samples"]]
+    #         energies = env.proxy(env.states2proxy(samples))
+    #         df = pd.DataFrame(
+    #             {
+    #                 "readable": gflownet.buffer.test["samples"],
+    #                 "energies": energies.tolist(),
+    #             }
+    #         )
+    #         df.to_csv(output_dir / f"val.csv")
+    #         dct = {"x": samples, "energy": energies.tolist()}
+    #         pickle.dump(dct, open(output_dir / f"val.pkl", "wb"))
+    #
+    #         # Train
+    #         samples = [env.readable2state(readable) for readable in gflownet.buffer.train["samples"]]
+    #         energies = env.proxy(env.states2proxy(samples))
+    #         df = pd.DataFrame(
+    #             {
+    #                 "readable": gflownet.buffer.train["samples"],
+    #                 "energies": energies.tolist(),
+    #             }
+    #         )
+    #         df.to_csv(output_dir / f"train.csv")
+    #         dct = {"x": samples, "energy": energies.tolist()}
+    #         pickle.dump(dct, open(output_dir / f"train.pkl", "wb"))
 
     if args.n_samples > 0 and args.n_samples <= 1e5 and not args.random_only:
         print(

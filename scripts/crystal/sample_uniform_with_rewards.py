@@ -1,8 +1,9 @@
 """
 Script for sampling uniform crystals (w/o constraints) and evaluating them with reward function
-should be run with the same config as train.py, e.g. 
+should be run with the same config as train.py, e.g.
 python sample_uniform_with_rewards.py +experiments=crystals/albatross_sg_first logger.do.online=False user=sasha
 """
+
 import pickle
 import sys
 
