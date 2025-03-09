@@ -278,11 +278,11 @@ class Logger:
             "replay": None,
         }
         if hasattr(buffer, "train") and buffer.train is not None:
-            if hasattr(buffer, "train_pkl") and buffer.train_pkl is not None:
-                buffer_ckpt["train"] = str(buffer.train_pkl)
+            if hasattr(buffer.train_config, "pkl") and buffer.train_config.pkl:
+                buffer_ckpt["train"] = str(buffer.train_config.pkl)
         if hasattr(buffer, "test") and buffer.test is not None:
-            if hasattr(buffer, "test_pkl") and buffer.test_pkl is not None:
-                buffer_ckpt["test"] = str(buffer.test_pkl)
+            if hasattr(buffer.test_config, "pkl") and buffer.test_config.pkl:
+                buffer_ckpt["test"] = str(buffer.test_config.pkl)
         if hasattr(buffer, "replay") and len(buffer.replay) > 0:
             if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
                 buffer_ckpt["replay"] = str(buffer.replay_csv)
