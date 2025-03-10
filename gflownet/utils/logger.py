@@ -19,6 +19,14 @@ class Logger:
 
     Parameters
     ----------
+    run_name : str
+        Name of the run. By default it is None. If run_name is None and run_name_date
+        and run_name_job are both False, then a random name will be assigned by wandb.
+    run_name_date : bool
+        Whether the date (and time) should be included in the run name. True by
+        default.
+    run_name_job : bool
+        Whether the job ID should be included in the run name. True by default.
     progressbar : dict
         A dictionary of configuration parameters related to the progress bar, namely:
             - skip : bool
@@ -39,6 +47,8 @@ class Logger:
         lightweight: bool,
         debug: bool,
         run_name=None,
+        run_name_date: bool = True,
+        run_name_job: bool = True,
         run_id: str = None,
         tags: list = None,
         context: str = "0",
@@ -52,13 +62,14 @@ class Logger:
         self.do.times = self.do.times and self.do.online
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
 
+        # Determine run name
         if run_name is None:
+            run_name = ""
+        if run_name_job and slurm_job_id is not None:
+            run_name = f"{run_name} {slurm_job_id}"
+        if run_name_date:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
-            run_name = "{}".format(
-                date_time,
-            )
-            if slurm_job_id is not None:
-                run_name = slurm_job_id + " - " + run_name
+            run_name = f"{run_name} {date_time}"
 
         if self.do.online:
             import wandb
