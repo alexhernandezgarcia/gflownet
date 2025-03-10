@@ -36,23 +36,10 @@ def tmp_local():
 
 # TODO: add test for "random" type
 @pytest.mark.parametrize(
-    "train_type, train_path, test_type, test_path, n_train, n_test, train_output_pkl, "
-    "test_output_pkl, train_output_csv, test_output_csv",
+    "train_type, train_path, test_type, test_path, n_train, n_test",
     [
-        ("grid", None, "grid", None, 36, 16, None, None, None, None),
-        ("uniform", None, "uniform", None, 10000, 10000, None, None, None, None),
-        (
-            "grid",
-            None,
-            "grid",
-            None,
-            36,
-            16,
-            "ctorus_train.pkl",
-            "ctorus_test.pkl",
-            "ctorus_train.csv",
-            "ctorus_test.csv",
-        ),
+        ("grid", None, "grid", None, 36, 16),
+        ("uniform", None, "uniform", None, 10000, 10000),
         (
             "pkl",
             "./tests/data/buffer/ctorus_train.pkl",
@@ -60,10 +47,6 @@ def tmp_local():
             "./tests/data/buffer/ctorus_test.pkl",
             36,
             16,
-            "ctorus_train.pkl",
-            "ctorus_test.pkl",
-            "ctorus_train.csv",
-            "ctorus_test.csv",
         ),
         (
             "csv",
@@ -72,10 +55,6 @@ def tmp_local():
             "./tests/data/buffer/ctorus_test.csv",
             36,
             16,
-            "ctorus_train.pkl",
-            "ctorus_test.pkl",
-            "ctorus_train.csv",
-            "ctorus_test.csv",
         ),
     ],
 )
@@ -89,10 +68,6 @@ def test__buffer_init_ctorus(
     test_path,
     n_train,
     n_test,
-    train_output_pkl,
-    test_output_pkl,
-    train_output_csv,
-    test_output_csv,
 ):
     env = env_ctorus
     proxy = proxy_ctorus
@@ -107,8 +82,6 @@ def test__buffer_init_ctorus(
             "type": train_type,
             "path": train_path,
             "n": n_train,
-            "output_pkl": train_output_pkl,
-            "output_csv": train_output_csv,
             "samples_column": "samples",
         }
     )
@@ -118,8 +91,6 @@ def test__buffer_init_ctorus(
             "type": test_type,
             "path": test_path,
             "n": n_test,
-            "output_pkl": test_output_pkl,
-            "output_csv": test_output_csv,
             "samples_column": "samples",
         }
     )
@@ -177,13 +148,13 @@ def test__buffer_init_ctorus(
         check_pkl_loaded_from_path(buffer.test, test_path)
 
     # check output files are created
-    for name in [train_output_pkl, test_output_pkl, train_output_csv, test_output_csv]:
+    for name in ["train.pkl", "test.pkl", "train.csv", "test.csv"]:
         if name is not None:
             assert (temp_dir / name).exists()
 
     # check output pkl files are correct
     for name, buffer_samples in zip(
-        [train_output_pkl, test_output_pkl], [buffer.train, buffer.test]
+        ["train.pkl", "test.pkl"], [buffer.train, buffer.test]
     ):
         if name is not None:
             check_pkl_loaded_from_path(buffer_samples, temp_dir / name)
