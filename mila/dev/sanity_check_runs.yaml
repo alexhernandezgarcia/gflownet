@@ -18,6 +18,8 @@ jobs:
         length: 10
       gflownet: flowmatch
       proxy: box/corners
+      logger:
+        run_name: Grid 10x10 FM
   - slurm:
       job_name: sanity-grid-tb
     script:
@@ -26,6 +28,8 @@ jobs:
         length: 10
       gflownet: trajectorybalance
       proxy: box/corners
+      logger:
+        run_name: Grid 10x10 TB
   - slurm:
       job_name: sanity-grid-db
     script:
@@ -34,6 +38,8 @@ jobs:
         length: 10
       gflownet: detailedbalance
       proxy: box/corners
+      logger:
+        run_name: Grid 10x10 DB
   - slurm:
       job_name: sanity-grid-fl
     script:
@@ -42,6 +48,8 @@ jobs:
         length: 10
       gflownet: forwardlooking
       proxy: box/corners
+      logger:
+        run_name: Grid 10x10 FL
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
@@ -55,6 +63,8 @@ jobs:
       evaluator:
         top_k: 10
         n_top_k: 100
+      logger:
+        run_name: Tetris 5x10 FM
   - slurm:
       job_name: sanity-tetris-tb
     script:
@@ -67,6 +77,8 @@ jobs:
       evaluator:
         top_k: 10
         n_top_k: 100
+      logger:
+        run_name: Tetris 5x10 TB
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
@@ -74,3 +86,5 @@ jobs:
       +experiments: icml23/ctorus
       evaluator:
         period: 500
+      logger:
+        run_name: CTorus
