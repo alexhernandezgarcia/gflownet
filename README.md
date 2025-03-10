@@ -107,7 +107,7 @@ The above command will install the minimum set of dependencies to run the core f
 Extras can be installed by specifying the tags in square brackets:
 
 ```bash
-python -m pip install .[all]
+python -m pip install .[dev]
 ```
 
 or
