@@ -1,21 +1,27 @@
 defaults:
+  - _self_
   - env: grid
   - gflownet: trajectorybalance
+  - policy: mlp_${gflownet}
   - proxy: uniform
-  - policy: mlp
   - logger: base
-  - user: alex
+  - user: default
   - evaluator: base
-  - _self_
+  - buffer: base
 
 # Device
 device: cpu
 # Float precision
 float_precision: 32
 # Number of objects to sample at the end of training
-n_samples: 1
+n_samples: 10
 # Random seeds
 seed: 0
+
+# Set optimizer to a single training step
+gflownet:
+  optimizer:
+    n_train_steps: 1
 
 # Hydra config
 hydra:
@@ -25,4 +31,4 @@ hydra:
   job:
     # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
     # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
-    chdir: True
+    chdir: False
