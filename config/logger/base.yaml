@@ -23,3 +23,10 @@ run_id: null # Unique identifier of a wandb run
 
 # Set to True for resuming runs
 is_resumed: False
+
+# Name of the run
+run_name: null
+# Whether the date (and time) should be included in the run name
+run_name_date: True
+# Whether the job id should be included in the run name
+run_name_job: True
