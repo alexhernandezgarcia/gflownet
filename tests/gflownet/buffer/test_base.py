@@ -122,7 +122,7 @@ def test__buffer_init_ctorus(
 
         identical_columns = ["samples", "samples_readable"]
         assert buffer_df[identical_columns].equals(expected_df[identical_columns])
-        assert np.allclose(expected_df.energies.values, buffer_df.energies.values)
+        assert np.allclose(expected_df.scores.values, buffer_df.scores.values)
         assert np.allclose(expected_df.rewards.values, buffer_df.rewards.values)
 
     if train_type == "csv":
@@ -134,12 +134,12 @@ def test__buffer_init_ctorus(
     def check_pkl_loaded_from_path(buffer_df, path):
         with open(path, "rb") as f:
             data_dict = pickle.load(f)
-        samples = np.array(data_dict["x"])
-        energies = np.array(data_dict["energy"])
-        rewards = np.array(data_dict["reward"])
+        samples = np.array(data_dict["samples"])
+        scores = np.array(data_dict["scores"])
+        rewards = np.array(data_dict["rewards"])
 
         assert np.allclose(samples, np.array(buffer_df.samples.values.tolist()))
-        assert np.allclose(energies, buffer_df.energies.values)
+        assert np.allclose(scores, buffer_df.scores.values)
         assert np.allclose(rewards, buffer_df.rewards.values)
 
     if train_type == "pkl":
@@ -161,7 +161,7 @@ def test__buffer_init_ctorus(
 
     # check output csv files are correct
     for name, buffer_df in zip(
-        [train_output_csv, test_output_csv], [buffer.train, buffer.test]
+        ["train.csv", "test.csv"], [buffer.train, buffer.test]
     ):
         if name is not None:
             check_csv_loaded_from_path(buffer_df, temp_dir / name)
