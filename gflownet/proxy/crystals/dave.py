@@ -20,7 +20,6 @@ class DAVE(Proxy):
     def __init__(
         self,
         ckpt_path=str,
-        rescale_outputs=True,
         **kwargs,
     ):
         """
@@ -30,17 +29,10 @@ class DAVE(Proxy):
         ----------
         ckpt_path : str
             Path to a directory containing the checkpoint of a pre-trained model.
-        rescale_outputs : bool, optional
-            Whether to rescale the proxy outputs using its training mean and std, by
-            default True
         """
         super().__init__(**kwargs)
-        self.rescale_outputs = rescale_outputs
-
-        self.is_eform = self.is_bandgap = False
 
         print("Initializing DAVE proxy:")
-
         try:
             dave_version = version("dave")
         except PackageNotFoundError:
@@ -101,7 +93,7 @@ class DAVE(Proxy):
 
         # model forward
         x = (comp.long(), sg.long(), lat_params.float())
-        y = self.model(x, self.rescale_outputs).squeeze(-1)
+        y = self.model(x, scale_input=True).squeeze(-1)
 
         return y
 
@@ -130,7 +122,7 @@ class DAVE(Proxy):
                 assert (
                     x[k].ndim == 2
                 ), f"t.ndim = {x[k].ndim} != 2 (t.shape: {x[k].shape})"
-            p = self.proxy(torch.cat(x, dim=-1), self.rescale_outputs)
+            p = self.proxy(torch.cat(x, dim=-1), scale_input=True)
             energy.append(e)
             proxy.append(p)
 
