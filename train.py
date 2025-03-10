@@ -15,7 +15,7 @@ from omegaconf import open_dict
 from gflownet.utils.common import gflownet_from_config
 
 
-@hydra.main(config_path="./config", config_name="main", version_base="1.1")
+@hydra.main(config_path="./config", config_name="train", version_base="1.1")
 def main(config):
 
     # Set and print working and logging directory
