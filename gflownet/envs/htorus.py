@@ -517,7 +517,7 @@ class HybridTorus(GFlowNetEnv):
             A list of randomly sampled terminating states.
         """
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspace = np.linspace(0, 2 * np.pi, n_per_dim)
+        linspace = np.linspace(0, 2 * np.pi, n_per_dim + 1)[:-1]
         angles = np.meshgrid(*[linspace] * self.n_dim)
         angles = np.stack(angles).reshape((self.n_dim, -1)).T
         states = np.concatenate(
