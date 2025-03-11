@@ -1593,7 +1593,7 @@ def test__get_proxy_values_multiple_env_returns_expected_non_zero_non_terminatin
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm")],
 )
-def test__get_logrewards_multiple_env_returns_expected_non_zero_non_terminating(
+def test__get_logrewards_multiple_env_returns_expected_non_neginf_non_terminating(
     env, proxy, batch, request
 ):
     batch_size = BATCH_SIZE
@@ -1641,7 +1641,7 @@ def test__get_logrewards_multiple_env_returns_expected_non_zero_non_terminating(
         )
     ), (logrewards, logrewards_batch)
     assert ~torch.any(
-        torch.isclose(logrewards_batch, torch.zeros_like(logrewards_batch))
+        torch.isclose(logrewards_batch, torch.full_like(logrewards_batch, -torch.inf))
     ), logrewards_batch
 
 
