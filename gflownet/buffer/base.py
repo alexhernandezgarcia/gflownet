@@ -401,12 +401,15 @@ class BaseBuffer:
                         )
         elif config.type == "csv" and "path" in config:
             print(f"from CSV: {config.path}\n")
-            df = pd.read_csv(
-                config.path,
-                index_col=0,
-                converters={config.samples_column: ast.literal_eval},
-            )
-            samples = df[config.samples_column].values
+            if "samples_column" in config:
+                df = pd.read_csv(
+                    config.path,
+                    index_col=0,
+                    converters={config.samples_column: ast.literal_eval},
+                )
+                samples = df[config.samples_column].values
+            else:
+                samples = pd.read_csv(config.path, index_col=0)
             if hasattr(self.env, "process_data_set"):
                 n_samples_orig = len(samples)
                 print(f"The data set containts {n_samples_orig} samples", end="")
