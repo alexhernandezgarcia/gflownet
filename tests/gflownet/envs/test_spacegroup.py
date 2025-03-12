@@ -1,4 +1,7 @@
 import pytest
+import torch
+
+from gflownet.utils.common import tfloat
 
 # Skip the entire module if pyxtal or pymatgen is not installed / cannot be imported
 pytest.importorskip(
@@ -447,6 +450,34 @@ def test__get_mask_invalid_actions_backward__does_not_change_state(env, state):
     state_orig = copy(state)
     mask_b = env.get_mask_invalid_actions_backward(state, False)
     assert state == state_orig
+
+
+# With SG_SUBSET:
+# Valid space groups: [1, 17, 39, 123, 230]
+# Valid crystal-lattice systems: [1, 3, 4, 8]
+# Valid point groups: [1, 2, 3, 4]
+@pytest.mark.parametrize(
+    "batch, exp_tensor",
+    [
+        (
+            [[0, 0, 0], [1, 1, 1], [3, 4, 17], [3, 3, 39]],
+            [
+                [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+                [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0],
+                [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0],
+            ],
+        ),
+    ],
+)
+def test__states2policy__returns_expected_tensor(
+    env_with_restricted_spacegroups, batch, exp_tensor
+):
+    env = env_with_restricted_spacegroups
+    assert torch.equal(
+        env.states2policy(batch),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
 
 
 class TestSpaceGroupBasic(common.BaseTestsDiscrete):
