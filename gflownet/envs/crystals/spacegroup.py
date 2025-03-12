@@ -10,12 +10,13 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 import yaml
 from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 
 CRYSTAL_LATTICE_SYSTEMS = None
@@ -114,6 +115,10 @@ class SpaceGroup(GFlowNetEnv):
         self.point_symmetries = _get_point_symmetries()
         self.space_groups = _get_space_groups()
         self._restrict_space_groups(space_groups_subset)
+        # Create tensors with possible values of each property
+        self.cls_valid = torch.tensor([0] + list(self.crystal_lattice_systems.keys()))
+        self.ps_valid = torch.tensor([0] + list(self.point_symmetries.keys()))
+        self.sg_valid = torch.tensor([0] + list(self.space_groups.keys()))
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
         # Indices in the state representation: crystal-lattice system (cls), point
@@ -264,6 +269,69 @@ class SpaceGroup(GFlowNetEnv):
         """
         states = tlong(states, device=self.device)
         return torch.unsqueeze(states[:, self.sg_idx], dim=1)
+
+    def states2policy(
+        self, states: List[List]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: states
+        are one-hot encoded.
+
+        In particular, the policy input for a state is a vector containing the
+        following encodings, in this order:
+            - One-hot encoding of the crystal-lattice system (max length 8).
+            - One-hot encoding of the point symmetry (max length 5).
+            - One-hot encoding of the space group (max length 230).
+
+        In order to not waste memory and for backward compatibility, the one-hot
+        encodings have a maximum length equal to the maximum number of options in the
+        configuration.
+
+        Example
+        -------
+        Consider a configuration with valid space groups [1, 17, 39], and then valid
+        crystal-lattice systems [1, 3] and valid point symmetries [1, 3, 4].
+        Additionally, each property can take the value 0 for the case where it is not
+        set yet.
+
+        states = [[0, 0, 0], [1, 1, 1], [3, 4, 17], [3, 3, 39]]
+        self.states2policy(states)
+        tensor(
+            [
+                [1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+                [0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+                [0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0],
+                [0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1],
+            ]
+        )
+
+        Args
+        ----
+        states : list
+            A batch of states in environment format, that is a list of lists.
+
+        Returns
+        -------
+        A tensor containing the policy representation of all the states in the batch.
+        """
+        states = tlong(states, device=self.device)
+        cls_onehot = F.one_hot(
+            torch.searchsorted(self.cls_valid, states[:, 0]),
+            self.cls_valid.shape[0],
+        )
+        ps_onehot = F.one_hot(
+            torch.searchsorted(self.ps_valid, states[:, 1]),
+            self.ps_valid.shape[0],
+        )
+        sg_onehot = F.one_hot(
+            torch.searchsorted(self.sg_valid, states[:, 2]),
+            self.sg_valid.shape[0],
+        )
+        return tfloat(
+            torch.cat([cls_onehot, ps_onehot, sg_onehot], dim=1),
+            device=self.device,
+            float_type=self.float,
+        )
 
     def state2readable(self, state=None):
         """
