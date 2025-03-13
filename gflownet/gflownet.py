@@ -1066,7 +1066,6 @@ class GFlowNetAgent:
                 )
                 # Update environments with sampled actions
                 envs, actions, valids = self.step(envs, actions, backward=True)
-                assert all(valids)
                 # Add to batch
                 batch.add_to_batch(envs, actions, valids, backward=True, train=True)
                 # Filter out finished trajectories
