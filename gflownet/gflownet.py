@@ -128,6 +128,7 @@ class GFlowNetAgent:
         # Environment
         self.env_maker = env_maker
         self.env = self.env_maker()
+        self.env_cache = []
         # Proxy
         self.proxy = proxy
         self.proxy.setup(self.env)
@@ -527,6 +528,28 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
+    def get_env_instances(self, nb_env_instances):
+        """
+        Returns the requested number of instances of the environment
+
+        Args
+        ----
+        nb_env_instances : int
+            Number of instance to return
+
+        Returns
+        -------
+        A list of environment instances
+        """
+        # Create new env instances if not enough exist in the cache.
+        if len(self.env_cache) < nb_env_instances:
+            nb_new_instances_needed = nb_env_instances - len(self.env_cache)
+            new_instances = [self.env_maker() for _ in range(nb_new_instances_needed)]
+            self.env_cache.extend(new_instances)
+
+        # Return the requested instances
+        return self.env_cache[:nb_env_instances]
+
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
@@ -537,11 +560,18 @@ class GFlowNetAgent:
         env_cond: Optional[GFlowNetEnv] = None,
         train=True,
         progress=False,
+        collect_forwards_masks=False,
+        collect_backwards_masks=False,
     ):
         """
         TODO: extend docstring.
         Builds a batch of data by sampling online and/or offline trajectories.
         """
+        # Obtain the necessary env instances (one per forward/train/replay trajectory)
+        # WARNING : These instances must be reset before use.
+        nb_env_instances_needed = n_forward + n_train + n_replay
+        env_instances = self.get_env_instances(nb_env_instances_needed)
+
         # PRELIMINARIES: Prepare Batch and environments
         times = {
             "all": 0.0,
@@ -555,9 +585,14 @@ class GFlowNetAgent:
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
-        envs = [self.env_maker().set_id(idx) for idx in range(n_forward)]
+        envs = [env_instances.pop().reset(idx) for idx in range(n_forward)]
         batch_forward = Batch(
-            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+            env=self.env,
+            proxy=self.proxy,
+            device=self.device,
+            float_type=self.float,
+            collect_forwards_masks=collect_forwards_masks,
+            collect_backwards_masks=collect_backwards_masks,
         )
         while envs:
             # Sample actions
@@ -580,9 +615,14 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
+        envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
         batch_train = Batch(
-            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+            env=self.env,
+            proxy=self.proxy,
+            device=self.device,
+            float_type=self.float,
+            collect_forwards_masks=collect_forwards_masks,
+            collect_backwards_masks=collect_backwards_masks,
         )
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
@@ -615,13 +655,20 @@ class GFlowNetAgent:
         # REPLAY BACKWARD trajectories
         t0_replay = time.time()
         batch_replay = Batch(
-            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+            env=self.env,
+            proxy=self.proxy,
+            device=self.device,
+            float_type=self.float,
+            collect_forwards_masks=collect_forwards_masks,
+            collect_backwards_masks=collect_backwards_masks,
         )
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
+                envs = [
+                    env_instances.pop().reset(idx) for idx in range(n_replay)
+                ]
                 x_replay = self.buffer.select(
                     dict_replay, n_replay, self.replay_sampling, self.rng
                 )
@@ -1113,6 +1160,11 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Train loop
+        collect_backwards_masks = self.loss in [
+            "trajectorybalance",
+            "detailedbalance",
+            "forwardlooking",
+        ]
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
             # Test and log
@@ -1133,6 +1185,8 @@ class GFlowNetAgent:
                     n_forward=self.batch_size.forward,
                     n_train=self.batch_size.backward_dataset,
                     n_replay=self.batch_size.backward_replay,
+                    collect_forwards_masks=True,
+                    collect_backwards_masks=collect_backwards_masks,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):

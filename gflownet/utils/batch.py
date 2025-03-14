@@ -41,6 +41,8 @@ class Batch:
         proxy: Optional[Proxy] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
+        collect_forwards_masks=False,
+        collect_backwards_masks=False,
     ):
         """
         Arguments
@@ -60,15 +62,19 @@ class Batch:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_type)
-        # Generic environment, properties and dictionary of state and forward mask of
-        # source (as tensor)
+
+        # Keep reference to the provided env. However, this env instance might be
+        # used by other objects so, to avoid causing issues, this object should be
+        # treated as read-only. No method that changes the state of this object may be
+        # called on this object. Ex : reset(), step(), any setter method, ...
         if env is not None:
             self.set_env(env)
         else:
-            self.env = None
+            self.readonly_env = None
             self.source = None
             self.conditional = None
             self.continuous = None
+
         # Proxy
         self.proxy = proxy
         # Initialize batch size 0
@@ -93,6 +99,9 @@ class Batch:
         self.n_actions = []
         self.states_policy = None
         self.parents_policy = None
+        # Flag to indicate if masks should be collected in add_to_batch
+        self.collect_forwards_masks = collect_forwards_masks
+        self.collect_backwards_masks = collect_backwards_masks
         # Flags for available items
         self._parents_available = False
         self._parents_policy_available = False
@@ -204,15 +213,16 @@ class Batch:
         Sets the generic environment passed as an argument and initializes the
         environment-dependent properties.
         """
-        self.env = env.copy().reset()
+        self.readonly_env = env
+        source_state = self.readonly_env.source
         self.source = {
-            "state": self.env.source,
-            "mask_forward": tbool(
-                self.env.get_mask_invalid_actions_forward(), device=self.device
+            "state": source_state,
+            "mask_forward": self.readonly_env.get_mask_invalid_actions_forward(
+                state=source_state, done=False
             ),
         }
-        self.conditional = self.env.conditional
-        self.continuous = self.env.continuous
+        self.conditional = self.readonly_env.conditional
+        self.continuous = self.readonly_env.continuous
 
     def set_proxy(self, proxy: Proxy):
         """
@@ -306,9 +316,22 @@ class Batch:
                     self.parents.append(
                         copy(self.states[self.trajectories[env.id][-2]])
                     )
-            # Set masks to None
-            self.masks_invalid_actions_forward.append(None)
-            self.masks_invalid_actions_backward.append(None)
+            # Collect masks if needed
+            if self.collect_forwards_masks:
+                self.masks_invalid_actions_forward.append(
+                    env.get_mask_invalid_actions_forward(self.states[-1], self.done[-1])
+                )
+            else:
+                self.masks_invalid_actions_forward.append(None)
+
+            if self.collect_backwards_masks:
+                self.masks_invalid_actions_backward.append(
+                    env.get_mask_invalid_actions_backward(
+                        self.states[-1], self.done[-1]
+                    )
+                )
+            else:
+                self.masks_invalid_actions_backward.append(None)
             # Increment size of batch
             self.size += 1
         # Other variables are not available after new items were added to the batch
@@ -473,7 +496,7 @@ class Batch:
         # TODO: will env.policy_input_dim be the same for all envs if conditional?
         if self.conditional:
             states_policy = torch.zeros(
-                (len(states), self.env.policy_input_dim),
+                (len(states), self.readonly_env.policy_input_dim),
                 device=self.device,
                 dtype=self.float,
             )
@@ -487,7 +510,7 @@ class Batch:
                     self.get_states_of_trajectory(traj_idx, states, traj_indices)
                 )
             return states_policy
-        return self.env.states2policy(states)
+        return self.readonly_env.states2policy(states)
 
     def states2proxy(
         self,
@@ -545,7 +568,7 @@ class Batch:
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
             return states_proxy
-        return self.env.states2proxy(states)
+        return self.readonly_env.states2proxy(states)
 
     def get_actions(self) -> TensorType["n_states, action_dim"]:
         """
@@ -783,7 +806,7 @@ class Batch:
                 action=action,
             )
             assert (
-                self.env.action2representative(action) in parents_a
+                self.readonly_env.action2representative(action) in parents_a
             ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
@@ -854,9 +877,9 @@ class Batch:
             masks_invalid_actions_forward_parents = torch.zeros_like(
                 masks_invalid_actions_forward
             )
-            masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
-                "mask_forward"
-            ]
+            masks_invalid_actions_forward_parents[parents_indices == -1] = tbool(
+                self.source["mask_forward"], device=self.device
+            )
             masks_invalid_actions_forward_parents[parents_indices != -1] = (
                 masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
             )
@@ -1099,7 +1122,7 @@ class Batch:
         """
         # This will not work if source is randomised
         if not self.conditional:
-            source_proxy = self.env.state2proxy(self.env.source)
+            source_proxy = self.readonly_env.state2proxy(self.readonly_env.source)
             reward_source = self.proxy.rewards(source_proxy, log)
             rewards_source = reward_source.expand(len(self))
         else:
