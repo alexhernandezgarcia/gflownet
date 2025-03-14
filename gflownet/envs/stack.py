@@ -44,10 +44,6 @@ class Stack(GFlowNetEnv):
         """
         self.subenvs = OrderedDict({idx: subenv for idx, subenv in enumerate(subenvs)})
         self.n_subenvs = len(self.subenvs)
-        # A copy of the subenvs to be used by reset()
-        self.subenvs_orig = OrderedDict(
-            {idx: subenv.copy() for idx, subenv in self.subenvs.items()}
-        )
 
         # States are represented as a list of subenv's states, front-padded by the
         # index of the current subenv (stage). The source state is the list of source
@@ -63,12 +59,8 @@ class Stack(GFlowNetEnv):
             self.subenvs[self.n_subenvs - 1].eos, stage=self.n_subenvs - 1
         )
 
-        # Get the mask dimensionality by computing the maximum length among all
-        # sub-environments, plus n_subenvs indicate the sub-environment as a one-hot
-        # encoding (to keep it boolean).
-        self.mask_dim = (
-            max([subenv.mask_dim for subenv in self.subenvs.values()]) + self.n_subenvs
-        )
+        # Constraints
+        self._has_constraints = self._check_has_constraints()
 
         # Policy distributions parameters
         kwargs["fixed_distr_params"] = [
@@ -82,6 +74,52 @@ class Stack(GFlowNetEnv):
 
         # The stack is continuous if any subenv is continuous
         self.continuous = any([subenv.continuous for subenv in self.subenvs.values()])
+
+    def _compute_mask_dim(self):
+        """
+        Calculates the mask dimensionality of the Set global environment.
+
+        The mask consists of:
+            - A one-hot encoding of the index of the subenv.
+            - The mask of the sub-environment at the current stage.
+
+        Therefore, the dimensionality is the number of sub-environments, plus the
+        maximum dimensionality of the mask of all sub-environments.
+
+        Returns
+        -------
+        int
+            The number of elements in the Stack masks.
+        """
+        mask_dim_subenvs = [subenv.mask_dim for subenv in self.subenvs.values()]
+        return max(mask_dim_subenvs) + self.n_subenvs
+
+    @property
+    def has_constraints(self):
+        """
+        Returns True if the Stack has constraints across sub-environments.
+
+        Returns
+        -------
+        Whether the Stack has constraints.
+        """
+        return self._has_constraints
+
+    def _check_has_constraints(self) -> bool:
+        """
+        Checks whether the Stack has constraints across sub-environments.
+
+        By default, the Stack has no constraints (False)
+
+        This method should be overriden in environments that incorporate constraints
+        across sub-environmnents via _apply_constraints().
+
+        Returns
+        -------
+        bool
+            True if the Stack has constraints, False otherwise
+        """
+        return False
 
     def get_action_space(self) -> List[Tuple]:
         """
@@ -123,10 +161,16 @@ class Stack(GFlowNetEnv):
         """
         if stage is None:
             stage = action[0]
+        else:
+            assert stage == action[0]
         return action[1 : 1 + len(self.subenvs[stage].eos)]
 
-    def get_max_traj_length(self) -> int:
-        return sum([subenv.get_max_traj_length() for subenv in self.subenvs.values()])
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return sum([subenv.max_traj_length for subenv in self.subenvs.values()]) + 1
 
     def get_policy_output(self, params: list[dict]) -> TensorType["policy_output_dim"]:
         """
@@ -168,12 +212,15 @@ class Stack(GFlowNetEnv):
 
     def reset(self, env_id: Union[int, str] = None):
         """
-        Resets the environment by copying the original subenvs.
+        Resets the environment by resetting the sub-environments.
         """
-        self.subenvs = OrderedDict(
-            {idx: subenv.copy() for idx, subenv in self.subenvs_orig.items()}
-        )
+        for subenv in self.subenvs.values():
+            subenv.reset()
         super().reset(env_id=env_id)
+
+        # Some constraints might apply between sub-environment, which we reinitialize
+        # by considering the reset as one huge backward action.
+        self._apply_constraints(is_backward=True)
         return self
 
     # TODO: do we need a method for this?
@@ -186,7 +233,29 @@ class Stack(GFlowNetEnv):
             state = self.state
         return state[0]
 
-    # TODO: do we need a method for this?
+    def _set_stage(self, stage: int, state: Optional[List] = None) -> List:
+        """
+        Sets the stage of the current sub-environment in self.state or in the state
+        passed as an argument.
+
+        Parameters
+        ----------
+        stage : int
+            Index of the sub-environment to set as stage.
+        state : list
+            A state of the parent Stack environment.
+
+        Returns
+        -------
+        list
+            The Stack state.
+        """
+        assert stage in self.subenvs.keys()
+        if state is None:
+            state = self.state
+        state[0] = stage
+        return state
+
     def _get_substate(self, state: List, stage: Optional[int] = None):
         """
         Returns the part of the state corresponding to the subenv indicated by stage.
@@ -203,6 +272,38 @@ class Stack(GFlowNetEnv):
         if stage is None:
             stage = self._get_stage(state)
         return state[stage + 1]
+
+    def _set_substate(
+        self,
+        stage: int,
+        state_subenv: Union[List, TensorType, dict],
+        state: Optional[List] = None,
+    ) -> List:
+        """
+        Updates the global (Stack) state by setting the state of the subenv indicated
+        by stage.
+
+        This method modifies self.state if state is None.
+
+        Parameters
+        ----------
+        stage : int
+            Index of the sub-environment of which to set the state.
+        state_subenv : list or tensor or dict
+            The state of a sub-environment.
+        state : list
+            A state of the global Stack environment.
+
+        Returns
+        -------
+        list
+            The Set state.
+        """
+        assert stage in self.subenvs.keys()
+        if state is None:
+            state = self.state
+        state[stage + 1] = state_subenv
+        return state
 
     def _get_stage_subenv_substate_done(
         self,
@@ -230,12 +331,7 @@ class Stack(GFlowNetEnv):
         stage = self._get_stage(state)
         subenv = self.subenvs[stage]
         state_subenv = self._get_substate(state, stage)
-        if (
-            is_backward
-            and stage > 0
-            and not done
-            and subenv.equal(state_subenv, subenv.source)
-        ):
+        if is_backward and stage > 0 and not done and subenv.is_source(state_subenv):
             stage = stage - 1
             subenv = self.subenvs[stage]
             state_subenv = self._get_substate(state, stage)
@@ -251,11 +347,36 @@ class Stack(GFlowNetEnv):
         The mask of the stack environment is the mask of the current sub-environment,
         preceded by a one-hot encoding of the index of the subenv and padded with False
         up to mask_dim. Including only the relevant mask saves memory and computation.
+
+        If state is passed as an argument (not None) and the Stack has constraints, we
+        first set the state. This is necessary because otherwise the sub-environments
+        may not have the correct attributes necessary to calculate the mask.
         """
+        # Set the state if a state & done are provided, which are different from the
+        # environment's current ones, and the environment has constraints
+        env_was_set = False
+        env_original_state = None
+        env_original_done = None
+        if state is not None and self.has_constraints:
+            env_original_state = self._get_state(None)
+            env_original_done = self._get_done(None)
+
+            # Comparing the env state to the provided state is generally orders of
+            # magnitude faster compared to setting the env state so it is worth it to
+            # ensure that the env state is not set needlessly.
+            if not self.equal(state, env_original_state) or done != env_original_done:
+                self.set_state(state, done)
+                env_was_set = True
+
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done
         )
         mask = subenv.get_mask_invalid_actions_forward(state_subenv, done)
+
+        # If needed, set back the env to its original state
+        if env_was_set:
+            self.set_state(env_original_state, env_original_done)
+
         return self._format_mask(mask, stage, subenv.mask_dim)
 
     def get_mask_invalid_actions_backward(
@@ -278,11 +399,36 @@ class Stack(GFlowNetEnv):
               stage and the EOS action must come from itself, not the preceding subenv.
             - if the current stage is the first sub-environment, in which case there is
               no preceding stage.
+
+        If state is passed as an argument (not None) and the Stack has constraints, we
+        first set the state. This is necessary because otherwise the sub-environments
+        may not have the correct attributes necessary to calculate the mask.
         """
+        # Set the state if a state & done are provided, which are different from the
+        # environment's current ones, and the environment has constraints
+        env_was_set = False
+        env_original_state = None
+        env_original_done = None
+        if state is not None and self.has_constraints:
+            env_original_state = self._get_state(None)
+            env_original_done = self._get_done(None)
+
+            # Comparing the env state to the provided state is generally orders of
+            # magnitude compared to setting the env state so it is worth it to
+            # ensure that the env state is not set needlessly.
+            if not self.equal(state, env_original_state) or done != env_original_done:
+                self.set_state(state, done)
+                env_was_set = True
+
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done, is_backward=True
         )
         mask = subenv.get_mask_invalid_actions_backward(state_subenv, done)
+
+        # If needed, set back the env to its original state
+        if env_was_set:
+            self.set_state(env_original_state, env_original_done)
+
         return self._format_mask(mask, stage, subenv.mask_dim)
 
     # TODO: rethink whether padding should be True (invalid) instead.
@@ -325,16 +471,28 @@ class Stack(GFlowNetEnv):
         cover the entire action space, but only the current sub-environment. Therefore,
         this method calls the get_valid_actions() method of the currently relevant
         sub-environment and returns the padded actions.
+
+        If state is passed as an argument (not None) and the Stack has constraints, we
+        first set the state. This is necessary because otherwise the sub-environments
+        may not have the correct attributes necessary to calculate the mask.
         """
-        stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
+        # Set the state if it is not None and the environment has constraints.
+        # The environment is copied to avoid unexpected behaviour
+        if state is not None and self.has_constraints:
+            env = self.copy()
+            env.set_state(state, done)
+        else:
+            env = self
+
+        stage, subenv, state_subenv, done = env._get_stage_subenv_substate_done(
             state, done, backward
         )
         if mask is not None:
             # Extract the part of the mask corresponding to the sub-environment
             # TODO: consider writing a method to do this
-            mask = mask[self.n_subenvs : self.n_subenvs + subenv.mask_dim]
+            mask = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
         return [
-            self._pad_action(action, stage)
+            env._pad_action(action, stage)
             for action in subenv.get_valid_actions(mask, state_subenv, done, backward)
         ]
 
@@ -359,7 +517,64 @@ class Stack(GFlowNetEnv):
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
 
-    # TODO: do we need a method for this?
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        """
+        Determines all parents and actions that lead to state.
+
+        Parameters
+        ----------
+        state : list
+            State in environment format. If not, self.state is used.
+
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+
+        action : tuple
+            Ignored.
+
+        Returns
+        -------
+        parents : list
+            List of parents in state format
+
+        actions : list
+            List of actions that lead to state for each parent in parents
+        """
+        # Set the state if it is not None and the environment has constraints.
+        # The environment is copied to avoid unexpected behaviour
+        if state is not None and self.has_constraints:
+            env = self.copy()
+            env.set_state(state, done)
+        else:
+            env = self
+            state = self._get_state(state)
+            done = self._get_done(done)
+
+        # If done is True, the only parent is the state itself with action EOS.
+        if done:
+            return [state], [self.eos]
+
+        # Compute parents from relevant sub-environment
+        stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
+            state, done, is_backward=True
+        )
+        parents_subenv, parent_actions = subenv.get_parents(state_subenv, done)
+        parents = []
+        # Convert parents to Stack states
+        for parent_subenv in parents_subenv:
+            parent = copy(state)
+            parent = self._set_stage(stage, parent)
+            parent = self._set_substate(stage, parent_subenv, parent)
+            parents.append(parent)
+        # Pad actions
+        parent_actions = [self._pad_action(action, stage) for action in parent_actions]
+        return parents, parent_actions
+
     def _update_state(self, stage: int):
         """
         Updates the global state based on the states of the sub-environments and the
@@ -432,7 +647,7 @@ class Stack(GFlowNetEnv):
                 self.done = True
             else:
                 stage += 1
-                self._apply_constraints(action)
+                self._apply_constraints(action=action)
 
         # Update gloabl state and return
         self.state = self._update_state(stage)
@@ -500,10 +715,20 @@ class Stack(GFlowNetEnv):
             assert action == self.eos
             self.done = False
 
+        # If action is EOS of subenv, apply backward constraints
+        if action_subenv == subenv.eos:
+            self._apply_constraints(action=action, is_backward=True)
+
         self.state = self._update_state(stage)
         return self.state, action, valid
 
-    def _apply_constraints(self, action: Tuple = None):
+    def _apply_constraints(
+        self,
+        action: Tuple = None,
+        state: Union[List, torch.Tensor] = None,
+        dones: List[bool] = None,
+        is_backward: bool = False,
+    ):
         """
         Applies constraints across sub-environments. No constraints are applied by
         default, but this method may be overriden by children classes to incorporate
@@ -511,11 +736,20 @@ class Stack(GFlowNetEnv):
 
         This method is used in step() and set_state().
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple (optional)
             An action, which can be used to determine whether which constraints should
             be applied and which should not, since the computations may be intensive.
+        state : list or tensor (optional)
+            A state that can optionally be passed to set in the environment after
+            applying the constraints. This may typically be used by set_state().
+        dones : list
+            List of boolean values indicating the sub-environments that are done. This
+            may be optionally used to set the state together with done after applying
+            the constraints. This may typically be used by set_state().
+        is_backward : bool
+            Boolean flag to indicate whether the action is in the backward direction.
         """
         pass
 
@@ -534,7 +768,7 @@ class Stack(GFlowNetEnv):
             subenv.set_state(self._get_substate(self.state, stage), done_subenv)
 
         # Apply constraints
-        self._apply_constraints()
+        self._apply_constraints(state=state, dones=dones)
 
         return self
 
@@ -676,9 +910,7 @@ class Stack(GFlowNetEnv):
             dim=1,
         )
 
-    def states2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    def states2proxy(self, states: List[List]) -> List[List]:
         """
         Prepares a batch of states in "environment format" for a proxy: simply a
         concatenation of the proxy-format states of the sub-environments.
@@ -690,15 +922,18 @@ class Stack(GFlowNetEnv):
 
         Returns
         -------
-        A tensor containing all the states in the batch.
+        A list of lists, each containing the proxy representation of all the states in
+        the Stack, for all the Stacks in the batch..
         """
-        return torch.cat(
-            [
-                subenv.states2proxy([state[stage + 1] for state in states])
-                for stage, subenv in self.subenvs.items()
-            ],
-            dim=1,
-        )
+        states_proxy = []
+        for state in states:
+            states_proxy.append(
+                [
+                    subenv.state2proxy(self._get_substate(state, idx))[0]
+                    for idx, subenv in self.subenvs.items()
+                ]
+            )
+        return states_proxy
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         """
@@ -745,9 +980,29 @@ class Stack(GFlowNetEnv):
         representative = self._pad_action(representative_subenv, stage)
         return representative
 
-    @staticmethod
-    def equal(state_x, state_y):
+    def is_source(self, state: Optional[List] = None) -> bool:
         """
-        Overwrites equal() to account for the composite nature of the states.
+        Returns True if the environment's state or the state passed as parameter (if
+        not None) is the source state of the environment.
+
+        This method is overriden for efficiency (for example, it would return False
+        immediately if the stage is not the first stage) and to cover special uses of
+        the Stack.
+
+        Parameters
+        ----------
+        state : list
+            None, or a state in environment format.
+
+        Returns
+        -------
+        bool
+            Whether the state is the source state of the environment
         """
-        return all([GFlowNetEnv.equal(sx, sy) for sx, sy in zip(state_x, state_y)])
+        state = self._get_state(state)
+        return self._get_stage(state) == 0 and all(
+            [
+                subenv.is_source(self._get_substate(state, stage))
+                for stage, subenv in self.subenvs.items()
+            ]
+        )
