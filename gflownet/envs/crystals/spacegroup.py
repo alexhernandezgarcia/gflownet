@@ -417,7 +417,11 @@ class SpaceGroup(GFlowNetEnv):
             self.done = True
             return self.state, action, valid
 
-    def get_max_traj_length(self):
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
         return len(self.source) + 1
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
