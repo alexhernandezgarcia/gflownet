@@ -506,7 +506,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx)
         env_aux = env_aux.set_state(state=x, done=True)
-        env_aux.n_actions = env_aux.get_max_traj_length()
+        env_aux.n_actions = env_aux.max_traj_length
         envs.append(env_aux)
 
     # Initialize empty lists for checks
@@ -770,7 +770,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx + batch_size_forward)
         env_aux = env_aux.set_state(state=x, done=True)
-        env_aux.n_actions = env_aux.get_max_traj_length()
+        env_aux.n_actions = env_aux.max_traj_length
         envs.append(env_aux)
 
     states_term_sorted.extend([copy(x) for x in x_batch])
@@ -1024,7 +1024,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx)
         env_aux = env_aux.set_state(state=x, done=True)
-        env_aux.n_actions = env_aux.get_max_traj_length()
+        env_aux.n_actions = env_aux.max_traj_length
         envs.append(env_aux)
 
     states_term_sorted.extend([copy(x) for x in x_batch])
