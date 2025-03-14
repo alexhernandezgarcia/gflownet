@@ -18,11 +18,31 @@ def cube2d():
     return ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1)
 
 
+@pytest.fixture
+def cube4d_ignored_dims():
+    return ContinuousCube(
+        n_dim=4, ignored_dims=[True, False, True, False], n_comp=3, min_incr=0.1
+    )
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        "cube1d",
+        "cube2d",
+    ],
+)
+def test__environment__initializes_properly(env, request):
+    env = request.getfixturevalue(env)
+    assert True
+
+
 @pytest.mark.parametrize(
     "action_space",
     [
         [
             (0.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0),
             (np.inf, np.inf, np.inf),
         ],
     ],
@@ -30,6 +50,18 @@ def cube2d():
 def test__get_action_space__returns_expected(cube2d, action_space):
     env = cube2d
     assert action_space == env.action_space
+
+
+@pytest.mark.parametrize(
+    "env, mask_dim_expected",
+    [
+        ("cube1d", 3 + 1),
+        ("cube2d", 3 + 2),
+    ],
+)
+def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
+    env = request.getfixturevalue(env)
+    assert env.mask_dim == mask_dim_expected
 
 
 @pytest.mark.parametrize("env", ["cube1d", "cube2d"])
@@ -1141,7 +1173,20 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 100,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 100,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
 
 
 class TestContinuousCubeBasic(common.BaseTestsContinuous):
@@ -1152,4 +1197,41 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 100,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 100,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestContinuousCube4DIgnoredDims(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, cube4d_ignored_dims):
+        self.env = cube4d_ignored_dims
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 100,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 100,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
