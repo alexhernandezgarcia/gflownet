@@ -15,8 +15,16 @@ replay_capacity: null
 # - path: path to a CSV of pickled file (for type={pkl, csv})
 # - n: number of samples (for type={grid, uniform, random})
 # - seed: seed for random sampling (for type={uniform, random})
-train: null
-test: null
+train:
+  type: null
+  path: null
+  n: null
+  seed: null
+test:
+  type: null
+  path: null
+  n: null
+  seed: null
 
 # Whether to add all training samples to a buffer
 use_main_buffer: False

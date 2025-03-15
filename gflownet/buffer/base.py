@@ -85,8 +85,8 @@ class BaseBuffer:
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
-        self.train_config = train
-        self.test_config = test
+        self.train_config = self._process_data_config(train)
+        self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
         self.check_diversity = check_diversity
         if self.use_main_buffer:
@@ -597,3 +597,10 @@ class BaseBuffer:
             raise ValueError(f"Unrecognized sampling mode: {mode}.")
 
         return df.loc[selected_index]
+
+    @staticmethod
+    def _process_data_config(config: dict = None):
+        if all([v is None for v in config.values()]):
+            return None
+        else:
+            return config
