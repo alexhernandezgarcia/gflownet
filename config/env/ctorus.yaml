@@ -19,9 +19,3 @@ fixed_distr_params:
 random_distr_params:
   vonmises_mean: 0.0
   vonmises_concentration: 0.01
-
-# Buffer
-buffer:
-  test:
-    type: grid
-    n: 1000

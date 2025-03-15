@@ -20,6 +20,9 @@ env:
 # Buffer
 buffer:
   replay_capacity: 100
+  test:
+    type: random
+    n: 1000
 
 # Proxy
 proxy:

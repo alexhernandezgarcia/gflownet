@@ -272,9 +272,6 @@ def gflownet_from_config(config):
     # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
     # dataset) it has the correct infro from env
     # proxy.setup(env)
-
-    # TODO: improve - this is likely not the cleanest way of dealing with it
-    config.buffer = {**config.buffer, **instantiate(config.env.buffer)}
     buffer = instantiate(
         config.buffer,
         env=env,

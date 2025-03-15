@@ -16,6 +16,9 @@ jobs:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: flowmatch
       proxy: box/corners
       logger:
@@ -26,6 +29,9 @@ jobs:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: trajectorybalance
       proxy: box/corners
       logger:
@@ -36,6 +42,9 @@ jobs:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: detailedbalance
       proxy: box/corners
       logger:
@@ -46,6 +55,9 @@ jobs:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: forwardlooking
       proxy: box/corners
       logger:
@@ -58,6 +70,10 @@ jobs:
         __value__: tetris
         width: 5
         height: 10
+      buffer:
+        test:
+          type: random
+          n: 10
       gflownet: flowmatch
       proxy: tetris
       evaluator:
@@ -72,6 +88,10 @@ jobs:
         __value__: tetris
         width: 5
         height: 10
+      buffer:
+        test:
+          type: random
+          n: 10
       gflownet: trajectorybalance
       proxy: tetris
       evaluator:
@@ -84,6 +104,10 @@ jobs:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
+      buffer:
+        test:
+          type: grid
+          n: 1000
       evaluator:
         period: 500
       logger:

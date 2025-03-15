@@ -31,9 +31,3 @@ random_distribution:
   beta_beta: 10.0
   bernoulli_bts_prob: 0.1
   bernoulli_eos_prob: 0.1
-
-# Buffer
-buffer:
-  test:
-    type: grid
-    n: 900

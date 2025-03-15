@@ -14,9 +14,3 @@ rotations: [0, 90, 180, 270]
 # Other config
 allow_redundant_rotations: False
 allow_eos_before_full: False
-
-# Bufer
-buffer:
-  test:
-    type: random
-    n: 10
