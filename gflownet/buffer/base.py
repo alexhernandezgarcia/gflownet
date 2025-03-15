@@ -28,7 +28,7 @@ class BaseBuffer:
         proxy,
         datadir: Union[str, PosixPath],
         replay_buffer: Union[str, PosixPath] = None,
-        replay_capacity=0,
+        replay_capacity: int = 0,
         train: Dict = None,
         test: Dict = None,
         use_main_buffer=False,
@@ -49,6 +49,9 @@ class BaseBuffer:
             replay buffer will be loaded from this file. This is useful for for
             resuming runs. By default it is None, which initializes an empty buffer and
             creates a new file.
+        replay_capacity : int
+            Size of the replay buffer. By default, it is zero, thus no replay buffer is
+            used.
         train : dict
             A dictionary describing the training data. The dictionary can have the
             following keys:
