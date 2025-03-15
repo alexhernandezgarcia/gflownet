@@ -5,7 +5,7 @@ Base Buffer class to handle train and test data sets, reply buffer, etc.
 import ast
 import pickle
 from pathlib import Path, PosixPath
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -29,8 +29,8 @@ class BaseBuffer:
         datadir: Union[str, PosixPath],
         replay_buffer: Union[str, PosixPath] = None,
         replay_capacity=0,
-        train=None,
-        test=None,
+        train: Dict = None,
+        test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
         **kwargs,
@@ -49,6 +49,31 @@ class BaseBuffer:
             replay buffer will be loaded from this file. This is useful for for
             resuming runs. By default it is None, which initializes an empty buffer and
             creates a new file.
+        train : dict
+            A dictionary describing the training data. The dictionary can have the
+            following keys:
+                - type : str
+                    Type of data. It can be one of the following:
+                        - pkl: a pickled file. Requires path.
+                        - csv: a CSV file. Requires path.
+                        - all: all terminating states of the environment.
+                        - grid: a grid of terminating states. Requires n.
+                        - uniform: terminating states uniformly sampled. Requires n.
+                        - random: terminating states sampled randomly from the intial
+                          GFN policy. Requires n.
+                - path : str
+                    Path to a CSV of pickled file (for type={pkl, csv})
+                - n : int
+                    Number of samples (for type={grid, uniform, random})
+                - seed : int
+                    Seed for random sampling (for type={uniform, random})
+        test : dict
+            A dictionary describing the test data. The dictionary is akin the train
+            dictionarity.
+        use_main_buffer : bool
+            If True, a main buffer is kept up to date, that is all training samples are
+            added to a buffer. It is False by default because of the potentially large
+            memory usage it can incur.
         check_diversity : bool
             If True, new samples are only added to the buffer if they are not close to
             any of the samples already present in the buffer. env.isclose() is used
