@@ -2,7 +2,24 @@ _target_: gflownet.buffer.base.BaseBuffer
 
 replay_buffer: null
 replay_capacity: null
+
+# Train and test data
+# Both train and test are dictionaries with the following keys:
+# - type: type of data. It can be one of the following:
+#   - pkl: a pickled file. Requires path.
+#   - csv: a CSV file. Requires path.
+#   - all: all terminating states of the environment.
+#   - grid: a grid of terminating states. Requires n.
+#   - uniform: terminating states uniformly sampled. Requires n.
+#   - random: terminating states sampled randomly from the intial GFN policy. Requires n.
+# - path: path to a CSV of pickled file (for type={pkl, csv})
+# - n: number of samples (for type={grid, uniform, random})
+# - seed: seed for random sampling (for type={uniform, random})
 train: null
 test: null
+
+# Whether to add all training samples to a buffer
 use_main_buffer: False
+
+# Whether new samples are compared to samples in the buffer before adding
 check_diversity: False

@@ -13,13 +13,15 @@ env:
   length: 20
   max_increment: 1
   max_dim_per_action: 1
-  buffer:
-    replay_capacity: 10
-    train:
-      type: random
-      n: 20
-    test:
-      type: all
+
+# Buffer
+buffer:
+  replay_capacity: 10
+  train:
+    type: random
+    n: 20
+  test:
+    type: all
 
 # GFlowNet hyperparameters
 gflownet:

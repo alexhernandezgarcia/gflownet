@@ -34,8 +34,6 @@ random_distribution:
 
 # Buffer
 buffer:
-  data_path: null
-  train: null
   test:
     type: grid
     n: 900

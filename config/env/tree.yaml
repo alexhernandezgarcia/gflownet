@@ -28,10 +28,9 @@ fixed_distr_params:
 random_distr_params:
   beta_alpha: 1.0
   beta_beta: 1.0
+
 # Buffer
 buffer:
-  data_path: null
-  train: null
   test:
     type: random
     n: 1000

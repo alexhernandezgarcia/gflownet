@@ -14,9 +14,9 @@ length_traj: 12
 max_increment: 1
 # Maximum number of dimensions that can be incremented by one action
 max_dim_per_action: 1
+
 # Buffer
 buffer:
-  data_path: null
   train:
     type: all
   test:

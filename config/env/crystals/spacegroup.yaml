@@ -12,7 +12,6 @@ n_atoms: null
 
 # Buffer
 buffer:
-  data_path: null
   train:
     type: all
   test:
