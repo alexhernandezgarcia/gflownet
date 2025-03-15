@@ -5,3 +5,4 @@ replay_capacity: null
 train: null
 test: null
 use_main_buffer: False
+check_diversity: False

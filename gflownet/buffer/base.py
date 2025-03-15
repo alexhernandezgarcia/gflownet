@@ -32,6 +32,7 @@ class BaseBuffer:
         train=None,
         test=None,
         use_main_buffer=False,
+        check_diversity: bool = False,
         **kwargs,
     ):
         """
@@ -48,6 +49,12 @@ class BaseBuffer:
             replay buffer will be loaded from this file. This is useful for for
             resuming runs. By default it is None, which initializes an empty buffer and
             creates a new file.
+        check_diversity : bool
+            If True, new samples are only added to the buffer if they are not close to
+            any of the samples already present in the buffer. env.isclose() is used
+            for the comparison. It is False by default because this comparison can
+            easily take most of the running time with an uncertain impact on the
+            performance. The implementation should be improved to make this functional.
         """
         self.datadir = datadir
         self.env = env
@@ -56,6 +63,7 @@ class BaseBuffer:
         self.train_config = train
         self.test_config = test
         self.use_main_buffer = use_main_buffer
+        self.check_diversity = check_diversity
         if self.use_main_buffer:
             self.main = pd.DataFrame(
                 columns=["samples", "trajectories", "rewards", "iter"]
@@ -321,7 +329,7 @@ class BaseBuffer:
             A terminating state.
         trajectory : list
             A list of trajectory actions of leading to the terminating state.
-        reward : flaot
+        reward : float
             The reward or log-reward of the terminating state.
         it : int
             Iteration number.
@@ -332,9 +340,10 @@ class BaseBuffer:
         """
         # Return without adding if the sample is close to any sample already present in
         # the buffer
-        for rsample in self.replay["samples"]:
-            if self.env.isclose(sample, rsample):
-                return
+        if self.check_diversity:
+            for rsample in self.replay["samples"]:
+                if self.env.isclose(sample, rsample):
+                    return
 
         # If the buffer is full, check if the reward is larger than the minimum reward
         # in the buffer. If so, drop the sample with the minimum reward.
