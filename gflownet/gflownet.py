@@ -1289,7 +1289,7 @@ class GFlowNetAgent:
                 )
             )
 
-            # Log metrics
+            # Log train rewards and scores
             self.logger.log_rewards_and_scores(
                 rewards,
                 logrewards,
@@ -1298,6 +1298,8 @@ class GFlowNetAgent:
                 prefix="Train batch -",
                 use_context=self.use_context,
             )
+
+            # Log trajectory lengths, batch size, logZ and learning rates
             self.logger.log_metrics(
                 metrics={
                     "step": self.it,
@@ -1312,6 +1314,8 @@ class GFlowNetAgent:
                 step=self.it,
                 use_context=self.use_context,
             )
+
+            # Log losses
             self.logger.log_metrics(
                 metrics=loss_metrics,
                 step=self.it,
