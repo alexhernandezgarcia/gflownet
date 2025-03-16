@@ -28,13 +28,15 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 50
+      forward: 80
       backward_replay: 10
       backward_dataset: 10
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
     n_train_steps: 10000
+  replay_sampling: weighted
+  train_sampling: permutation
 
 # Policy
 policy:
@@ -51,6 +53,7 @@ logger:
     online: False
   lightweight: True
   project_name: "grid"
+  run_name: "20x20 Buffers"
   tags: 
     - gflownet
     - grid

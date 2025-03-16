@@ -10,7 +10,7 @@ defaults:
 # Environment
 env:
   n_dim: 2
-  length: 10
+  length: 20
   max_increment: 1
   max_dim_per_action: 1
 
@@ -45,6 +45,7 @@ logger:
     online: False
   lightweight: True
   project_name: "grid"
+  run_name: "20x20"
   tags: 
     - gflownet
     - grid
