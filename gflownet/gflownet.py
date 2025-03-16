@@ -1193,8 +1193,30 @@ class GFlowNetAgent:
             self.logger.end()
 
     @torch.no_grad()
-    def log_train_iteration(self, pbar: tqdm, losses: int, batch: Batch, times: dict):
-        ### Buffer
+    def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):
+        """
+        Carries out the logging operations after the training iteration.
+
+        The operations done by this method include:
+            - Updating the main buffer
+            - Updating the replay buffer
+            - Logging the rewards and scores of the train batch
+            - Logging the losses, logZ, learning rate and other metrics of the training
+              process
+            - Updating the progress bar
+            - Save checkpoints
+
+        Parameters
+        ----------
+        pbar : tqdm
+            Progress bar object
+        losses : list
+            List of losses after the training iteration
+        batch : Batch
+            Training batch
+        times : dict
+            Dictionary of times
+        """
         t0_buffer = time.time()
 
         states_term = batch.get_terminating_states(sort_by="trajectory")
@@ -1221,7 +1243,7 @@ class GFlowNetAgent:
             self.buffer.add(
                 states_term,
                 actions_trajectories,
-                logrewards.tolist(),
+                rewards,
                 self.it,
                 buffer="main",
             )
@@ -1229,7 +1251,7 @@ class GFlowNetAgent:
         self.buffer.add(
             states_term,
             actions_trajectories,
-            logrewards,
+            rewards,
             self.it,
             buffer="replay",
         )
@@ -1249,10 +1271,10 @@ class GFlowNetAgent:
                 logz = None
 
             # Trajectory length
-            trajectory_lenghts = [len(state) for state in states_term]
-            traj_length_mean = np.mean(trajectory_lenghts)
-            traj_length_min = np.min(trajectory_lenghts)
-            traj_length_max = np.max(trajectory_lenghts)
+            trajectory_lengths = [len(state) for state in states_term]
+            traj_length_mean = np.mean(trajectory_lengths)
+            traj_length_min = np.min(trajectory_lengths)
+            traj_length_max = np.max(trajectory_lengths)
 
             # Learning rates
             learning_rates = self.lr_scheduler.get_last_lr()

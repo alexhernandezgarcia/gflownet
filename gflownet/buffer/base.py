@@ -242,7 +242,7 @@ class BaseBuffer:
         self,
         samples,
         trajectories,
-        rewards,
+        rewards: Union[List, TensorType],
         it,
         buffer="main",
         criterion="greater",
@@ -250,16 +250,14 @@ class BaseBuffer:
         """
         Adds a batch of samples (with the trajectory actions and rewards) to the buffer.
 
-        Note that the rewards may be log-rewards.
-
         Parameters
         ----------
         samples : list
             A batch of terminating states.
         trajectories : list
             The list of trajectory actions of each terminating state.
-        rewards : list
-            The reward or log-reward of each terminating state.
+        rewards : list or tensor
+            The reward of each terminating state.
         it : int
             Iteration number.
         buffer : str
@@ -267,6 +265,9 @@ class BaseBuffer:
         criterion : str
             Identifier of the criterion. Currently, only greater is implemented.
         """
+        if torch.is_tensor(rewards):
+            rewards = rewards.tolist()
+
         if buffer == "main":
             self.main = pd.concat(
                 [
@@ -306,7 +307,7 @@ class BaseBuffer:
         self,
         samples: List,
         trajectories: List,
-        rewards: Union[List, TensorType],
+        rewards: List,
         it: int,
     ):
         """
@@ -321,7 +322,7 @@ class BaseBuffer:
         trajectories : list
             The list of trajectory actions of each terminating state.
         rewards : list
-            The reward or log-reward of each terminating state.
+            The reward of each terminating state.
         it : int
             Iteration number.
 
@@ -329,8 +330,6 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
-        if torch.is_tensor(rewards):
-            rewards = rewards.tolist()
         for sample, traj, reward in zip(samples, trajectories, rewards):
             self._add_greater_single_sample(sample, traj, reward, it)
         self.save_replay()
@@ -344,10 +343,6 @@ class BaseBuffer:
         if the state reward is larger than the minimum reward in the buffer and the
         trajectory is not yet in the buffer.
 
-        Note that the rewards may be log-rewards. The reward is only used to check the
-        inclusion criterion. Since the logarithm is a monotonic function, using the log
-        or natural rewards is equivalent for this purpose.
-
         If the sample is similar to any sample already present in the buffer, then the
         sample will not be added.
 
@@ -358,7 +353,7 @@ class BaseBuffer:
         trajectory : list
             A list of trajectory actions of leading to the terminating state.
         reward : float
-            The reward or log-reward of the terminating state.
+            The reward of the terminating state.
         it : int
             Iteration number.
 
