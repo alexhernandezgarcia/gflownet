@@ -17,6 +17,7 @@ env:
 # Buffer
 buffer:
   replay_capacity: 10
+  check_diversity: True
   train:
     type: random
     n: 20

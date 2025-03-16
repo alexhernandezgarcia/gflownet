@@ -233,10 +233,15 @@ class Logger:
             f"{prefix} rewards max": rewards.max(),
             f"{prefix} logrewards mean": logrewards.mean(),
             f"{prefix} logrewards max": logrewards.max(),
-            f"{prefix} scores mean": scores.mean(),
-            f"{prefix} scores min": scores.min(),
-            f"{prefix} scores max": scores.max(),
         }
+        if scores is not None:
+            metrics.update(
+                {
+                    f"{prefix} scores mean": scores.mean(),
+                    f"{prefix} scores min": scores.min(),
+                    f"{prefix} scores max": scores.max(),
+                }
+            )
 
         self.log_metrics(metrics, step=step, use_context=use_context)
 

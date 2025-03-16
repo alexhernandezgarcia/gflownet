@@ -1238,6 +1238,8 @@ class GFlowNetAgent:
         if not batch.rewards_available(log=True):
             assert batch.rewards_available(log=False)
             logrewards = torch.log(rewards)
+
+        # Update main buffer
         actions_trajectories = batch.get_actions_trajectories()
         if self.buffer.use_main_buffer:
             self.buffer.add(
@@ -1248,6 +1250,7 @@ class GFlowNetAgent:
                 buffer="main",
             )
 
+        # Update replay buffer
         self.buffer.add(
             states_term,
             actions_trajectories,
@@ -1321,6 +1324,18 @@ class GFlowNetAgent:
                 step=self.it,
                 use_context=self.use_context,
             )
+
+            # Log replay buffer rewards
+            if self.buffer.replay_updated:
+                rewards_replay = self.buffer.replay.rewards
+                self.logger.log_rewards_and_scores(
+                    rewards_replay,
+                    np.log(rewards_replay),
+                    scores=None,
+                    step=self.it,
+                    prefix="Replay buffer -",
+                    use_context=self.use_context,
+                )
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})

@@ -20,6 +20,12 @@ class BaseBuffer:
     """
     Implements the functionality to manage various buffers of data: the records of
     training samples, the train and test data sets, a replay buffer for training, etc.
+
+    Attributes
+    ----------
+    replay_updated : bool
+        Whether the replay buffer was updated in the last iteration, that is whether at
+        least one sample was added to the buffer.
     """
 
     def __init__(
@@ -99,6 +105,7 @@ class BaseBuffer:
         else:
             self.main = None
         self.replay, self.replay_csv = self.init_replay(replay_buffer)
+        self.replay_updated = False
         self.save_replay()
 
         # Setup proxy
@@ -288,6 +295,7 @@ class BaseBuffer:
             )
         elif buffer == "replay":
             if self.replay_capacity > 0:
+                self.replay_updated = False
                 if criterion == "greater":
                     self.replay = self._add_greater(samples, trajectories, rewards, it)
                 else:
@@ -377,6 +385,7 @@ class BaseBuffer:
 
         # If the buffer is not full, add to the buffer
         if len(self.replay) < self.replay_capacity:
+            self.replay_updated = True
             if torch.is_tensor(sample):
                 sample = sample.tolist()
             if torch.is_tensor(trajectory):
