@@ -9,6 +9,7 @@ import numpy as np
 import torch
 from numpy import array
 from omegaconf import OmegaConf
+from torchtyping import TensorType
 
 
 class Logger:
@@ -196,6 +197,48 @@ class Logger:
         for fig in figs:
             if fig is not None:
                 plt.close(fig)
+
+    def log_rewards_and_scores(
+        self,
+        rewards: TensorType["n_samples"],
+        logrewards: TensorType["n_samples"],
+        scores: TensorType["n_samples"],
+        step: int,
+        prefix: str,
+        use_context: bool = True,
+    ):
+        """
+        Logs the rewards, log-rewards and proxy scores passed as arguments.
+
+        Parameters
+        ----------
+        rewards : tensor
+            Rewards of a batch of states.
+        logrewards : tensor
+            Log-rewards of a batch of states.
+        scores : tensor
+            Proxy scores of a batch of states.
+        step : int
+            The training iteration number.
+        prefix : str
+            Prefix to be added to the metric names.
+        use_context : bool
+            If True, prepend self.context + / to the key of the metric.
+        """
+        if not self.do.online:
+            return
+
+        metrics = {
+            f"{prefix} rewards mean": rewards.mean(),
+            f"{prefix} rewards max": rewards.max(),
+            f"{prefix} logrewards mean": logrewards.mean(),
+            f"{prefix} logrewards max": logrewards.max(),
+            f"{prefix} scores mean": scores.mean(),
+            f"{prefix} scores min": scores.min(),
+            f"{prefix} scores max": scores.max(),
+        }
+
+        self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_metrics(
         self,

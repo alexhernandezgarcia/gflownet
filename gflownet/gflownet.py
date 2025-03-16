@@ -1241,14 +1241,6 @@ class GFlowNetAgent:
 
         # TODO: consider moving this into separate method
         if self.evaluator.should_log_train(self.it):
-            # Obtain statistics of rewards, logrewards and proxy values.
-            rewards_mean = rewards.mean()
-            rewards_max = rewards.max()
-            logrewards_mean = logrewards.mean()
-            logrewards_max = logrewards.max()
-            proxy_vals_mean = proxy_vals.mean()
-            proxy_vals_min = proxy_vals.min()
-            proxy_vals_max = proxy_vals.max()
 
             # logZ
             if self.logZ is not None:
@@ -1275,18 +1267,13 @@ class GFlowNetAgent:
                 )
             )
 
-            self.logger.log_metrics(
-                metrics={
-                    "mean_reward": rewards_mean,
-                    "max_reward": rewards_max,
-                    "mean_logreward": logrewards_mean,
-                    "max_logreward": logrewards_max,
-                    "mean_proxy": proxy_vals_mean,
-                    "min_proxy": proxy_vals_min,
-                    "max_proxy": proxy_vals_max,
-                    "logZ": logz,
-                },
+            # Log metrics
+            self.logger.log_rewards_and_scores(
+                rewards,
+                logrewards,
+                proxy_vals,
                 step=self.it,
+                prefix="Train batch -",
                 use_context=self.use_context,
             )
             self.logger.log_metrics(
@@ -1296,6 +1283,7 @@ class GFlowNetAgent:
                     "min_traj_length": traj_length_min,
                     "max_traj_length": traj_length_max,
                     "batch_size": len(batch),
+                    "logZ": logz,
                     "lr": learning_rates[0],
                     "lr_logZ": learning_rates[1],
                 },
