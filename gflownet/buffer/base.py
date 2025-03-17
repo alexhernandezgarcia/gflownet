@@ -369,47 +369,60 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
+        # If the buffer is not full, sample can be added to the buffer
+        if len(self.replay) < self.replay_capacity:
+            can_add = True
+            index_min = -1
+        else:
+            can_add = False
+
+        # If the buffer is full (can_add is False), check if the reward is larger than
+        # the minimum reward in the buffer. If so, set can_add to True, which may
+        # result in dropping the sample with the minimum reward. Otherwise, return.
+        if not can_add:
+            index_min = self.replay.index[self.replay["rewards"].argmin()]
+            if reward > self.replay["rewards"].loc[index_min]:
+                can_add = True
+            else:
+                return
+
         # Return without adding if the sample is close to any sample already present in
         # the buffer
+        # TODO: this could be optimized by comparing only with samples with similar
+        # reward
         if self.check_diversity:
             for rsample in self.replay["samples"]:
                 if self.env.isclose(sample, rsample):
                     return
 
-        # If the buffer is full, check if the reward is larger than the minimum reward
-        # in the buffer. If so, drop the sample with the minimum reward.
-        if len(self.replay) == self.replay_capacity:
-            index_min = self.replay.index[self.replay["rewards"].argmin()]
-            if reward > self.replay["rewards"].loc[index_min]:
-                self.replay.drop(self.replay.index[index_min], inplace=True)
+        # If index_min is not None, drop the sample with the minimum reward
+        if index_min >= 0:
+            self.replay.drop(self.replay.index[index_min], inplace=True)
 
-        # If the buffer is not full, add to the buffer
-        if len(self.replay) < self.replay_capacity:
-            self.replay_updated = True
-            if torch.is_tensor(sample):
-                sample = sample.tolist()
-            if torch.is_tensor(trajectory):
-                trajectory = trajectory.tolist()
-            if torch.is_tensor(reward):
-                reward = reward.item()
-            self.replay = pd.concat(
-                [
-                    self.replay,
-                    pd.DataFrame(
-                        {
-                            "samples": [sample],
-                            "trajectories": [trajectory],
-                            "rewards": [reward],
-                            "iter": [it],
-                            "samples_readable": [self.env.state2readable(sample)],
-                            "trajectories_readable": [
-                                self.env.traj2readable(trajectory)
-                            ],
-                        }
-                    ),
-                ],
-                ignore_index=True,
-            )
+        # Add the sample to the buffer
+        self.replay_updated = True
+        if torch.is_tensor(sample):
+            sample = sample.tolist()
+        if torch.is_tensor(trajectory):
+            trajectory = trajectory.tolist()
+        if torch.is_tensor(reward):
+            reward = reward.item()
+        self.replay = pd.concat(
+            [
+                self.replay,
+                pd.DataFrame(
+                    {
+                        "samples": [sample],
+                        "trajectories": [trajectory],
+                        "rewards": [reward],
+                        "iter": [it],
+                        "samples_readable": [self.env.state2readable(sample)],
+                        "trajectories_readable": [self.env.traj2readable(trajectory)],
+                    }
+                ),
+            ],
+            ignore_index=True,
+        )
 
     def make_data_set(self, config):
         """
