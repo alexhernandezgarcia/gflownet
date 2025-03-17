@@ -395,7 +395,7 @@ class BaseBuffer:
                 if self.env.isclose(sample, rsample):
                     return
 
-        # If index_min is not None, drop the sample with the minimum reward
+        # If index_min is larger than zero, drop the sample with the minimum reward
         if index_min >= 0:
             self.replay.drop(self.replay.index[index_min], inplace=True)
 

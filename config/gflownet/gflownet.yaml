@@ -43,7 +43,6 @@ temperature_logits: 1.0
 # Percentage of random actions
 random_action_prob: 0.0
 # Replay buffer
-replay_capacity: 0
 replay_sampling: permutation
 # Train data set backward sampling
 train_sampling: permutation
