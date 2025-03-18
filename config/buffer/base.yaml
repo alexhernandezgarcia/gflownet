@@ -26,7 +26,7 @@ test:
   n: null
   seed: null
 
-# Whether to add all training samples to a buffer
+# Whether to maintain a separate "main" buffer for storing all terminal states visited during the training 
 use_main_buffer: False
 
 # Whether new samples are compared to samples in the buffer before adding
