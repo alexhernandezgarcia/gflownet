@@ -442,7 +442,7 @@ class BaseBuffer:
             print(f"from pickled file: {config.path}\n")
             with open(config.path, "rb") as f:
                 data_dict = pickle.load(f)
-                samples = data_dict["x"]
+                samples = data_dict["samples"]
                 if hasattr(self.env, "process_data_set"):
                     n_samples_orig = len(samples)
                     print(f"The data set containts {n_samples_orig} samples", end="")
