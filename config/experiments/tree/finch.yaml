@@ -16,8 +16,13 @@ env:
   threshold_components: 3
   test_args:
     top_k_trees: 100
-  buffer:
-    replay_capacity: 100
+
+# Buffer
+buffer:
+  replay_capacity: 100
+  test:
+    type: random
+    n: 1000
 
 # Proxy
 proxy:

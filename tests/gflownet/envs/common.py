@@ -18,7 +18,7 @@ import torch
 import yaml
 from hydra import compose, initialize
 
-from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.common import copy, gflownet_from_config, tbool, tfloat
 from gflownet.utils.policy import parse_policy_config
 
 
@@ -445,55 +445,14 @@ class BaseTestsDiscrete(BaseTestsCommon):
         for _ in range(n_repeat):
             # Load config
             with initialize(
-                version_base="1.1", config_path="../../../config", job_name="xxx"
+                version_base="1.1", config_path="../../../config", job_name="tests"
             ):
                 config = compose(config_name="tests")
 
-            # Logger
-            logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
+            # Initialize a GFlowNet agent from the configuration file
+            gflownet = gflownet_from_config(config)
 
-            # Proxy
-            proxy = hydra.utils.instantiate(
-                config.proxy,
-                device=config.device,
-                float_precision=config.float_precision,
-            )
-            evaluator = hydra.utils.instantiate(config.evaluator)
-
-            # Policy
-            forward_config = parse_policy_config(config, kind="forward")
-            backward_config = parse_policy_config(config, kind="backward")
-            forward_policy = hydra.utils.instantiate(
-                forward_config,
-                env=self.env,
-                device=config.device,
-                float_precision=config.float_precision,
-            )
-            backward_policy = hydra.utils.instantiate(
-                backward_config,
-                env=self.env,
-                device=config.device,
-                float_precision=config.float_precision,
-                base=forward_policy,
-            )
-            config.env.buffer.train = None  # No buffers
-            config.env.buffer.test = None
-            config.env.buffer.replay_capacity = 0  # No replay buffer
-            config.gflownet.optimizer.n_train_steps = 1  # Set 1 training step
-
-            # GFlowNet agent
-            gflownet = hydra.utils.instantiate(
-                config.gflownet,
-                device=config.device,
-                float_precision=config.float_precision,
-                env_maker=partial(self.env.copy),
-                proxy=proxy,
-                forward_policy=forward_policy,
-                backward_policy=backward_policy,
-                buffer=config.env.buffer,
-                logger=logger,
-                evaluator=evaluator,
-            )
+            # Train
             gflownet.train()
             assert True
 

@@ -29,6 +29,12 @@ env:
     bernoulli_bts_prob: 0.1
   reward_func: identity
 
+# Buffer
+buffer:
+  test:
+    type: grid
+    n: 900
+
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1

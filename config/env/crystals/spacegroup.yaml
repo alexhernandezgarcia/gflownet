@@ -9,11 +9,3 @@ id: spacegroup
 space_groups_subset: null
 # Stoichiometry
 n_atoms: null
-
-# Buffer
-buffer:
-  data_path: null
-  train:
-    type: all
-  test:
-    type: all
