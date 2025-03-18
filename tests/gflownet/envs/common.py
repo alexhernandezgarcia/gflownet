@@ -18,7 +18,7 @@ import torch
 import yaml
 from hydra import compose, initialize
 
-from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.common import copy, tbool, tfloat, gflownet_from_config
 from gflownet.utils.policy import parse_policy_config
 
 
