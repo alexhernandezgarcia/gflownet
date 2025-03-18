@@ -470,10 +470,36 @@ def test__get_mask_invalid_actions_backward__does_not_change_state(env, state):
         ),
     ],
 )
-def test__states2policy__returns_expected_tensor(
+def test__states2policy_onehot__returns_expected_tensor(
     env_with_restricted_spacegroups, batch, exp_tensor
 ):
     env = env_with_restricted_spacegroups
+    env.policy_fmt = "onehot"
+    assert torch.equal(
+        env.states2policy(batch),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
+
+
+@pytest.mark.parametrize(
+    "batch, exp_tensor",
+    [
+        (
+            [[0, 0, 0], [1, 1, 1], [3, 4, 17], [3, 3, 39]],
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 1.0, 1.0],
+                [3.0, 4.0, 17.0],
+                [3.0, 3.0, 39.0],
+            ],
+        ),
+    ],
+)
+def test__states2policy_indices__returns_expected_tensor(
+    env_with_restricted_spacegroups, batch, exp_tensor
+):
+    env = env_with_restricted_spacegroups
+    env.policy_fmt = "indices"
     assert torch.equal(
         env.states2policy(batch),
         tfloat(exp_tensor, device=env.device, float_type=env.float),

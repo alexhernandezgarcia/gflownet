@@ -95,21 +95,34 @@ class SpaceGroup(GFlowNetEnv):
         self,
         space_groups_subset: Optional[Iterable] = None,
         n_atoms: Optional[List[int]] = None,
+        policy_fmt: str = "onehot",
         **kwargs,
     ):
         """
-        Args
-        ----
+        Parameters
+        ----------
         space_groups_subset : iterable
             A subset of space group (international) numbers to which to restrict the
             state space. If None (default), the entire set of 230 space groups is
             considered.
-
         n_atoms : list of int (optional)
             A list with the number of atoms per element, used to compute constraints on
             the space group. 0's are removed from the list. If None, composition/space
             group constraints are ignored.
+                policy_fmt : str
+            Specifies the policy encoding. Options:
+                - onehot: One-hot encoding of each property (crystal-lattice system,
+                  point symmetry, space group), all concatenated to make the overall
+                  input.
+                - indices: A three-dimensional vector with the indices of each property
         """
+        # Policy format
+        if policy_fmt not in ["onehot", "indices"]:
+            raise NotImplementedError(
+                "Unknown policy format. policy_fmt must be either 'onehot' or "
+                f"'indices'. Found {policy_fmt}."
+            )
+        self.policy_fmt = policy_fmt
         # Get dictionaries
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
@@ -274,6 +287,32 @@ class SpaceGroup(GFlowNetEnv):
         self, states: List[List]
     ) -> TensorType["batch", "policy_input_dim"]:
         """
+        Prepares a batch of states in "environment format" for the policy model, by
+        calling the appropriate conversion method depending on the settings.
+
+        Parameters
+        ----------
+        states : list
+            A batch of states in environment format, that is a list of lists.
+
+        Returns
+        -------
+        A tensor containing the policy representation of all the states in the batch.
+        """
+        if self.policy_fmt == "onehot":
+            return self.states2policy_onehot(states)
+        elif self.policy_fmt == "indices":
+            return super().states2policy(states)
+        else:
+            raise NotImplementedError(
+                "Unknown policy format. policy_fmt must be either 'onehot' or "
+                f"'indices'. Found {self.policy_fmt}."
+            )
+
+    def states2policy_onehot(
+        self, states: List[List]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
         Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
 
@@ -305,8 +344,8 @@ class SpaceGroup(GFlowNetEnv):
             ]
         )
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list
             A batch of states in environment format, that is a list of lists.
 

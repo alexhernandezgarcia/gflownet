@@ -9,6 +9,8 @@ id: spacegroup
 space_groups_subset: null
 # Stoichiometry
 n_atoms: null
+# Policy format
+policy_fmt: onehot
 
 # Buffer
 buffer:
