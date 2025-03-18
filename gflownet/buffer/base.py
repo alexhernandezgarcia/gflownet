@@ -620,6 +620,8 @@ class BaseBuffer:
 
     @staticmethod
     def _process_data_config(config: dict = None):
+        if config is None:
+            return None
         if all([v is None for v in config.values()]):
             return None
         else:
