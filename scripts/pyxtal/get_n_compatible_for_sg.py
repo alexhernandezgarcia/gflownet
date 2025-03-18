@@ -3,6 +3,7 @@ Calculates the compatibility between space group --space_group and all the stoic
 spanned by the --max_n_atoms and --max_n_species. The results are written to a file in
 --output_dir.
 """
+
 import itertools
 import time
 from argparse import ArgumentParser

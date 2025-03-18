@@ -5,6 +5,7 @@ TODO:
 """
 
 import copy
+import gc
 import pickle
 import time
 from collections import defaultdict
@@ -21,9 +22,7 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
-from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
-from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
     bootstrap_samples,
     set_device,
@@ -49,14 +48,13 @@ class GFlowNetAgent:
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
-        pct_offline,
         logger,
-        num_empirical_loss,
         evaluator,
         state_flow=None,
         use_context=False,
         replay_sampling="permutation",
         train_sampling="permutation",
+        garbage_collection_period: int = 0,
         **kwargs,
     ):
         """
@@ -92,13 +90,9 @@ class GFlowNetAgent:
             Probability of sampling random actions. If None (default),
             self.random_action_prob is used, unless its value is forced to either 0.0 or
             1.0 by other arguments (sampling_method or no_random).
-        pct_offline : float
-            Percentage of offline data to be used for training.
         logger : gflownet.utils.logger.Logger
             Logger object to be used for logging and saving checkpoints
             (`gflownet/utils/logger.py:Logger`).
-        num_empirical_loss : int
-            Number of empirical loss samples to be used for training.
         evaluator : gflownet.evaluator.base.BaseEvaluator
             :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
         state_flow : dict, optional
@@ -113,6 +107,10 @@ class GFlowNetAgent:
         train_sampling : str, optional
             Type of sampling for the train buffer (offline backward trajectories). See
             :meth:`~gflownet.utils.buffer.select`. By default "permutation".
+        garbage_collection_period : int
+            The periodicity to perform garbage collection and empty the cache of the
+            GPU. By default it is 0, so no garbage collection is performed. This is
+            because it can incur a large time overhead unnecessarily.
 
         Raises
         ------
@@ -160,20 +158,14 @@ class GFlowNetAgent:
         # loss_eps is used only for the flowmatch loss
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
-        self.num_empirical_loss = num_empirical_loss
         self.logger = logger
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
-        self.buffer = Buffer(
-            **buffer,
-            env=self.env,
-            proxy=self.proxy,
-            logger=logger,
-        )
+        self.buffer = buffer
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
-            energies_stats_tr = [
+            scores_stats_tr = [
                 self.buffer.min_tr,
                 self.buffer.max_tr,
                 self.buffer.mean_tr,
@@ -181,52 +173,24 @@ class GFlowNetAgent:
                 self.buffer.max_norm_tr,
             ]
             print("\nTrain data")
-            print(f"\tMean score: {energies_stats_tr[2]}")
-            print(f"\tStd score: {energies_stats_tr[3]}")
-            print(f"\tMin score: {energies_stats_tr[0]}")
-            print(f"\tMax score: {energies_stats_tr[1]}")
+            print(f"\tMean score: {scores_stats_tr[2]}")
+            print(f"\tStd score: {scores_stats_tr[3]}")
+            print(f"\tMin score: {scores_stats_tr[0]}")
+            print(f"\tMax score: {scores_stats_tr[1]}")
         else:
-            energies_stats_tr = None
+            scores_stats_tr = None
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
-            print(f"\tMean score: {self.buffer.test['energies'].mean()}")
-            print(f"\tStd score: {self.buffer.test['energies'].std()}")
-            print(f"\tMin score: {self.buffer.test['energies'].min()}")
-            print(f"\tMax score: {self.buffer.test['energies'].max()}")
+            print(f"\tMean score: {self.buffer.test['scores'].mean()}")
+            print(f"\tStd score: {self.buffer.test['scores'].std()}")
+            print(f"\tMin score: {self.buffer.test['scores'].min()}")
+            print(f"\tMax score: {self.buffer.test['scores'].max()}")
 
         # Models
         self.forward_policy = forward_policy
-        if self.forward_policy.checkpoint is not None:
-            self.logger.set_forward_policy_ckpt_path(self.forward_policy.checkpoint)
-            # TODO: re-write the logic and conditions to reload a model
-            if False:
-                self.forward_policy.load_state_dict(
-                    torch.load(self.policy_forward_path)
-                )
-                print("Reloaded GFN forward policy model Checkpoint")
-        else:
-            self.logger.set_forward_policy_ckpt_path(None)
-
         self.backward_policy = backward_policy
-        self.logger.set_backward_policy_ckpt_path(None)
-        if self.backward_policy.checkpoint is not None:
-            self.logger.set_backward_policy_ckpt_path(self.backward_policy.checkpoint)
-            # TODO: re-write the logic and conditions to reload a model
-            if False:
-                self.backward_policy.load_state_dict(
-                    torch.load(self.policy_backward_path)
-                )
-                print("Reloaded GFN backward policy model Checkpoint")
-        else:
-            self.logger.set_backward_policy_ckpt_path(None)
-
         self.state_flow = state_flow
-        if self.state_flow is not None and self.state_flow.checkpoint is not None:
-            self.logger.set_state_flow_ckpt_path(self.state_flow.checkpoint)
-            # TODO: add the logic and conditions to reload a model
-        else:
-            self.logger.set_state_flow_ckpt_path(None)
 
         # Optimizer
         if self.forward_policy.is_model:
@@ -253,10 +217,11 @@ class GFlowNetAgent:
         self.use_context = use_context
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
+        self.it = 1
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
-        self.pct_offline = pct_offline
+        self.garbage_collection_period = garbage_collection_period
         # Metrics
         self.l1 = -1.0
         self.kl = -1.0
@@ -501,7 +466,7 @@ class GFlowNetAgent:
         """
         Executes the actions on the environments envs, one by one. This method simply
         calls env.step(action) or env.step_backwards(action) for each (env, action)
-        pair, depending on thhe value of backward.
+        pair, depending on the value of backward.
 
         Args
         ----
@@ -580,18 +545,19 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
         batch_train = Batch(
             env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
         )
-        if n_train > 0 and self.buffer.train_pkl is not None:
-            with open(self.buffer.train_pkl, "rb") as f:
-                dict_train = pickle.load(f)
-                x_train = self.buffer.select(
-                    dict_train, n_train, self.train_sampling, self.rng
-                )
+        if n_train > 0 and self.buffer.train is not None:
+            envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
+            x_train = self.buffer.select(
+                self.buffer.train, n_train, self.train_sampling, self.rng
+            )["samples"].values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
+        else:
+            envs = []
+
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
@@ -617,16 +583,24 @@ class GFlowNetAgent:
         batch_replay = Batch(
             env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
         )
-        if n_replay > 0 and self.buffer.replay_pkl is not None:
-            with open(self.buffer.replay_pkl, "rb") as f:
-                dict_replay = pickle.load(f)
-                n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
-                x_replay = self.buffer.select(
-                    dict_replay, n_replay, self.replay_sampling, self.rng
-                )
+        if (
+            n_replay > 0
+            and self.buffer.replay is not None
+            and len(self.buffer.replay) > 0
+        ):
+            envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
+            n_replay = min(n_replay, len(self.buffer.replay))
+            x_replay = self.buffer.select(
+                self.buffer.replay,
+                n_replay,
+                self.replay_sampling,
+                self.rng,
+            )["samples"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
+        else:
+            envs = []
+
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
@@ -961,7 +935,7 @@ class GFlowNetAgent:
         data : list or string
             A data set of terminating states. The data set may be passed directly as a
             list of states, or it may be a string defining the path to a pickled data
-            set where the terminating states are stored in key "x".
+            set where the terminating states are stored in key "samples".
 
         n_trajectories : int
             The number of trajectories per object to sample for estimating the log
@@ -999,7 +973,7 @@ class GFlowNetAgent:
         elif isinstance(data, str) and Path(data).suffix == ".pkl":
             with open(data, "rb") as f:
                 data_dict = pickle.load(f)
-                states_term = data_dict["x"]
+                states_term = data_dict["samples"]
         else:
             raise NotImplementedError(
                 "data must be either a list of states or a path to a .pkl file."
@@ -1027,13 +1001,13 @@ class GFlowNetAgent:
         end_batch = min(batch_size, n_states)
         pbar = tqdm(
             total=n_states,
-            disable=not self.logger.progress,
+            disable=self.logger.progressbar["skip"],
             leave=False,
             desc="Sampling backward actions from test data to estimate logprobs",
         )
         pbar2 = trange(
             end_batch * n_trajectories,
-            disable=not self.logger.progress,
+            disable=self.logger.progressbar["skip"],
             leave=False,
             desc="Setting env terminal states",
         )
@@ -1066,7 +1040,6 @@ class GFlowNetAgent:
                 )
                 # Update environments with sampled actions
                 envs, actions, valids = self.step(envs, actions, backward=True)
-                assert all(valids)
                 # Add to batch
                 batch.add_to_batch(envs, actions, valids, backward=True, train=True)
                 # Filter out finished trajectories
@@ -1108,18 +1081,20 @@ class GFlowNetAgent:
 
     def train(self):
         # Metrics
-        all_losses = []
-        all_visited = []
         loss_term_ema = None
         loss_flow_ema = None
         # Train loop
-        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
-        for it in pbar:
+        pbar = tqdm(
+            initial=self.it - 1,
+            total=self.n_train_steps,
+            disable=self.logger.progressbar["skip"],
+        )
+        for self.it in range(self.it, self.n_train_steps + 1):
             # Test and log
-            if self.evaluator.should_eval(it):
-                self.evaluator.eval_and_log(it)
-            if self.evaluator.should_eval_top_k(it):
-                self.evaluator.eval_and_log_top_k(it)
+            if self.evaluator.should_eval(self.it):
+                self.evaluator.eval_and_log(self.it)
+            if self.evaluator.should_eval_top_k(self.it):
+                self.evaluator.eval_and_log_top_k(self.it)
 
             t0_iter = time.time()
             batch = Batch(
@@ -1138,24 +1113,22 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses = self.flowmatch_loss(
-                        it * self.ttsr + j, batch
+                        self.it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
                     losses = self.trajectorybalance_loss(
-                        it * self.ttsr + j, batch
+                        self.it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "detailedbalance":
-                    losses = self.detailedbalance_loss(it * self.ttsr + j, batch)
+                    losses = self.detailedbalance_loss(self.it * self.ttsr + j, batch)
                 elif self.loss == "forwardlooking":
-                    losses = self.forwardlooking_loss(it * self.ttsr + j, batch)
+                    losses = self.forwardlooking_loss(self.it * self.ttsr + j, batch)
                 else:
                     print("Unknown loss!")
                 # TODO: deal with this in a better way
                 if not all([torch.isfinite(loss) for loss in losses]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
-                    if len(all_losses) > 0:
-                        all_losses.append([loss for loss in all_losses[-1]])
                 else:
                     losses[0].backward()
                     if self.clip_grad_norm > 0:
@@ -1165,74 +1138,10 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
-                    all_losses.append([i.item() for i in losses])
-            # Buffer
-            t0_buffer = time.time()
-            states_term = batch.get_terminating_states(sort_by="trajectory")
-            proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
-            proxy_vals = proxy_vals.tolist()
-            # The batch will typically have the log-rewards available, since they are
-            # used to compute the losses. In order to avoid recalculating the proxy
-            # values, the natural rewards are computed by taking the exponential of the
-            # log-rewards. In case the rewards are available in the batch but not the
-            # log-rewards, the latter are computed by taking the log of the rewards.
-            # Numerical issues are not critical in this case, since the derived values
-            # are only used for reporting purposes.
-            if batch.rewards_available(log=False):
-                rewards = batch.get_terminating_rewards(sort_by="trajectory")
-            if batch.rewards_available(log=True):
-                logrewards = batch.get_terminating_rewards(
-                    sort_by="trajectory", log=True
-                )
-            if not batch.rewards_available(log=False):
-                assert batch.rewards_available(log=True)
-                rewards = torch.exp(logrewards)
-            if not batch.rewards_available(log=True):
-                assert batch.rewards_available(log=False)
-                logrewards = torch.log(rewards)
-            rewards = rewards.tolist()
-            logrewards = logrewards.tolist()
-            actions_trajectories = batch.get_actions_trajectories()
-            self.buffer.add(states_term, actions_trajectories, logrewards, it)
-            self.buffer.add(
-                states_term, actions_trajectories, logrewards, it, buffer="replay"
-            )
-            t1_buffer = time.time()
-            times.update({"buffer": t1_buffer - t0_buffer})
-            # Log
-            if self.logger.lightweight:
-                all_losses = all_losses[-100:]
-            else:
-                all_visited.extend(states_term)
-            # Progress bar
-            self.logger.progressbar_update(
-                pbar, all_losses, rewards, self.jsd, it, self.use_context
-            )
-            # Train logs
-            t0_log = time.time()
-            if self.evaluator.should_log_train(it):
-                self.logger.log_train(
-                    losses=losses,
-                    rewards=rewards,
-                    logrewards=logrewards,
-                    proxy_vals=proxy_vals,
-                    states_term=states_term,
-                    batch_size=len(batch),
-                    logz=self.logZ,
-                    learning_rates=self.lr_scheduler.get_last_lr(),
-                    step=it,
-                    use_context=self.use_context,
-                )
-            t1_log = time.time()
-            times.update({"log": t1_log - t0_log})
-            # Save intermediate models
-            t0_model = time.time()
-            if self.evaluator.should_checkpoint(it):
-                self.logger.save_models(
-                    self.forward_policy, self.backward_policy, self.state_flow, step=it
-                )
-            t1_model = time.time()
-            times.update({"save_interim_model": t1_model - t0_model})
+
+            # Log training iteration: progress bar, buffer, metrics, intermediate
+            # models
+            times = self.log_train_iteration(pbar, losses, batch, times)
 
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
@@ -1258,13 +1167,199 @@ class GFlowNetAgent:
             times.update({"iter": t1_iter - t0_iter})
             self.logger.log_time(times, use_context=self.use_context)
 
+            # Garbage collection and cleanup GPU memory
+            if (
+                self.garbage_collection_period > 0
+                and self.garbage_collection_period % self.it == 0
+            ):
+                del batch
+                gc.collect()
+                torch.cuda.empty_cache()
+
         # Save final model
-        self.logger.save_models(
-            self.forward_policy, self.backward_policy, self.state_flow, final=True
+        self.logger.save_checkpoint(
+            forward_policy=self.forward_policy,
+            backward_policy=self.backward_policy,
+            state_flow=self.state_flow,
+            logZ=self.logZ,
+            optimizer=self.opt,
+            buffer=self.buffer,
+            step=self.it,
+            final=True,
         )
         # Close logger
         if self.use_context is False:
             self.logger.end()
+
+    @torch.no_grad()
+    def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):
+        """
+        Carries out the logging operations after the training iteration.
+
+        The operations done by this method include:
+            - Updating the main buffer
+            - Updating the replay buffer
+            - Logging the rewards and scores of the train batch
+            - Logging the losses, logZ, learning rate and other metrics of the training
+              process
+            - Updating the progress bar
+            - Save checkpoints
+
+        Parameters
+        ----------
+        pbar : tqdm
+            Progress bar object
+        losses : list
+            List of losses after the training iteration
+        batch : Batch
+            Training batch
+        times : dict
+            Dictionary of times
+        """
+        t0_buffer = time.time()
+
+        states_term = batch.get_terminating_states(sort_by="trajectory")
+        proxy_vals = batch.get_terminating_proxy_values(sort_by="trajectory")
+        # The batch will typically have the log-rewards available, since they are
+        # used to compute the losses. In order to avoid recalculating the proxy
+        # values, the natural rewards are computed by taking the exponential of the
+        # log-rewards. In case the rewards are available in the batch but not the
+        # log-rewards, the latter are computed by taking the log of the rewards.
+        # Numerical issues are not critical in this case, since the derived values
+        # are only used for reporting purposes.
+        if batch.rewards_available(log=False):
+            rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        if batch.rewards_available(log=True):
+            logrewards = batch.get_terminating_rewards(sort_by="trajectory", log=True)
+        if not batch.rewards_available(log=False):
+            assert batch.rewards_available(log=True)
+            rewards = torch.exp(logrewards)
+        if not batch.rewards_available(log=True):
+            assert batch.rewards_available(log=False)
+            logrewards = torch.log(rewards)
+
+        # Update main buffer
+        actions_trajectories = batch.get_actions_trajectories()
+        if self.buffer.use_main_buffer:
+            self.buffer.add(
+                states_term,
+                actions_trajectories,
+                rewards,
+                self.it,
+                buffer="main",
+            )
+
+        # Update replay buffer
+        self.buffer.add(
+            states_term,
+            actions_trajectories,
+            rewards,
+            self.it,
+            buffer="replay",
+        )
+        t1_buffer = time.time()
+        times.update({"buffer": t1_buffer - t0_buffer})
+
+        ### Train logs
+        t0_log = time.time()
+
+        # TODO: consider moving this into separate method
+        if self.evaluator.should_log_train(self.it):
+
+            # logZ
+            if self.logZ is not None:
+                logz = self.logZ.sum()
+            else:
+                logz = None
+
+            # Trajectory length
+            trajectory_lengths = [len(state) for state in states_term]
+            traj_length_mean = np.mean(trajectory_lengths)
+            traj_length_min = np.min(trajectory_lengths)
+            traj_length_max = np.max(trajectory_lengths)
+
+            # Learning rates
+            learning_rates = self.lr_scheduler.get_last_lr()
+            if len(learning_rates) == 1:
+                learning_rates += [None]
+
+            # Loss metrics
+            loss_metrics = dict(
+                zip(
+                    ["Loss", "Loss (terminating)", "Loss (non-term.)"],
+                    losses,
+                )
+            )
+
+            # Log train rewards and scores
+            self.logger.log_rewards_and_scores(
+                rewards,
+                logrewards,
+                proxy_vals,
+                step=self.it,
+                prefix="Train batch -",
+                use_context=self.use_context,
+            )
+
+            # Log trajectory lengths, batch size, logZ and learning rates
+            self.logger.log_metrics(
+                metrics={
+                    "step": self.it,
+                    "Trajectory lengths mean": traj_length_mean,
+                    "Trajectory lengths min": traj_length_min,
+                    "Trajectory lengths max": traj_length_max,
+                    "Batch size": len(batch),
+                    "logZ": logz,
+                    "Learning rate": learning_rates[0],
+                    "Learning rate logZ": learning_rates[1],
+                },
+                step=self.it,
+                use_context=self.use_context,
+            )
+
+            # Log losses
+            self.logger.log_metrics(
+                metrics=loss_metrics,
+                step=self.it,
+                use_context=self.use_context,
+            )
+
+            # Log replay buffer rewards
+            if self.buffer.replay_updated:
+                rewards_replay = self.buffer.replay.rewards
+                self.logger.log_rewards_and_scores(
+                    rewards_replay,
+                    np.log(rewards_replay),
+                    scores=None,
+                    step=self.it,
+                    prefix="Replay buffer -",
+                    use_context=self.use_context,
+                )
+
+        t1_log = time.time()
+        times.update({"log": t1_log - t0_log})
+
+        # Progress bar
+        self.logger.progressbar_update(
+            pbar, losses[0].item(), rewards.tolist(), self.jsd, self.use_context
+        )
+
+        # Save intermediate models
+        t0_model = time.time()
+        if self.evaluator.should_checkpoint(self.it):
+            self.logger.save_checkpoint(
+                forward_policy=self.forward_policy,
+                backward_policy=self.backward_policy,
+                state_flow=self.state_flow,
+                logZ=self.logZ,
+                optimizer=self.opt,
+                buffer=self.buffer,
+                step=self.it,
+            )
+        t1_model = time.time()
+        times.update({"save_interim_model": t1_model - t0_model})
+
+        return times
 
     def get_sample_space_and_reward(self):
         """
@@ -1349,6 +1444,53 @@ class GFlowNetAgent:
             samples_accepted = [samples_uniform[idx] for idx in indices_accept]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return samples_final
+
+    def load_checkpoint(self, checkpoint: dict):
+        """
+        Loads the content of a checkpoint dictionary into the corresponding variables
+        of the GFlowNet agent.
+
+        Parameters
+        ----------
+        checkpoint : dict
+            A dictionary containing the following keys:
+                - "step": The iteration number of the checkpoint,
+                - "forward": The state dict of the forward policy model,
+                - "backward": The state dict of the backward policy model,
+                - "state_flow": The state dict of the state flow model,
+                - "logZ": The tensor containing the parameters of logZ,
+                - "optimizer": The state dict of the optimizer,
+                - "buffer": A dictionary with keys 'train', 'test' and 'replay', with
+                  the relative paths of the corresponding data sets.
+        """
+        # Iteration: increment by one
+        self.it = checkpoint["step"] + 1
+
+        # Forward model
+        if checkpoint["forward"] is not None:
+            assert self.forward_policy.is_model
+            self.forward_policy.model.load_state_dict(checkpoint["forward"])
+
+        # Backward model
+        if checkpoint["backward"] is not None:
+            assert self.backward_policy.is_model
+            self.backward_policy.model.load_state_dict(checkpoint["backward"])
+
+        # State flow model
+        if checkpoint["state_flow"] is not None:
+            assert self.state_flow
+            self.state_flow.model.load_state_dict(checkpoint["state_flow"])
+
+        # LogZ
+        if checkpoint["logZ"] is not None:
+            assert isinstance(self.logZ, torch.nn.Parameter) and self.logZ.requires_grad
+            self.logZ.data = checkpoint["logZ"].to(self.device)
+
+        # Optimizer
+        self.opt.load_state_dict(checkpoint["optimizer"])
+
+        if self.logger.debug:
+            print("\nCheckpoint loaded into GFlowNet agent\n")
 
 
 def make_opt(params, logZ, config):

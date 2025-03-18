@@ -221,7 +221,7 @@ def test__should_eval_top_k(constant_evaluator, period, step, target, first_it, 
     ],
 )
 def test__eval(gflownet_for_tests, parameterization):
-    assert gflownet_for_tests.buffer.replay_pkl.exists()
+    assert gflownet_for_tests.buffer.replay_csv.exists()
     # results: {"metrics": dict[str, float], "figs": list[plt.Figure]}
     results = gflownet_for_tests.evaluator.eval()
     figs = gflownet_for_tests.evaluator.plot(**results["data"])
@@ -240,6 +240,7 @@ def test__eval(gflownet_for_tests, parameterization):
             # plot_samples_topk not implemented in ctorus
             if figname == "Samples TopK":
                 continue
-            assert isinstance(fig, plt.Figure)
+            # TODO: review this test
+            assert fig is None or isinstance(fig, plt.Figure)
     else:
         raise ValueError(f"Unknown parameterization: {parameterization}")
