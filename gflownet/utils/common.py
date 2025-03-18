@@ -399,14 +399,13 @@ def load_gflownet_from_rundir(
         config.logger.run_id = checkpoint["run_id"]
 
         # Set up Buffer configuration to load data sets and buffers from run
-        # TODO: Eventually, move all buffer config from env to buffer
         if checkpoint["buffer"]["train"]:
-            config.env.buffer.train = {
+            config.buffer.train = {
                 "type": "pkl",
                 "path": checkpoint["buffer"]["train"],
             }
         if checkpoint["buffer"]["test"]:
-            config.env.buffer.test = {
+            config.buffer.test = {
                 "type": "pkl",
                 "path": checkpoint["buffer"]["test"],
             }
