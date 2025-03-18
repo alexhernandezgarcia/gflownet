@@ -19,6 +19,7 @@ from gflownet.utils.common import tbool, tfloat, tlong
 # Skip all Buffer tests until they get updated
 pytest.skip(allow_module_level=True)
 
+
 @pytest.fixture
 def env_ctorus():
     return ContinuousTorus(n_dim=2, length_traj=3, n_comp=2)
@@ -162,9 +163,7 @@ def test__buffer_init_ctorus(
             check_pkl_loaded_from_path(buffer_samples, temp_dir / name)
 
     # check output csv files are correct
-    for name, buffer_df in zip(
-        ["train.csv", "test.csv"], [buffer.train, buffer.test]
-    ):
+    for name, buffer_df in zip(["train.csv", "test.csv"], [buffer.train, buffer.test]):
         if name is not None:
             check_csv_loaded_from_path(buffer_df, temp_dir / name)
 

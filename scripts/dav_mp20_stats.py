@@ -20,7 +20,6 @@ CMAP = mpl.colormaps["cividis"]
 from collections import Counter
 
 from external.repos.ActiveLearningMaterials.dave.utils.loaders import make_loaders
-
 from gflownet.proxy.crystals.dave import DAVE
 from gflownet.utils.common import load_gflownet_from_rundir, resolve_path
 
