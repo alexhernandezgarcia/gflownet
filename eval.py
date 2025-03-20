@@ -133,7 +133,7 @@ def main(config):
             [pd.read_csv(f, index_col=0) for f in tqdm(list(tmp_dir.glob("*.csv")))]
         )
         df.to_csv(output_dir / f"{prefix}_samples.csv")
-        dct = {k: [] for k in dct_keys}
+        dct = {k: [] for k in dct.keys()}
         for f in tqdm(list(tmp_dir.glob("*.pkl"))):
             tmp_dict = pickle.load(open(f, "rb"))
             dct = {k: v + tmp_dict[k] for k, v in dct.items()}
