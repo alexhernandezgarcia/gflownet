@@ -15,15 +15,13 @@ env:
   max_increment: 1
   max_dim_per_action: 1
   reward_func: identity
-  # Buffer
-  buffer:
-    train: null
-    test:
-      type: uniform
-      n: 1000
-      seed: 0
-      output_csv: grid_test.csv
-      output_pkl: grid_test.pkl
+
+# Buffer
+buffer:
+  test:
+    type: uniform
+    n: 1000
+    seed: 0
 
 # GFlowNet hyperparameters
 gflownet:

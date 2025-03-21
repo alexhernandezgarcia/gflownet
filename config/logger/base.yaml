@@ -13,7 +13,20 @@ logdir:
   overwrite: True
 debug: False
 lightweight: False
-progress: True
+progressbar:
+  skip: False
+  n_iters_mean: 100
 context: "0"
 notes: null # wandb run notes (e.g. "baseline")
 entity: null # wandb entity (e.g. "gflownet", "hernanga", "mila-ocp" etc.)
+run_id: null # Unique identifier of a wandb run
+
+# Set to True for resuming runs
+is_resumed: False
+
+# Name of the run
+run_name: null
+# Whether the date (and time) should be included in the run name
+run_name_date: True
+# Whether the job id should be included in the run name
+run_name_job: True

@@ -28,6 +28,12 @@ env:
     bernoulli_eos_prob: 0.1
     bernoulli_bts_prob: 0.1
 
+# Buffer
+buffer:
+  test:
+    type: grid
+    n: 900
+
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1

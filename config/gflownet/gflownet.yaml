@@ -36,20 +36,15 @@ optimizer:
   clip_grad_norm: 0.0
 # State flow modelling
 state_flow: null
-# If True, compute rewards in batches
-batch_reward: True
 # Force zero probability of sampling invalid actions
 mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
 # Percentage of random actions
 random_action_prob: 0.0
-# Percentage of trajectories in a batch from an empirical distribution
-pct_offline: 0.0
 # Replay buffer
-replay_capacity: 0
 replay_sampling: permutation
 # Train data set backward sampling
 train_sampling: permutation
-num_empirical_loss: 200000
 use_context: False
+garbage_collection_period: 0

@@ -54,9 +54,3 @@ do_lattice_parameters: True
 do_composition_to_sg_constraints: True
 do_sg_to_composition_constraints: True
 do_sg_to_lp_constraints: True
-
-# Buffer
-buffer:
-  data_path: null
-  train: null
-  test: null

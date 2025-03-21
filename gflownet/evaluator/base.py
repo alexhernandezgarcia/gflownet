@@ -222,6 +222,7 @@ class BaseEvaluator(AbstractEvaluator):
             "summary": summary,
         }
 
+    @torch.no_grad()
     def compute_log_prob_metrics(self, x_tt, metrics=None):
         """
         Compute log-probability metrics for the given test data.
@@ -343,7 +344,7 @@ class BaseEvaluator(AbstractEvaluator):
 
         x_sampled = density_true = density_pred = None
 
-        if self.gfn.buffer.test_type == "all":
+        if self.gfn.buffer.test_config.type == "all":
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
@@ -356,7 +357,7 @@ class BaseEvaluator(AbstractEvaluator):
                 )
                 z_true = rewards.sum()
                 density_true = rewards / z_true
-                with open(self.gfn.buffer.test_pkl, "wb") as f:
+                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
@@ -397,7 +398,7 @@ class BaseEvaluator(AbstractEvaluator):
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true and kde_true to pickled test dict
-                with open(self.gfn.buffer.test_pkl, "wb") as f:
+                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
                     dict_tt["kde_true"] = kde_true
                     pickle.dump(dict_tt, f)
@@ -443,6 +444,7 @@ class BaseEvaluator(AbstractEvaluator):
             "data": density_data,
         }
 
+    @torch.no_grad()
     def eval(self, metrics=None, **plot_kwargs):
         """
         Evaluate the GFlowNetAgent and compute metrics and plots.
@@ -477,7 +479,7 @@ class BaseEvaluator(AbstractEvaluator):
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if self.gfn.buffer.test_pkl is None:
+        if self.gfn.buffer.test is None:
             return {
                 "metrics": {
                     k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
@@ -486,12 +488,11 @@ class BaseEvaluator(AbstractEvaluator):
                 "data": {},
             }
 
+        with open(self.gfn.buffer.test_config.pkl, "rb") as f:
+            dict_tt = pickle.load(f)
+        x_tt = self.gfn.buffer.test.samples.values.tolist()
         all_data = {}
         all_metrics = {}
-
-        with open(self.gfn.buffer.test_pkl, "rb") as f:
-            dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
 
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.

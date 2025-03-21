@@ -16,10 +16,3 @@ max_atom_i: 16
 space_group: null
 do_charge_check: False
 do_spacegroup_check: True
-# Buffer
-buffer:
-  data_path: null
-  train:
-    type: all
-  test:
-    type: all

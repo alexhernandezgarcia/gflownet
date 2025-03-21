@@ -60,14 +60,16 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  buffer:
-    replay_capacity: 1000
-    train:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/train.csv
-    test:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/val.csv
+
+# Buffer
+buffer:
+  replay_capacity: 1000
+  train:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/train.csv
+  test:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/val.csv
 
 # GFlowNet hyperparameters
 gflownet:
