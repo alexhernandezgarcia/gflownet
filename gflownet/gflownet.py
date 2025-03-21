@@ -666,9 +666,7 @@ class GFlowNetAgent:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [
-                    env_instances.pop().reset(idx) for idx in range(n_replay)
-                ]
+                envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
                 x_replay = self.buffer.select(
                     dict_replay, n_replay, self.replay_sampling, self.rng
                 )
