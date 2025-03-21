@@ -762,6 +762,8 @@ class BaseTestsCommon:
                 version_base="1.1", config_path="../../../config", job_name="tests"
             ):
                 config = compose(config_name="tests")
+                # Set batch size in config
+                config.gflownet.optimizer.batch_size.forward = batch_size
 
             # Initialize a GFlowNet agent from the configuration file
             gflownet = gflownet_from_config(config)
