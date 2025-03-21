@@ -322,6 +322,10 @@ class SpaceGroup(GFlowNetEnv):
             - One-hot encoding of the point symmetry (max length 5).
             - One-hot encoding of the space group (max length 230).
 
+        Besides, the states in which each property has not been set yet are included as
+        an additional class in the encoding. Thus, each property is one-hot encoded
+        with a vector of length the number of classes in the property plus one.
+
         In order to not waste memory and for backward compatibility, the one-hot
         encodings have a maximum length equal to the maximum number of options in the
         configuration.
