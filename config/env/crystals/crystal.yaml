@@ -19,9 +19,3 @@ space_group_kwargs:
 # Stoichiometry <-> space group check
 do_composition_to_sg_constraints: True
 self.do_sg_to_lp_constraints: True
-
-# Buffer
-buffer:
-  data_path: null
-  train: null
-  test: null

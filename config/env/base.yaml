@@ -10,8 +10,3 @@ skip_mask_check: False
 conditional: False
 # Whether the environment is continuous
 continuous: False
-# Buffer: no train and test buffers by default
-buffer:
-  replay_capacity: 0
-  train: null
-  test: null

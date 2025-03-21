@@ -12,13 +12,12 @@ env:
   height: 4
   pieces: ["I", "O", "J", "L", "T"]
   rotations: [0, 90, 180, 270]
-  buffer:
-    # replay_capacity: 0
-    test:
-      type: random
-      output_csv: simple_tetris_val.csv
-      output_pkl: simple_tetris_val.pkl
-      n: 100
+
+# Buffer
+buffer:
+  test:
+    type: random
+    n: 100
 
 proxy:
   reward_function: exponential

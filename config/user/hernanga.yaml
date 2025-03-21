@@ -1,5 +1,5 @@
 logdir:
   root: /network/scratch/h/hernanga/logs/gflownet
 data:
-  root: /home/mila/h/hernanga/gflownet/data
+  root: /home/mila/h/hernanga/git/gflownet/data
   alanine_dipeptide: /home/mila/h/hernanga/gflownet/data/alanine_dipeptide_conformers_1.npy

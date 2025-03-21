@@ -17,13 +17,11 @@ shared:
     env:
       __value__: ccube
       n_dim: 2
-      # Buffer
-      buffer:
-        data_path: null
-        train: null
-        test:
-          type: grid
-          n: 1000
+    # Buffer
+    buffer:
+      test:
+        type: grid
+        n: 1000
     # Proxy
     proxy: box/corners
     # GFlowNet config

@@ -11,11 +11,3 @@ space_groups_subset: null
 n_atoms: null
 # Policy format
 policy_fmt: onehot
-
-# Buffer
-buffer:
-  data_path: null
-  train:
-    type: all
-  test:
-    type: all
