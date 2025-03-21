@@ -326,9 +326,20 @@ class SpaceGroup(GFlowNetEnv):
         an additional class in the encoding. Thus, each property is one-hot encoded
         with a vector of length the number of classes in the property plus one.
 
+        Notes
+        -----
         In order to not waste memory and for backward compatibility, the one-hot
         encodings have a maximum length equal to the maximum number of options in the
         configuration.
+
+        To obtain the one-hot encoding of a given property index, while accounting for
+        the fact that not all possible indices might be valid given the current
+        configuration, we use torch.searchsorted, which receives as first input the
+        valid set of indices and as second input the value to be encoded, and outputs
+        the corresponding index. This index in then one-hot encoded.
+
+        See: `torch.searchsorted
+        <https://pytorch.org/docs/stable/generated/torch.searchsorted.html>`_
 
         Example
         -------
