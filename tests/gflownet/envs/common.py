@@ -9,7 +9,6 @@ of the state, for example in test__trajectories_are_reversible(), a copy is need
 
 import inspect
 import warnings
-from functools import partial
 
 import hydra
 import numpy as np
@@ -766,7 +765,7 @@ class BaseTestsCommon:
                 config.gflownet.optimizer.batch_size.forward = batch_size
 
             # Initialize a GFlowNet agent from the configuration file
-            gflownet = gflownet_from_config(config)
+            gflownet = gflownet_from_config(config, env=self.env)
 
             # Train
             gflownet.train()
