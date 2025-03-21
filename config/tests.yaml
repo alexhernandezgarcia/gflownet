@@ -1,6 +1,5 @@
 defaults:
   - _self_
-  - env: grid
   - gflownet: trajectorybalance
   - policy: mlp_${gflownet}
   - proxy: uniform
@@ -17,11 +16,6 @@ float_precision: 32
 n_samples: 10
 # Random seeds
 seed: 0
-
-# Set optimizer to a single training step
-gflownet:
-  optimizer:
-    n_train_steps: 1
 
 # Hydra config
 hydra:

@@ -763,6 +763,8 @@ class BaseTestsCommon:
                 config = compose(config_name="tests")
                 # Set batch size in config
                 config.gflownet.optimizer.batch_size.forward = batch_size
+                # Set optimizer to a single training step
+                config.gflownet.optimizer.n_train_steps = 1
 
             # Initialize a GFlowNet agent from the configuration file
             gflownet = gflownet_from_config(config, env=self.env)
