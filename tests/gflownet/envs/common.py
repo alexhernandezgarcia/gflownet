@@ -16,6 +16,7 @@ import pytest
 import torch
 import yaml
 from hydra import compose, initialize
+from utils_for_tests import load_base_test_config
 
 from gflownet.utils.common import copy, gflownet_from_config, tbool, tfloat
 from gflownet.utils.policy import parse_policy_config
@@ -756,15 +757,13 @@ class BaseTestsCommon:
             batch_size = self.batch_size[method_name]
 
         for _ in range(n_repeat):
-            # Load config
-            with initialize(
-                version_base="1.1", config_path="../../../config", job_name="tests"
-            ):
-                config = compose(config_name="tests")
-                # Set batch size in config
-                config.gflownet.optimizer.batch_size.forward = batch_size
-                # Set optimizer to a single training step
-                config.gflownet.optimizer.n_train_steps = 1
+            # Load config by setting batch size of 2 and 1 train step.
+            config = load_base_test_config(
+                overrides=[
+                    f"gflownet.optimizer.batch_size.forward={batch_size}",
+                    "gflownet.optimizer.n_train_steps=1",
+                ]
+            )
 
             # Initialize a GFlowNet agent from the configuration file
             gflownet = gflownet_from_config(config, env=self.env)
