@@ -17,8 +17,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import (copy, set_device, set_float_precision,
-                                   tbool, tfloat)
+from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 CMAP = mpl.colormaps["cividis"]
 """

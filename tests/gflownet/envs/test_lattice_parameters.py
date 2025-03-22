@@ -9,13 +9,18 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.crystals.lattice_parameters import (PARAMETER_NAMES,
-                                                       LatticeParameters)
+from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.utils.common import tfloat
-from gflownet.utils.crystals.constants import (CUBIC, HEXAGONAL,
-                                               LATTICE_SYSTEMS, MONOCLINIC,
-                                               ORTHORHOMBIC, RHOMBOHEDRAL,
-                                               TETRAGONAL, TRICLINIC)
+from gflownet.utils.crystals.constants import (
+    CUBIC,
+    HEXAGONAL,
+    LATTICE_SYSTEMS,
+    MONOCLINIC,
+    ORTHORHOMBIC,
+    RHOMBOHEDRAL,
+    TETRAGONAL,
+    TRICLINIC,
+)
 
 N_REPETITIONS = 100
 

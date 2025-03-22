@@ -8,6 +8,7 @@ import urllib.request
 from math import floor
 
 import gpytorch
+
 # import tqdm
 import torch
 from botorch.test_functions import Hartmann

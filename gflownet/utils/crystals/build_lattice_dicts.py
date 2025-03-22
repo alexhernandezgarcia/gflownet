@@ -9,12 +9,19 @@ from argparse import ArgumentParser
 
 import numpy as np
 import yaml
-from lattice_constants import (CRYSTAL_CLASSES_WIKIPEDIA,
-                               CRYSTAL_LATTICE_SYSTEMS, CRYSTAL_SYSTEMS,
-                               POINT_SYMMETRIES,
-                               RHOMBOHEDRAL_SPACE_GROUPS_WIKIPEDIA)
-from pymatgen.symmetry.groups import (PointGroup, SpaceGroup, SymmetryGroup,
-                                      sg_symbol_from_int_number)
+from lattice_constants import (
+    CRYSTAL_CLASSES_WIKIPEDIA,
+    CRYSTAL_LATTICE_SYSTEMS,
+    CRYSTAL_SYSTEMS,
+    POINT_SYMMETRIES,
+    RHOMBOHEDRAL_SPACE_GROUPS_WIKIPEDIA,
+)
+from pymatgen.symmetry.groups import (
+    PointGroup,
+    SpaceGroup,
+    SymmetryGroup,
+    sg_symbol_from_int_number,
+)
 
 N_SPACE_GROUPS = 230
 

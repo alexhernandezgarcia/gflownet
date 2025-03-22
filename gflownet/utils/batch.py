@@ -8,8 +8,16 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.proxy.base import Proxy
-from gflownet.utils.common import (concat_items, copy, extend, set_device,
-                                   set_float_precision, tbool, tfloat, tlong)
+from gflownet.utils.common import (
+    concat_items,
+    copy,
+    extend,
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tlong,
+)
 
 
 class Batch:
