@@ -1,0 +1,9 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.constant.Constant
+
+id: constant
+
+# Default constant state
+state: [0]
