@@ -52,14 +52,16 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  buffer:
-    replay_capacity: 1000
-    train:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/train.csv
-    test:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/val.csv
+
+# Buffer
+buffer:
+  replay_capacity: 1000
+  train:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/train.csv
+  test:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/val.csv
 
 # GFlowNet hyperparameters
 gflownet:
@@ -96,7 +98,7 @@ policy:
 proxy:
   reward_min: 1e-08
   do_clip_rewards: True
-  release: 0.3.4 # Formation energy release
+  ckpt_path: /network/projects/crystalgfn/ckpts/dave/eform/
   # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
   reward_function: exponential
   # Parameters of the reward function

@@ -5,6 +5,13 @@ import numpy as np
 import pytest
 import torch
 
+# Skip the entire module if torch_geometric is not installed / cannot be imported
+pytest.importorskip(
+    "torch_geometric",
+    reason="Skipping all tests in test_tree.py because torch_geometric could not "
+    "be imported",
+)
+
 from gflownet.envs.tree import (
     ActionType,
     Attribute,

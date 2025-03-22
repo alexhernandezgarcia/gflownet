@@ -50,14 +50,16 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  buffer:
-    replay_capacity: 1000
-    train:
-      type: csv
-      path: /network/projects/crystalgfn/data/bandgap/train.csv
-    test:
-      type: csv
-      path: /network/projects/crystalgfn/data/bandgap/val.csv
+
+# Buffer
+buffer:
+  replay_capacity: 1000
+  train:
+    type: csv
+    path: /network/projects/crystalgfn/data/bandgap/train.csv
+  test:
+    type: csv
+    path: /network/projects/crystalgfn/data/bandgap/val.csv
 
 # GFlowNet hyperparameters
 gflownet:
@@ -94,7 +96,7 @@ policy:
 proxy:
   reward_min: 1e-08
   do_clip_rewards: True
-  release: 1.0.0 # Bandgap release
+  ckpt_path: /network/projects/crystalgfn/ckpts/dave/bandgap/
   # RBF exponential, to compute the proximity to a target
   reward_function: rbf_exponential
   # Parameters of the reward function

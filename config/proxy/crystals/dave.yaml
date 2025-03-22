@@ -3,13 +3,11 @@ defaults:
 
 _target_: gflownet.proxy.crystals.dave.DAVE
 
-# releases 0.x.x refer to Formation Energy models
-# releases 1.x.x refer to Band Gap models
-release: 0.3.4
-ckpt_path:
-  mila: /network/scratch/s/schmidtv/crystals-proxys/proxy-ckpts/
-  victor: ~/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2
-rescale_outputs: true
+# ckpt_path should be a path to a directory containing a *.cpkt file
+#   Examples:
+#   EForm (default): /network/projects/crystalgfn/ckpts/dave/eform/
+#   Band gap: /network/projects/crystalgfn/ckpts/dave/bandgap/
+ckpt_path: /network/projects/crystalgfn/ckpts/dave/eform/
 
 # Reward function: exponential by default
 # If the band gap model is used as proxy, consider using rbf_exponential instead
@@ -21,11 +19,3 @@ reward_function_kwargs:
   # Target value if the rbf_exponential reward_function is used
   # center: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
   # distance: squared # Metric to compute the distance to the target
-
-# Debug params
-clip:
-  do: False
-  min_stds: null
-  max_stds: null
-  min: null
-  max: null

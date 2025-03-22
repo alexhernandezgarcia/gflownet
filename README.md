@@ -46,41 +46,114 @@ The GFlowNet Agent is the central component that ties all others together. It or
 
 ## Installation
 
-**If you simply want to install everything, clone the repo and run `setup_all.sh`:**
+**If you simply want to install everything on a GPU-enabled machine, clone the repo and run `install.sh`:**
 
 ```bash
 git clone git@github.com:alexhernandezgarcia/gflownet.git
 cd gflownet
-./setup_all.sh
+source install.sh
 ```
 
-+ This project **requires** `python 3.10` and `cuda 11.8`.
-+ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
-+ The recommend installation is as follows:
+- This project **requires** Python 3.10 and CUDA 11.8.
+- It is also **possible to install a CPU-only environment** that supports most features (see below).
+- Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
+
+### Step by step installation
+
+The following steps, as well as the script `install.sh`, assume the use of Python virtual environments for the installation.
+
+1. Ensure that you have Python 3.10 and, if you want to install GPU-enabled PyTorch, CUDA 11.8. In a cluster that uses [modules](https://hpc-wiki.info/hpc/Modules), you may be able to load Python and CUDA with:
 
 ```bash
-python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
-source ~/envs/gflownet/bin/activate  # Activate your environment.
-./prereq_ubuntu.sh  # Installs some packages required by dependencies.
-./prereq_python.sh  # Installs python packages with specific wheels.
-./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
-pip install .[all]  # Install the remaining elements of this package.
+module load python/3.10
+module load cuda/11.8
 ```
 
-Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
+2. Create and activate a Python virtual environment with `venv`. For example:
+
+```bash
+python -m venv gflownet-env
+source gflownet-env/bin/activate
+```
+
+3. Install PyTorch 2.5.1.
+
+For a CUDA-enabled installation:
+
+```bash
+python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu118
+python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cu118.html
+```
+
+For a CPU-only installation:
+
+```bash
+python -m pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+python -m pip install torch-scatter -f https://data.pyg.org/whl/torch-2.5.1+cpu.html
+```
+
+4. Install the rest of the dependencies:
+
+```bash
+python -m pip install .
+```
+
+The above command will install the minimum set of dependencies to run the core features of the gflownet package. Specific features require the installation of extra dependencies. Currently, these are the existing sets of extras:
+
+- `dev`: dependencies for development, such as linting and testing packages.
+- `materials`: dependencies for materials applications, such as the Crystal-GFN.
+- `molecules`: dependencies for molecular modelling and generation, such the Conformer-GFN.
+
+Extras can be installed by specifying the tags in square brackets:
+
+```bash
+python -m pip install .[dev]
+```
+
+or
+
+```bash
+python -m pip install .[dev,materials]
+```
+
+### Installing with `install.sh`
+
+The script `install.sh` simplifies the installation of a Python environment with the necessary or desired dependencies.
+
+By default, running `source install.sh` will create a Python environment in `./gflownet-env with CUDA-enabled PyTorch and all the dependecies (all extras). However, the script admits the following arguments to modify the configuration of the environment:
+
+- `--cpu`: Install CPU-only PyTorch (mutually exclusive with --cuda).
+- `--cuda`: Install CUDA-enabled PyTorch (default, and mutually exclusive with --cpu).
+- `--envpath PATH`: Path of the Python virtual environment to be installed. Default: `./gflownet-env`
+- `--extras LIST`: Comma-separated list of extras to install. Default: `all`. Options:
+    - dev: dependencies for development, such as linting and testing packages.
+    - materials: dependencies for materials applications, such as the Crystal-GFN.
+    - molecules: dependencies for molecular modelling and generation, such the Conformer-GFN.
+    - all: all of the above
+    - minimal: none of the above, that is the minimal set of dependencies.
+- `--dry-run`: Print the summary of the configuration selected and exit.
+- `--help`: Show the help message and exit.
+
+For example, you may run:
+
+```bash
+source install.sh --cpu --envpath ~/myenvs/gflownet-env --extras dev,materials
+```
+
+to install an environment on `~/myenvs/gflownet-env`, with a CPU-only PyTorch and the dev and materials extras.
 
 ## Quickstart: How to train a GFlowNet model
 
 The gflownet library uses [Hydra](https://hydra.cc/docs/intro/) to handle configuration files. This allows, for instance, to easily train a GFlowNet with the configuration of a specific YAML file. For example, to train a GFlowNet with a 10x10 Grid environment and the corners proxy, with the configuration from `./config/experiments/grid/corners.yaml`, we can simply run:
 
 ```bash
-python main.py +experiments=grid/corners
+python train.py +experiments=grid/corners
 ```
 
 Alternatively, we can explicitly indicate the environment and the proxy as follows:
 
 ```bash
-python main.py env=grid proxy=box/corners
+python train.py env=grid proxy=box/corners
 ```
 
 The above command will train a GFlowNet with the default configuration, except for the environment, which will use `./config/env/grid.yaml`; and the proxy, which will use `./config/proxy/box/corners.yaml`.
@@ -88,7 +161,7 @@ The above command will train a GFlowNet with the default configuration, except f
 A typical use case of the gflownet library is to extend it with a new environment and a new proxy to fit your purposes. In that case, you could create their respective configuration files `./config/env/myenv.yaml` and `./config/proxy/myproxy.yaml` and run
 
 ```bash
-python main.py env=myenv proxy=myproxy
+python train.py env=myenv proxy=myproxy
 ```
 
 The objective function to optimise is selected directly via the `gflownet` configuration. The following GFlowNet objectives are supported:
@@ -104,10 +177,28 @@ All other configurable options are handled similarly. For example, we recommend 
 As another example, you may also want to configure the functionality of the Logger, the class which helps manage logging to [Weights & Biases](https://wandb.ai/) during the training and evaluation of the model. Logging to WandB is disabled by default. In order to enable it, make sure to set up your WandB API key and set the configuration variable `logger.do.online` to `True` in your experiment config file or via the command line:
 
 ```bash
-python main.py +experiments=grid/corners logger.do.online=True
+python train.py +experiments=grid/corners logger.do.online=True
 ```
 
 Finally, also note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
+
+## Evaluation of a trained GFlowNet
+
+To evaluate a trained GFlowNet and sample from it, we can use the script `eval.py`. For example:
+
+```
+python eval.py rundir=path/to/run/directory n_samples=1000
+```
+
+Obviously, the run directory must contain the Hydra configuration and checkpoints of a pre-trained GFlowNet. Additional arguments that can be passed to `eval.py` can be consulted in `./config/eval.yaml`.
+
+## Resuming the training of GFlowNet
+
+If the training of a GFlowNet has crashed or simply we want to train it for longer, it is possible to resume training with the script `resume.py`, provided the run direcotory contains the checkpoints of the GFlowNet. By default, the latest checkpoint will be used to reload the model:
+
+```
+python resume.py rundir=path/to/run/directory
+```
 
 ## Exploring the Scrabble environment
 
