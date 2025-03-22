@@ -144,5 +144,6 @@ class TestScrabbleCommon(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__get_parents__all_parents_are_reached_with_different_actions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
         }
         self.n_states = {}  # TODO: Populate.

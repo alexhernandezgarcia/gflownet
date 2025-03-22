@@ -3,12 +3,21 @@ from collections import Counter
 import pytest
 
 from gflownet.envs.grid import Grid
-from gflownet.envs.tetris import Tetris
 
 
 @pytest.fixture
 def grid():
     return Grid()
+
+
+@pytest.fixture
+def grid5x5():
+    return Grid(n_dim=2, length=5)
+
+
+@pytest.fixture
+def grid10x10x10():
+    return Grid(n_dim=3, length=10)
 
 
 @pytest.mark.parametrize(
@@ -214,7 +223,7 @@ def grid():
             (1, [0, 1], "a", (2, 3, 1)),
             False,
         ),
-        ### List of Counter and tuple (Wyckomposition)
+        ### List of Counter and tuple
         (
             [Counter(), ()],
             [Counter(), ()],
@@ -247,3 +256,68 @@ def test__equal__behaves_as_expected(grid, state_x, state_y, is_equal):
     # grid states, but it does not matter for the purposes of this test.
     env = grid
     assert env.equal(state_x, state_y) == is_equal
+
+
+@pytest.mark.parametrize(
+    "env, n_states, max_attempts",
+    [
+        ("grid5x5", 10, 5),
+        ("grid10x10x10", 20, 19),
+    ],
+)
+def test__get_random_states__raises_value_error_if_n_states_larger_than_max_attempts(
+    env, n_states, max_attempts, request
+):
+    env = request.getfixturevalue(env)
+    with pytest.raises(ValueError):
+        states = env.get_random_states(
+            n_states, unique=True, exclude_source=False, max_attempts=max_attempts
+        )
+        assert True
+
+
+@pytest.mark.parametrize(
+    "env, n_states",
+    [
+        ("grid", 3),
+        ("grid5x5", 10),
+        ("grid10x10x10", 20),
+    ],
+)
+def test__get_random_states__returns_unique_states_if_unique_is_true(
+    env, n_states, request
+):
+    env = request.getfixturevalue(env)
+    states = env.get_random_states(
+        n_states, unique=True, exclude_source=False, max_attempts=10000
+    )
+    # Check that the number of states is the requested one
+    assert len(states) == n_states
+    # Check that all states are different
+    states_unique = []
+    for state in states:
+        if not any([env.equal(state, s) for s in states_unique]):
+            states_unique.append(state)
+    assert len(states_unique) == len(states)
+
+
+@pytest.mark.parametrize(
+    "env, n_states",
+    [
+        ("grid", 3),
+        ("grid5x5", 10),
+        ("grid5x5", 20),
+        ("grid10x10x10", 20),
+    ],
+)
+def test__get_random_states__does_not_contain_the_source_if_exclude_source_is_true(
+    env, n_states, request
+):
+    env = request.getfixturevalue(env)
+    states = env.get_random_states(
+        n_states, unique=False, exclude_source=True, max_attempts=10000
+    )
+    # Check that the number of states is the requested one
+    assert len(states) == n_states
+    # Check that the source state is not included
+    assert all([not env.is_source(state) for state in states])

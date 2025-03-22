@@ -130,7 +130,7 @@ class BaseBuffer:
                 pickle.dump(dict_tr, f)
 
         # Define test data set
-        self.test, dict_tr = self.make_data_set(test)
+        self.test, dict_tr = self.make_data_set(self.test_config)
         if self.test is None:
             print(
                 "\tImportant: test metrics will NOT be computed. In order to compute "

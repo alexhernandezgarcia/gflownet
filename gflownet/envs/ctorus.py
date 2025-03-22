@@ -36,8 +36,19 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Mask dimensionality:
-        self.mask_dim = 2
+
+    @property
+    def mask_dim(self):
+        """
+        Returns the dimensionality of the masks.
+
+        The mask consists of two fixed flags.
+
+        Returns
+        -------
+        The dimensionality of the masks.
+        """
+        return 2
 
     def get_action_space(self):
         """
@@ -138,53 +149,65 @@ class ContinuousTorus(HybridTorus):
         else:
             return [False, False]
 
+    def get_valid_actions(
+        self,
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        As a continuous environment, the returned actions are "representatives", that
+        is the actions represented in the action space.
+
+        Parameters
+        ----------
+        mask : list (optional)
+            The mask of a state. If None, it is computed in place.
+        state : list (optional)
+            A state in GFlowNet format. If None, self.state is used.
+        done : bool (optional)
+            Whether the trajectory is done. If None, self.done is used.
+        backward : bool
+            True if the transtion is backwards; False if forward.
+
+        Returns
+        -------
+        list
+            The list of representatives of the valid actions.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+
+        # If EOS is valid (mask[1] is True), only EOS is valid.
+        if mask[1]:
+            return [self.eos]
+        # Otherwise, only the representative action of generic actions is valid.
+        else:
+            return [self.representative_action]
+
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
     ) -> Tuple[List[List], List[Tuple[int, float]]]:
         """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state, as a list of length n_angles where each element
-            is the position at each dimension.
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : int
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
+        Defined only because it is required. A ContinuousEnv should be created to avoid
+        this issue.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.eos]
-        # If source state
-        elif state[-1] == 0:
-            return [], []
-        else:
-            for dim, angle in enumerate(action):
-                state[int(dim)] = (state[int(dim)] - angle) % (2 * np.pi)
-            state[-1] -= 1
-            parents = [state]
-            return parents, [action]
+        pass
 
     def action2representative(self, action: Tuple) -> Tuple:
         """
         Returns the arbirary, representative action in the action space, so that the
-        action can be contrasted with the action space and masks.
+        action can be contrasted with the action space and masks. If EOS, action return
+        EOS.
         """
+        if action == self.eos:
+            return self.eos
         return self.representative_action
 
     def sample_actions_batch(
@@ -477,5 +500,9 @@ class ContinuousTorus(HybridTorus):
             self._step(action, backward=True)
             return self.state, action, True
 
-    def get_max_traj_length(self):
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
         return int(self.length_traj) + 1

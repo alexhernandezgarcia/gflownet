@@ -442,9 +442,12 @@ class Tetris(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, action, valid
 
-    # TODO
-    def get_max_traj_length(self):
-        return int(1e9)
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return (self.width * self.height) // 4 + 1
 
     def set_state(
         self, state: TensorType["height", "width"], done: Optional[bool] = False

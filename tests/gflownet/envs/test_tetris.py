@@ -523,8 +523,30 @@ class TestTetrisCommon1Piece(common.BaseTestsDiscrete):
         self.env = env_1piece
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 0,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+        }
 
 
 class TestTetrisCommonMini(common.BaseTestsDiscrete):
@@ -535,8 +557,31 @@ class TestTetrisCommonMini(common.BaseTestsDiscrete):
         self.env = env_mini
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 1,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 3,
+        }
 
 
 class TestTetrisCommon(common.BaseTestsDiscrete):
@@ -547,9 +592,30 @@ class TestTetrisCommon(common.BaseTestsDiscrete):
         self.env = env
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
             "test__gflownet_minimal_runs": 0,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+        }
 
 
 class TestTetrisCommonFull(common.BaseTestsDiscrete):
@@ -560,10 +626,31 @@ class TestTetrisCommonFull(common.BaseTestsDiscrete):
         self.env = env_full
         self.repeats = {
             "test__reset__state_is_source": 10,
-            "test__get_parents__all_parents_are_reached_with_different_actions": 10,
+            "test__get_parents__all_parents_are_reached_with_different_actions": 3,
+            "test__forward_actions_have_nonzero_backward_prob": 3,
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__trajectories_are_reversible": 3,
+            "test__step_random__does_not_sample_invalid_actions_forward": 3,
+            "test__step_random__does_not_sample_invalid_actions_backward": 3,
+            "test__get_mask__is_consistent_regardless_of_inputs": 3,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 3,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 3,
+            "test__get_parents_step_get_mask__are_compatible": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__state2readable__is_reversible": 5,
             "test__gflownet_minimal_runs": 0,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 1,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 3,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 3,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 3,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 3,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 3,
+        }
 
 
 class TestTetrisCommon6X4(common.BaseTestsDiscrete):
@@ -574,8 +661,27 @@ class TestTetrisCommon6X4(common.BaseTestsDiscrete):
         self.env = env6x4
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 0,
         }
         self.n_states = {
-            "test__get_parents__returns_same_state_and_eos_if_done": 100,
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+        }

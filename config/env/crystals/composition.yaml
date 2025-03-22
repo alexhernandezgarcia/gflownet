@@ -5,7 +5,8 @@ _target_: gflownet.envs.crystals.composition.Composition
 
 # Composition parameters
 id: composition
-max_diff_elem: 4
+elements: 94
+max_diff_elem: 5
 min_diff_elem: 2
 elements: 5
 min_atoms: 2

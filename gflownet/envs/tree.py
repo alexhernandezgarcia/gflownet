@@ -1223,8 +1223,12 @@ class Tree(GFlowNetEnv):
         else:
             return super().action2representative(action=action)
 
-    def get_max_traj_length(self) -> int:
-        return self.n_nodes * Attribute.N
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return self.n_nodes * Attribute.N + 1
 
     @staticmethod
     def _get_graph(

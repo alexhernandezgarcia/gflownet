@@ -1,0 +1,47 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.setbox.SetBox
+
+id: setbox
+
+# Maximum number of elements of each kind (cube or grid)l
+max_elements_per_subenv: 3
+# Dimensions of boxes (hypercubes and hypergrids )
+n_dim: 2
+
+# Cube config
+cube_kwargs:
+  kappa: 1e-3
+  min_incr: 0.1
+  n_comp: 2
+  epsilon: 1e-6
+  beta_params_min: 0.1
+  beta_params_max: 100.0
+  fixed_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_bts_prob: 0.1
+    bernoulli_eos_prob: 0.1
+  random_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_bts_prob: 0.1
+    bernoulli_eos_prob: 0.1
+
+# Grid config
+grid_kwargs:
+  length: 3
+  max_increment: 1
+  max_dim_per_action: 1
+  cell_min: -1
+  cell_max: 1
+
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: all

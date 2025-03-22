@@ -212,7 +212,7 @@ def test__should_eval_top_k(constant_evaluator, period, step, target, first_it, 
     "config_for_tests,parameterization",
     [
         (None, "default"),
-        (["env.length=4"], "grid_length_4"),
+        (["env=grid", "env.length=4"], "grid_length_4"),
         (["env=ctorus"], "ctorus"),
     ],
     indirect=[

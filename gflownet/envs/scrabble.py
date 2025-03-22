@@ -229,6 +229,15 @@ class Scrabble(GFlowNetEnv):
         self.state[self._get_seq_length()] = action[0]
         return self.state, action, valid
 
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment.
+
+        The maximum trajectory lenght is the maximum sequence length (self.max_length)
+        plus one (EOS action).
+        """
+        return self.max_length + 1
+
     def states2proxy(
         self, states: Union[List[List[int]], List[TensorType["max_length"]]]
     ) -> TensorType["batch", "state_dim"]:

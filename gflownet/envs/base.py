@@ -3,6 +3,7 @@ Base class of GFlowNet environments
 """
 
 import numbers
+import random
 import uuid
 from abc import abstractmethod
 from copy import deepcopy
@@ -61,10 +62,10 @@ class GFlowNetEnv:
         self.action_space_torch = torch.tensor(
             self.action_space, device=self.device, dtype=self.float
         )
-        self.action_space_dim = len(self.action_space)
-        self.mask_dim = self.action_space_dim
+        # Mask dimensionality
+        self._mask_dim = self._compute_mask_dim()
         # Max trajectory length
-        self.max_traj_length = self.get_max_traj_length()
+        self._max_traj_length = self._get_max_trajectory_length()
         # Policy outputs
         self.fixed_distr_params = fixed_distr_params
         self.random_distr_params = random_distr_params
@@ -79,6 +80,73 @@ class GFlowNetEnv:
         Constructs list with all possible actions (excluding end of sequence)
         """
         pass
+
+    @property
+    def action_space_dim(self) -> int:
+        """
+        Returns the dimensionality of the action space (number of actions).
+
+        Returns
+        -------
+        The number of actions in the action space.
+        """
+        return len(self.action_space)
+
+    @property
+    def mask_dim(self):
+        """
+        Returns the dimensionality of the masks.
+
+        Returns
+        -------
+        The dimensionality of the masks.
+        """
+        return self._mask_dim
+
+    def _compute_mask_dim(self) -> int:
+        """
+        Calculates the mask dimensionality.
+
+        By default, the mask dimensionality is equal to the dimensionality of the
+        action space.
+
+        This method should be overriden in environments where this may not be the case,
+        for example continuous environments (ContinuousCube) and meta-environments such
+        as Stack and Set.
+
+        Returns
+        -------
+        int
+            The number of elements in the masks.
+        """
+        return self.action_space_dim
+
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+
+        While it is not required to override this method because it does return a
+        default value of 100, it is recommended to override it to return the correct
+        value or an upper bound as tight as possible to  the maximum.
+
+        The maximum trajectory length does not play a critical role but it is used for
+        testing purposes. For example, it is used by get_random_states(), and poor
+        estimation of the trajectory length could result in stark inefficiency.
+        """
+        return 100
+
+    @property
+    def max_traj_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+
+        Returns
+        -------
+        The maximum number of steps in a trajectory of the environment.
+        """
+        return self._max_traj_length
 
     def action2representative(self, action: Tuple) -> int:
         """
@@ -154,6 +222,26 @@ class GFlowNetEnv:
         if done is None:
             done = self.done
         return done
+
+    def is_source(
+        self, state: Optional[Union[List, TensorType["state_dims"]]] = None
+    ) -> bool:
+        """
+        Returns True if the environment's state or the state passed as parameter (if
+        not None) is the source state of the environment.
+
+        Parameters
+        ----------
+        state : list or tensor or None
+            None, or a state in environment format.
+
+        Returns
+        -------
+        bool
+            Whether the state is the source state of the environment
+        """
+        state = self._get_state(state)
+        return self.equal(state, self.source)
 
     def get_mask_invalid_actions_forward(
         self,
@@ -312,15 +400,10 @@ class GFlowNetEnv:
         else:
             if self.done:
                 return False, self.state, action
-        # If action is in invalid mask, step should not proceed.
+        # If action is in invalid mask (not in valid actions), step should not proceed.
         if not (self.skip_mask_check or skip_mask_check):
-            action_idx = self.action_space.index(action)
-            if backward:
-                if self.get_mask_invalid_actions_backward()[action_idx]:
-                    return False, self.state, action
-            else:
-                if self.get_mask_invalid_actions_forward()[action_idx]:
-                    return False, self.state, action
+            if action not in self.get_valid_actions(backward=backward):
+                return False, self.state, action
         return True, self.state, action
 
     @abstractmethod
@@ -548,6 +631,11 @@ class GFlowNetEnv:
         """
         Samples a random action and executes the step.
 
+        Parameters
+        ----------
+        backward : bool
+            If True, the step is performed backwards. False by default.
+
         Returns
         -------
         state : list
@@ -584,10 +672,15 @@ class GFlowNetEnv:
             return self.step_backwards(action)
         return self.step(action)
 
-    def trajectory_random(self):
+    def trajectory_random(self, backward: bool = False):
         """
         Samples and applies a random trajectory on the environment, by sampling random
         actions until an EOS action is sampled.
+
+        Parameters
+        ----------
+        backward : bool
+            If True, the trajectory is sampled backwards. False by default.
 
         Returns
         -------
@@ -598,10 +691,16 @@ class GFlowNetEnv:
             The list of actions (tuples) in the trajectory.
         """
         actions = []
-        while not self.done:
-            _, action, valid = self.step_random()
+        while True:
+            _, action, valid = self.step_random(backward)
             if valid:
                 actions.append(action)
+            if backward and self.is_source():
+                break
+            elif self.done:
+                break
+            else:
+                continue
         return self.state, actions
 
     def get_random_terminating_states(
@@ -652,6 +751,108 @@ class GFlowNetEnv:
             if add is True:
                 states.append(state)
             count += 1
+        return states
+
+    def get_random_states(
+        self,
+        n_states: int,
+        unique: bool = True,
+        exclude_source: bool = False,
+        max_attempts: int = 1000,
+    ) -> List:
+        """
+        Samples n states (not necessarily terminating) by using the random policy of
+        the environment (calling self.step_random()).
+
+        It relies on self.max_traj_length in order to uniformly sample the number
+        of steps, in order to obtain states with varying trajectory lengths.
+
+        The method iteratively samples first a trajectory length and attempts to
+        perform as many steps. If the trajectory ends before the requested number of
+        steps is reached, then it is discarded and a new one is attempted.
+
+        This may introduced a bias towards states that can be reached with a few steps.
+
+        Note that this method is general for all environments but it may be suboptimal
+        in terms of efficiency. In particular, 1) it samples trajectories step by step
+        in order to get random states, 2) if unique is True, it needs to compare each
+        newly sampled state with all the previously sampled states, 3) states are
+        copied before adding them to the list, 4) only the last state of a trajectory
+        is added to the list in order to have diversity of trajectories.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+        unique : bool
+            Whether samples should be unique. True by default.
+        max_attempts : int
+            The maximum number of attempts, to prevent the method from getting stuck
+            trying to obtain n_states different samples if unique is True. 100000 by
+            default, therefore if more than 100000 are requested, max_attempts should
+            be increased accordingly.
+        exclude_source : bool
+            If True, exclude the source state from the list of states.
+
+        Returns
+        -------
+        states : list
+            A list of randomly sampled states.
+
+        Raises
+        ------
+        ValueError
+            If max_attempts is smaller than n_states
+        RuntimeError
+            If the maximum number of attempts is reached before obtaining the requested
+            number of unique states.
+        """
+        max_traj_length = self.max_traj_length
+        if max_attempts < n_states:
+            raise ValueError(
+                f"max_attempts (received {max_attempts})  must larger than or "
+                f"equal to n_states (received {n_states})."
+            )
+        states = []
+        n_attempts = 0
+        # Iterate until the requested number of states is obtained
+        while len(states) < n_states:
+            n_attempts += 1
+            # Sample a trajectory length for this state
+            traj_length = random.randint(1, max_traj_length)
+            self.reset()
+            is_valid = True
+            for _ in range(traj_length):
+                # If the trajectory has reached done before the number of requested
+                # steps, discard it and start a new one.
+                if self.done:
+                    is_valid = False
+                    break
+                # Perform a random step
+                self.step_random()
+
+            # If exclude_source is True and the state is the source, mark the
+            # trajectory as invalid.
+            if is_valid and exclude_source and self.is_source(self.state):
+                is_valid = False
+            # If unique is True and the state is in the list, mark the trajetory as
+            # invalid
+            if is_valid and unique and any([self.equal(self.state, s) for s in states]):
+                is_valid = False
+            # If the trajectory is valid, add the state to the list
+            if is_valid:
+                states.append(copy(self.state))
+
+            # Check if the number of attempts has reached the maximum
+            if n_attempts >= max_attempts:
+                raise RuntimeError(
+                    f"Reached the maximum number of attempts ({max_attempts}) to "
+                    f"sample {n_states} states but only {len(states)} could "
+                    "be obtained. It is possible that the state space is too small "
+                    f"to contain {n_states} states. Otherwise, consider "
+                    "increasing the number of attempts"
+                )
+
         return states
 
     def get_policy_output(
@@ -817,6 +1018,8 @@ class GFlowNetEnv:
     def equal(state_x, state_y):
         if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
             return state_x == state_y
+        if type(state_x) != type(state_y):
+            return False
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -856,6 +1059,8 @@ class GFlowNetEnv:
     def isclose(state_x, state_y, atol=1e-8):
         if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
             return np.isclose(state_x, state_y, atol=atol)
+        if type(state_x) != type(state_y):
+            return False
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -892,9 +1097,6 @@ class GFlowNetEnv:
                 ):
                     return np.all(np.isclose(state_x, state_y, atol=atol))
         return all([GFlowNetEnv.isclose(sx, sy) for sx, sy in zip(state_x, state_y)])
-
-    def get_max_traj_length(self):
-        return 1e3
 
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions

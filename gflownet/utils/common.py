@@ -1,6 +1,7 @@
 import os
 import random
 from copy import deepcopy
+from functools import partial
 from os.path import expandvars
 from pathlib import Path
 from typing import List, Union
@@ -235,7 +236,7 @@ def read_hydra_config(rundir=None, config_name="config"):
         return compose(config_name=config_name)
 
 
-def gflownet_from_config(config):
+def gflownet_from_config(config, env=None):
     """
     Create GFlowNet from a Hydra OmegaConf config.
 
@@ -243,6 +244,9 @@ def gflownet_from_config(config):
     ----------
     config : DictConfig
         Config.
+
+    env : GFlowNetEnv
+        Optional environment instance to be used in the initialization.
 
     Returns
     -------
@@ -261,13 +265,20 @@ def gflownet_from_config(config):
 
     # Using Hydra's partial instantiation, see:
     # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
-    env_maker = instantiate(
-        config.env,
-        device=config.device,
-        float_precision=config.float_precision,
-        _partial_=True,
-    )
-    env = env_maker()
+    # If env is passed as an argument, we create an env maker with a partial
+    # instantiation from the copy method of the environment (this is used in unit
+    # tests, for example). Otherwise, we create the env maker with partial
+    # instantiation from the config.
+    if env is not None:
+        env_maker = partial(env.copy)
+    else:
+        env_maker = instantiate(
+            config.env,
+            device=config.device,
+            float_precision=config.float_precision,
+            _partial_=True,
+        )
+        env = env_maker()
 
     # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
     # dataset) it has the correct infro from env
