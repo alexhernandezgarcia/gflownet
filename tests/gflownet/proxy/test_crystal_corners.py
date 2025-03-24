@@ -93,7 +93,7 @@ def env_gull():
             "max_atom_i": 4,
             "do_charge_check": False,
         },
-        space_group_kwargs={"space_group_subset": [225, 229]},
+        space_group_kwargs={"space_groups_subset": [225, 229]},
         lattice_parameters_kwargs={
             "min_length": 2.0,
             "max_length": 4.0,
@@ -221,6 +221,35 @@ def test__applying_sg_condition_changes_scores(
         states_proxy[:, -7], scores_default, scores_cond
     ):
         if sg == 225:
+            assert score_default != score_cond
+        else:
+            assert score_default == score_cond
+
+
+def test__applying_el_condition_changes_scores(
+    proxy_default, config_one_el, env_gull, n_states=10
+):
+    # Set up default proxy
+    proxy_default.setup(env_gull)
+
+    # Initialize proxy with condition
+    proxy_cond = CrystalCorners(device="cpu", float_precision=32, config=config_one_el)
+    proxy_cond.setup(env_gull)
+
+    # Generate random crystal terminating states
+    states = env_gull.get_random_terminating_states(n_states)
+    states_proxy = env_gull.states2proxy(states)
+
+    # Compute scores with default proxy
+    scores_default = proxy_default(states_proxy)
+    # Compute scores with proxy with condition
+    scores_cond = proxy_cond(states_proxy)
+
+    # Check that scores are different if element matches condition
+    for comp, score_default, score_cond in zip(
+        states_proxy[:, :-7], scores_default, scores_cond
+    ):
+        if comp[46] > 0:
             assert score_default != score_cond
         else:
             assert score_default == score_cond

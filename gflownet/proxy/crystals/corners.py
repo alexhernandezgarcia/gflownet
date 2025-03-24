@@ -146,15 +146,12 @@ class CrystalCorners(Proxy):
         scores = torch.empty(states.shape[0], dtype=self.float)
         default = torch.ones(states.shape[0], dtype=torch.bool)
         for proxy in self.proxies:
-            if "spacegroup" in self.proxies:
-                sg_indices = sg == proxy["spacegroup"]
+            if "spacegroup" in proxy:
+                indices = sg == proxy["spacegroup"]
+            elif "element" in proxy:
+                indices = comp[:, proxy["element"]] > 0
             else:
-                sg_indices = torch.zeros(states.shape[0], dtype=torch.bool)
-            if "element" in self.proxies:
-                el_indices = comp[:, ["element"]] == 1
-            else:
-                el_indices = torch.zeros(states.shape[0], dtype=torch.bool)
-            indices = torch.logical_and(sg_indices, el_indices)
+                raise ValueError("Configuration is not valid")
             scores[indices] = proxy["proxy"](lp_lengths[indices])
             default[indices] = False
 
