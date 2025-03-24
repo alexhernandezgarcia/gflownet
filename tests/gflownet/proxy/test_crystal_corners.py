@@ -6,6 +6,11 @@ from gflownet.proxy.crystals.corners import CrystalCorners
 
 
 @pytest.fixture()
+def proxy_default():
+    return CrystalCorners(device="cpu", float_precision=32)
+
+
+@pytest.fixture()
 def config_one_sg():
     return [{"spacegroup": 225, "mu": 0.75, "sigma": 0.05}]
 
@@ -26,3 +31,7 @@ def env_gull():
         do_sg_to_composition_constraints=True,
         do_sg_before_composition=True,
     )
+
+
+def test__proxy_default__initializes_properly(proxy_default):
+    assert True

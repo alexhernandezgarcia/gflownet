@@ -15,15 +15,33 @@ class CrystalCorners(Proxy):
     A synthetic proxy which resembles the Corners proxy in the lattice parameters
     domain. It places different corners (with varying mean and standard deviations for
     the Gaussians) depending on the space group and composition.
+
+    Attributes
+    ----------
+    proxy_default : Corners
+        Default proxy to be used for the states not included in the conditions
+        specified in the configuration.
     """
 
-    def __init__(self, config: List[Dict], **kwargs):
+    def __init__(
+        self, mu: float = 0.75, sigma: float = 0.05, config: List[Dict] = [], **kwargs
+    ):
         """
         Initializes the CrystalCorners proxy according the configuration passed as an
         argument.
 
         Parameters
         ----------
+        mu : float
+            Mean of the multivariate Gaussian distribution used to construct the
+            default corners proxy, that is the proxy used for states not included in
+            the conditions specified in the config. Note that mu is a single float
+            because the mean is homogeneous.
+        sigma : float
+            Standard deviation of the multivariate Gaussian distribution used to
+            default corners proxy, that is the proxy used for states not included in
+            the conditions specified in the config. Note that sigma is a single float
+            because the covariance matrix is diagonal.
         config : list
             A list of dictionaries specifying the parameters of the Corners
             sub-proxies. Each element in the list is a dictionary that must contain at
@@ -38,8 +56,13 @@ class CrystalCorners(Proxy):
             configuration.
         """
         super().__init__(**kwargs)
+
+        # Check whether the config list is invalid
         if not all([self._dict_is_valid[el] for el in config]):
             raise ValueError("Configuration is not valid")
+
+        # Initialize default proxy
+        self.proxy_default = Corners(n_dim=3, mu=mu, sigma=sigma, **kwargs)
 
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "102"]) -> TensorType["batch"]:
@@ -59,6 +82,7 @@ class CrystalCorners(Proxy):
         comp = states[:, :-7]
         sg = states[:, -7]
         lat_params = states[:, -6:]
+        lp_lengths = lat_params[:3]
 
     @staticmethod
     def _dict_is_valid(config: Dict):
