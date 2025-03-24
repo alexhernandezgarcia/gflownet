@@ -16,6 +16,9 @@ class CrystalCorners(Proxy):
     domain. It places different corners (with varying mean and standard deviations for
     the Gaussians) depending on the space group and composition.
 
+    Specifically, a different proxy than the default one can be used for states that
+    contain a particular space group or a particular element.
+
     Attributes
     ----------
     proxy_default : Corners
@@ -44,8 +47,8 @@ class CrystalCorners(Proxy):
             because the covariance matrix is diagonal.
         config : list
             A list of dictionaries specifying the parameters of the Corners
-            sub-proxies. Each element in the list is a dictionary that must contain at
-            least one of the following keys:
+            sub-proxies. Each element in the list is a dictionary that must contain one
+            (and only one) of the following keys:
                 - spacegroup: int
                 - element: int
             Additionally, it must contain the following keys:
@@ -58,11 +61,24 @@ class CrystalCorners(Proxy):
         super().__init__(**kwargs)
 
         # Check whether the config list is invalid
-        if not all([self._dict_is_valid[el] for el in config]):
+        if not all([self._dict_is_valid(el) for el in config]):
             raise ValueError("Configuration is not valid")
+        self.proxies = config
+
+        # Initialize special case proxies
+        for conf in self.proxies:
+            conf.update(
+                {
+                    "proxy": Corners(
+                        n_dim=3, mu=conf["mu"], sigma=conf["sigma"], **kwargs
+                    )
+                }
+            )
+            conf["proxy"].setup()
 
         # Initialize default proxy
         self.proxy_default = Corners(n_dim=3, mu=mu, sigma=sigma, **kwargs)
+        self.proxy_default.setup()
 
     def setup(self, env=None):
         """
@@ -124,8 +140,28 @@ class CrystalCorners(Proxy):
         comp = states[:, :-7]
         sg = states[:, -7]
         lat_params = states[:, -6:]
-        lp_lengths = self.lattice_lengths_to_corners_proxy(lat_params[:3])
-        return self.proxy_default(lp_lengths)
+        lp_lengths = self.lattice_lengths_to_corners_proxy(lat_params[:, :3])
+
+        # Apply the corresponding proxy for each state in the batch
+        scores = torch.empty(states.shape[0], dtype=self.float)
+        default = torch.ones(states.shape[0], dtype=torch.bool)
+        for proxy in self.proxies:
+            if "spacegroup" in self.proxies:
+                sg_indices = sg == proxy["spacegroup"]
+            else:
+                sg_indices = torch.zeros(states.shape[0], dtype=torch.bool)
+            if "element" in self.proxies:
+                el_indices = comp[:, ["element"]] == 1
+            else:
+                el_indices = torch.zeros(states.shape[0], dtype=torch.bool)
+            indices = torch.logical_and(sg_indices, el_indices)
+            scores[indices] = proxy["proxy"](lp_lengths[indices])
+            default[indices] = False
+
+        # Apply default proxy
+        scores[default] = self.proxy_default(lp_lengths[default])
+
+        return scores
 
     @staticmethod
     def _dict_is_valid(config: Dict):
@@ -135,17 +171,19 @@ class CrystalCorners(Proxy):
         To be valid, the following conditions must be satisfied:
             - There is a key 'mu' containing a float number.
             - There is a key 'sigma' containing a float number.
-            - There is at least one of the keys 'spacegroup' and 'element' containing
-              an int number.
+            - There is a key 'spacegroup' or 'element', but only one of the two,
+              containing an int number.
         """
-        if "mu" not in config.keys() or isinstance(config["mu"], float):
+        if "mu" not in config.keys() or not isinstance(config["mu"], float):
             return False
-        if "sigma" not in config.keys() or isinstance(config["sigma"], float):
+        if "sigma" not in config.keys() or not isinstance(config["sigma"], float):
             return False
         if "spacegroup" not in config.keys() and "element" not in config.keys():
             return False
+        if "spacegroup" in config.keys() and "element" in config.keys():
+            return False
         if "spacegroup" in config.keys() and not isinstance(config["spacegroup"], int):
             return False
-        if "element" in config.keys() and not isinstance(config["spacegroup"], int):
+        if "element" in config.keys() and not isinstance(config["element"], int):
             return False
         return True

@@ -12,7 +12,72 @@ def proxy_default():
 
 @pytest.fixture()
 def config_one_sg():
-    return [{"spacegroup": 225, "mu": 0.75, "sigma": 0.05}]
+    return [{"spacegroup": 225, "mu": 0.85, "sigma": 0.05}]
+
+
+@pytest.fixture()
+def config_two_sg():
+    return [
+        {"spacegroup": 225, "mu": 0.85, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
+
+
+@pytest.fixture()
+def config_one_el():
+    return [{"element": 46, "mu": 0.75, "sigma": 0.1}]
+
+
+@pytest.fixture()
+def config_two_el():
+    return [
+        {"element": 46, "mu": 0.75, "sigma": 0.1},
+        {"element": 78, "mu": 0.75, "sigma": 0.001},
+    ]
+
+
+@pytest.fixture()
+def config_all():
+    return [
+        {"element": 46, "mu": 0.75, "sigma": 0.1},
+        {"element": 78, "mu": 0.75, "sigma": 0.001},
+        {"spacegroup": 225, "mu": 0.85, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
+
+
+@pytest.fixture()
+def config_invalid_both_spacegroup_element():
+    return [
+        {"spacegroup": 225, "element": 46, "mu": 0.75, "sigma": 0.1},
+        {"spacegroup": 225, "mu": 0.85, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
+
+
+@pytest.fixture()
+def config_invalid_no_spacegroup_or_element():
+    return [
+        {"mu": 0.75, "sigma": 0.1},
+        {"spacegroup": 225, "mu": 0.85, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
+
+
+@pytest.fixture()
+def config_invalid_mu_missing():
+    return [
+        {"spacegroup": 225, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
+
+
+@pytest.fixture()
+def config_invalid_sigma_missing():
+    return [
+        {"spacegroup": 225, "sigma": 0.05},
+        {"spacegroup": 229, "mu": 0.65, "sigma": 0.05},
+    ]
 
 
 @pytest.fixture
@@ -42,6 +107,26 @@ def env_gull():
 
 def test__proxy_default__initializes_properly(proxy_default):
     assert True
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        "config_one_sg",
+        "config_two_sg",
+        "config_one_el",
+        "config_two_el",
+        "config_all",
+        "config_invalid_both_spacegroup_element",
+        "config_invalid_no_spacegroup_or_element",
+        "config_invalid_mu_missing",
+        "config_invalid_sigma_missing",
+    ],
+)
+def test__dict_is_valid(config, request):
+    is_valid = "invalid" not in config
+    config = request.getfixturevalue(config)
+    assert all([CrystalCorners._dict_is_valid(el) for el in config]) == is_valid
 
 
 def test__setup__works_as_expected(proxy_default, env_gull):
@@ -98,9 +183,44 @@ def test__lattice_lengths_to_corners_proxy__returns_expected(
     )
 
 
-def test__proxy_default__returns_expected_scores(proxy_default, env_gull, n_states=2):
+def test__proxy_default__returns_valid_scores(proxy_default, env_gull, n_states=10):
+    proxy_default.setup(env_gull)
+
     # Generate random crystal terminating states
     states = env_gull.get_random_terminating_states(n_states)
     states_proxy = env_gull.states2proxy(states)
+
+    # Compute scores
     scores = proxy_default(states_proxy)
-    assert True
+
+    assert not any(torch.isnan(scores))
+    assert torch.all(scores > 0)
+
+
+def test__applying_sg_condition_changes_scores(
+    proxy_default, config_one_sg, env_gull, n_states=10
+):
+    # Set up default proxy
+    proxy_default.setup(env_gull)
+
+    # Initialize proxy with condition
+    proxy_cond = CrystalCorners(device="cpu", float_precision=32, config=config_one_sg)
+    proxy_cond.setup(env_gull)
+
+    # Generate random crystal terminating states
+    states = env_gull.get_random_terminating_states(n_states)
+    states_proxy = env_gull.states2proxy(states)
+
+    # Compute scores with default proxy
+    scores_default = proxy_default(states_proxy)
+    # Compute scores with proxy with condition
+    scores_cond = proxy_cond(states_proxy)
+
+    # Check that scores are different if space group matches condition
+    for sg, score_default, score_cond in zip(
+        states_proxy[:, -7], scores_default, scores_cond
+    ):
+        if sg == 225:
+            assert score_default != score_cond
+        else:
+            assert score_default == score_cond
