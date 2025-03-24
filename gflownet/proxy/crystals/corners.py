@@ -19,6 +19,10 @@ class CrystalCorners(Proxy):
     Specifically, a different proxy than the default one can be used for states that
     contain a particular space group or a particular element.
 
+    For states that simultaneously meet more than one condition, the resulting score is
+    the weighted sum of the multiple proxies. This will result in a mixture of corners
+    with homogenoeus coefficients.
+
     Attributes
     ----------
     proxy_default : Corners
@@ -127,6 +131,16 @@ class CrystalCorners(Proxy):
         """
         Builds the proxy values of the CornersProxy for a batch Crystal states.
 
+        Different Corners proxies are applied depending on the states and according to
+        the configuration passed at initialization, which sets conditions on the values
+        of the space group and the presence of elements.
+
+        If a state meets more than one condition, the resulting score is a weighted sum
+        of the multiple proxies, with coefficients equal to 1/N, where N is the number
+        of proxies.
+
+        If a state does not meet any specific condition, the default proxy is used.
+
         Parameters
         ----------
         states : torch.Tensor
@@ -143,7 +157,8 @@ class CrystalCorners(Proxy):
         lp_lengths = self.lattice_lengths_to_corners_proxy(lat_params[:, :3])
 
         # Apply the corresponding proxy for each state in the batch
-        scores = torch.empty(states.shape[0], dtype=self.float)
+        scores = torch.zeros(states.shape[0], dtype=self.float)
+        coefficients = torch.zeros(states.shape[0], dtype=self.float)
         default = torch.ones(states.shape[0], dtype=torch.bool)
         for proxy in self.proxies:
             if "spacegroup" in proxy:
@@ -152,8 +167,15 @@ class CrystalCorners(Proxy):
                 indices = comp[:, proxy["element"]] > 0
             else:
                 raise ValueError("Configuration is not valid")
-            scores[indices] = proxy["proxy"](lp_lengths[indices])
+
+            # The proxy values are sum to the current scores (which are initialized at
+            # zero)
+            scores[indices] = scores[indices] + proxy["proxy"](lp_lengths[indices])
+            coefficients[indices] += 1
             default[indices] = False
+
+        # Divide scores by the coefficients
+        scores[~default] = scores[~default] / coefficients[~default]
 
         # Apply default proxy
         scores[default] = self.proxy_default(lp_lengths[default])
