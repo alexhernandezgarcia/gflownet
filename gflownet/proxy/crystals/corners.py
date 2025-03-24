@@ -64,6 +64,48 @@ class CrystalCorners(Proxy):
         # Initialize default proxy
         self.proxy_default = Corners(n_dim=3, mu=mu, sigma=sigma, **kwargs)
 
+    def setup(self, env=None):
+        """
+        Sets the minimum length and maximum length of the LatticeParameters
+        sub-environment.
+
+        This is needed to be able to rescale the lattice lengths before passing them to
+        the Corners proxy.
+
+        Parameters
+        ----------
+        env : Crystal
+            A Crystal environment.
+        """
+        if env:
+            self.min_length = env.lattice_parameters.min_length
+            self.max_length = env.lattice_parameters.max_length
+
+    def lattice_lengths_to_corners_proxy(
+        self, lp_lengths: TensorType["batch", "3"]
+    ) -> TensorType["batch", "3"]:
+        """
+        Converts a batch of lattice lengtsh in LatticeParameters proxy format into the
+        format expected by the Corners proxy.
+
+        The lattice lengths in LatticeParameters proxy format are in angstroms.
+
+        The corners proxy expects the states in the range [-1, 1].
+
+        Parameters
+        ----------
+        lp_lengths : tensor
+            Batch of lattice lengths in LatticeParameters proxy format (angstroms).
+
+        Returns
+        -------
+        tensor
+            Batch of re-scaled lattice lengths in the range [-1, 1].
+        """
+        return -1.0 + ((lp_lengths - self.min_length) * 2.0) / (
+            self.max_length - self.min_length
+        )
+
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "102"]) -> TensorType["batch"]:
         """
@@ -82,7 +124,8 @@ class CrystalCorners(Proxy):
         comp = states[:, :-7]
         sg = states[:, -7]
         lat_params = states[:, -6:]
-        lp_lengths = lat_params[:3]
+        lp_lengths = self.lattice_lengths_to_corners_proxy(lat_params[:3])
+        return self.proxy_default(lp_lengths)
 
     @staticmethod
     def _dict_is_valid(config: Dict):
