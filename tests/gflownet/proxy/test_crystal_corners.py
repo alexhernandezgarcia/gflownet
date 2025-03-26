@@ -197,6 +197,34 @@ def test__proxy_default__returns_valid_scores(proxy_default, env_gull, n_states=
     assert torch.all(scores > 0)
 
 
+@pytest.mark.parametrize(
+    "config",
+    [
+        "config_one_sg",
+        "config_two_sg",
+        "config_one_el",
+        "config_two_el",
+        "config_all",
+    ],
+)
+def test__proxies_of_conditions_return_expected_values(config, env_gull, request):
+    config = request.getfixturevalue(config)
+    # Initialize proxy with condition
+    proxy = CrystalCorners(device="cpu", float_precision=32, config=config)
+    proxy.setup(env_gull)
+
+    assert config == proxy.proxies
+
+    # Check that mu is a maximum
+    for c in proxy.proxies:
+        import ipdb
+
+        ipdb.set_trace()
+        proxy_mu = c["proxy"](torch.tensor(c["mu"]).repeat(1, 3))[0]
+        assert proxy_mu > c["proxy"](torch.tensor(c["mu"] + 0.01).repeat(1, 3))[0]
+        assert proxy_mu > c["proxy"](torch.tensor(c["mu"] - 0.01).repeat(1, 3))[0]
+
+
 def test__applying_sg_condition_changes_scores(
     proxy_default, config_one_sg, env_gull, n_states=10
 ):
