@@ -15,6 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.set import SetFix
 from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
 CELL_MIN = -1.0
@@ -35,24 +36,21 @@ class CubeBase(GFlowNetEnv, ABC):
     ----------
     n_dim : int
         Dimensionality of the hyper-cube.
-
     min_incr : float
         Minimum increment in the actions, in (0, 1). This is necessary to ensure
         that all trajectories have finite length.
-
     n_comp : int
         Number of components in the mixture of Beta distributions.
-
     epsilon : float
         Small constant to control the clamping interval of the inputs to the
         calculation of log probabilities. Clamping interval will be [epsilon, 1 -
-        epsilon]. Default: 1e-6.
-
+        epsilon]. The smaller the value, the lower the probability to incur an
+        unbounded result due to numerical precision, but the lower the precision too.
+        Default: 1e-6.
     kappa : float
         Small constant to control the intervals of the generated sets of states (in a
         grid or uniformly). States will be in the interval [kappa, 1 - kappa]. Default:
         1e-3.
-
     ignored_dims : list
         Boolean mask of ignored dimensions. This can be used for trajectories that may
         have multiple dimensions coupled or fixed. For each dimension, True if ignored,
@@ -296,6 +294,144 @@ class CubeBase(GFlowNetEnv, ABC):
         state = self._get_state(state)
         return [s for s, ign_dim in zip(state, self.ignored_dims) if not ign_dim]
 
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
+        """
+        samples = torch2np(samples)
+        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
+
+    def plot_reward_samples(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        alpha: float = 0.5,
+        dpi: int = 150,
+        max_samples: int = 500,
+        **kwargs,
+    ):
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom. The same is assumed for
+            samples_reward.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
+        # Create mesh grid from samples_reward
+        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
+        assert n_per_dim**2 == samples_reward.shape[0]
+        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot reward contour
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
+        ax.axis("scaled")
+        fig.colorbar(h, ax=ax)
+        # Plot samples
+        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
+        ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
+        # Figure settings
+        ax.grid()
+        padding = 0.05 * (CELL_MAX - CELL_MIN)
+        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
+        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
+        plt.tight_layout()
+        return fig
+
+    def plot_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kde,
+        alpha: float = 0.5,
+        dpi=150,
+        colorbar: bool = True,
+        **kwargs,
+    ):
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
+        # Score samples with KDE
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot KDE
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
+        ax.axis("scaled")
+        if colorbar:
+            fig.colorbar(h, ax=ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        # Set tight layout
+        plt.tight_layout()
+        return fig
+
 
 class ContinuousCube(CubeBase):
     """
@@ -329,14 +465,28 @@ class ContinuousCube(CubeBase):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Mask dimensionality: 3 + number of dimensions
+        # Number of fixed entries in the mask
         self.mask_dim_base = 3
-        self.mask_dim = self.mask_dim_base + self.n_dim
+        super().__init__(**kwargs)
+
+    def _compute_mask_dim(self):
+        """
+        Calculates the mask dimensionality..
+
+        The mask consists of three fixed flags, plus a flag for each dimension.
+
+        Returns
+        -------
+        int
+            The number of elements in the Stack masks.
+        """
+        return self.mask_dim_base + self.n_dim
 
     def get_action_space(self):
         """
         The action space is continuous, thus not defined as such here.
+
+        The actions contained in the action space are "representatives"
 
         The actions are tuples of length n_dim + 1, where the value at position d
         indicates the increment of dimension d, and the value at position -1 indicates
@@ -344,17 +494,51 @@ class ContinuousCube(CubeBase):
 
         EOS is indicated by np.inf for all dimensions.
 
-        This method defines self.eos and the returned action space is simply
-        a representative (arbitrary) action with an increment of 0.0 in all dimensions,
-        and EOS.
+        The action space consists of the EOS actions and two representatives:
+        - Generic increment action, not from or to source: (0, 0, ..., 0, 0)
+        - Generic increment action, from or to source: (0, 0, ..., 0, 1)
+        - EOS: (inf, inf, ..., inf, inf)
         """
         actions_dim = self.n_dim + 1
         self.eos = tuple([np.inf] * actions_dim)
-        self.representative_action = tuple([0.0] * actions_dim)
-        return [self.representative_action, self.eos]
+        self.representative_no_source = tuple([0.0] * self.n_dim) + (0,)
+        self.representative_source = tuple([0.0] * self.n_dim) + (1,)
+        return [self.representative_no_source, self.representative_source, self.eos]
 
-    def get_max_traj_length(self):
-        return np.ceil(1.0 / self.min_incr) + 2
+    def action2representative(self, action: Tuple) -> Tuple:
+        """
+        Replaces the continuous values of an action by 0s (the "generic" or
+        "representative" action in the first position of the action space), so that
+        they can be compared against the action space or a mask.
+
+        If the action is EOS, it is returned as is.
+
+        Parameters
+        ----------
+        action : tuple
+            An actual action of the Cube environment (with continuous values)
+
+        Returns
+        -------
+        tuple
+            A representative of the action, where continuous values are replaced by
+            zeros.
+        """
+        if action == self.eos:
+            return action
+        elif action[-1] == 0:
+            return self.action_space[0]
+        elif action[-1] == 1:
+            return self.action_space[1]
+        else:
+            raise ValueError(f"Action {action} does not seem like a valid action")
+
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return int(np.ceil(1.0 / self.min_incr) + 2) + 1
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -577,6 +761,56 @@ class ContinuousCube(CubeBase):
         # Otherwise, continuous actions are valid
         mask[0] = False
         return mask
+
+    def get_valid_actions(
+        self,
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        As a continuous environment, the returned actions are "representatives", that
+        is the actions represented in the action space.
+
+        Parameters
+        ----------
+        mask : list (optional)
+            The mask of a state. If None, it is computed in place.
+        state : list (optional)
+            A state in GFlowNet format. If None, self.state is used.
+        done : bool (optional)
+            Whether the trajectory is done. If None, self.done is used.
+        backward : bool
+            True if the transtion is backwards; False if forward.
+
+        Returns
+        -------
+        list
+            The list of representatives of the valid actions.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+
+        actions_valid = []
+        if backward:
+            if mask[0] is False or mask[1] is False:
+                actions_valid.append(self.action_space[1])
+            if mask[0] is False:
+                actions_valid.append(self.action_space[0])
+        else:
+            if mask[1] is False:
+                actions_valid.append(self.action_space[1])
+            elif mask[0] is False:
+                actions_valid.append(self.action_space[0])
+        if mask[2] is False:
+            actions_valid.append(self.eos)
+        return actions_valid
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
@@ -1369,14 +1603,6 @@ class ContinuousCube(CubeBase):
         # Otherwise perform action
         return self._step(action, backward=True)
 
-    def action2representative(self, action: Tuple) -> Tuple:
-        """
-        Replaces the continuous values of an action by 0s (the "generic" or
-        "representative" action in the first position of the action space), so that
-        they can be compared against the action space or a mask.
-        """
-        return self.action_space[0]
-
     def get_grid_terminating_states(
         self, n_states: int, kappa: Optional[float] = None
     ) -> List[List]:
@@ -1429,28 +1655,141 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
+
+class HybridCube(SetFix):
+    """
+    Hybrid hyper-cube environment (continuous version of a hyper-grid) in which the
+    action space consists of the increment of one dimension dimension at a time, as
+    opposed to the ContinuousCube, in which all dimensions are incremented at once.
+
+    In practice, it is implemented as a SetFix of M 1D ContinuousCube environments, where
+    M is the dimensionality of the hyper-cube.
+
+    Attributes
+    ----------
+    n_dim : int
+        Dimensionality of the hyper-cube.
+
+    min_incr : float
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
+    """
+
+    def __init__(self, **kwargs):
+        # Set number of dimensions as attribute
+        self.n_dim = kwargs["n_dim"]
+        # Change number of dimensions in kwargs to 1, to be passed to the
+        # ContinuousCube environments
+        kwargs["n_dim"] = 1
+        # The sub-environments are self.n_dim 1D ContinuousCube environments
+        subenvs = [ContinuousCube(**kwargs) for _ in range(self.n_dim)]
+        super().__init__(subenvs=subenvs, **kwargs)
+
+    def states2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        r"""
+        Prepares a batch of states in environment format for a proxy.
+
+        The input states are in the environment format of the Set. The outputs contain
+        only the Cube part and the format is as in
+        :py:meth:`gflownet.envs.cube.ContinuousCube.states2proxy`.
+
+        Parameters
+        ----------
+        states : list
+            A batch of states in Set environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        # Construct list of states as if they came from a ContinuousCube with self.n_dim
+        states = [[s[0] for s in self._get_substates(state)] for state in states]
+        # Convert to proxy via states2proxy() of the ContinuousCube
+        return self.subenvs[0].states2proxy(states)
+
+    def get_grid_terminating_states(
+        self, n_states: int, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.subenvs[0].kappa
+        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        linspaces = [
+            np.linspace(kappa, 1.0 - kappa, n_per_dim) for _ in range(self.n_dim)
+        ]
+        states = []
+        for dims in itertools.product(*linspaces):
+            state = copy(self.source)
+            for idx in range(self.n_subenvs):
+                state = self._set_subdone(idx, True, state)
+                state = self._set_substate(idx, [dims[idx]], state)
+            states.append(state)
+        return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Number of states in the returned list.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.subenvs[0].kappa
+        rng = np.random.default_rng(seed)
+        states_cube = rng.uniform(
+            low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim)
+        )
+        states = []
+        for dims in states_cube:
+            state = copy(self.source)
+            for idx in range(self.n_subenvs):
+                state = self._set_subdone(idx, True, state)
+                state = self._set_substate(idx, [dims[idx]], state)
+            states.append(state)
+        return states
+
     def fit_kde(
         self,
         samples: TensorType["batch_size", "state_proxy_dim"],
         kernel: str = "gaussian",
         bandwidth: float = 0.1,
     ):
-        r"""
+        """
         Fits a Kernel Density Estimator on a batch of samples.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples in proxy format.
-        kernel : str
-            An identifier of the kernel to use for the density estimation. It must be a
-            valid kernel for the scikit-learn method
-            :py:meth:`sklearn.neighbors.KernelDensity`.
-        bandwidth : float
-            The bandwidth of the kernel.
+        Simply calls fit_kde() of CubeBase.
         """
-        samples = torch2np(samples)
-        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
+        return CubeBase.fit_kde(self, samples, kernel, bandwidth)
 
     def plot_reward_samples(
         self,
@@ -1465,56 +1804,11 @@ class ContinuousCube(CubeBase):
         """
         Plots the reward contour alongside a batch of samples.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples from the GFlowNet policy in proxy format. These samples
-            will be plotted on top of the reward density.
-        samples_reward : tensor
-            A batch of samples containing a grid over the sample space, from which the
-            reward has been obtained. These samples are used to plot the contour of
-            reward density.
-        rewards : tensor
-            The rewards of samples_reward. It should be a vector of dimensionality
-            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
-            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
-            row of the grid of samples, from top to bottom. The same is assumed for
-            samples_reward.
-        alpha : float
-            Transparency of the reward contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
-        max_samples : int
-            Maximum of number of samples to include in the plot.
+        Simply calls plot_reward_samples() of CubeBase.
         """
-        if self.n_dim != 2:
-            return None
-        samples = torch2np(samples)
-        samples_reward = torch2np(samples_reward)
-        rewards = torch2np(rewards)
-        # Create mesh grid from samples_reward
-        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
-        assert n_per_dim**2 == samples_reward.shape[0]
-        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
-        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
-        rewards = rewards.reshape((n_per_dim, n_per_dim))
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot reward contour
-        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
-        ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
-        # Plot samples
-        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
-        ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
-        # Figure settings
-        ax.grid()
-        padding = 0.05 * (CELL_MAX - CELL_MIN)
-        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
-        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
-        plt.tight_layout()
-        return fig
+        return CubeBase.plot_reward_samples(
+            self, samples, samples_reward, rewards, alpha, dpi, max_samples
+        )
 
     def plot_kde(
         self,
@@ -1529,40 +1823,6 @@ class ContinuousCube(CubeBase):
         Plots the density previously estimated from a batch of samples via KDE over the
         entire sample space.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples containing a grid over the sample space. These samples
-            are used to plot the contour of the estimated density.
-        kde : KDE
-            A scikit-learn KDE object fit with a batch of samples.
-        alpha : float
-            Transparency of the density contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
+        Simply calls plot_reward_samples() of CubeBase.
         """
-        if self.n_dim != 2:
-            return None
-        samples = torch2np(samples)
-        # Create mesh grid from samples
-        n_per_dim = int(np.sqrt(samples.shape[0]))
-        assert n_per_dim**2 == samples.shape[0]
-        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
-        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
-        # Score samples with KDE
-        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot KDE
-        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
-        ax.axis("scaled")
-        if colorbar:
-            fig.colorbar(h, ax=ax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        # Set tight layout
-        plt.tight_layout()
-        return fig
+        return CubeBase.plot_kde(self, samples, kde, alpha, dpi, colorbar)

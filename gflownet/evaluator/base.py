@@ -34,7 +34,6 @@ from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class BaseEvaluator(AbstractEvaluator):
-
     def __init__(self, gfn_agent=None, **config):
         """
         Base evaluator class for GFlowNetAgent.
@@ -561,9 +560,10 @@ class BaseEvaluator(AbstractEvaluator):
         fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
-            (sample_space_batch, rewards_sample_space) = (
-                self.gfn.get_sample_space_and_reward()
-            )
+            (
+                sample_space_batch,
+                rewards_sample_space,
+            ) = self.gfn.get_sample_space_and_reward()
             fig_reward_samples = self.gfn.env.plot_reward_samples(
                 x_sampled,
                 sample_space_batch,

@@ -1,4 +1,6 @@
 """
+IMPORTANT: this environment is currently broken!
+
 Classes to represent hyper-torus environments
 """
 
@@ -295,12 +297,13 @@ class Torus(GFlowNetEnv):
         # If only possible action is eos, then force eos
         # If the number of actions is equal to trajectory length
         if self.n_actions == self.length_traj:
-            self.done = True
             self.n_actions += 1
+            self.done = True
             return self.state, self.eos, True
         # Perform non-EOS action
         else:
             angles_next = self.state.copy()[: self.n_dim]
+            n_actions_next = self.state[-1] + 1
             for dim, incr in enumerate(action):
                 angles_next[dim] += incr
                 # If negative angle index, restart from the back
@@ -309,10 +312,9 @@ class Torus(GFlowNetEnv):
                 # If angle index larger than n_angles, restart from 0
                 if angles_next[dim] >= self.n_angles:
                     angles_next[dim] = angles_next[dim] - self.n_angles
+            self.state = angles_next + [n_actions_next]
             self.n_actions += 1
-            self.state = angles_next + [self.n_actions]
-            valid = True
-            return self.state, action, valid
+            return self.state, action, True
 
     def get_all_terminating_states(self):
         all_x = itertools.product(*[list(range(self.n_angles))] * self.n_dim)

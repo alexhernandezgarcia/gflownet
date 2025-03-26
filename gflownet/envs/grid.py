@@ -308,8 +308,12 @@ class Grid(GFlowNetEnv):
             self.n_actions += 1
             return self.state, self.eos, True
 
-    def get_max_traj_length(self):
-        return self.n_dim * self.length
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return self.n_dim * self.length + 1
 
     def get_all_terminating_states(self) -> List[List]:
         grid = np.meshgrid(*[range(self.length)] * self.n_dim)

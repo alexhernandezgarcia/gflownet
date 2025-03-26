@@ -1,0 +1,46 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.points.Points
+
+id: points
+continuous: True
+# Number of points
+n_points: 3
+# Dimensionsonality of Euclidean space
+n_dim: 2
+# Cube mode
+cube_mode: continuous
+# Cube arguments
+cube_kwargs:
+  # Constant to restrict interval of test sets
+  kappa: 1e-3
+  # Policy
+  min_incr: 0.1
+  n_comp: 2
+  epsilon: 1e-6
+  beta_params_min: 0.1
+  beta_params_max: 100.0
+  fixed_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_bts_prob: 0.1
+    bernoulli_eos_prob: 0.1
+  random_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_bts_prob: 0.1
+    bernoulli_eos_prob: 0.1
+
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: random
+    seed: 0
+    n: 100
+    output_csv: points_test.csv
+    output_pkl: points_test.pkl
