@@ -129,6 +129,7 @@ evaluator:
 logger:
   lightweight: True
   project_name: "crystal-gfn"
+  run_name: "starling eform (no constr.)"
   tags:
     - gflownet
     - crystals
