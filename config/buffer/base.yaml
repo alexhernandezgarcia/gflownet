@@ -31,3 +31,6 @@ use_main_buffer: False
 
 # Whether new samples are compared to samples in the buffer before adding
 check_diversity: False
+
+# Whether to show a progress bar while processing the data sets. False by default.
+progress_process_dataset: False
