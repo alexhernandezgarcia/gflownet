@@ -583,7 +583,10 @@ class LatticeParametersSGCCG(ContinuousCube):
         )
 
         # Compute the matrix S from the matrix J (see Eqs. 23 and 24 in the paper)
-        s = logm(j) / 2
+        s, error = logm(j, disp=False)
+        if error > 1e-9:
+            raise ValueError(f"logm error {error} larger than 1e-9")
+        s /= 2
 
         # Recover the projection coefficients from the matrix S
         # (see Eq. 24 in the paper)
