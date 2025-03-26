@@ -28,7 +28,7 @@ class Corners(Proxy):
             )
             cov_det = torch.linalg.det(cov)
             self.cov_inv = torch.linalg.inv(cov)
-            self.mulnormal_norm = 1.0 / ((2 * torch.pi) ** 2 * cov_det) ** 0.5
+            self.mulnormal_norm = 1.0 / ((2 * torch.pi) ** self.n_dim * cov_det) ** 0.5
 
     @property
     def optimum(self):
