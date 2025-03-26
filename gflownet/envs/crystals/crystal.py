@@ -351,9 +351,9 @@ class Crystal(Stack):
             A list of states in environment format.
         """
         if isinstance(data, pd.DataFrame):
-            return self._process_dataframe(data)
+            return self._process_dataframe(data, progress)
         elif isinstance(data, list) and isinstance(data[0], list):
-            return self._process_states_list(data)
+            return self._process_states_list(data, progress)
         else:
             raise ValueError("Unknown data type")
 
