@@ -49,10 +49,10 @@ do_spacegroup: True
     
 # Include Lattice parameters
 do_lattice_parameters: True
-    
+
 # Use natural lattice parameters
 do_natural_lattice_parameters: False
-    
+
 # Stoichiometry <-> space group check
 do_composition_to_sg_constraints: True
 do_sg_to_composition_constraints: True
