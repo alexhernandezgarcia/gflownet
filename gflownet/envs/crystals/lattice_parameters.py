@@ -956,7 +956,9 @@ class LatticeParametersSGCCG(ContinuousCube):
         """
         state = self._get_state(state)
         projection_vector = self._state2projection(state)
-        for p, min_p, max_p in zip(projection_vector, self.min_projection_values):
+        for p, min_p, max_p in zip(
+            projection_vector, self.min_projection_values, self.max_projection_values
+        ):
             if p < min_p or p > max_p:
                 return False
         return True
