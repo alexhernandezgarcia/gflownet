@@ -217,9 +217,6 @@ def test__proxies_of_conditions_return_expected_values(config, env_gull, request
 
     # Check that mu is a maximum
     for c in proxy.proxies:
-        import ipdb
-
-        ipdb.set_trace()
         proxy_mu = c["proxy"](torch.tensor(c["mu"]).repeat(1, 3))[0]
         assert proxy_mu > c["proxy"](torch.tensor(c["mu"] + 0.01).repeat(1, 3))[0]
         assert proxy_mu > c["proxy"](torch.tensor(c["mu"] - 0.01).repeat(1, 3))[0]
