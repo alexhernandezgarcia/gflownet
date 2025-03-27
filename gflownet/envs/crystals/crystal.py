@@ -325,7 +325,67 @@ class Crystal(Stack):
             dim=1,
         )
 
-    def process_data_set(self, df: pd.DataFrame, progress=False) -> List[List]:
+    def process_data_set(
+        self, data: Union[pd.DataFrame, List], progress=False
+    ) -> List[List]:
+        """
+        Processes a data set passed as a pandas DataFrame or as a list of states by
+        filtering out the states that are not valid according to the environment
+        configuration.
+
+        If the input is a DataFrame, the rows are converted into environment states.
+
+        Parameters
+        ----------
+        data : DataFrame or list
+            One of the following:
+                - A pandas DataFrame containing the necessary columns to represent a
+                  crystal as described above.
+                - A list of states in environment format.
+        progress : bool
+            Whether to display a progress bar.
+
+        Returns
+        -------
+        list
+            A list of states in environment format.
+        """
+        if isinstance(data, pd.DataFrame):
+            return self._process_dataframe(data, progress)
+        elif isinstance(data, list) and isinstance(data[0], list):
+            return self._process_states_list(data, progress)
+        else:
+            raise ValueError("Unknown data type")
+
+    def _process_states_list(self, data: List, progress=False) -> List[List]:
+        """
+        Processes a data set passed a list of states in environment format by filtering
+        out the states that are not valid according to the environment configuration.
+
+        Parameters
+        ----------
+        data : list
+            A list of states in environment format.
+        progress : bool
+            Whether to display a progress bar.
+
+        Returns
+        -------
+        list
+            A list of states in environment format.
+        """
+        data_valid = []
+        for state in tqdm(data, total=len(data), disable=not progress):
+            # Index 0 is the row index; index 1 is the remaining columns
+            is_valid_subenvs = [
+                subenv.is_valid(state[stage + 1])
+                for stage, subenv in self.subenvs.items()
+            ]
+            if all(is_valid_subenvs):
+                data_valid.append(state)
+        return data_valid
+
+    def _process_dataframe(self, df: pd.DataFrame, progress=False) -> List[List]:
         """
         Converts a data set passed as a pandas DataFrame into a list of states in
         environment format.
