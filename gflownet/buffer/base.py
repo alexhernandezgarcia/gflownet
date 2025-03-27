@@ -39,6 +39,7 @@ class BaseBuffer:
         test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
+        progress_process_dataset: bool = False,
         **kwargs,
     ):
         """
@@ -89,6 +90,9 @@ class BaseBuffer:
             for the comparison. It is False by default because this comparison can
             easily take most of the running time with an uncertain impact on the
             performance. The implementation should be improved to make this functional.
+        progress_process_dataset : bool
+            Whether to show a progress bar while processing the data sets. False by
+            default.
         """
         self.datadir = datadir
         self.env = env
@@ -98,6 +102,7 @@ class BaseBuffer:
         self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
         self.check_diversity = check_diversity
+        self.progress_process_dataset = progress_process_dataset
         if self.use_main_buffer:
             self.main = pd.DataFrame(
                 columns=["samples", "trajectories", "rewards", "iter"]
@@ -446,7 +451,9 @@ class BaseBuffer:
                 if hasattr(self.env, "process_data_set"):
                     n_samples_orig = len(samples)
                     print(f"The data set containts {n_samples_orig} samples", end="")
-                    samples = self.env.process_data_set(samples)
+                    samples = self.env.process_data_set(
+                        samples, self.progress_process_dataset
+                    )
                     n_samples_new = len(samples)
                     if n_samples_new != n_samples_orig:
                         print(
@@ -467,7 +474,9 @@ class BaseBuffer:
             if hasattr(self.env, "process_data_set"):
                 n_samples_orig = len(samples)
                 print(f"The data set containts {n_samples_orig} samples", end="")
-                samples = self.env.process_data_set(samples)
+                samples = self.env.process_data_set(
+                    samples, self.progress_process_dataset
+                )
                 n_samples_new = len(samples)
                 if n_samples_new != n_samples_orig:
                     print(
