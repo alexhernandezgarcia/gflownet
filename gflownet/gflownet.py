@@ -1325,10 +1325,12 @@ class GFlowNetAgent:
                 logz = None
 
             # Trajectory length
-            trajectory_lengths = [len(state) for state in states_term]
-            traj_length_mean = np.mean(trajectory_lengths)
-            traj_length_min = np.min(trajectory_lengths)
-            traj_length_max = np.max(trajectory_lengths)
+            _, trajectory_lengths = torch.unique(
+                batch.get_trajectory_indices(), return_counts=True
+            )
+            traj_length_mean = torch.mean(trajectory_lengths.to(self.float))
+            traj_length_min = torch.min(trajectory_lengths)
+            traj_length_max = torch.max(trajectory_lengths)
 
             # Learning rates
             learning_rates = self.lr_scheduler.get_last_lr()
