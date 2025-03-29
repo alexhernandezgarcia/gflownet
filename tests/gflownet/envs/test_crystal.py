@@ -48,6 +48,7 @@ def env_mini_comp_first():
     return Crystal(
         composition_kwargs={"elements": 4},
         do_composition_to_sg_constraints=False,
+        do_natural_lattice_parameters=True,
         do_sg_before_composition=False,
         space_group_kwargs={"space_groups_subset": list(range(1, 15 + 1)) + [105]},
     )
@@ -57,6 +58,7 @@ def env_mini_comp_first():
 def env_with_stoichiometry_sg_check():
     return Crystal(
         composition_kwargs={"elements": 4},
+        do_natural_lattice_parameters=True,
         do_composition_to_sg_constraints=True,
         do_sg_before_composition=False,
         space_group_kwargs={"space_groups_subset": SG_SUBSET_ALL_CLS_PS},
@@ -67,6 +69,17 @@ def env_with_stoichiometry_sg_check():
 def env_sg_first():
     return Crystal(
         composition_kwargs={"elements": 4},
+        do_natural_lattice_parameters=True,
+        do_sg_to_composition_constraints=True,
+        do_sg_before_composition=True,
+    )
+
+
+@pytest.fixture
+def env_lpsgccg():
+    return Crystal(
+        composition_kwargs={"elements": 4},
+        do_natural_lattice_parameters=False,
         do_sg_to_composition_constraints=True,
         do_sg_before_composition=True,
     )
@@ -1766,6 +1779,41 @@ class TestCrystalSGFirst(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env_sg_first):
         self.env = env_sg_first
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestCrystalLPSGCCG(common.BaseTestsContinuous):
+    """Common tests for crystal stack with SGCCG lattice parameters."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_lpsgccg):
+        self.env = env_lpsgccg
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,
