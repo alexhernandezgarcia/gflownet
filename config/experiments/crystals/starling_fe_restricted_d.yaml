@@ -68,6 +68,8 @@ env:
 # Buffer
 buffer:
   replay_capacity: 1000
+  check_diversity: True
+  diversity_check_reward_similarity: 0.01
   train:
     type: csv
     path: /network/projects/crystalgfn/data/eform/train.csv
