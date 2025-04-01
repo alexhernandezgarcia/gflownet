@@ -99,6 +99,9 @@ class BaseBuffer:
             difference with respect to R(x) is smaller than
             diversity_check_reward_similarity times the difference between the maximum
             reward and the minimum reward in the replay buffer. By default, it is 0.1.
+            If the value is -1 (or smaller than 0.0), then the diversity check will be
+            done with the full replay buffer. Note too that a value of 0.0 is
+            equivalent to not doing any diversity check at all.
         progress_process_dataset : bool
             Whether to show a progress bar while processing the data sets. False by
             default.
@@ -403,16 +406,23 @@ class BaseBuffer:
 
         # Return without adding if the sample is close to any sample already present in
         # the buffer
-        # TODO: this could be optimized by comparing only with samples with similar
-        # reward
         if self.check_diversity:
-            rewards_range = self.replay["rewards"].max() - self.replay["rewards"].min()
-            max_reward_diff = self.diversity_check_reward_similarity * rewards_range
-            for rsample in self.replay.loc[
-                np.abs(self.replay["rewards"] - reward) < max_reward_diff
-            ]["samples"]:
-                if self.env.isclose(sample, rsample):
-                    return
+            # If the reward similarity is negative, compare with the full replay buffer
+            if self.diversity_check_reward_similarity < 0.0:
+                for rsample in self.replay["samples"]:
+                    if self.env.isclose(sample, rsample):
+                        return
+            # Otherwise, compare only with samples with similar reward
+            else:
+                rewards_range = (
+                    self.replay["rewards"].max() - self.replay["rewards"].min()
+                )
+                max_reward_diff = self.diversity_check_reward_similarity * rewards_range
+                for rsample in self.replay.loc[
+                    np.abs(self.replay["rewards"] - reward) < max_reward_diff
+                ]["samples"]:
+                    if self.env.isclose(sample, rsample):
+                        return
 
         # If index_min is larger than zero, drop the sample with the minimum reward
         if index_min >= 0:
