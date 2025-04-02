@@ -39,6 +39,7 @@ class BaseBuffer:
         test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
+        diversity_check_reward_similarity: float = 0.1,
         progress_process_dataset: bool = False,
         **kwargs,
     ):
@@ -90,6 +91,17 @@ class BaseBuffer:
             for the comparison. It is False by default because this comparison can
             easily take most of the running time with an uncertain impact on the
             performance. The implementation should be improved to make this functional.
+        diversity_check_reward_similarity : float
+            The accepted level of similarity of rewards to include samples from the
+            replay buffer in the diversity check. Assuming check_diversity is True,
+            given a sample x with reward R(x), the diversity check will only be
+            performed against those samples in the replay buffer whose reward
+            difference with respect to R(x) is smaller than
+            diversity_check_reward_similarity times the difference between the maximum
+            reward and the minimum reward in the replay buffer. By default, it is 0.1.
+            If the value is -1 (or smaller than 0.0), then the diversity check will be
+            done with the full replay buffer. Note too that a value of 0.0 is
+            equivalent to not doing any diversity check at all.
         progress_process_dataset : bool
             Whether to show a progress bar while processing the data sets. False by
             default.
@@ -102,6 +114,7 @@ class BaseBuffer:
         self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
         self.check_diversity = check_diversity
+        self.diversity_check_reward_similarity = diversity_check_reward_similarity
         self.progress_process_dataset = progress_process_dataset
         if self.use_main_buffer:
             self.main = pd.DataFrame(
@@ -393,12 +406,23 @@ class BaseBuffer:
 
         # Return without adding if the sample is close to any sample already present in
         # the buffer
-        # TODO: this could be optimized by comparing only with samples with similar
-        # reward
         if self.check_diversity:
-            for rsample in self.replay["samples"]:
-                if self.env.isclose(sample, rsample):
-                    return
+            # If the reward similarity is negative, compare with the full replay buffer
+            if self.diversity_check_reward_similarity < 0.0:
+                for rsample in self.replay["samples"]:
+                    if self.env.isclose(sample, rsample):
+                        return
+            # Otherwise, compare only with samples with similar reward
+            else:
+                rewards_range = (
+                    self.replay["rewards"].max() - self.replay["rewards"].min()
+                )
+                max_reward_diff = self.diversity_check_reward_similarity * rewards_range
+                for rsample in self.replay.loc[
+                    np.abs(self.replay["rewards"] - reward) < max_reward_diff
+                ]["samples"]:
+                    if self.env.isclose(sample, rsample):
+                        return
 
         # If index_min is larger than zero, drop the sample with the minimum reward
         if index_min >= 0:

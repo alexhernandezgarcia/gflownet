@@ -32,5 +32,14 @@ use_main_buffer: False
 # Whether new samples are compared to samples in the buffer before adding
 check_diversity: False
 
+# The accepted level of similarity of rewards to include samples from the
+# replay buffer in the diversity check. Assuming check_diversity is True, given
+# a sample x with reward R(x), the diversity check will only be performed
+# against those samples in the replay buffer whose reward difference with
+# respect to R(x) is smaller than diversity_check_reward_similarity times the
+# difference between the maximum reward and the minimum reward in the replay
+# buffer.
+diversity_check_reward_similarity: 0.1
+
 # Whether to show a progress bar while processing the data sets. False by default.
 progress_process_dataset: False
