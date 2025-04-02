@@ -39,15 +39,14 @@ class Crystal(Stack):
     do_lattice_parameters : bool
         Whether to include the LatticeParameters as a sub-environment and thus sample
         the lattice parameters (a, b, c, α, β, γ) of the crystal.
-    do_natural_lattice_parameters : bool
-        If True, the LatticeParameters environment is used instead of
-        LatticeParametersSGCCG. The former operates in the natural space of the lattice
-        parameters, while the latter operates in a projection which ensures the
-        validity of the angles. By default, LatticeParametersSGCCG is used in order to
-        preserve the validity of the lattice parameters. However, it is not possible to
-        set constraints of min and max lengths and angles. If such constraints are
-        important, consider using the natural LatticeParameters, knowing that the
-        angles can potentially yield invalid volumes.
+    do_projected_lattice_parameters : bool
+        If True, the LatticeParametersSGCCG environment is used instead of
+        LatticeParameters. The latter operates in the natural space of the lattice
+        parameters, while the former operates in a projection which ensures the
+        validity of the angles. By default, LatticeParameters is used because
+        LatticeParametersSGCCG does not currently allow to set constraints of min and
+        max lengths and angles and it slows down the run time. Note that the default
+        natural LatticeParameters can generate angles with potentially invalid volumes.
     do_sg_before_composition : bool
         Whether the SpaceGroup sub-environment should precede the composition.
     do_composition_to_sg_constraints : bool
@@ -74,7 +73,7 @@ class Crystal(Stack):
         self,
         do_spacegroup: bool = True,
         do_lattice_parameters: bool = True,
-        do_natural_lattice_parameters: bool = False,
+        do_projected_lattice_parameters: bool = False,
         do_sg_before_composition: bool = True,
         do_composition_to_sg_constraints: bool = True,
         do_sg_to_composition_constraints: bool = True,
@@ -86,7 +85,7 @@ class Crystal(Stack):
     ):
         self.do_spacegroup = do_spacegroup
         self.do_lattice_parameters = do_lattice_parameters
-        self.do_natural_lattice_parameters = do_natural_lattice_parameters
+        self.do_projected_lattice_parameters = do_projected_lattice_parameters
 
         self.do_sg_to_composition_constraints = (
             do_sg_to_composition_constraints and do_sg_before_composition
@@ -125,12 +124,12 @@ class Crystal(Stack):
             # We initialize lattice parameters with triclinic lattice system as it is
             # the most general one, but it will have to be reinitialized using proper
             # lattice system from space group once that is determined.
-            if self.do_natural_lattice_parameters:
-                lattice_parameters = LatticeParameters(
+            if self.do_projected_lattice_parameters:
+                lattice_parameters = LatticeParametersSGCCG(
                     lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
                 )
             else:
-                lattice_parameters = LatticeParametersSGCCG(
+                lattice_parameters = LatticeParameters(
                     lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
                 )
             subenvs.append(lattice_parameters)

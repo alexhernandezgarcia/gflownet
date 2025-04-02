@@ -48,7 +48,7 @@ def env_mini_comp_first():
     return Crystal(
         composition_kwargs={"elements": 4},
         do_composition_to_sg_constraints=False,
-        do_natural_lattice_parameters=True,
+        do_projected_lattice_parameters=False,
         do_sg_before_composition=False,
         space_group_kwargs={"space_groups_subset": list(range(1, 15 + 1)) + [105]},
     )
@@ -58,7 +58,7 @@ def env_mini_comp_first():
 def env_with_stoichiometry_sg_check():
     return Crystal(
         composition_kwargs={"elements": 4},
-        do_natural_lattice_parameters=True,
+        do_projected_lattice_parameters=False,
         do_composition_to_sg_constraints=True,
         do_sg_before_composition=False,
         space_group_kwargs={"space_groups_subset": SG_SUBSET_ALL_CLS_PS},
@@ -69,7 +69,7 @@ def env_with_stoichiometry_sg_check():
 def env_sg_first():
     return Crystal(
         composition_kwargs={"elements": 4},
-        do_natural_lattice_parameters=True,
+        do_projected_lattice_parameters=False,
         do_sg_to_composition_constraints=True,
         do_sg_before_composition=True,
     )
@@ -79,7 +79,7 @@ def env_sg_first():
 def env_lpsgccg():
     return Crystal(
         composition_kwargs={"elements": 4},
-        do_natural_lattice_parameters=False,
+        do_projected_lattice_parameters=True,
         do_sg_to_composition_constraints=True,
         do_sg_before_composition=True,
     )
