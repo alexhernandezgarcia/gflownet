@@ -39,3 +39,10 @@ Welcome to the documentation for **gflownet**, a library built upon `PyTorch <ht
    :name: api
 
    autoapi/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contributing
+   :name: contributors
+
+   contributors/index
