@@ -985,7 +985,7 @@ class ContinuousCube(CubeBase):
         """
         Samples a batch of actions from a batch of policy outputs.
         """
-        if not is_backward:
+        if is_backward:
             return self._sample_actions_get_logprobs_backward(
                 policy_outputs=policy_outputs,
                 actions=None,
@@ -1296,7 +1296,7 @@ class ContinuousCube(CubeBase):
                 increments = actions[do_increments, :-1]
             # Compute absolute increments from all sampled relative increments
             increments = self.relative_to_absolute_increments(
-                states_from_tensor,
+                states_from_tensor[do_increments],
                 increments,
                 is_backward=True,
             )
@@ -1408,7 +1408,7 @@ class ContinuousCube(CubeBase):
             is different.
         """
         if is_backward:
-            return self._sample_actions_get_logprobs_backward(
+            _, logprobs = self._sample_actions_get_logprobs_backward(
                 policy_outputs=policy_outputs,
                 actions=actions,
                 mask=mask,
@@ -1416,13 +1416,14 @@ class ContinuousCube(CubeBase):
                 get_actions=False,
             )
         else:
-            return self._sample_actions_get_logprobs_forward(
+            _, logprobs = self._sample_actions_get_logprobs_forward(
                 policy_outputs=policy_outputs,
                 actions=actions,
                 mask=mask,
                 states_from=states_from,
                 get_actions=False,
             )
+        return logprobs
 
     def _get_jacobian_diag(
         self,
