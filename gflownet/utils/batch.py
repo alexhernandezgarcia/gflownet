@@ -90,6 +90,8 @@ class Batch:
         self.state_indices = []
         self.states = []
         self.actions = []
+        self.logprobs_forward = []
+        self.logprobs_backward = []
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
@@ -234,6 +236,7 @@ class Batch:
         self,
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
+        logprobs: TensorType,
         valids: List[bool],
         backward: Optional[bool] = False,
         train: Optional[bool] = True,
@@ -243,17 +246,16 @@ class Batch:
         performing steps in the envs. If train is False, only the variables of
         terminating states are stored.
 
-        Args
-        ----
+        Parameters
+        ----------
         envs : list
             A list of environments (GFlowNetEnv).
-
         actions : list
             A list of actions attempted or performed on the envs.
-
+        logprobs : torch.tensor or None
+            Log probabilities corresponding to the actions or None.
         valids : list
             A list of boolean values indicated whether the actions were valid.
-
         backward : bool
             A boolean value indicating whether the action was sampled backward (False
             by default). If True, the behavior is slightly different so as to match
@@ -265,7 +267,6 @@ class Batch:
                   be the previous one in the trajectory, to match the state-action
                   stored in forward sampling and the convention that the source state
                   is not stored, but the terminating state is repeated with action eos.
-
         train : bool
             A boolean value indicating whether the data to add to the batch will be used
             for training. Optional, default is True.
@@ -274,8 +275,12 @@ class Batch:
         if self.continuous is None:
             self.continuous = envs[0].continuous
 
+        # If logprobs is None, make a list of None
+        if logprobs is None:
+            logprobs = [None] * len(actions)
+
         # Add data samples to the batch
-        for env, action, valid in zip(envs, actions, valids):
+        for env, action, logp, valid in zip(envs, actions, logprobs, valids):
             if train is False and env.done is False:
                 continue
             if not valid:
@@ -297,9 +302,10 @@ class Batch:
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
-            # Add states, parents, actions, done and masks
+            # Add states, parents, actions, logprobs, done and masks
             self.actions.append(action)
             if backward:
+                self.logprobs_backward.append(logp)
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -308,6 +314,7 @@ class Batch:
                     self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
                     self.done.append(env.done)
             else:
+                self.logprobs_forward.append(logp)
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -575,6 +582,36 @@ class Batch:
         Returns the actions in the batch as a float tensor.
         """
         return tfloat(self.actions, float_type=self.float, device=self.device)
+
+    def get_logprobs(self, backward: bool = False) -> TensorType["n_states"]:
+        """
+        Returns the logprobs in the batch as a float tensor.
+
+        If there is any None values in self.logprobs, the list cannot be converted to a
+        tensor. This exception is caught and None is returned, as a signal that the
+        logprobs are not available.
+
+        Parameters
+        ----------
+        backward : bool
+            Whether the requested logprobs are of backward transitions.
+        """
+        try:
+            if backward:
+                if len(self.logprobs_backward) == 0:
+                    return None
+                return tfloat(
+                    self.logprobs_backward, float_type=self.float, device=self.device
+                )
+            else:
+                if len(self.logprobs_forward) == 0:
+                    return None
+                return tfloat(
+                    self.logprobs_forward, float_type=self.float, device=self.device
+                )
+        except TypeError as e:
+            if e == "must be real number, not NoneType":
+                return None
 
     def get_done(self) -> TensorType["n_states"]:
         """
@@ -1362,6 +1399,8 @@ class Batch:
             self.state_indices.extend(batch.state_indices)
             self.states.extend(batch.states)
             self.actions.extend(batch.actions)
+            self.logprobs_forward.extend(batch.logprobs_forward)
+            self.logprobs_backward.extend(batch.logprobs_backward)
             self.done.extend(batch.done)
             self.masks_invalid_actions_forward = extend(
                 self.masks_invalid_actions_forward,
@@ -1410,6 +1449,10 @@ class Batch:
         if len(self.states) != len(self):
             return False
         if len(self.actions) != len(self):
+            return False
+        if len(self.logprobs_forward) != len(self) and (
+            len(self.logprobs_backward) != len(self)
+        ):
             return False
         if len(self.done) != len(self):
             return False
@@ -1605,6 +1648,10 @@ class Batch:
             return self.parents[batch_idx]
         elif item == "action":
             return self.actions[batch_idx]
+        elif item == "logprob_f" or item == "logprob_forward":
+            return self.logprobs_forward[batch_idx]
+        elif item == "logprob_b" or item == "logprob_backward":
+            return self.logprobs_backward[batch_idx]
         elif item == "done":
             return self.done[batch_idx]
         elif item == "mask_f" or item == "mask_forward":
