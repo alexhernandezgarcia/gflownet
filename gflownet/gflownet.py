@@ -654,7 +654,7 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            actions = self.sample_actions(
+            actions, logprobs = self.sample_actions(
                 envs,
                 batch_replay,
                 env_cond,
