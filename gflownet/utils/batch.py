@@ -306,6 +306,7 @@ class Batch:
             self.actions.append(action)
             if backward:
                 self.logprobs_backward.append(logp)
+                self.logprobs_forward.append(None)
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -315,6 +316,7 @@ class Batch:
                     self.done.append(env.done)
             else:
                 self.logprobs_forward.append(logp)
+                self.logprobs_backward.append(None)
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -1450,9 +1452,9 @@ class Batch:
             return False
         if len(self.actions) != len(self):
             return False
-        if len(self.logprobs_forward) != len(self) and (
-            len(self.logprobs_backward) != len(self)
-        ):
+        if len(self.logprobs_forward) != len(self):
+            return False
+        if len(self.logprobs_backward) != len(self):
             return False
         if len(self.done) != len(self):
             return False
