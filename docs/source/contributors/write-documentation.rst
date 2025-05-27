@@ -8,6 +8,21 @@ In this document you will learn how to write good, informative, pretty and actio
 
 It's not hard!
 
+.. tip::
+   **New to documentation?** Start with the :ref:`quick start guide` below, then dive into the details.
+
+.. _quick start guide:
+
+Quick Start for Documentation Contributors
+------------------------------------------
+
+**Want to contribute but not sure where to start?** Here are the most common documentation tasks:
+
+1. **Fix a typo or improve existing text**: Just edit the ``.rst`` file and submit a PR
+2. **Add a new tutorial**: Create a new ``.rst`` file in ``docs/source/tutorials/``
+3. **Improve code documentation**: Edit the docstrings in the Python files
+4. **Test your changes locally**: Run ``make html`` in the ``docs/`` directory ??
+
 Overview
 --------
 
