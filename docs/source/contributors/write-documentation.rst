@@ -21,7 +21,45 @@ Quick Start for Documentation Contributors
 1. **Fix a typo or improve existing text**: Just edit the ``.rst`` file and submit a PR
 2. **Add a new tutorial**: Create a new ``.rst`` file in ``docs/source/tutorials/``
 3. **Improve code documentation**: Edit the docstrings in the Python files
-4. **Test your changes locally**: Run ``make html`` in the ``docs/`` directory ??
+4. **Test your changes locally**: See :ref:`building documentation locally` below
+
+.. _building documentation locally:
+
+Building Documentation Locally
+-------------------------------
+
+To write documentation or test your changes, you'll want to **build the documentation locally** on your computer and open the generated HTML files in your browser.
+
+**Install documentation dependencies:**
+
+.. code-block:: bash
+
+    pip install -r docs/requirements-docs.txt
+
+**Build the documentation:**
+
+.. code-block:: bash
+
+    cd docs/
+    make html
+
+**View the documentation:**
+
+Open the generated ``docs/_build/html/index.html`` file in your browser:
+
+.. code-block:: bash
+
+    # On most systems:
+    open docs/_build/html/index.html
+    
+    # Or use a simple HTTP server:
+    cd docs/_build/html
+    python -m http.server 8000
+    # Then visit http://localhost:8000
+
+.. note::
+
+    The repository is currently setup to automatically build the documentation on every push to specific branches, including the ``main`` branch. Ask the maintainers if you want your branch to be automatically built too.
 
 Overview
 --------
@@ -181,31 +219,6 @@ To simplify the generation of documentation, we use the `AutoAPI <https://autoap
 AutoAPI reads the code, and generates ``.rst`` files in the ``docs/_autoapi`` folder. These files are then parsed by Sphinx to generate the documentation but to keep the documentation clean, we don't want to commit these files to the repository so ``autoapi`` is configured to delete those ``.rst`` files after generating the documentation.
 
 By default, the generated documentation will be put in the ``API Reference`` section of the overall documentation.
-
-
-Generating the documentation
-----------------------------
-
-The repository is currently setup to automatically build the documentation on every push to specific branches, including the ``main`` branch.
-
-Ask Alex or Victor if you want your branch to be automatically built too.
-
-If you want to write a manual documentation page or test new plugins or just visualize easily how your docstrings render, you can **build the documentation locally**, on your own computer, and open the generated HTML files in your browser.
-
-To do so, you need to install the dependencies for the documentation:
-
-.. code-block:: bash
-
-    pip install -r docs/requirements-docs.txt
-
-Then, you can build the documentation by running:
-
-.. code-block:: bash
-
-    cd docs/
-    make html
-
-And finally open the generated ``docs/_build/html/index.html`` file in your browser (for instance by running ``open docs/_build/html/index.html``, depending on your local setup).
 
 
 ..
