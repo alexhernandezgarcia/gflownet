@@ -23,4 +23,4 @@ To learn how to use the package itself, see the :doc:`/tutorial` or :doc:`/autoa
     write-docstrings
     github
     sanity-checks
-    mila/index
+    .. mila/index
