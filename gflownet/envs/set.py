@@ -1296,7 +1296,7 @@ class BaseSet(GFlowNetEnv):
         if active_subenv != -1:
             active_subenv_onehot[active_subenv] = True
         mask = active_subenv_onehot + mask
-        padding = [False] * (self.mask_dim - len(mask))
+        padding = [True] * (self.mask_dim - len(mask))
         return mask + padding
 
     def _extract_core_mask(

@@ -1645,7 +1645,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             [
                 False, False, # ACTIVE SUBENV
                 False, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1672,7 +1672,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             [
                 True, False, # ACTIVE SUBENV
                 False, False, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1725,7 +1725,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             [
                 False, False, # ACTIVE SUBENV
                 False, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1752,7 +1752,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             [
                 True, False, # ACTIVE SUBENV
                 False, True, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1779,7 +1779,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             [
                 False, False, # ACTIVE SUBENV
                 False, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1819,7 +1819,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 True, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1846,7 +1846,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 False, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1873,7 +1873,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 True, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1900,7 +1900,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 False, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1927,7 +1927,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 False, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1954,7 +1954,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 True, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -1981,7 +1981,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 False, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2008,7 +2008,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             [
                 True, False, # ACTIVE SUBENV
                 False, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2048,7 +2048,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 True, True, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2075,7 +2075,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             [
                 False, False, # ACTIVE SUBENV
                 False, True, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2119,7 +2119,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
             [
                 False, False, # ACTIVE SUBENV
                 True, True, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2147,7 +2147,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
             [
                 False, False, # ACTIVE SUBENV
                 False, False, True, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2175,7 +2175,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
             [
                 True, False, # ACTIVE SUBENV
                 True, True, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ]
             # fmt: on
         ),
@@ -2199,7 +2199,7 @@ def test__get_mask_invalid_actions_backward__all_subenvs_done(
             [
                 False, False, # ACTIVE SUBENV
                 True, True, False, # CORE MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ],
             # fmt: on
             -1,
@@ -2211,7 +2211,7 @@ def test__get_mask_invalid_actions_backward__all_subenvs_done(
             [
                 True, False, # ACTIVE SUBENV
                 True, True, False, # MASK
-                False, False, False, False, False # PAD
+                True, True, True, True, True # PAD
             ],
             # fmt: on
             0,
@@ -2236,17 +2236,17 @@ def test__get_mask_invalid_actions_backward__all_subenvs_done(
                     [
                     False, False, # ACTIVE SUBENV
                     True, True, False, # CORE MASK
-                    False, False, False, False, False # PAD
+                    True, True, True, True, True # PAD
                     ],
                     [
                     False, False, # ACTIVE SUBENV
                     False, True, True, # CORE MASK
-                    False, False, False, False, False # PAD
+                    True, True, True, True, True # PAD
                     ],
                     [
                     False, False, # ACTIVE SUBENV
                     False, False, True, # CORE MASK
-                    False, False, False, False, False # PAD
+                    True, True, True, True, True # PAD
                     ],
                     # fmt: on
                 ],

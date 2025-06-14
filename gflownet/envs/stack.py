@@ -455,7 +455,6 @@ class Stack(GFlowNetEnv):
         stage = mask[: self.n_subenvs].index(True)
         return mask[self.n_subenvs : self.n_subenvs + self.subenvs[stage].mask_dim]
 
-    # TODO: rethink whether padding should be True (invalid) instead.
     def _format_mask(self, mask: List[bool], stage: int, mask_dim: int):
         """
         Applies formatting to the mask of a sub-environment.
@@ -477,7 +476,7 @@ class Stack(GFlowNetEnv):
         """
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
-        padding = [False] * (self.mask_dim - (mask_dim + self.n_subenvs))
+        padding = [True] * (self.mask_dim - (mask_dim + self.n_subenvs))
         return stage_onehot + mask + padding
 
     def get_valid_actions(
