@@ -431,6 +431,30 @@ class Stack(GFlowNetEnv):
 
         return self._format_mask(mask, stage, subenv.mask_dim)
 
+    def get_mask_of_subenv(self, mask: List[bool]) -> List[bool]:
+        """
+        Extracts the part of the mask corresponding to the subenvironment indicated by
+        the encoding of the stage.
+
+        In particular, this method undoes the formatting from
+        :py:meth:`~gflownet.envs.crystals.composition.Composition._format_mask`.
+
+        Parameters
+        ----------
+        mask : list
+            A mask of invalid actions for the full action space of the stack
+            environment. The beginning of the mask contains a one-hot encoding of the
+            stage.
+
+        Returns
+        -------
+        list
+            The mask corresponding to the subenvironment indicated by the encoding of
+            the stage.
+        """
+        stage = mask[: self.n_subenvs].index(True)
+        return mask[self.n_subenvs : self.n_subenvs + self.subenvs[stage].mask_dim]
+
     # TODO: rethink whether padding should be True (invalid) instead.
     def _format_mask(self, mask: List[bool], stage: int, mask_dim: int):
         """
@@ -488,9 +512,7 @@ class Stack(GFlowNetEnv):
             state, done, backward
         )
         if mask is not None:
-            # Extract the part of the mask corresponding to the sub-environment
-            # TODO: consider writing a method to do this
-            mask = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
+            mask = self.get_mask_of_subenv(mask)
         return [
             env._pad_action(action, stage)
             for action in subenv.get_valid_actions(mask, state_subenv, done, backward)
@@ -510,9 +532,7 @@ class Stack(GFlowNetEnv):
         """
         stage = self._get_stage()
         subenv = self.subenvs[stage]
-        # Extract the part of the mask corresponding to the sub-environment
-        # TODO: consider writing a method to do this
-        mask = mask[self.n_subenvs : self.n_subenvs + subenv.mask_dim]
+        mask = self.get_mask_of_subenv(mask)
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
