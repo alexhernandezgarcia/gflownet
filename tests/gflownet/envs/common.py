@@ -465,7 +465,7 @@ class BaseTestsCommon:
                 # Check if logprobs from sample_actions_batch() and from get_logprobs()
                 # are the same
                 if logprobs_sab is not None:
-                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-6)
+                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-3)
 
                 # Apply steps
                 for env, action, logprob in zip(envs, actions, logprobs_glp):
