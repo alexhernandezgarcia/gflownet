@@ -17,7 +17,9 @@ def gfn_ccube():
     return gfn
 
 
-def test_logprobs(gfn_ccube):
+def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed(
+    gfn_ccube,
+):
     gfn = gfn_ccube
 
     collect_backwards_masks = gfn.loss in [
