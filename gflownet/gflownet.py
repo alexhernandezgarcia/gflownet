@@ -518,7 +518,7 @@ class GFlowNetAgent:
         # Return the requested instances
         return self.env_cache[:nb_env_instances]
 
-    @torch.no_grad()
+    # TODO: avoid computing gradients when not needed
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
         self,
