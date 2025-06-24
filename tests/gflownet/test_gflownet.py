@@ -2,9 +2,9 @@ from copy import copy
 
 import pytest
 import torch
+from utils_for_tests import ch_tmpdir, load_base_test_config
 
 from gflownet.utils.common import gflownet_from_config
-from gflownet.utils.utils_for_tests import ch_tmpdir, load_base_test_config
 
 
 @pytest.fixture
