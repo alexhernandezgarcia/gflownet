@@ -11,6 +11,8 @@ from gflownet.utils.common import gflownet_from_config
 def gfn_ccube():
     exp_name = "+experiments=/ccube/corners"
     config = load_base_test_config(overrides=[exp_name])
+    # Change batch size
+    config.gflownet.optimizer.batch_size.forward = 2
     with ch_tmpdir() as tmpdir:
         print(f"Current GFlowNetAgent execution directory: {tmpdir}")
         gfn = gflownet_from_config(config)
