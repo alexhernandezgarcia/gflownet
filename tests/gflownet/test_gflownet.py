@@ -39,10 +39,10 @@ def test_logprobs(gfn_ccube):
     assert batch.logprobs_forward != batch_no_lp.logprobs_forward
 
     lp_fw = gfn.compute_logprobs_trajectories(batch, False)
-    lp_bkw = gfn.compute_logprobs_trajectories(batch, True)
+    lp_bw = gfn.compute_logprobs_trajectories(batch, True)
 
     lp_fw_no = gfn.compute_logprobs_trajectories(batch_no_lp, False)
-    lp_bkw_no = gfn.compute_logprobs_trajectories(batch_no_lp, True)
+    lp_bw_no = gfn.compute_logprobs_trajectories(batch_no_lp, True)
 
     assert torch.allclose(lp_fw, lp_fw_no, atol=1e-6)
-    assert torch.allclose(lp_bkw, lp_bkw_no, atol=1e-6)
+    assert torch.allclose(lp_bw, lp_bw_no, atol=1e-6)
