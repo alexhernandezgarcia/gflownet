@@ -1114,26 +1114,40 @@ class ContinuousCube(CubeBase):
                 )
             # Shape of increments: [n_do_increments, n_dim]
             if get_actions:
-                increments = distr_increments.sample()
+                # If get_actions is True, relative increments are sampled
+                increments_rel = distr_increments.sample()
+                increments_abs = increments_rel.clone()
             else:
-                increments = actions[do_increments, :-1]
-            # Compute absolute increments from sampled relative increments if state is
-            # not source
+                # If get_actions is False, absolute increments are obtained from the
+                # actions
+                increments_abs = actions[do_increments, :-1]
+                increments_rel = increments_abs.clone()
+            # Conversions from/to relative/absolute to absolute/relative increments are
+            # needed if state is not source
             is_relative = ~is_source[do_increments]
             states_from_rel = tfloat(
                 states_from_tensor[do_increments],
                 float_type=self.float,
                 device=self.device,
             )[is_relative]
-            increments[is_relative] = self.relative_to_absolute_increments(
-                states_from_rel,
-                increments[is_relative],
-                is_backward=False,
-            )
+            if get_actions:
+                # Compute absolute increments from sampled relative increments
+                increments_abs[is_relative] = self.relative_to_absolute_increments(
+                    states_from_rel,
+                    increments_rel[is_relative],
+                    is_backward=False,
+                )
+            else:
+                # Compute relative increments from absolute increments in actions
+                increments_rel[is_relative] = self.absolute_to_relative_increments(
+                    states_from_rel,
+                    increments_abs[is_relative],
+                    is_backward=False,
+                )
 
             if get_logprobs:
                 # Make sure increments are finite
-                assert torch.all(torch.isfinite(increments))
+                assert torch.all(torch.isfinite(increments_rel))
                 # Compute diagonal of the Jacobian (see _get_jacobian_diag()) if state
                 # is not source
                 is_relative = torch.logical_and(do_increments, ~is_source)
@@ -1154,7 +1168,9 @@ class ContinuousCube(CubeBase):
                 )
                 # Clamp because increments of 0.0 or 1.0 would yield nan
                 logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                    torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
+                    torch.clamp(
+                        increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                    )
                 )
                 # Make ignored dimensions zero
                 logprobs_increments_rel = self._mask_ignored_dimensions(
@@ -1171,12 +1187,12 @@ class ContinuousCube(CubeBase):
             )
             if torch.any(do_increments):
                 # Make increments of ignored dimensions zero
-                increments = self._mask_ignored_dimensions(
-                    mask[do_increments], increments
+                increments_abs = self._mask_ignored_dimensions(
+                    mask[do_increments], increments_abs
                 )
                 # Add dimension is_source and add to actions tensor
                 actions_tensor[do_increments] = torch.cat(
-                    (increments, torch.zeros((increments.shape[0], 1))), dim=1
+                    (increments_abs, torch.zeros((increments_abs.shape[0], 1))), dim=1
                 )
             actions_tensor[is_source, -1] = 1
             actions = [tuple(a.tolist()) for a in actions_tensor]
@@ -1291,19 +1307,27 @@ class ContinuousCube(CubeBase):
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             if get_actions:
-                increments = distr_increments.sample()
+                # If get_actions is True, relative increments are sampled and absolute
+                # increments are converted from relative
+                increments_rel = distr_increments.sample()
+                increments_abs = self.relative_to_absolute_increments(
+                    states_from_tensor[do_increments],
+                    increments_rel,
+                    is_backward=True,
+                )
             else:
-                increments = actions[do_increments, :-1]
-            # Compute absolute increments from all sampled relative increments
-            increments = self.relative_to_absolute_increments(
-                states_from_tensor[do_increments],
-                increments,
-                is_backward=True,
-            )
+                # If get_actions is False, absolute increments are obtained from the
+                # actions and relative increments are converted from absolute
+                increments_abs = actions[do_increments, :-1]
+                increments_rel = self.absolute_to_relative_increments(
+                    states_from_tensor[do_increments],
+                    increments_abs,
+                    is_backward=True,
+                )
 
             if get_logprobs:
                 # Make sure increments are finite
-                assert torch.all(torch.isfinite(increments))
+                assert torch.all(torch.isfinite(increments_rel))
                 # Compute diagonal of the Jacobian (see _get_jacobian_diag())
                 log_jacobian_diag[do_increments] = torch.log(
                     self._get_jacobian_diag(
@@ -1321,7 +1345,9 @@ class ContinuousCube(CubeBase):
                 )
                 # Clamp because increments of 0.0 or 1.0 would yield nan
                 logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                    torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
+                    torch.clamp(
+                        increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                    )
                 )
                 # Make ignored dimensions zero
                 logprobs_increments_rel = self._mask_ignored_dimensions(
@@ -1338,12 +1364,12 @@ class ContinuousCube(CubeBase):
             )
             if torch.any(do_increments):
                 # Make increments of ignored dimensions zero
-                increments = self._mask_ignored_dimensions(
-                    mask[do_increments], increments
+                increments_abs = self._mask_ignored_dimensions(
+                    mask[do_increments], increments_abs
                 )
                 # Add dimension is_source and add to actions tensor
                 actions_tensor[do_increments] = torch.cat(
-                    (increments, torch.zeros((increments.shape[0], 1))), dim=1
+                    (increments_abs, torch.zeros((increments_abs.shape[0], 1))), dim=1
                 )
             if torch.any(is_bts):
                 # BTS actions are equal to the originating states
