@@ -1,6 +1,7 @@
 import sys
 
 import pytest
+
 from gflownet.utils.utils_for_tests import REPO_ROOT, ch_tmpdir, load_base_test_config
 
 sys.path.append(str(REPO_ROOT))

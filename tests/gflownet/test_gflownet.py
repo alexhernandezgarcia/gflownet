@@ -1,9 +1,11 @@
-import pytest
-import torch
 from copy import copy
 
-from gflownet.utils.utils_for_tests import load_base_test_config, ch_tmpdir
+import pytest
+import torch
+
 from gflownet.utils.common import gflownet_from_config
+from gflownet.utils.utils_for_tests import ch_tmpdir, load_base_test_config
+
 
 @pytest.fixture
 def gfn_ccube():
@@ -14,26 +16,27 @@ def gfn_ccube():
         gfn = gflownet_from_config(config)
     return gfn
 
+
 def test_logprobs(gfn_ccube):
     gfn = gfn_ccube
 
     collect_backwards_masks = gfn.loss in [
-            "trajectorybalance",
-            "detailedbalance",
-            "forwardlooking",
-        ]
-    
+        "trajectorybalance",
+        "detailedbalance",
+        "forwardlooking",
+    ]
+
     batch, times = gfn.sample_batch(
-                    n_forward=gfn.batch_size.forward,
-                    n_train=gfn.batch_size.backward_dataset,
-                    n_replay=gfn.batch_size.backward_replay,
-                    collect_forwards_masks=True,
-                    collect_backwards_masks=collect_backwards_masks,
-                )
+        n_forward=gfn.batch_size.forward,
+        n_train=gfn.batch_size.backward_dataset,
+        n_replay=gfn.batch_size.backward_replay,
+        collect_forwards_masks=True,
+        collect_backwards_masks=collect_backwards_masks,
+    )
     batch_no_lp = copy(batch)
     batch_no_lp.logprobs_forward = [None] * len(batch)
 
-    assert batch.logprobs_forward != batch_no_lp.logprobs_forward 
+    assert batch.logprobs_forward != batch_no_lp.logprobs_forward
 
     lp_fw = gfn.compute_logprobs_trajectories(batch, False)
     lp_bkw = gfn.compute_logprobs_trajectories(batch, True)
