@@ -462,6 +462,11 @@ class BaseTestsCommon:
                     is_backward=False,
                 )
 
+                # Check if logprobs from sample_actions_batch() and from get_logprobs()
+                # are the same
+                if logprobs_sab is not None:
+                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-6)
+
                 # Apply steps
                 for env, action, logprob in zip(envs, actions, logprobs_glp):
                     _, action, valid = env.step(action)
@@ -526,6 +531,11 @@ class BaseTestsCommon:
                     states_from=states,
                     is_backward=True,
                 )
+
+                # Check if logprobs from sample_actions_batch() and from get_logprobs()
+                # are the same
+                if logprobs_sab is not None:
+                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-6)
 
                 # Apply steps
                 for env, action, logprob in zip(envs, actions, logprobs_glp):
