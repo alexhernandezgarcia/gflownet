@@ -1077,6 +1077,11 @@ class ContinuousCube(CubeBase):
             )
             eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
 
+        # Randomize actions and temper the logits
+        logits_sampling = self.randomize_and_temper_sampling_distribution(
+            logits_sampling, random_action_prob, temperature_logits
+        )
+
         # Determine source states
         is_source = ~mask[:, 1]
         # EOS is the only possible action if continuous actions are invalid (mask[0] is
