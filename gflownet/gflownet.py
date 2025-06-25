@@ -16,7 +16,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Bernoulli
 from torchtyping import TensorType
 from tqdm import tqdm, trange
 
@@ -334,13 +333,10 @@ class GFlowNetAgent:
             if random_action_prob is None:
                 random_action_prob = self.random_action_prob
         if backward:
-            # TODO: backward sampling with FM?
             model = self.backward_policy
         else:
             model = self.forward_policy
 
-        # TODO: implement backward sampling from forward policy as in old
-        # backward_sample.
         if not isinstance(envs, list):
             envs = [envs]
         # Build states and masks
@@ -349,38 +345,25 @@ class GFlowNetAgent:
         # Obtain masks of invalid actions
         mask_invalid_actions = self._get_masks(envs, batch, env_cond, backward)
 
-        # Build policy outputs
-        policy_outputs = model.random_distribution(states)
-        idx_norandom = (
-            Bernoulli(
-                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
-            )
-            .sample()
-            .to(bool)
+        # Get policy inputs from the states and obtain the policy outputs from the
+        # model
+        # TODO: get policy states from batch
+        states_policy = tfloat(
+            self.env.states2policy(states),
+            device=self.device,
+            float_type=self.float,
         )
-        # Get policy outputs from model
-        if sampling_method == "policy":
-            # Check for at least one non-random action
-            if idx_norandom.sum() > 0:
-                states_policy = tfloat(
-                    self.env.states2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
-                    ),
-                    device=self.device,
-                    float_type=self.float,
-                )
-                policy_outputs[idx_norandom, :] = model(states_policy)
-        else:
-            raise NotImplementedError
+        policy_outputs = model(states_policy)
 
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions_batch(
-            policy_outputs,
-            mask_invalid_actions,
-            states,
-            backward,
-            sampling_method,
-            temperature,
+            policy_outputs=policy_outputs,
+            mask=mask_invalid_actions,
+            states_from=states,
+            is_backward=backward,
+            sampling_method=sampling_method,
+            random_action_prob=random_action_prob,
+            temperature_logits=temperature,
         )
         return actions, logprobs
 
@@ -574,9 +557,31 @@ class GFlowNetAgent:
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
+            ### DEBUG ###
+            states = [copy.copy(env.state) for env in envs]
+            states_policy = self.env.states2policy(states)
+            masks = [env.get_mask_invalid_actions_forward() for env in envs]
+            masks_torch = torch.tensor(masks)
+            ### DEBUG ###
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
+            actions_torch = torch.tensor(actions)
             batch_forward.add_to_batch(envs, actions, logprobs, valids, train=train)
+            ### DEBUG ###
+            assert all(valids)
+            policy_output_f = self.forward_policy(states_policy)
+            logprobs_glp = self.env.get_logprobs(
+                policy_output_f,
+                actions_torch,
+                masks_torch,
+                states,
+                is_backward=False,
+            )
+            if not torch.allclose(logprobs, logprobs_glp, atol=1e-3):
+                import ipdb
+
+                ipdb.set_trace()
+            ### DEBUG ###
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
