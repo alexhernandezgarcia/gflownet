@@ -81,6 +81,9 @@ class Hartmann(Proxy):
                 "Inputs to the Hartmann function must be 6-dimensional, "
                 f"but inputs with {states.shape[1]} dimensions were passed."
             )
+        # Map states to Hartmann domain
+        if self.do_domain_map:
+            states = self.map_to_standard_domain(states)
         # Append fidelity as a new dimension of states
         states = torch.cat(
             [
