@@ -8,7 +8,7 @@ from torchtyping import TensorType
 from gflownet.proxy.base import Proxy
 
 REPO_URL = "https://github.com/sh-divya/crystalproxies.git"
-RELEASE = "2.0.3"
+RELEASE = "2.0.5"
 """
 URL to the proxy's code repository. It is used to provide a link to the appropriate
 release link in case of version mismatch between requested and installed ``dave``
