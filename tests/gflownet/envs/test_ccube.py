@@ -1196,6 +1196,8 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
         self.repeats = {
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 10,
@@ -1220,6 +1222,8 @@ class TestContinuousCube4DIgnoredDims(common.BaseTestsContinuous):
         self.repeats = {
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 10,
