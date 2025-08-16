@@ -95,3 +95,33 @@ class BaseLoss(metaclass=ABCMeta):
             type of aggregation and the values are the aggregated losses.
         """
         pass
+
+    def compute(
+        self, batch: Batch, get_sublosses: bool = False
+    ) -> Union[float, dict[str, float]]:
+        """
+        Computes and aggregates the losses of a batch of states or trajectories.
+
+        Parameters
+        ----------
+        batch : Batch
+            A batch of states or trajectories.
+        get_sublosses : bool
+            Whether specific, relevant sub-aggregations of the loss should be computed
+            and returned as a dictionary. Example of sub-losses are the average loss
+            over the terminating states, over the intermediate states, over the
+            on-policy trajectories, over the replay buffer trajectories, etc. If True,
+            the returned variable is a dictionary. If False, simply the mean over all
+            losses in the batch is returned.
+
+        Returns
+        -------
+        float or dict
+            A float containing the average loss or dictionary of loss aggregations,
+            depending on the value of `get_sublosses`.
+        """
+        losses = self.compute_losses_of_batch(batch)
+        if get_sublosses:
+            return self.aggregate_losses_of_batch(losses, batch)
+        else:
+            return losses.mean()
