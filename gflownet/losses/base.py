@@ -7,21 +7,33 @@ Base class for GFlowNet losses or objective functions.
     objective functions for training a GFlowNet.
 """
 
-import os
 from abc import ABCMeta, abstractmethod
+from typing import Union
 
 from torchtyping import TensorType
 
 from gflownet.utils.batch import Batch
+from gflownet.utils.common import set_device, set_float_precision
 
 
 class BaseLoss(metaclass=ABCMeta):
-    def __init__(self):
+    def __init__(self, device: str = "cpu", float_precision: int = 32):
         """
         Base class for GFlowNet losses.
 
+        Parameters
+        ----------
+        device : str or torch.device
+            The device to be passed to torch tensors.
+        float_precision : int or torch.dtype
+            The floating point precision to be passed to torch tensors.
+
         Attributes
         ----------
+        device : torch.device
+            The device to be passed to torch tensors.
+        float : torch.dtype
+            The floating point precision to be passed to torch tensors.
         name : str
             The name of the loss or objective function. This is meant to be nicely
             formatted for printing purposes, for example using capital letters and
@@ -32,6 +44,11 @@ class BaseLoss(metaclass=ABCMeta):
             The identifier of the loss or objective function. This is for processing
             purposes.
         """
+        # Device
+        self.device = set_device(device)
+        # Float precision
+        self.float = set_float_precision(float_precision)
+        # Names, acronym and ID
         self.name = "Base Loss"
         self.acronym = ""
         self.id = "base"
