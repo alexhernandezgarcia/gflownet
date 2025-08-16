@@ -37,6 +37,19 @@ class BaseLoss(metaclass=ABCMeta):
         self.id = "base"
 
     @abstractmethod
+    def is_defined_for_continuous(self) -> bool:
+        """
+        Returns True if the loss function is well defined for continuous GFlowNets,
+        that is continuous environments, or False otherwise.
+
+        Returns
+        -------
+        bool
+            Whether the loss function is well defined for continuous GFlowNets.
+        """
+        pass
+
+    @abstractmethod
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
         Computes the loss for each state or trajectory of the input batch.

@@ -28,6 +28,20 @@ class FlowMatching(BaseLoss):
         self.acronym = "FM"
         self.id = "flowmatching"
 
+    def is_defined_for_continuous(self) -> bool:
+        """
+        Returns True if the loss function is well defined for continuous GFlowNets,
+        that is continuous environments, or False otherwise.
+
+        The Flow Matching loss is currently not well defined for continuous GFlowNets,
+        therefore this method returns False.
+
+        Returns
+        -------
+        False
+        """
+        return False
+
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
         Computes the Flow Matching loss for each state of the input batch.
