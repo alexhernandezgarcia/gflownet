@@ -6,6 +6,8 @@ The Flow Matching (FM) loss or objective was defined by Bengio et al. (2021):
     .. _a link: https://arxiv.org/abs/2106.04399
 """
 
+from typing import Union
+
 from gflownet.losses.base import BaseLoss
 
 
