@@ -15,7 +15,7 @@ from gflownet.utils.batch import Batch
 
 
 class FlowMatching(BaseLoss):
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         Initialization method for the Flow Matching loss class.
 
@@ -28,7 +28,7 @@ class FlowMatching(BaseLoss):
         id : str
             The identifier of the loss or objective function: flowmatching
         """
-        super().__init__()
+        super().__init__(**kwargs)
         self.name = "Flow Matching"
         self.acronym = "FM"
         self.id = "flowmatching"
