@@ -41,3 +41,29 @@ class BaseLoss(metaclass=ABCMeta):
             to the number of states or the number of trajectories.
         """
         pass
+
+    @abstractmethod
+    def aggregate_losses_of_batch(
+        self, losses: TensorType["batch_size"], batch: Batch
+    ) -> dict[str, float]:
+        """
+        Aggregates the losses computed from a batch to obtain the average loss and/or
+        multiple averages over different relevant parts of the batch.
+
+        The result is returned as a dictionary whose keys are the identifiers of each
+        type of aggregation and the values are the aggregated losses.
+
+        Parameters
+        ----------
+        losses : tensor
+            The loss of each unit (state or trajectory) in the batch.
+        batch : Batch
+            A batch of states or trajectories.
+
+        Returns
+        -------
+        loss_dict : dict
+            A dictionary of loss aggregations. The keys are the identifiers of each
+            type of aggregation and the values are the aggregated losses.
+        """
+        pass
