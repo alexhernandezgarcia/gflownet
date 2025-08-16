@@ -19,7 +19,22 @@ class BaseLoss(metaclass=ABCMeta):
     def __init__(self):
         """
         Base class for GFlowNet losses.
+
+        Attributes
+        ----------
+        name : str
+            The name of the loss or objective function. This is meant to be nicely
+            formatted for printing purposes, for example using capital letters and
+            spaces.
+        acronym : str
+            The acronym of the loss or objective function.
+        id : str
+            The identifier of the loss or objective function. This is for processing
+            purposes.
         """
+        self.name = "Base Loss"
+        self.acronym = ""
+        self.id = "base"
 
     @abstractmethod
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
