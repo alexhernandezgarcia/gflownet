@@ -98,3 +98,43 @@ class FlowMatching(BaseLoss):
 
         # Compute and return the flow matching loss for each state
         return (inflow - outflow).pow(2)
+
+    def aggregate_losses_of_batch(
+        self, losses: TensorType["batch_size"], batch: Batch
+    ) -> dict[str, float]:
+        """
+        Aggregates the losses computed from a batch to obtain the overall average loss
+        and the average loss over terminating states and intermediate states.
+
+        The result is returned as a dictionary with the following items:
+        - 'all': Overall average loss
+        - 'Loss (terminating)': Average loss over terminating states
+        - 'Loss (non-term.)': Average loss over non-terminating (intermediate) states
+
+        Parameters
+        ----------
+        losses : tensor
+            The loss of each state in the batch.
+        batch : Batch
+            A batch of states.
+
+        Returns
+        -------
+        loss_dict : dict
+            A dictionary of loss aggregations.
+        """
+        done = batch.get_done()
+        # Loss of terminating states
+        loss_term = losses[done].mean()
+        contrib_term = done.eq(1).to(self.float).mean()
+        # Loss of non-terminating states
+        loss_interm = losses[~done].mean()
+        contrib_interm = done.eq(0).to(self.float).mean()
+        # Overall loss
+        loss_overall = contrib_term * loss_term + contrib_interm * loss_interm
+
+        return {
+            "all": loss_overall,
+            "Loss (terminating)": loss_term,
+            "Loss (non-term.)": loss_interm,
+        }
