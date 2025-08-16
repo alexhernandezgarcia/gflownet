@@ -81,6 +81,10 @@ class BaseLoss(metaclass=ABCMeta):
         The result is returned as a dictionary whose keys are the identifiers of each
         type of aggregation and the values are the aggregated losses.
 
+        It is expected that one of the keys in the dictionary is 'all' and its value
+        corresponds to the overall loss, which may be used to compute the gradient with
+        respect to graph leaves with `backward()`.
+
         Parameters
         ----------
         losses : tensor
