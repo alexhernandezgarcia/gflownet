@@ -13,8 +13,20 @@ class FlowMatching(BaseLoss):
     def __init__(self):
         """
         Initialization method for the Flow Matching loss class.
+
+        Attributes
+        ----------
+        name : str
+            The name of the loss or objective function: Flow Matching
+        acronym : str
+            The acronym of the loss or objective function: FM
+        id : str
+            The identifier of the loss or objective function: flowmatching
         """
         super().__init__()
+        self.name = "Flow Matching"
+        self.acronym = "FM"
+        self.id = "flowmatching"
 
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
