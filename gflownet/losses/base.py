@@ -8,21 +8,44 @@ Base class for GFlowNet losses or objective functions.
 """
 
 from abc import ABCMeta, abstractmethod
+from functools import partial
 from typing import Union
 
 from torchtyping import TensorType
 
+from gflownet.policy.base import Policy
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import set_device, set_float_precision
 
 
 class BaseLoss(metaclass=ABCMeta):
-    def __init__(self, device: str = "cpu", float_precision: int = 32):
+    # TODO: study whether the dependence on the environment can be removed.
+    # TODO: improve dependence on policies (needs re-implementation of policies)
+    def __init__(
+        self,
+        env_maker: partial,
+        forward_policy: Policy,
+        backward_policy: Policy = None,
+        state_flow: dict = None,
+        device: str = "cpu",
+        float_precision: int = 32,
+    ):
         """
         Base class for GFlowNet losses.
 
         Parameters
         ----------
+        env_maker : partial
+            The environment maker of the environments used to train the GFlowNet.
+        forward_policy : gflownet.policy.base.Policy
+            The forward policy to be used for training. Parameterized from
+            `gflownet.yaml:forward_policy` and parsed with
+            `gflownet/utils/policy.py:set_policy`.
+        backward_policy : gflownet.policy.base.Policy, optional
+            Same as forward_policy, but for the backward policy.
+        state_flow : dict, optional
+            State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
+            default None.
         device : str or torch.device
             The device to be passed to torch tensors.
         float_precision : int or torch.dtype
@@ -30,6 +53,17 @@ class BaseLoss(metaclass=ABCMeta):
 
         Attributes
         ----------
+        env : Environment
+            The environment used to train the GFlowNet.
+        forward_policy : gflownet.policy.base.Policy
+            The forward policy to be used for training. Parameterized from
+            `gflownet.yaml:forward_policy` and parsed with
+            `gflownet/utils/policy.py:set_policy`.
+        backward_policy : gflownet.policy.base.Policy
+            Same as forward_policy, but for the backward policy.
+        state_flow : dict
+            State flow config dictionary.
+            default None.
         device : torch.device
             The device to be passed to torch tensors.
         float : torch.dtype
@@ -44,6 +78,12 @@ class BaseLoss(metaclass=ABCMeta):
             The identifier of the loss or objective function. This is for processing
             purposes.
         """
+        # Environment
+        self.env = env_maker()
+        # Policy models
+        self.forward_policy = forward_policy
+        self.backward_policy = backward_policy
+        self.state_flow = state_flow
         # Device
         self.device = set_device(device)
         # Float precision
