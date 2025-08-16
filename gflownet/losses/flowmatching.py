@@ -8,6 +8,8 @@ The Flow Matching (FM) loss or objective was defined by Bengio et al. (2021):
 
 from typing import Union
 
+from torchtyping import TensorType
+
 from gflownet.losses.base import BaseLoss
 from gflownet.utils.batch import Batch
 
