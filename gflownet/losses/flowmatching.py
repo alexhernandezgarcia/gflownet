@@ -42,6 +42,7 @@ class FlowMatching(BaseLoss):
         """
         return False
 
+    # TODO: consider using epsilon
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
         Computes the Flow Matching loss for each state of the input batch.
