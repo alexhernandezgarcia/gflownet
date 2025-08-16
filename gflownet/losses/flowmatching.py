@@ -8,6 +8,7 @@ The Flow Matching (FM) loss or objective was defined by Bengio et al. (2021):
 
 from typing import Union
 
+import torch
 from torchtyping import TensorType
 
 from gflownet.losses.base import BaseLoss
@@ -76,7 +77,9 @@ class FlowMatching(BaseLoss):
         done = batch.get_done()
         masks_sf = batch.get_masks_forward()
         parents_a_idx = self.env.actions2indices(parents_actions)
-        logrewards = batch.get_rewards(log=True)
+        # Log-rewards are stored in variable named outflows so that outflows of
+        # intermediate states can be stored in the same variable
+        outflows = batch.get_rewards(log=True)
 
         # Compute in-flows
         inflow_logits = torch.full(
@@ -88,16 +91,15 @@ class FlowMatching(BaseLoss):
         inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
             torch.arange(parents.shape[0]), parents_a_idx
         ]
-        inflow = torch.logsumexp(inflow_logits, dim=1)
+        inflows = torch.logsumexp(inflow_logits, dim=1)
 
         # Compute out-flows
         outflow_logits = self.forward_policy(states)
         outflow_logits[masks_sf] = -torch.inf
-        outflow = torch.logsumexp(outflow_logits, dim=1)
-        outflow[done] = logrewards[done]
+        outflows[~done] = torch.logsumexp(outflow_logits[~done], dim=1)
 
         # Compute and return the flow matching loss for each state
-        return (inflow - outflow).pow(2)
+        return (inflows - outflows).pow(2)
 
     def aggregate_losses_of_batch(
         self, losses: TensorType["batch_size"], batch: Batch
