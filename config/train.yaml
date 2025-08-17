@@ -2,6 +2,7 @@ defaults:
   - _self_
   - env: grid
   - gflownet: trajectorybalance
+  - loss: flowmatching
   - policy: mlp_${gflownet}
   - proxy: uniform
   - logger: wandb
