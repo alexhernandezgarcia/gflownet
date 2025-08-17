@@ -41,6 +41,7 @@ class GFlowNetAgent:
         seed,
         device,
         float_precision,
+        loss,
         optimizer,
         buffer,
         forward_policy,
@@ -71,6 +72,9 @@ class GFlowNetAgent:
             Device to be used for training and inference, e.g. "cuda" or "cpu".
         float_precision : int
             Precision of the floating point numbers, e.g. 32 or 64.
+        loss : Loss
+            An instance of a loss class, corresponding to one of the GFlowNet
+            objectives, for example Flow Matching or Trajectory Balance.
         optimizer : dict
             Optimizer config dictionary. See gflownet.yaml:optimizer for details.
         buffer : dict
@@ -115,7 +119,8 @@ class GFlowNetAgent:
         Raises
         ------
         Exception
-            If the loss is flowmatch/flowmatching and the environment is continuous.
+            If the environment is continuous and the loss is not well defined for
+            continuous GFlowNets.
         """
         # Seed
         self.rng = np.random.default_rng(seed)
@@ -130,34 +135,20 @@ class GFlowNetAgent:
         # Proxy
         self.proxy = proxy
         self.proxy.setup(self.env)
+        # Loss
+        self.loss = loss
+        # TODO: improve this
+        if self.loss.id == "trajectorybalance":
+            self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
+        else:
+            self.logZ = None
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
-        if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
+        if self.continuous and not loss.is_defined_for_continuous():
             raise Exception(
-                """
-            Flow matching loss is not available for continuous environments.
-            You may use trajectory balance (gflownet=trajectorybalance) instead.
-            """
+                f"The environment is continuous but the {loss.name} loss is not well "
+                "defined for continuous environments. Consider using a different loss."
             )
-        # Loss
-        if optimizer.loss in ["flowmatch", "flowmatching"]:
-            self.loss = "flowmatch"
-            self.logZ = None
-        elif optimizer.loss in ["trajectorybalance", "tb"]:
-            self.loss = "trajectorybalance"
-            self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
-        elif optimizer.loss in ["detailedbalance", "db"]:
-            self.loss = "detailedbalance"
-            self.logZ = None
-        elif optimizer.loss in ["forwardlooking", "fl"]:
-            self.loss = "forwardlooking"
-            self.logZ = None
-        else:
-            print("Unkown loss. Using flowmatch as default")
-            self.loss = "flowmatch"
-            self.logZ = None
-        # loss_eps is used only for the flowmatch loss
-        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
         self.logger = logger
         # Buffers
@@ -234,15 +225,18 @@ class GFlowNetAgent:
         self.mean_probs_std = -1.0
         self.logprobs_std_nll_ratio = -1.0
 
+    # TODO: improve handling of loss-dependent conditions
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
         if self.backward_policy.is_model:
-            if self.loss == "flowmatch":
+            if self.loss.id == "flowmatching":
                 raise ValueError("Backward Policy cannot be a model in flowmatch.")
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
-            if self.loss not in ["detailedbalance", "forwardlooking"]:
-                raise ValueError(f"State flow cannot be trained with {self.loss} loss.")
+            if self.loss.id not in ["detailedbalance", "forwardlooking"]:
+                raise ValueError(
+                    f"State flow cannot be trained with {self.loss.name} loss."
+                )
             parameters += list(self.state_flow.model.parameters())
         return parameters
 
@@ -1163,26 +1157,13 @@ class GFlowNetAgent:
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
-                if self.loss == "flowmatch":
-                    losses = self.flowmatch_loss(
-                        self.it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
-                elif self.loss == "trajectorybalance":
-                    losses = self.trajectorybalance_loss(
-                        self.it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
-                elif self.loss == "detailedbalance":
-                    losses = self.detailedbalance_loss(self.it * self.ttsr + j, batch)
-                elif self.loss == "forwardlooking":
-                    losses = self.forwardlooking_loss(self.it * self.ttsr + j, batch)
-                else:
-                    print("Unknown loss!")
+                losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses]):
+                if not all([torch.isfinite(loss) for loss in losses.values()]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
-                    losses[0].backward()
+                    losses["all"].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
@@ -1196,23 +1177,24 @@ class GFlowNetAgent:
             times = self.log_train_iteration(pbar, losses, batch, times)
 
             # Moving average of the loss for early stopping
-            if loss_term_ema and loss_flow_ema:
-                loss_term_ema = (
-                    self.ema_alpha * losses[1].item()
-                    + (1.0 - self.ema_alpha) * loss_term_ema
-                )
-                loss_flow_ema = (
-                    self.ema_alpha * losses[2].item()
-                    + (1.0 - self.ema_alpha) * loss_flow_ema
-                )
-                if (
-                    loss_term_ema < self.early_stopping
-                    and loss_flow_ema < self.early_stopping
-                ):
-                    break
-            else:
-                loss_term_ema = losses[1].item()
-                loss_flow_ema = losses[2].item()
+            # TODO: reimplement
+            #             if loss_term_ema and loss_flow_ema:
+            #                 loss_term_ema = (
+            #                     self.ema_alpha * losses[1].item()
+            #                     + (1.0 - self.ema_alpha) * loss_term_ema
+            #                 )
+            #                 loss_flow_ema = (
+            #                     self.ema_alpha * losses[2].item()
+            #                     + (1.0 - self.ema_alpha) * loss_flow_ema
+            #                 )
+            #                 if (
+            #                     loss_term_ema < self.early_stopping
+            #                     and loss_flow_ema < self.early_stopping
+            #                 ):
+            #                     break
+            #             else:
+            #                 loss_term_ema = losses[1].item()
+            #                 loss_flow_ema = losses[2].item()
 
             # Log times
             t1_iter = time.time()
@@ -1261,8 +1243,8 @@ class GFlowNetAgent:
         ----------
         pbar : tqdm
             Progress bar object
-        losses : list
-            List of losses after the training iteration
+        losses : dict
+            Dictionary of losses after the training iteration
         batch : Batch
             Training batch
         times : dict
@@ -1337,14 +1319,6 @@ class GFlowNetAgent:
             if len(learning_rates) == 1:
                 learning_rates += [None]
 
-            # Loss metrics
-            loss_metrics = dict(
-                zip(
-                    ["Loss", "Loss (terminating)", "Loss (non-term.)"],
-                    losses,
-                )
-            )
-
             # Log train rewards and scores
             self.logger.log_rewards_and_scores(
                 rewards,
@@ -1372,8 +1346,9 @@ class GFlowNetAgent:
             )
 
             # Log losses
+            losses["Loss"] = losses["all"]
             self.logger.log_metrics(
-                metrics=loss_metrics,
+                metrics=losses,
                 step=self.it,
                 use_context=self.use_context,
             )
@@ -1395,7 +1370,7 @@ class GFlowNetAgent:
 
         # Progress bar
         self.logger.progressbar_update(
-            pbar, losses[0].item(), rewards.tolist(), self.jsd, self.use_context
+            pbar, losses["all"].item(), rewards.tolist(), self.jsd, self.use_context
         )
 
         # Save intermediate models
