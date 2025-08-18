@@ -11,7 +11,7 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Union
 
-from torch.nn import Parameters
+from torch.nn import Parameter
 from torchtyping import TensorType
 
 from gflownet.policy.base import Policy
@@ -28,7 +28,7 @@ class BaseLoss(metaclass=ABCMeta):
         forward_policy: Policy,
         backward_policy: Policy = None,
         state_flow: dict = None,
-        logZ: Parameters = None,
+        logZ: Parameter = None,
         device: str = "cpu",
         float_precision: int = 32,
     ):
@@ -48,7 +48,7 @@ class BaseLoss(metaclass=ABCMeta):
         state_flow : dict, optional
             State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
             default None.
-        logZ : Parameters, optional
+        logZ : Parameter, optional
             The learnable parameters for the log-partition function logZ. By default
             None. It may be extended to consider modelling logZ with a neural network.
         device : str or torch.device
@@ -69,7 +69,7 @@ class BaseLoss(metaclass=ABCMeta):
         state_flow : dict
             State flow config dictionary.
             default None.
-        logZ : Parameters
+        logZ : Parameter
             The learnable parameters for the log-partition function logZ.
         device : torch.device
             The device to be passed to torch tensors.
@@ -195,7 +195,7 @@ class BaseLoss(metaclass=ABCMeta):
         else:
             return losses.mean()
 
-    def set_log_z(self, logZ: Parameters):
+    def set_log_z(self, logZ: Parameter):
         """
         Sets the input logZ as an attribute of the class instance.
 

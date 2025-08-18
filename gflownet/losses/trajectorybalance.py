@@ -6,8 +6,10 @@ The Trajectory Balance (TB) loss or objective was defined by Malkin et al. (2022
     .. _a link: https://arxiv.org/abs/2201.13259
 """
 
+from torchtyping import TensorType
+
 from gflownet.losses.base import BaseLoss
-from gflownet.utils.batch import compute_logprobs_trajectories
+from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 
 
 class TrajectoryBalance(BaseLoss):

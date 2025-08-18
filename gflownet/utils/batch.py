@@ -7,6 +7,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.policy.base import Policy
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import (
     concat_items,
