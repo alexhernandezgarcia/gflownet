@@ -11,6 +11,7 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Union
 
+import torch
 from torch.nn import Parameter
 from torchtyping import TensorType
 
@@ -29,6 +30,8 @@ class BaseLoss(metaclass=ABCMeta):
         backward_policy: Policy = None,
         state_flow: dict = None,
         logZ: Parameter = None,
+        early_stopping_th: float = 0.0,
+        ema_alpha: float = 0.0,
         device: str = "cpu",
         float_precision: int = 32,
     ):
@@ -51,6 +54,10 @@ class BaseLoss(metaclass=ABCMeta):
         logZ : Parameter, optional
             The learnable parameters for the log-partition function logZ. By default
             None. It may be extended to consider modelling logZ with a neural network.
+        early_stopping_th : float
+            Threshold value for early stopping. If larger than 0.0, if the moving
+            average of the loss falls under this threshold, training is stopped. If the
+            value is 0.0 (default), no early stopping is applied.
         device : str or torch.device
             The device to be passed to torch tensors.
         float_precision : int or torch.dtype
@@ -58,6 +65,14 @@ class BaseLoss(metaclass=ABCMeta):
 
         Attributes
         ----------
+        early_stopping_th : float
+            Threshold value for early stopping. If larger than 0.0, if the moving
+            average of the loss falls under this threshold, training is stopped. If the
+            value is 0.0, no early stopping is applied.
+        ema_alpha : float
+            Coefficient for the exponential moving average (EMA) of the loss.
+        loss_ema : float
+            The exponential moving average of the loss.
         env : Environment
             The environment used to train the GFlowNet.
         forward_policy : gflownet.policy.base.Policy
@@ -85,6 +100,10 @@ class BaseLoss(metaclass=ABCMeta):
             The identifier of the loss or objective function. This is for processing
             purposes.
         """
+        # Early stopping variables
+        self.early_stopping_th = early_stopping_th
+        self.ema_alpha = ema_alpha
+        self.loss_ema = None
         # Environment
         self.env = env_maker()
         # Policy models and parameters
@@ -205,3 +224,46 @@ class BaseLoss(metaclass=ABCMeta):
             The learnable parameters for the log-partition function logZ.
         """
         self.logZ = logZ
+
+    @torch.no_grad()
+    def do_early_stopping(self, loss: float) -> bool:
+        """
+        Returns True if early stopping critera are met, according to an exponential
+        moving average of the loss and a loss threshold.
+
+        Early stopping is applied only if ``self.early_stopping_th`` is larger than 0.
+
+        The exponential moving average (EMA) is applied as follows:
+
+        .. math::
+
+            \ell_{EMA}(t=0) = \ell(t=0)
+            \ell_{EMA}(t) = \alpha \cdot \ell(t) + (1 - \alpha) \cdot \ell_{EMA}(t-1),
+
+        where $$\ell_{EMA}(t)$$ is the exponential moving average of the loss at
+        iteration $$t$$ and $$\ell(t)$$ is the global average loss at iteration $$t$$.
+
+        See:
+
+            .. _a link: https://en.wikipedia.org/wiki/Exponential_smoothing
+
+        Parameters
+        ----------
+        loss : float
+            The current value of the loss.
+
+        Returns
+        -------
+        bool
+            Whether early stopping criteria are met.
+        """
+        if self.early_stopping_th <= 0.0:
+            return False
+
+        # Update exponential moving average of the loss
+        if self.loss_ema is None:
+            self.loss_ema = loss
+        else:
+            self.loss_ema = self.ema_alpha * loss + (1 - self.ema_alpha) * self.loss_ema
+
+        return self.loss_ema < self.early_stopping_th

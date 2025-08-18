@@ -205,8 +205,6 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / optimizer.train_to_sample_ratio), 1)
         self.clip_grad_norm = optimizer.clip_grad_norm
         self.tau = optimizer.bootstrap_tau
-        self.ema_alpha = optimizer.ema_alpha
-        self.early_stopping = optimizer.early_stopping
         self.use_context = use_context
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
@@ -850,9 +848,6 @@ class GFlowNetAgent:
         return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
-        # Metrics
-        loss_term_ema = None
-        loss_flow_ema = None
         # Train loop
         collect_backwards_masks = self.loss in [
             "trajectorybalance",
@@ -907,26 +902,6 @@ class GFlowNetAgent:
             # models
             times = self.log_train_iteration(pbar, losses, batch, times)
 
-            # Moving average of the loss for early stopping
-            # TODO: reimplement
-            #             if loss_term_ema and loss_flow_ema:
-            #                 loss_term_ema = (
-            #                     self.ema_alpha * losses[1].item()
-            #                     + (1.0 - self.ema_alpha) * loss_term_ema
-            #                 )
-            #                 loss_flow_ema = (
-            #                     self.ema_alpha * losses[2].item()
-            #                     + (1.0 - self.ema_alpha) * loss_flow_ema
-            #                 )
-            #                 if (
-            #                     loss_term_ema < self.early_stopping
-            #                     and loss_flow_ema < self.early_stopping
-            #                 ):
-            #                     break
-            #             else:
-            #                 loss_term_ema = losses[1].item()
-            #                 loss_flow_ema = losses[2].item()
-
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
@@ -940,6 +915,14 @@ class GFlowNetAgent:
                 del batch
                 gc.collect()
                 torch.cuda.empty_cache()
+
+            # Check early stopping
+            if self.loss.do_early_stopping(losses["all"]):
+                print(
+                    "Ending training after meeting early stopping criteria: "
+                    f"{self.loss.loss_ema} < {self.loss.early_stopping_th}"
+                )
+                break
 
         # Save final model
         self.logger.save_checkpoint(

@@ -10,10 +10,6 @@ optimizer:
   lr_decay_period: 1000000
   lr_decay_gamma: 0.5
   method: adam
-  # Threshold loss for early stopping
-  early_stopping: 0.0
-  # Coefficient for exponential moving average
-  ema_alpha: 0.5
   # Optimizer: adam, sgd
   adam_beta1: 0.9
   adam_beta2: 0.999
