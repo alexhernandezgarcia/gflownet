@@ -1628,3 +1628,78 @@ class Batch:
                 "item must be one of: state, parent, action, done, mask_f[orward] or "
                 "mask_b[ackward]"
             )
+
+
+def compute_logprobs_trajectories(
+    self,
+    batch: Batch,
+    env: GFlowNetEnv,
+    forward_policy: Policy = None,
+    backward_policy: Policy = None,
+    backward: bool = False,
+):
+    """
+    Computes the forward or backward log probabilities of the trajectories in a
+    batch.
+
+    The log probabilities are computed according to the forward or backward policy
+    models passed as parameters.
+
+    Parameters
+    ----------
+    batch : Batch
+        A batch of data, containing all the states in the trajectories.
+    env : :py:class:`gflownet.envs.base.GFlowNetEnv`
+        An instance of the environment used to compute log probabilities of state
+        transitions.
+    forward_policy : :py:class:`gflownet.policy.base.Policy`, optional
+        The model used to compute the forward policy outputs from input states. It is
+        ignored if `backward` is True.
+    bacward_policy : :py:class:`gflownet.policy.base.Policy`, optional
+        Same as `forward_policy`, but for the backward policy. It is ignored if
+        `backward` is False.
+    backward : bool
+        False: log probabilities of forward trajectories.
+        True: log probabilities of backward trajectories.
+
+    Returns
+    -------
+    logprobs : torch.tensor
+        The log probabilities of the trajectories.
+    """
+    if backward:
+        assert backward_policy is not None
+    else:
+        assert forward_policy is not None
+
+    # Make indices of batch consecutive since they are used for indexing here
+    # Get necessary tensors from batch
+    states_policy = batch.get_states(policy=True)
+    states = batch.get_states(policy=False)
+    actions = batch.get_actions()
+    parents_policy = batch.get_parents(policy=True)
+    parents = batch.get_parents(policy=False)
+    traj_indices = batch.get_trajectory_indices(consecutive=True)
+
+    if backward:
+        # Backward trajectories
+        masks_b = batch.get_masks_backward()
+        policy_output_b = backward_policy(states_policy)
+        logprobs_states = env.get_logprobs(
+            policy_output_b, actions, masks_b, states, backward
+        )
+    else:
+        # Forward trajectories
+        masks_f = batch.get_masks_forward(of_parents=True)
+        policy_output_f = forward_policy(parents_policy)
+        logprobs_states = env.get_logprobs(
+            policy_output_f, actions, masks_f, parents, backward
+        )
+
+    # Sum log probabilities of all transitions in each trajectory
+    logprobs = torch.zeros(
+        batch.get_n_trajectories(),
+        dtype=logprobs_states.dtype,
+        device=logprobs_states.device,
+    ).index_add_(0, traj_indices, logprobs_states)
+    return logprobs

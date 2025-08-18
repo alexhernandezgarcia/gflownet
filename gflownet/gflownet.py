@@ -22,7 +22,7 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
-from gflownet.utils.batch import Batch
+from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import (
     bootstrap_samples,
     set_device,
@@ -140,6 +140,7 @@ class GFlowNetAgent:
         # TODO: improve this
         if self.loss.id == "trajectorybalance":
             self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
+            self.loss.set_log_z(self.logZ)
         else:
             self.logZ = None
         # Continuous environments
@@ -667,56 +668,6 @@ class GFlowNetAgent:
 
         return batch, times
 
-    def compute_logprobs_trajectories(self, batch: Batch, backward: bool = False):
-        """
-        Computes the forward or backward log probabilities of the trajectories in a
-        batch.
-
-        Args
-        ----
-        batch : Batch
-            A batch of data, containing all the states in the trajectories.
-
-        backward : bool
-            False: log probabilities of forward trajectories.
-            True: log probabilities of backward trajectories.
-
-        Returns
-        -------
-        logprobs : torch.tensor
-            The log probabilities of the trajectories.
-        """
-        assert batch.is_valid()
-        # Make indices of batch consecutive since they are used for indexing here
-        # Get necessary tensors from batch
-        states_policy = batch.get_states(policy=True)
-        states = batch.get_states(policy=False)
-        actions = batch.get_actions()
-        parents_policy = batch.get_parents(policy=True)
-        parents = batch.get_parents(policy=False)
-        traj_indices = batch.get_trajectory_indices(consecutive=True)
-        if backward:
-            # Backward trajectories
-            masks_b = batch.get_masks_backward()
-            policy_output_b = self.backward_policy(states_policy)
-            logprobs_states = self.env.get_logprobs(
-                policy_output_b, actions, masks_b, states, backward
-            )
-        else:
-            # Forward trajectories
-            masks_f = batch.get_masks_forward(of_parents=True)
-            policy_output_f = self.forward_policy(parents_policy)
-            logprobs_states = self.env.get_logprobs(
-                policy_output_f, actions, masks_f, parents, backward
-            )
-        # Sum log probabilities of all transitions in each trajectory
-        logprobs = torch.zeros(
-            batch.get_n_trajectories(),
-            dtype=self.float,
-            device=self.device,
-        ).index_add_(0, traj_indices, logprobs_states)
-        return logprobs
-
     def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
@@ -1090,11 +1041,11 @@ class GFlowNetAgent:
             data_indices = traj_indices_batch // mult_indices
             traj_indices = traj_indices_batch % mult_indices
             # Compute log probabilities of the trajectories
-            logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-                batch, backward=False
+            logprobs_f[data_indices, traj_indices] = compute_logprobs_trajectories(
+                batch, self.env, forward_policy=self.forward_policy, backward=False
             )
-            logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-                batch, backward=True
+            logprobs_b[data_indices, traj_indices] = compute_logprobs_trajectories(
+                batch, self.env, backward_policy=self.backward_policy, backward=True
             )
             # Increment batch indices
             init_batch += batch_size
