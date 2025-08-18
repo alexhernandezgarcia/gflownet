@@ -100,6 +100,8 @@ class BaseLoss(metaclass=ABCMeta):
             The identifier of the loss or objective function. This is for processing
             purposes.
         """
+        # Attribute to indicate whether logZ is required (False by default)
+        self._requires_log_z = False
         # Early stopping variables
         self.early_stopping_th = early_stopping_th
         self.ema_alpha = ema_alpha
@@ -119,6 +121,13 @@ class BaseLoss(metaclass=ABCMeta):
         self.name = "Base Loss"
         self.acronym = ""
         self.id = "base"
+
+    @property
+    def requires_log_z(self):
+        """
+        Returns True if the loss function requires logZ in its computation.
+        """
+        return self._requires_log_z
 
     @abstractmethod
     def is_defined_for_continuous(self) -> bool:

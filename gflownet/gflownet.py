@@ -137,8 +137,7 @@ class GFlowNetAgent:
         self.proxy.setup(self.env)
         # Loss
         self.loss = loss
-        # TODO: improve this
-        if self.loss.id == "trajectorybalance":
+        if self.loss.requires_log_z:
             self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
             self.loss.set_log_z(self.logZ)
         else:

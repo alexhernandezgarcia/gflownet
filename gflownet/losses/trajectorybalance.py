@@ -31,6 +31,9 @@ class TrajectoryBalance(BaseLoss):
         assert self.forward_policy is not None
         assert self.backward_policy is not None
 
+        # Attribute to indicate that logZ is required in the computation of the loss
+        self._requires_log_z = True
+
         self.name = "Trajectory Balance"
         self.acronym = "TB"
         self.id = "trajectorybalance"
