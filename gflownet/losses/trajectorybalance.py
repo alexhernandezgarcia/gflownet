@@ -27,6 +27,10 @@ class TrajectoryBalance(BaseLoss):
             The identifier of the loss or objective function: trajectorybalance
         """
         super().__init__(**kwargs)
+
+        assert self.forward_policy is not None
+        assert self.backward_policy is not None
+
         self.name = "Trajectory Balance"
         self.acronym = "TB"
         self.id = "trajectorybalance"

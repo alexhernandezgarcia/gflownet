@@ -6,8 +6,6 @@ The Flow Matching (FM) loss or objective was defined by Bengio et al. (2021):
     .. _a link: https://arxiv.org/abs/2106.04399
 """
 
-from typing import Union
-
 import torch
 from torchtyping import TensorType
 
@@ -30,6 +28,9 @@ class FlowMatching(BaseLoss):
             The identifier of the loss or objective function: flowmatching
         """
         super().__init__(**kwargs)
+
+        assert self.forward_policy is not None
+
         self.name = "Flow Matching"
         self.acronym = "FM"
         self.id = "flowmatching"
