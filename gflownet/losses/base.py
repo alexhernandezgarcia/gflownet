@@ -91,7 +91,7 @@ class BaseLoss(metaclass=ABCMeta):
         self.forward_policy = forward_policy
         self.backward_policy = backward_policy
         self.state_flow = state_flow
-        self.logZ - logZ
+        self.logZ = logZ
         # Device
         self.device = set_device(device)
         # Float precision

@@ -1632,7 +1632,6 @@ class Batch:
 
 
 def compute_logprobs_trajectories(
-    self,
     batch: Batch,
     env: GFlowNetEnv,
     forward_policy: Policy = None,
