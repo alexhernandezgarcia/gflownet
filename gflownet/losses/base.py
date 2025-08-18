@@ -11,6 +11,7 @@ from abc import ABCMeta, abstractmethod
 from functools import partial
 from typing import Union
 
+from torch.nn import Parameters
 from torchtyping import TensorType
 
 from gflownet.policy.base import Policy
@@ -27,6 +28,7 @@ class BaseLoss(metaclass=ABCMeta):
         forward_policy: Policy,
         backward_policy: Policy = None,
         state_flow: dict = None,
+        logZ: Parameters = None,
         device: str = "cpu",
         float_precision: int = 32,
     ):
@@ -37,15 +39,18 @@ class BaseLoss(metaclass=ABCMeta):
         ----------
         env_maker : partial
             The environment maker of the environments used to train the GFlowNet.
-        forward_policy : gflownet.policy.base.Policy
+        forward_policy : :py:class:`gflownet.policy.base.Policy`
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
             `gflownet/utils/policy.py:set_policy`.
-        backward_policy : gflownet.policy.base.Policy, optional
+        bacward_policy : :py:class:`gflownet.policy.base.Policy`, optional
             Same as forward_policy, but for the backward policy.
         state_flow : dict, optional
             State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
             default None.
+        logZ : Parameters, optional
+            The learnable parameters for the log-partition function logZ. By default
+            None. It may be extended to consider modelling logZ with a neural network.
         device : str or torch.device
             The device to be passed to torch tensors.
         float_precision : int or torch.dtype
@@ -64,6 +69,8 @@ class BaseLoss(metaclass=ABCMeta):
         state_flow : dict
             State flow config dictionary.
             default None.
+        logZ : Parameters
+            The learnable parameters for the log-partition function logZ.
         device : torch.device
             The device to be passed to torch tensors.
         float : torch.dtype
@@ -80,10 +87,11 @@ class BaseLoss(metaclass=ABCMeta):
         """
         # Environment
         self.env = env_maker()
-        # Policy models
+        # Policy models and parameters
         self.forward_policy = forward_policy
         self.backward_policy = backward_policy
         self.state_flow = state_flow
+        self.logZ - logZ
         # Device
         self.device = set_device(device)
         # Float precision
@@ -186,3 +194,14 @@ class BaseLoss(metaclass=ABCMeta):
             return self.aggregate_losses_of_batch(losses, batch)
         else:
             return losses.mean()
+
+    def set_log_z(self, logZ: Parameters):
+        """
+        Sets the input logZ as an attribute of the class instance.
+
+        Parameters
+        ----------
+        logZ : Parameters
+            The learnable parameters for the log-partition function logZ.
+        """
+        self.logZ = logZ
