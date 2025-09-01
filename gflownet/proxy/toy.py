@@ -43,7 +43,7 @@ class ToyScorer(Proxy):
         self.scores = tfloat(
             [
                 self.values_dict[idx] if idx in self.values_dict else 0
-                for idx in env._valid_transitions.keys()
+                for idx in env.connections.keys()
             ],
             float_type=self.float,
             device=self.device,

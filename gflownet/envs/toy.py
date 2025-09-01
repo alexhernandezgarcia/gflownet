@@ -1,7 +1,8 @@
 """
 Toy environment: A playground environment for small-scale, controllable experiments.
-The sample, state and action spaces of the environment are defined as in Figure 2 of
-the GFlowNet Foundations paper, Bengio et al (JMLR, 2023):
+
+With the default values, the sample, state and action spaces of the environment are
+defined as in Figure 2 of the GFlowNet Foundations paper, Bengio et al (JMLR, 2023):
 
     .. _a link: https://jmlr.org/papers/v24/22-0364.html
 """
@@ -18,8 +19,8 @@ from gflownet.utils.common import tfloat, tlong
 
 class Toy(GFlowNetEnv):
     """
-    Toy environment: an environment with the DAG as in Figure 2 of the GFlowNet
-    Foundations paper.
+    Toy environment: with the default values, the environment has a DAG as in Figure 2
+    of the GFlowNet Foundations paper.
 
     The DAG can be described as follows:
 
@@ -45,6 +46,10 @@ class Toy(GFlowNetEnv):
 
     Attributes
     ----------
+    connections : dict
+        A dictionary of state connections. Each key is a state index, and the values
+        are an iterable (tuple) of state indices to which the state is connected. If
+        the state is a terminating state, then -1 must be included in the iterable.
     action_space_only_valid : bool
         Whether the action space should be restricted to only the valid actions (True),
         or instead it should contain or theoretically available actions, that is
@@ -53,11 +58,7 @@ class Toy(GFlowNetEnv):
 
     def __init__(
         self,
-        action_space_only_valid: bool = True,
-        **kwargs,
-    ):
-        self.action_space_only_valid = action_space_only_valid
-        self._valid_transitions = {
+        connections: dict = {
             0: (1, 2),
             1: (3,),
             2: (3, 4),
@@ -69,7 +70,14 @@ class Toy(GFlowNetEnv):
             8: (9, -1),
             9: (-1,),
             10: (-1,),
-        }
+        },
+        action_space_only_valid: bool = True,
+        **kwargs,
+    ):
+        # Convert the iterable with the target states in connections into a tuple for
+        # efficiency
+        self.connections = {k: tuple(v) for k, v in connections.items()}
+        self.action_space_only_valid = action_space_only_valid
         # Source state
         self.source = [0]
         # End-of-sequence action
@@ -88,7 +96,7 @@ class Toy(GFlowNetEnv):
         if not self.action_space_only_valid:
             raise NotImplementedError
         actions = []
-        for source, targets in self._valid_transitions.items():
+        for source, targets in self.connections.items():
             actions.extend([(source, target) for target in targets if target != -1])
         actions.append(self.eos)
         return actions
@@ -127,9 +135,9 @@ class Toy(GFlowNetEnv):
         for idx, action in enumerate(self.action_space[:-1]):
             if action[0] != state[0]:
                 continue
-            if action[1] in self._valid_transitions[state[0]]:
+            if action[1] in self.connections[state[0]]:
                 mask[idx] = False
-        if -1 in self._valid_transitions[state[0]]:
+        if -1 in self.connections[state[0]]:
             mask[-1] = False
         return mask
 
@@ -167,7 +175,7 @@ class Toy(GFlowNetEnv):
         # Iterate over the valid transitions to determine the valid parents.
         parents = []
         actions = []
-        for source, targets in self._valid_transitions.items():
+        for source, targets in self.connections.items():
             if state[0] not in targets:
                 continue
             parents.append([source])
@@ -219,10 +227,7 @@ class Toy(GFlowNetEnv):
         """
         Returns the maximum trajectory length of the environment.
         """
-        if self.action_space_only_valid:
-            return 6
-        else:
-            return 10 + 1
+        return len(self.connections) + 1
 
     def states2proxy(self, states: List[List[int]]) -> TensorType["batch", 1]:
         """
@@ -255,7 +260,7 @@ class Toy(GFlowNetEnv):
         A 2D tensor containing all the states in the batch.
         """
         states_policy = F.one_hot(
-            tlong(states, device=self.device).squeeze(), len(self._valid_transitions)
+            tlong(states, device=self.device).squeeze(), len(self.connections)
         )
         return tfloat(states_policy, device=self.device, float_type=self.float)
 
@@ -301,9 +306,7 @@ class Toy(GFlowNetEnv):
         list
             The list of all terminating states.
         """
-        return [
-            [idx] for idx, targets in self._valid_transitions.items() if -1 in targets
-        ]
+        return [[idx] for idx, targets in self.connections.items() if -1 in targets]
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None

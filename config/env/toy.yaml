@@ -4,4 +4,18 @@ defaults:
 _target_: gflownet.envs.toy.Toy
 
 id: toy
+
+connections:
+  0: [1, 2]
+  1: [3]
+  2: [3, 4]
+  3: [5, -1]
+  4: [6, -1]
+  5: [7, 8]
+  6: [8, 10, -1]
+  7: [9]
+  8: [9, -1]
+  9: [-1]
+  10: [-1]
+
 action_space_only_valid: True
