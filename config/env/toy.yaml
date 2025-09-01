@@ -1,0 +1,7 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.toy.Toy
+
+id: toy
+action_space_only_valid: True
