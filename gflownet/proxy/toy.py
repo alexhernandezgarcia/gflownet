@@ -10,7 +10,7 @@ reaching the final states in Figure 2 of the GFlowNet Foundations paper.
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat
 
 
 class ToyScorer(Proxy):
@@ -26,7 +26,6 @@ class ToyScorer(Proxy):
             The proxy values for each state. The keys are the indidices of each state
             and the values are the proxy values assigned to them.
         """
-        # Call __init__ of parent class
         super().__init__(**kwargs)
         self.values_dict = values
 
@@ -41,11 +40,12 @@ class ToyScorer(Proxy):
         """
         if env is None:
             return
-        self.scores = tlong(
+        self.scores = tfloat(
             [
                 self.values_dict[idx] if idx in self.values_dict else 0
                 for idx in env._valid_transitions.keys()
             ],
+            float_type=self.float,
             device=self.device,
         )
 
