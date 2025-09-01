@@ -129,7 +129,6 @@ class Toy(GFlowNetEnv):
                 continue
             if action[1] in self._valid_transitions[state[0]]:
                 mask[idx] = False
-                break
         if -1 in self._valid_transitions[state[0]]:
             mask[-1] = False
         return mask
@@ -213,7 +212,7 @@ class Toy(GFlowNetEnv):
             return self.state, action, valid
         # Update state by setting its value to the index of the target state in the
         # action
-        self.state = action[1]
+        self.state[0] = action[1]
         return self.state, action, valid
 
     def _get_max_trajectory_length(self) -> int:
