@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 
 
 class Toy(GFlowNetEnv):
@@ -254,9 +254,10 @@ class Toy(GFlowNetEnv):
         -------
         A 2D tensor containing all the states in the batch.
         """
-        return F.one_hot(
-            tlong(states, device=self.device), len(self._valid_transitions)
+        states_policy = F.one_hot(
+            tlong(states, device=self.device).squeeze(), len(self._valid_transitions)
         )
+        return tfloat(states_policy, device=self.device, float_type=self.float)
 
     def state2readable(self, state: List[int] = None) -> str:
         """

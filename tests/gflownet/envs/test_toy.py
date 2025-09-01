@@ -1,5 +1,6 @@
 import common
 import pytest
+import torch
 
 from gflownet.envs.toy import Toy
 
@@ -11,6 +12,7 @@ def env():
 
 def test__environment_initializes_properly():
     env = Toy()
+    assert env is not None
     assert True
 
 
@@ -398,6 +400,56 @@ def test__get_all_terminating_states__returns_expected(env, states):
     assert env.get_all_terminating_states() == states
 
 
+@pytest.mark.parametrize(
+    "states, s_proxy_expected",
+    [
+        (
+            [[3], [4], [6], [8], [9], [10]],
+            torch.tensor([[3], [4], [6], [8], [9], [10]], dtype=torch.long),
+        )
+    ],
+)
+def test__states2proxy__returns_expected(env, states, s_proxy_expected):
+    assert torch.equal(env.states2proxy(states), s_proxy_expected)
+
+
+@pytest.mark.parametrize(
+    "states, s_policy_expected",
+    [
+        (
+            [[3], [4], [6], [8], [9], [10]],
+            torch.tensor(
+                [
+                    [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ],
+                dtype=torch.long,
+            ),
+        ),
+        (
+            [[0], [0], [1], [1], [5], [10]],
+            torch.tensor(
+                [
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                ],
+                dtype=torch.long,
+            ),
+        ),
+    ],
+)
+def test__states2policy__returns_expected(env, states, s_policy_expected):
+    assert torch.equal(env.states2policy(states), s_policy_expected)
+
+
 class TestToyGenericCommon(common.BaseTestsDiscrete):
     """Common tests for the generic Toy environment."""
 
@@ -417,7 +469,7 @@ class TestToyGenericCommon(common.BaseTestsDiscrete):
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__sample_backwards_reaches_source": 10,
             "test__state2readable__is_reversible": 20,
-            "test__gflownet_minimal_runs": 0,
+            "test__gflownet_minimal_runs": 3,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 3,
