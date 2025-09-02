@@ -28,7 +28,7 @@ class BaseLoss(metaclass=ABCMeta):
         env_maker: partial,
         forward_policy: Policy,
         backward_policy: Policy = None,
-        state_flow: dict = None,
+        state_flow: Policy = None,
         logZ: Parameter = None,
         early_stopping_th: float = 0.0,
         ema_alpha: float = 0.0,
@@ -46,11 +46,10 @@ class BaseLoss(metaclass=ABCMeta):
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
             `gflownet/utils/policy.py:set_policy`.
-        bacward_policy : :py:class:`gflownet.policy.base.Policy`, optional
+        backward_policy : :py:class:`gflownet.policy.base.Policy`, optional
             Same as forward_policy, but for the backward policy.
-        state_flow : dict, optional
-            State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
-            default None.
+        state_flow : :py:class:`gflownet.policy.state_flow.StateFlow`, optional
+            Same as forward_policy and backward_policy, but for the state flow model.
         logZ : Parameter, optional
             The learnable parameters for the log-partition function logZ. By default
             None. It may be extended to consider modelling logZ with a neural network.
