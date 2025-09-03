@@ -978,6 +978,7 @@ class ContinuousCube(CubeBase):
         states_from: List = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
         get_logprobs: bool = True,
@@ -992,7 +993,9 @@ class ContinuousCube(CubeBase):
                 mask=mask,
                 states_from=states_from,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
+                get_actions=True,
                 get_logprobs=get_logprobs,
             )
         else:
@@ -1002,7 +1005,9 @@ class ContinuousCube(CubeBase):
                 mask=mask,
                 states_from=states_from,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
+                get_actions=True,
                 get_logprobs=get_logprobs,
             )
 
@@ -1013,6 +1018,7 @@ class ContinuousCube(CubeBase):
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
         get_actions: bool = True,
@@ -1068,8 +1074,8 @@ class ContinuousCube(CubeBase):
         )
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         if get_logprobs:
-            logprobs_eos = torch.zeros(n_states, dtype=self.float, device=self.device)
-            logprobs_increments_rel = torch.zeros(
+            logprobs_eos_policy = torch.zeros(n_states, dtype=self.float, device=self.device)
+            logprobs_increments_rel_policy = torch.zeros(
                 (n_states, self.n_dim), dtype=self.float, device=self.device
             )
             log_jacobian_diag = torch.zeros(
@@ -1077,10 +1083,20 @@ class ContinuousCube(CubeBase):
             )
             eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
 
+        # Initialise sampling logits
+        if sampling_method == "policy":
+            logits_sampling = policy_outputs.clone().detach()
+        else:
+            raise NotImplementedError(
+                f"Sampling method {sampling_method} is invalid. "
+                "Options are: policy"
+            )
+
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution(
             logits_sampling, random_action_prob, temperature_logits
         )
+        logits_policy = policy_outputs
 
         # Determine source states
         is_source = ~mask[:, 1]
@@ -1095,15 +1111,17 @@ class ContinuousCube(CubeBase):
         do_eos = torch.logical_and(~is_source, ~is_eos_forced)
         if torch.any(do_eos):
             is_eos_sampled = torch.zeros_like(do_eos)
-            logits_eos = self._get_policy_eos_logit(policy_outputs)[do_eos]
-            distr_eos = Bernoulli(logits=logits_eos)
+            logits_eos_sampling = self._get_policy_eos_logit(logits_sampling)[do_eos]
+            logits_eos_policy = self._get_policy_eos_logit(logits_policy)[do_eos]
+            distr_eos_sampling = Bernoulli(logits=logits_eos_sampling)
+            distr_eos_policy = Bernoulli(logits=logits_eos_policy)
             if get_actions:
-                is_eos_sampled[do_eos] = tbool(distr_eos.sample(), device=self.device)
+                is_eos_sampled[do_eos] = tbool(distr_eos_sampling.sample(), device=self.device)
             else:
                 is_eos_sampled[do_eos] = torch.all(actions[do_eos] == eos_tensor, dim=1)
             is_eos[is_eos_sampled] = True
             if get_logprobs:
-                logprobs_eos[do_eos] = distr_eos.log_prob(
+                logprobs_eos_policy[do_eos] = distr_eos_policy.log_prob(
                     is_eos_sampled[do_eos].to(self.float)
                 )
 
@@ -1114,13 +1132,13 @@ class ContinuousCube(CubeBase):
             if sampling_method == "uniform":
                 raise NotImplementedError()
             elif sampling_method == "policy":
-                distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                distr_increments_sampling = self._make_increments_distribution(
+                    logits_sampling[do_increments]
                 )
             # Shape of increments: [n_do_increments, n_dim]
             if get_actions:
                 # If get_actions is True, relative increments are sampled
-                increments_rel = distr_increments.sample()
+                increments_rel = distr_increments_sampling.sample()
                 increments_abs = increments_rel.clone()
             else:
                 # If get_actions is False, absolute increments are obtained from the
@@ -1168,18 +1186,18 @@ class ContinuousCube(CubeBase):
                     mask, log_jacobian_diag
                 )
                 # Get logprobs
-                distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                distr_increments_policy = self._make_increments_distribution(
+                    logits_policy[do_increments]
                 )
                 # Clamp because increments of 0.0 or 1.0 would yield nan
-                logprobs_increments_rel[do_increments] = distr_increments.log_prob(
+                logprobs_increments_rel_policy[do_increments] = distr_increments_policy.log_prob(
                     torch.clamp(
                         increments_rel, min=self.epsilon, max=(1 - self.epsilon)
                     )
                 )
                 # Make ignored dimensions zero
-                logprobs_increments_rel = self._mask_ignored_dimensions(
-                    mask, logprobs_increments_rel
+                logprobs_increments_rel_policy = self._mask_ignored_dimensions(
+                    mask, logprobs_increments_rel_policy
                 )
 
         # Build actions
@@ -1208,12 +1226,12 @@ class ContinuousCube(CubeBase):
             # Sum log Jacobian across dimensions
             log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
             # Compute combined probabilities
-            sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
-            logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
+            sumlogprobs_increments_policy = logprobs_increments_rel_policy.sum(axis=1)
+            logprobs_policy = logprobs_eos_policy + sumlogprobs_increments_policy + log_det_jacobian
         else:
-            logprobs = None
+            logprobs_policy = None
 
-        return actions, logprobs
+        return actions, logprobs_policy
 
     def _sample_actions_get_logprobs_backward(
         self,
@@ -1222,6 +1240,7 @@ class ContinuousCube(CubeBase):
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
         get_actions: bool = True,
