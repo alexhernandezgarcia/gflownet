@@ -2,6 +2,7 @@
 Base class of GFlowNet environments
 """
 
+import math
 import numbers
 import random
 import uuid
@@ -512,9 +513,9 @@ class GFlowNetEnv:
         policy_outputs : tensor
             The modified policy outputs.
         """
-        if temperature != 1.0:
+        if not math.isclose(temperature, 1.0, abs_tol=1e-08):
             policy_outputs /= temperature
-        if probability_random_action > 0.0:
+        if not math.isclose(probability_random_action, 0.0, abs_tol=1e-08):
             idx_random = tbool(
                 Bernoulli(
                     probability_random_action * torch.ones(policy_outputs.shape[0])
