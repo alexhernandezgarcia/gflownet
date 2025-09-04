@@ -3,8 +3,6 @@ _target_: gflownet.gflownet.GFlowNetAgent
 seed: 0
 # Optimizer
 optimizer:
-  # Loss function
-  loss: trajectorybalance
   # Learning rates
   lr: 0.0001
   lr_decay_period: 1000000
