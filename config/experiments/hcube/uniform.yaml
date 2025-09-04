@@ -4,6 +4,7 @@
 defaults:
    - override /env: hcube
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: uniform
    - override /logger: wandb
 

@@ -3,6 +3,7 @@
 defaults:
    - override /env: crystals/clattice_parameters
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/corners
    - override /logger: wandb
 

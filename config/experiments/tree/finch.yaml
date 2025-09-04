@@ -3,6 +3,7 @@
 defaults:
    - override /env: tree
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /policy: mlp
    - override /proxy: tree
    - override /logger: wandb
