@@ -35,6 +35,32 @@ class FlowMatching(BaseLoss):
         self.acronym = "FM"
         self.id = "flowmatching"
 
+    def requires_backward_policy(self) -> bool:
+        """
+        Returns True if the loss function requires a backward policy.
+
+        The Flow Matching loss is well defined with a forward policy model only, hence
+        False is returned.
+
+        Returns
+        -------
+        False
+        """
+        return False
+
+    def requires_state_flow_model(self) -> bool:
+        """
+        Returns True if the loss function requires a state flow model.
+
+        The Flow Matching loss is well defined with a forward policy model only, hence
+        False is returned.
+
+        Returns
+        -------
+        False
+        """
+        return False
+
     def is_defined_for_continuous(self) -> bool:
         """
         Returns True if the loss function is well defined for continuous GFlowNets,

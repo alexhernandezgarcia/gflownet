@@ -142,6 +142,7 @@ class GFlowNetAgent:
             self.loss.set_log_z(self.logZ)
         else:
             self.logZ = None
+        self.collect_backwards_masks = self.loss.requires_backward_policy()
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and not loss.is_defined_for_continuous():
@@ -223,17 +224,20 @@ class GFlowNetAgent:
         self.mean_probs_std = -1.0
         self.logprobs_std_nll_ratio = -1.0
 
-    # TODO: improve handling of loss-dependent conditions
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
         if self.backward_policy.is_model:
-            if self.loss.id == "flowmatching":
-                raise ValueError("Backward Policy cannot be a model in flowmatch.")
+            if not self.loss.requires_backward_policy():
+                raise ValueError(
+                    "Backward policy initialized but not required by "
+                    f"loss {self.loss.name}."
+                )
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
-            if self.loss.id not in ["detailedbalance", "forwardlooking"]:
+            if not self.loss.requires_state_flow_model():
                 raise ValueError(
-                    f"State flow cannot be trained with {self.loss.name} loss."
+                    "State flow model initialized but not required by "
+                    f"loss {self.loss.name}."
                 )
             parameters += list(self.state_flow.model.parameters())
         return parameters
@@ -848,11 +852,6 @@ class GFlowNetAgent:
 
     def train(self):
         # Train loop
-        collect_backwards_masks = self.loss in [
-            "trajectorybalance",
-            "detailedbalance",
-            "forwardlooking",
-        ]
         pbar = tqdm(
             initial=self.it - 1,
             total=self.n_train_steps,
@@ -878,7 +877,7 @@ class GFlowNetAgent:
                     n_train=self.batch_size.backward_dataset,
                     n_replay=self.batch_size.backward_replay,
                     collect_forwards_masks=True,
-                    collect_backwards_masks=collect_backwards_masks,
+                    collect_backwards_masks=self.collect_backwards_masks,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):

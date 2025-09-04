@@ -36,6 +36,32 @@ class DetailedBalance(BaseLoss):
         self.acronym = "DB"
         self.id = "detailedbalance"
 
+    def requires_backward_policy(self) -> bool:
+        """
+        Returns True if the loss function requires a backward policy.
+
+        The Detailed Balance loss does require a backward policy model, hence True is
+        returned.
+
+        Returns
+        -------
+        True
+        """
+        return True
+
+    def requires_state_flow_model(self) -> bool:
+        """
+        Returns True if the loss function requires a state flow model.
+
+        The Detailed Balance loss does require a state flow model, hence True is
+        returned.
+
+        Returns
+        -------
+        True
+        """
+        return True
+
     def is_defined_for_continuous(self) -> bool:
         """
         Returns True if the loss function is well defined for continuous GFlowNets,

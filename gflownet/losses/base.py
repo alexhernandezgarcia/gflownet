@@ -129,6 +129,30 @@ class BaseLoss(metaclass=ABCMeta):
         return self._requires_log_z
 
     @abstractmethod
+    def requires_backward_policy(self) -> bool:
+        """
+        Returns True if the loss function requires a backward policy.
+
+        Returns
+        -------
+        bool
+            Whether the loss function requires a backward policy.
+        """
+        pass
+
+    @abstractmethod
+    def requires_state_flow_model(self) -> bool:
+        """
+        Returns True if the loss function requires a state flow model.
+
+        Returns
+        -------
+        bool
+            Whether the loss function requires a state flow model.
+        """
+        pass
+
+    @abstractmethod
     def is_defined_for_continuous(self) -> bool:
         """
         Returns True if the loss function is well defined for continuous GFlowNets,
