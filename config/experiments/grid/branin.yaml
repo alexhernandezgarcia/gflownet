@@ -5,6 +5,7 @@
 defaults:
    - override /env: grid
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/branin
    - override /logger: wandb
 

@@ -2,7 +2,6 @@ defaults:
   - gflownet
 
 optimizer:
-  loss: trajectorybalance
   lr: 0.0001
   lr_z_mult: 10
   z_dim: 16

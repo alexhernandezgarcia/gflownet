@@ -5,6 +5,7 @@
 defaults:
    - override /env: setbox
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/corners
    - override /logger: wandb
 

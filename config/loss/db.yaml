@@ -1,0 +1,4 @@
+# This is just an alias for detailedbalance,
+# so that we can do loss=db instead of loss=detailedbalance
+defaults:
+  - detailedbalance

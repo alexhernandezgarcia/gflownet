@@ -323,6 +323,16 @@ def gflownet_from_config(config, env=None):
     else:
         state_flow = None
 
+    # Loss
+    loss = instantiate(
+        config.loss,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
+        state_flow=state_flow,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+
     # GFlowNet Agent
     gflownet = instantiate(
         config.gflownet,
@@ -330,6 +340,7 @@ def gflownet_from_config(config, env=None):
         float_precision=config.float_precision,
         env_maker=env_maker,
         proxy=proxy,
+        loss=loss,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,

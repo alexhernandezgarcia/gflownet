@@ -1,0 +1,6 @@
+_target_: gflownet.losses.base.BaseLoss
+
+# Early stopping threshold. No early stopping by default.
+early_stopping_th: 0.0
+# Coefficient for the exponential moving average of the loss
+ema_alpha: 0.5
