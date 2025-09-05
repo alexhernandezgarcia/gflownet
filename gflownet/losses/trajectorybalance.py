@@ -99,10 +99,10 @@ class TrajectoryBalance(BaseLoss):
         """
         # Get logprobs of forward and backward transitions
         logprobs_f = compute_logprobs_trajectories(
-            batch, self.env, forward_policy=self.forward_policy, backward=False
+            batch, forward_policy=self.forward_policy, backward=False
         )
         logprobs_b = compute_logprobs_trajectories(
-            batch, self.env, backward_policy=self.backward_policy, backward=True
+            batch, backward_policy=self.backward_policy, backward=True
         )
         # Get rewards from batch
         logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")

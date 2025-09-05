@@ -1633,7 +1633,7 @@ class Batch:
 
 def compute_logprobs_trajectories(
     batch: Batch,
-    env: GFlowNetEnv,
+    env: GFlowNetEnv = None,
     forward_policy: Policy = None,
     backward_policy: Policy = None,
     backward: bool = False,
@@ -1649,9 +1649,9 @@ def compute_logprobs_trajectories(
     ----------
     batch : Batch
         A batch of data, containing all the states in the trajectories.
-    env : :py:class:`gflownet.envs.base.GFlowNetEnv`
+    env : :py:class:`gflownet.envs.base.GFlowNetEnv`, optional
         An instance of the environment used to compute log probabilities of state
-        transitions.
+        transitions. If None, batch.readonly_env is used.
     forward_policy : :py:class:`gflownet.policy.base.Policy`, optional
         The model used to compute the forward policy outputs from input states. It is
         ignored if `backward` is True.
@@ -1667,6 +1667,8 @@ def compute_logprobs_trajectories(
     logprobs : torch.tensor
         The log probabilities of the trajectories.
     """
+    if env is None:
+        env = batch.readonly_env
     if backward:
         assert backward_policy is not None
     else:

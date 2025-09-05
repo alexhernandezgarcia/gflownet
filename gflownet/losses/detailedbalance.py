@@ -109,12 +109,12 @@ class DetailedBalance(BaseLoss):
         # Get logprobs
         masks_f = batch.get_masks_forward(of_parents=True)
         policy_output_f = self.forward_policy(parents_policy)
-        logprobs_f = self.env.get_logprobs(
+        logprobs_f = batch.readonly_env.get_logprobs(
             policy_output_f, actions, masks_f, parents, is_backward=False
         )
         masks_b = batch.get_masks_backward()
         policy_output_b = self.backward_policy(states_policy)
-        logprobs_b = self.env.get_logprobs(
+        logprobs_b = batch.readonly_env.get_logprobs(
             policy_output_b, actions, masks_b, states, is_backward=True
         )
 

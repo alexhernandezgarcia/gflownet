@@ -21,11 +21,9 @@ from gflownet.utils.common import set_device, set_float_precision
 
 
 class BaseLoss(metaclass=ABCMeta):
-    # TODO: study whether the dependence on the environment can be removed.
     # TODO: improve dependence on policies (needs re-implementation of policies)
     def __init__(
         self,
-        env_maker: partial,
         forward_policy: Policy,
         backward_policy: Policy = None,
         state_flow: Policy = None,
@@ -40,8 +38,6 @@ class BaseLoss(metaclass=ABCMeta):
 
         Parameters
         ----------
-        env_maker : partial
-            The environment maker of the environments used to train the GFlowNet.
         forward_policy : :py:class:`gflownet.policy.base.Policy`
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
@@ -72,8 +68,6 @@ class BaseLoss(metaclass=ABCMeta):
             Coefficient for the exponential moving average (EMA) of the loss.
         loss_ema : float
             The exponential moving average of the loss.
-        env : Environment
-            The environment used to train the GFlowNet.
         forward_policy : gflownet.policy.base.Policy
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
@@ -105,8 +99,6 @@ class BaseLoss(metaclass=ABCMeta):
         self.early_stopping_th = early_stopping_th
         self.ema_alpha = ema_alpha
         self.loss_ema = None
-        # Environment
-        self.env = env_maker()
         # Policy models and parameters
         self.forward_policy = forward_policy
         self.backward_policy = backward_policy

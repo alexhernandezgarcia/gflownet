@@ -326,7 +326,6 @@ def gflownet_from_config(config, env=None):
     # Loss
     loss = instantiate(
         config.loss,
-        env_maker=env_maker,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,

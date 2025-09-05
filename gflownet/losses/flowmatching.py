@@ -103,14 +103,14 @@ class FlowMatching(BaseLoss):
         parents, parents_actions, parents_state_idx = batch.get_parents_all(policy=True)
         done = batch.get_done()
         masks_sf = batch.get_masks_forward()
-        parents_a_idx = self.env.actions2indices(parents_actions)
+        parents_a_idx = batch.readonly_env.actions2indices(parents_actions)
         # Log-rewards are stored in variable named outflows so that outflows of
         # intermediate states can be stored in the same variable
         outflows = batch.get_rewards(log=True)
 
         # Compute in-flows
         inflow_logits = torch.full(
-            (states.shape[0], self.env.policy_output_dim),
+            (states.shape[0], batch.readonly_env.policy_output_dim),
             -torch.inf,
             dtype=self.float,
             device=self.device,
