@@ -560,8 +560,7 @@ class GFlowNetAgent:
             ### DEBUG ###
             states = [copy.copy(env.state) for env in envs]
             states_policy = self.env.states2policy(states)
-            masks = [env.get_mask_invalid_actions_forward() for env in envs]
-            masks_torch = torch.tensor(masks)
+            masks_torch = self._get_masks(envs, batch_forward, env_cond, False)
             ### DEBUG ###
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
@@ -578,9 +577,14 @@ class GFlowNetAgent:
                 is_backward=False,
             )
             if not torch.allclose(logprobs, logprobs_glp, atol=1e-3):
-                import ipdb
-
-                ipdb.set_trace()
+                idx_noneq = torch.arange(len(logprobs))[
+                    ~torch.isclose(logprobs, logprobs_glp, atol=1e-3)
+                ]
+                for idx in idx_noneq:
+                    print(
+                        f"\n## logprobs: {logprobs[idx]}\n## logprobs_glp: {logprobs_glp[idx]}"
+                    )
+                    print(f"## state: {states[idx]} action: {actions[idx]}")
             ### DEBUG ###
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
