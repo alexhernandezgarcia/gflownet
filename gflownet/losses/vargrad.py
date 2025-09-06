@@ -39,7 +39,6 @@ class VarGrad(TrajectoryBalance):
         self.acronym = "VG"
         self.id = "vargrad"
 
-
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
         Computes the VarGrad loss for each trajectory of the input batch.
