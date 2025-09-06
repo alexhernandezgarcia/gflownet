@@ -39,19 +39,6 @@ class VarGrad(TrajectoryBalance):
         self.acronym = "VG"
         self.id = "vargrad"
 
-    def is_defined_for_continuous(self) -> bool:
-        """
-        Returns True if the loss function is well defined for continuous GFlowNets,
-        that is continuous environments, or False otherwise.
-
-        The VarGrad loss is well defined for continuous GFlowNets, therefore
-        this method returns True.
-
-        Returns
-        -------
-        True
-        """
-        return True
 
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
