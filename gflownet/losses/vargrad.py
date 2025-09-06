@@ -78,13 +78,15 @@ class VarGrad(TrajectoryBalance):
         )
         logprobs_b = compute_logprobs_trajectories(
             batch, backward_policy=self.backward_policy, backward=True
-        ) 
+        )
         # Get rewards from batch
         logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
 
-        # Get the LogZ for VarGrad Loss . TODO check that doing .mean(dim=0) is correct? 
+        # Get the LogZ for VarGrad Loss .
         if logprobs_f.requires_grad or logprobs_b.requires_grad:
-            logZ = (logrewards + logprobs_b - logprobs_f).detach().mean(dim=0) # average over the batch
+            logZ = (
+                (logrewards + logprobs_b - logprobs_f).detach().mean(dim=0)
+            )  # average over the batch
         else:
             logZ = (logrewards + logprobs_b - logprobs_f).mean(dim=0)
 
