@@ -612,7 +612,7 @@ class GFlowNetEnv:
 
             ipdb.set_trace()
         device = policy_outputs.device
-        n_states = len(states_from)
+        n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states, device=device)
 
         if sampling_method == "policy":
