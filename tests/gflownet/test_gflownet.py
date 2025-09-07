@@ -55,24 +55,24 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     parents = batch_no_lp.get_parents(policy=False)
     policy_output_f = gfn.forward_policy(parents_policy)
     logprobs_states_fw = gfn.env.get_logprobs(
-                    policy_output_f, actions, masks_f, parents, False
-                )
-    
+        policy_output_f, actions, masks_f, parents, False
+    )
+
     logpobs_fw_from_batch = batch.get_logprobs()
 
-    
     traj_idx = torch.tensor(batch.traj_indices)
     for tit in range(len(lp_fw)):
-        if not torch.allclose(lp_fw[tit],lp_fw_no[tit]):
-           lps_rc = logprobs_states_fw[traj_idx == tit]
-           lps_b = logpobs_fw_from_batch[traj_idx == tit]
-           print(torch.isclose(lps_rc, lps_b))
-           print(torch.sum(torch.logical_not(torch.isclose(lps_rc, lps_b))))
+        if not torch.allclose(lp_fw[tit], lp_fw_no[tit]):
+            lps_rc = logprobs_states_fw[traj_idx == tit]
+            lps_b = logpobs_fw_from_batch[traj_idx == tit]
+            print(torch.isclose(lps_rc, lps_b))
+            print(torch.sum(torch.logical_not(torch.isclose(lps_rc, lps_b))))
 
     # import ipdb; ipdb.set_trace()
     assert torch.allclose(logprobs_states_fw, logpobs_fw_from_batch, atol=1e-3)
     assert torch.allclose(lp_fw, lp_fw_no, atol=1e-3)
     assert torch.allclose(lp_bw, lp_bw_no, atol=1e-3)
+
 
 @pytest.fixture
 def gfn_grid():
@@ -84,6 +84,7 @@ def gfn_grid():
         print(f"Current GFlowNetAgent execution directory: {tmpdir}")
         gfn = gflownet_from_config(config)
     return gfn
+
 
 def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed_grid(
     gfn_grid,

@@ -557,31 +557,10 @@ class GFlowNetAgent:
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
-            ### DEBUG ###
-            states = [copy.copy(env.state) for env in envs]
-            states_policy = self.env.states2policy(states)
-            masks = [env.get_mask_invalid_actions_forward() for env in envs]
-            masks_torch = torch.tensor(masks)
-            ### DEBUG ###
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
             actions_torch = torch.tensor(actions)
             batch_forward.add_to_batch(envs, actions, logprobs, valids, train=train)
-            ### DEBUG ###
-            assert all(valids)
-            policy_output_f = self.forward_policy(states_policy)
-            logprobs_glp = self.env.get_logprobs(
-                policy_output_f,
-                actions_torch,
-                masks_torch,
-                states,
-                is_backward=False,
-            )
-            if not torch.allclose(logprobs, logprobs_glp, atol=1e-3):
-                import ipdb
-
-                ipdb.set_trace()
-            ### DEBUG ###
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
