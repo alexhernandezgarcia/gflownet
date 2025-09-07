@@ -928,12 +928,6 @@ class BaseTestsContinuous(BaseTestsCommon):
                 n_actions += 1
                 assert n_actions <= self.env.max_traj_length
 
-    # test__gflownet_minimal_runs(env)
-    # test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
-    # test__get_parents__returns_same_state_and_eos_if_done(env)
-    # test__actions2indices__returns_expected_tensor(env)
-    # test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
-
 
 def _get_current_method_name():
     """Helper which returns the name of the current method as a string."""
