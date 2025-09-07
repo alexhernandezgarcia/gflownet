@@ -214,6 +214,7 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         pass
 
+    # TODO? make arguments of this method consistent with Base env?
     @abstractmethod
     def sample_actions_batch(
         self,
