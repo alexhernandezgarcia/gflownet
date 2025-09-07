@@ -1074,7 +1074,9 @@ class ContinuousCube(CubeBase):
         )
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         if get_logprobs:
-            logprobs_eos_policy = torch.zeros(n_states, dtype=self.float, device=self.device)
+            logprobs_eos_policy = torch.zeros(
+                n_states, dtype=self.float, device=self.device
+            )
             logprobs_increments_rel_policy = torch.zeros(
                 (n_states, self.n_dim), dtype=self.float, device=self.device
             )
@@ -1088,8 +1090,7 @@ class ContinuousCube(CubeBase):
             logits_sampling = policy_outputs.clone().detach()
         else:
             raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. "
-                "Options are: policy"
+                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
             )
 
         # Randomize actions and temper the logits
@@ -1112,9 +1113,13 @@ class ContinuousCube(CubeBase):
         if torch.any(do_eos):
             is_eos_sampled = torch.zeros_like(do_eos)
             if get_actions:
-                logits_eos_sampling = self._get_policy_eos_logit(logits_sampling)[do_eos]
+                logits_eos_sampling = self._get_policy_eos_logit(logits_sampling)[
+                    do_eos
+                ]
                 distr_eos_sampling = Bernoulli(logits=logits_eos_sampling)
-                is_eos_sampled[do_eos] = tbool(distr_eos_sampling.sample(), device=self.device)
+                is_eos_sampled[do_eos] = tbool(
+                    distr_eos_sampling.sample(), device=self.device
+                )
             else:
                 is_eos_sampled[do_eos] = torch.all(actions[do_eos] == eos_tensor, dim=1)
             is_eos[is_eos_sampled] = True
@@ -1190,9 +1195,11 @@ class ContinuousCube(CubeBase):
                     logits_policy[do_increments]
                 )
                 # Clamp because increments of 0.0 or 1.0 would yield nan
-                logprobs_increments_rel_policy[do_increments] = distr_increments_policy.log_prob(
-                    torch.clamp(
-                        increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                logprobs_increments_rel_policy[do_increments] = (
+                    distr_increments_policy.log_prob(
+                        torch.clamp(
+                            increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                        )
                     )
                 )
                 # Make ignored dimensions zero
@@ -1227,7 +1234,9 @@ class ContinuousCube(CubeBase):
             log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
             # Compute combined probabilities
             sumlogprobs_increments_policy = logprobs_increments_rel_policy.sum(axis=1)
-            logprobs_policy = logprobs_eos_policy + sumlogprobs_increments_policy + log_det_jacobian
+            logprobs_policy = (
+                logprobs_eos_policy + sumlogprobs_increments_policy + log_det_jacobian
+            )
         else:
             logprobs_policy = None
 
@@ -1287,7 +1296,9 @@ class ContinuousCube(CubeBase):
             states_from, float_type=self.float, device=self.device
         )
         if get_logprobs:
-            logprobs_bts_policy = torch.zeros(n_states, dtype=self.float, device=self.device)
+            logprobs_bts_policy = torch.zeros(
+                n_states, dtype=self.float, device=self.device
+            )
             logprobs_increments_rel_policy = torch.zeros(
                 (n_states, self.n_dim), dtype=self.float, device=self.device
             )
@@ -1300,8 +1311,7 @@ class ContinuousCube(CubeBase):
             logits_sampling = policy_outputs.clone().detach()
         else:
             raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. "
-                "Options are: policy"
+                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
             )
 
         # Randomize actions and temper the logits
@@ -1322,9 +1332,13 @@ class ContinuousCube(CubeBase):
         if torch.any(do_bts):
             is_bts_sampled = torch.zeros_like(do_bts)
             if get_actions:
-                logits_bts_sampling = self._get_policy_source_logit(logits_sampling)[do_bts]
+                logits_bts_sampling = self._get_policy_source_logit(logits_sampling)[
+                    do_bts
+                ]
                 distr_bts_sampling = Bernoulli(logits=logits_bts_sampling)
-                is_bts_sampled[do_bts] = tbool(distr_bts_sampling.sample(), device=self.device)
+                is_bts_sampled[do_bts] = tbool(
+                    distr_bts_sampling.sample(), device=self.device
+                )
             else:
                 is_bts_sampled[do_bts] = torch.all(
                     actions[do_bts, :-1] == states_from_tensor[do_bts], dim=1
@@ -1385,9 +1399,11 @@ class ContinuousCube(CubeBase):
                     logits_policy[do_increments]
                 )
                 # Clamp because increments of 0.0 or 1.0 would yield nan
-                logprobs_increments_rel_policy[do_increments] = distr_increments_policy.log_prob(
-                    torch.clamp(
-                        increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                logprobs_increments_rel_policy[do_increments] = (
+                    distr_increments_policy.log_prob(
+                        torch.clamp(
+                            increments_rel, min=self.epsilon, max=(1 - self.epsilon)
+                        )
                     )
                 )
                 # Make ignored dimensions zero
@@ -1434,7 +1450,9 @@ class ContinuousCube(CubeBase):
             log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
             # Compute combined probabilities
             sumlogprobs_increments_policy = logprobs_increments_rel_policy.sum(axis=1)
-            logprobs_policy = logprobs_bts_policy + sumlogprobs_increments_policy + log_det_jacobian
+            logprobs_policy = (
+                logprobs_bts_policy + sumlogprobs_increments_policy + log_det_jacobian
+            )
             # Ensure that logprobs of forced EOS are 0
             logprobs_policy[is_eos] = 0.0
         else:
