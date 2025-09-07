@@ -654,8 +654,10 @@ class Tree(GFlowNetEnv):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
+        get_logprobs: bool = True,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs in the continuous mode.
@@ -675,8 +677,10 @@ class Tree(GFlowNetEnv):
                 None,
                 is_backward,
                 sampling_method,
+                random_action_prob,
                 temperature_logits,
                 max_sampling_attempts,
+                get_logprobs,
             )
             logprobs[is_discrete] = logprobs_discrete
         if torch.all(is_discrete):
@@ -721,8 +725,10 @@ class Tree(GFlowNetEnv):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
+        get_logprobs: bool = True,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -734,8 +740,10 @@ class Tree(GFlowNetEnv):
                 states_from=states_from,
                 is_backward=is_backward,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
+                get_logprobs=get_logprobs,
             )
         else:
             return super().sample_actions_batch(
@@ -744,8 +752,10 @@ class Tree(GFlowNetEnv):
                 states_from=states_from,
                 is_backward=is_backward,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
+                get_logprobs=get_logprobs,
             )
 
     def get_logprobs_continuous(
