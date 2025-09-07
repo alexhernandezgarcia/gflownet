@@ -535,7 +535,6 @@ class GFlowNetEnv:
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
-        get_logprobs: bool = True,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -590,10 +589,6 @@ class GFlowNetEnv:
             Maximum of number of attempts to sample actions that are not invalid
             according to the mask before throwing an error, in order to ensure that
             non-invalid actions are returned without getting stuck.
-        get_logprobs : bool
-            If True, the log probabilities of the sampled actions, according to the
-            distribution defined by the model outputs, are computed and returned. If
-            False, None is returned.
 
         Returns
         -------
@@ -603,14 +598,6 @@ class GFlowNetEnv:
             The log probabilities of the sampled actions, or None of get_logprobs is
             False.
         """
-        if torch.all(torch.isinf(policy_outputs)):
-            import ipdb
-
-            ipdb.set_trace()
-        if torch.any(torch.isinf(policy_outputs)):
-            import ipdb
-
-            ipdb.set_trace()
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states, device=device)
@@ -631,15 +618,6 @@ class GFlowNetEnv:
         logits_sampling = self.randomize_and_temper_sampling_distribution(
             logits_sampling, random_action_prob, temperature_logits
         )
-        if torch.all(torch.isinf(logits_sampling)):
-            import ipdb
-
-            ipdb.set_trace()
-        if torch.any(torch.isinf(logits_sampling)):
-            import ipdb
-
-            ipdb.set_trace()
-
         # Obtain the mask of invalid actions by making the logits equal to -inf.
         mask_logits = torch.zeros(policy_outputs.shape, dtype=self.float, device=device)
         if mask is not None:
@@ -670,16 +648,9 @@ class GFlowNetEnv:
             """
                 )
             )
-
-        # Compute the log probabilities of the actions according to the model outputs,
-        # not the sampling policy. The mask of invalid actions, with -inf at the
-        # invalid actions, is summed to the policy outputs.
-        logprobs = self.logsoftmax(policy_outputs + mask_logits)[
-            ns_range, action_indices
-        ]
         # Build actions
         actions = [self.action_space[idx] for idx in action_indices]
-        return actions, logprobs
+        return actions
 
     def get_logprobs(
         self,
