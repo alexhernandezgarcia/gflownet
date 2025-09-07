@@ -62,7 +62,9 @@ class ModelBase(ABC):
             mlp = nn.Sequential(
                 self.base.model[:-1],
                 nn.Linear(
-                    self.base.model[-1].in_features, self.base.model[-1].out_features
+                    self.base.model[-1].in_features,
+                    self.base.model[-1].out_features,
+                    dtype=self.float,
                 ),
             )
             return mlp
@@ -74,7 +76,13 @@ class ModelBase(ABC):
                 *(
                     sum(
                         [
-                            [nn.Linear(idim, odim)]
+                            [
+                                nn.Linear(
+                                    idim,
+                                    odim,
+                                    dtype=self.float,
+                                )
+                            ]
                             + ([activation] if n < len(layers_dim) - 2 else [])
                             for n, (idim, odim) in enumerate(
                                 zip(layers_dim, layers_dim[1:])
