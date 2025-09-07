@@ -740,7 +740,7 @@ class GFlowNetEnv:
             ),
             0,
         )
-        actions, _ = self.sample_actions_batch(
+        actions = self.sample_actions_batch(
             random_policy,
             mask_invalid,
             [self.state],

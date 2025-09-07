@@ -120,7 +120,7 @@ class BaseTestsCommon:
             # Add noise to policy outputs
             policy_outputs += torch.randn(policy_outputs.shape)
             masks = tbool(masks, device=self.env.device)
-            actions, _ = self.env.sample_actions_batch(
+            actions = self.env.sample_actions_batch(
                 policy_outputs, masks, states, is_backward=True
             )
             assert all([action == self.env.eos for action in actions])
@@ -446,7 +446,7 @@ class BaseTestsCommon:
                     self.env.random_policy_output, (len(states), 1)
                 )
                 # Sample batch of actions
-                actions, logprobs_sab = self.env.sample_actions_batch(
+                actions = self.env.sample_actions_batch(
                     policy_outputs=policy_outputs,
                     mask=masks,
                     states_from=states,
@@ -461,11 +461,6 @@ class BaseTestsCommon:
                     states_from=states,
                     is_backward=False,
                 )
-
-                # Check if logprobs from sample_actions_batch() and from get_logprobs()
-                # are the same
-                if logprobs_sab is not None:
-                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-3)
 
                 # Apply steps
                 for env, action, logprob in zip(envs, actions, logprobs_glp):
@@ -516,7 +511,7 @@ class BaseTestsCommon:
                     self.env.random_policy_output, (len(states), 1)
                 )
                 # Sample batch of actions
-                actions, logprobs_sab = self.env.sample_actions_batch(
+                actions = self.env.sample_actions_batch(
                     policy_outputs=policy_outputs,
                     mask=masks,
                     states_from=states,
@@ -531,11 +526,6 @@ class BaseTestsCommon:
                     states_from=states,
                     is_backward=True,
                 )
-
-                # Check if logprobs from sample_actions_batch() and from get_logprobs()
-                # are the same
-                if logprobs_sab is not None:
-                    assert torch.allclose(logprobs_sab, logprobs_glp, atol=1e-6)
 
                 # Apply steps
                 for env, action, logprob in zip(envs, actions, logprobs_glp):
@@ -639,7 +629,7 @@ class BaseTestsCommon:
             # Policy outputs random
             policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
             # Sample batch of actions
-            actions, _ = self.env.sample_actions_batch(
+            actions = self.env.sample_actions_batch(
                 policy_outputs=policy_outputs,
                 mask=masks,
                 states_from=states,
@@ -712,7 +702,7 @@ class BaseTestsCommon:
             # Policy outputs random
             policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
             # Sample batch of actions
-            actions, _ = self.env.sample_actions_batch(
+            actions = self.env.sample_actions_batch(
                 policy_outputs=policy_outputs,
                 mask=masks,
                 states_from=states,
@@ -809,46 +799,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             parents, actions = self.env.get_parents()
             assert len(parents) == 0
             assert len(actions) == 0
-
-    def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(
-        self, n_repeat=1
-    ):
-        method_name = _get_current_method_name()
-
-        if hasattr(self, "repeats") and method_name in self.repeats:
-            n_repeat = self.repeats[method_name]
-
-        for _ in range(n_repeat):
-            self.env.reset()
-            while not self.env.done:
-                policy_outputs = torch.unsqueeze(self.env.random_policy_output, 0)
-                mask_invalid = self.env.get_mask_invalid_actions_forward()
-                masks_invalid_torch = torch.unsqueeze(
-                    tbool(mask_invalid, device=self.env.device), 0
-                )
-                actions, logprobs_sab = self.env.sample_actions_batch(
-                    policy_outputs,
-                    masks_invalid_torch,
-                    [self.env.state],
-                    is_backward=False,
-                )
-                actions_torch = torch.tensor(actions)
-                logprobs_glp = self.env.get_logprobs(
-                    policy_outputs=policy_outputs,
-                    actions=actions_torch,
-                    mask=masks_invalid_torch,
-                    states_from=[self.env.state],
-                    is_backward=False,
-                )
-                action = actions[0]
-                assert (
-                    self.env.action2representative(action)
-                    in self.env.get_valid_actions()
-                )
-                if logprobs_sab is not None:
-                    assert torch.equal(logprobs_sab, logprobs_glp)
-                assert torch.all(torch.isfinite(logprobs_glp))
-                self.env.step(action)
 
     def test__get_parents_step_get_mask__are_compatible(self, n_repeat=1):
         method_name = _get_current_method_name()
