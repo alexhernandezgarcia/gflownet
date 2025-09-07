@@ -1173,6 +1173,13 @@ class ContinuousCube(CubeBase):
                 assert torch.all(torch.isfinite(increments_rel))
                 # Compute diagonal of the Jacobian (see _get_jacobian_diag()) if state
                 # is not source
+
+                ### extra test
+                from copy import deepcopy
+
+                is_relative_inc = deepcopy(is_relative)
+                ###
+
                 is_relative = torch.logical_and(do_increments, ~is_source)
                 if torch.any(is_relative):
                     log_jacobian_diag[is_relative] = torch.log(
@@ -1189,6 +1196,18 @@ class ContinuousCube(CubeBase):
                 distr_increments_policy = self._make_increments_distribution(
                     logits_policy[do_increments]
                 )
+
+                ### extra test
+                if get_actions:
+                    increments_rel[is_relative_inc] = (
+                        self.absolute_to_relative_increments(
+                            states_from_rel,
+                            increments_abs[is_relative_inc],
+                            is_backward=False,
+                        )
+                    )
+                ###
+
                 # Clamp because increments of 0.0 or 1.0 would yield nan
                 logprobs_increments_rel_policy[do_increments] = (
                     distr_increments_policy.log_prob(
@@ -1393,6 +1412,16 @@ class ContinuousCube(CubeBase):
                 distr_increments_policy = self._make_increments_distribution(
                     logits_policy[do_increments]
                 )
+
+                ### extra test
+                if get_actions:
+                    increments_rel = self.absolute_to_relative_increments(
+                        states_from_tensor[do_increments],
+                        increments_abs,
+                        is_backward=True,
+                    )
+                ###
+
                 # Clamp because increments of 0.0 or 1.0 would yield nan
                 logprobs_increments_rel_policy[do_increments] = (
                     distr_increments_policy.log_prob(
