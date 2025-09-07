@@ -76,4 +76,4 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S_%f}
