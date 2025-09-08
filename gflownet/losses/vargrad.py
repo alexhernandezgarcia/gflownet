@@ -78,4 +78,4 @@ class VarGrad(TrajectoryBalance):
             logZ = (logrewards + logprobs_b - logprobs_f).mean(dim=0)
 
         # VarGrad loss
-        return (logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2)
+        return (logZ + logprobs_f - logprobs_b - logrewards).pow(2)
