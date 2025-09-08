@@ -5,6 +5,7 @@
 defaults:
    - override /env: scrabble
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /evaluator: base
    - override /proxy: scrabble
    - override /logger: wandb

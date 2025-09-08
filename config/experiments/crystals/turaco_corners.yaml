@@ -6,6 +6,7 @@
 defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
   - override /proxy: crystals/corners
   - override /logger: wandb
 

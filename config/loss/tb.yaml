@@ -1,0 +1,4 @@
+# This is just an alias for trajectorybalance,
+# so that we can do loss=tb instead of loss=trajectorybalance
+defaults:
+  - trajectorybalance

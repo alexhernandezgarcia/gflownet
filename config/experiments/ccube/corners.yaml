@@ -5,6 +5,7 @@
 defaults:
    - override /env: ccube
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/corners
    - override /logger: wandb
 
@@ -67,6 +68,7 @@ evaluator:
 logger:
   lightweight: True
   project_name: "cube"
+  run_name: "Cube Corners"
   tags: 
     - gflownet
     - continuous
@@ -75,4 +77,4 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/ccube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/ccube/${now:%Y-%m-%d_%H-%M-%S_%f}

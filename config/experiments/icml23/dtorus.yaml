@@ -3,6 +3,7 @@
 defaults:
    - override /env: torus
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: torus
    - override /logger: wandb
 

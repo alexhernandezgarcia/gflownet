@@ -3,6 +3,7 @@
 defaults:
    - override /env: alaninedipeptide
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: molecule
    - override /logger: wandb
    - override /user: sasha

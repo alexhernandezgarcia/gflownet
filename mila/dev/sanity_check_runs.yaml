@@ -20,6 +20,7 @@ jobs:
         test:
           type: all
       gflownet: flowmatch
+      loss: flowmatching
       proxy: box/corners
       logger:
         run_name: Grid 10x10 FM
@@ -33,6 +34,7 @@ jobs:
         test:
           type: all
       gflownet: trajectorybalance
+      loss: trajectorybalance
       proxy: box/corners
       logger:
         run_name: Grid 10x10 TB
@@ -46,6 +48,7 @@ jobs:
         test:
           type: all
       gflownet: detailedbalance
+      loss: detailedbalance
       proxy: box/corners
       logger:
         run_name: Grid 10x10 DB
@@ -59,6 +62,7 @@ jobs:
         test:
           type: all
       gflownet: forwardlooking
+      loss: forwardlooking
       proxy: box/corners
       logger:
         run_name: Grid 10x10 FL
@@ -75,6 +79,7 @@ jobs:
           type: random
           n: 10
       gflownet: flowmatch
+      loss: flowmatching
       proxy: tetris
       evaluator:
         top_k: 10
@@ -93,6 +98,7 @@ jobs:
           type: random
           n: 10
       gflownet: trajectorybalance
+      loss: trajectorybalance
       proxy: tetris
       evaluator:
         top_k: 10

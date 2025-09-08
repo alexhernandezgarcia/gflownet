@@ -2,6 +2,7 @@ defaults:
   - _self_
   - env: constant
   - gflownet: trajectorybalance
+  - loss: trajectorybalance
   - policy: mlp_${gflownet}
   - proxy: uniform
   - logger: base

@@ -21,7 +21,7 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
-from gflownet.utils.batch import Batch
+from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import (
     bootstrap_samples,
     set_device,
@@ -40,6 +40,7 @@ class GFlowNetAgent:
         seed,
         device,
         float_precision,
+        loss,
         optimizer,
         buffer,
         forward_policy,
@@ -70,6 +71,9 @@ class GFlowNetAgent:
             Device to be used for training and inference, e.g. "cuda" or "cpu".
         float_precision : int
             Precision of the floating point numbers, e.g. 32 or 64.
+        loss : Loss
+            An instance of a loss class, corresponding to one of the GFlowNet
+            objectives, for example Flow Matching or Trajectory Balance.
         optimizer : dict
             Optimizer config dictionary. See gflownet.yaml:optimizer for details.
         buffer : dict
@@ -114,7 +118,8 @@ class GFlowNetAgent:
         Raises
         ------
         Exception
-            If the loss is flowmatch/flowmatching and the environment is continuous.
+            If the environment is continuous and the loss is not well defined for
+            continuous GFlowNets.
         """
         # Seed
         self.rng = np.random.default_rng(seed)
@@ -129,34 +134,21 @@ class GFlowNetAgent:
         # Proxy
         self.proxy = proxy
         self.proxy.setup(self.env)
+        # Loss
+        self.loss = loss
+        if self.loss.requires_log_z:
+            self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
+            self.loss.set_log_z(self.logZ)
+        else:
+            self.logZ = None
+        self.collect_backwards_masks = self.loss.requires_backward_policy()
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
-        if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
+        if self.continuous and not loss.is_defined_for_continuous():
             raise Exception(
-                """
-            Flow matching loss is not available for continuous environments.
-            You may use trajectory balance (gflownet=trajectorybalance) instead.
-            """
+                f"The environment is continuous but the {loss.name} loss is not well "
+                "defined for continuous environments. Consider using a different loss."
             )
-        # Loss
-        if optimizer.loss in ["flowmatch", "flowmatching"]:
-            self.loss = "flowmatch"
-            self.logZ = None
-        elif optimizer.loss in ["trajectorybalance", "tb"]:
-            self.loss = "trajectorybalance"
-            self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
-        elif optimizer.loss in ["detailedbalance", "db"]:
-            self.loss = "detailedbalance"
-            self.logZ = None
-        elif optimizer.loss in ["forwardlooking", "fl"]:
-            self.loss = "forwardlooking"
-            self.logZ = None
-        else:
-            print("Unkown loss. Using flowmatch as default")
-            self.loss = "flowmatch"
-            self.logZ = None
-        # loss_eps is used only for the flowmatch loss
-        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
         self.logger = logger
         # Buffers
@@ -212,8 +204,6 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / optimizer.train_to_sample_ratio), 1)
         self.clip_grad_norm = optimizer.clip_grad_norm
         self.tau = optimizer.bootstrap_tau
-        self.ema_alpha = optimizer.ema_alpha
-        self.early_stopping = optimizer.early_stopping
         self.use_context = use_context
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
@@ -236,12 +226,18 @@ class GFlowNetAgent:
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
         if self.backward_policy.is_model:
-            if self.loss == "flowmatch":
-                raise ValueError("Backward Policy cannot be a model in flowmatch.")
+            if not self.loss.requires_backward_policy():
+                raise ValueError(
+                    "Backward policy initialized but not required by "
+                    f"loss {self.loss.name}."
+                )
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
-            if self.loss not in ["detailedbalance", "forwardlooking"]:
-                raise ValueError(f"State flow cannot be trained with {self.loss} loss.")
+            if not self.loss.requires_state_flow_model():
+                raise ValueError(
+                    "State flow model initialized but not required by "
+                    f"loss {self.loss.name}."
+                )
             parameters += list(self.state_flow.model.parameters())
         return parameters
 
@@ -673,283 +669,6 @@ class GFlowNetAgent:
 
         return batch, times
 
-    def compute_logprobs_trajectories(self, batch: Batch, backward: bool = False):
-        """
-        Computes the forward or backward log probabilities of the trajectories in a
-        batch.
-
-        Args
-        ----
-        batch : Batch
-            A batch of data, containing all the states in the trajectories.
-
-        backward : bool
-            False: log probabilities of forward trajectories.
-            True: log probabilities of backward trajectories.
-
-        Returns
-        -------
-        logprobs : torch.tensor
-            The log probabilities of the trajectories.
-        """
-        assert batch.is_valid()
-
-        # Take logprobs from the batch if they are available.
-        logprobs_states = batch.get_logprobs(backward)
-        traj_indices = batch.get_trajectory_indices(consecutive=True)
-
-        # Otherwise, compute the log probs from the states and actions in the batch
-        if logprobs_states is None:
-            # Make indices of batch consecutive since they are used for indexing here
-            # Get necessary tensors from batch
-            states_policy = batch.get_states(policy=True)
-            states = batch.get_states(policy=False)
-            actions = batch.get_actions()
-            parents_policy = batch.get_parents(policy=True)
-            parents = batch.get_parents(policy=False)
-            if backward:
-                # Backward trajectories
-                masks_b = batch.get_masks_backward()
-                policy_output_b = self.backward_policy(states_policy)
-                logprobs_states = self.env.get_logprobs(
-                    policy_output_b, actions, masks_b, states, backward
-                )
-            else:
-                # Forward trajectories
-                masks_f = batch.get_masks_forward(of_parents=True)
-                policy_output_f = self.forward_policy(parents_policy)
-                logprobs_states = self.env.get_logprobs(
-                    policy_output_f, actions, masks_f, parents, backward
-                )
-
-        # Sum log probabilities of all transitions in each trajectory
-        logprobs = torch.zeros(
-            batch.get_n_trajectories(),
-            dtype=self.float,
-            device=self.device,
-        ).index_add_(0, traj_indices, logprobs_states)
-        return logprobs
-
-    def flowmatch_loss(self, it, batch):
-        """
-        Computes the loss of a batch
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
-
-        Returns
-        -------
-        loss : float
-            Loss, as per Equation 12 of https://arxiv.org/abs/2106.04399v1
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        flow_loss : float
-            Loss of the intermediate nodes only
-        """
-        assert batch.is_valid()
-        # Get necessary tensors from batch
-        states = batch.get_states(policy=True)
-        parents, parents_actions, parents_state_idx = batch.get_parents_all(policy=True)
-        done = batch.get_done()
-        masks_sf = batch.get_masks_forward()
-        parents_a_idx = self.env.actions2indices(parents_actions)
-        logrewards = batch.get_rewards(log=True)
-        # In-flows
-        inflow_logits = torch.full(
-            (states.shape[0], self.env.policy_output_dim),
-            -torch.inf,
-            dtype=self.float,
-            device=self.device,
-        )
-        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
-            torch.arange(parents.shape[0]), parents_a_idx
-        ]
-        inflow = torch.logsumexp(inflow_logits, dim=1)
-        # Out-flows
-        outflow_logits = self.forward_policy(states)
-        outflow_logits[masks_sf] = -torch.inf
-        outflow = torch.logsumexp(outflow_logits, dim=1)
-        # Loss at terminating nodes
-        loss_term = (inflow[done] - logrewards[done]).pow(2).mean()
-        contrib_term = done.eq(1).to(self.float).mean()
-        # Loss at intermediate nodes
-        loss_interm = (inflow[~done] - outflow[~done]).pow(2).mean()
-        contrib_interm = done.eq(0).to(self.float).mean()
-        # Combined loss
-        loss = contrib_term * loss_term + contrib_interm * loss_interm
-        return loss, loss_term, loss_interm
-
-    def trajectorybalance_loss(self, it, batch):
-        """
-        Computes the trajectory balance loss of a batch.
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : Batch
-            A batch of data, containing all the states in the trajectories.
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        flow_loss : float
-            Loss of the intermediate nodes only
-        """
-        # Get logprobs of forward and backward transitions
-        logprobs_f = self.compute_logprobs_trajectories(batch, backward=False)
-        logprobs_b = self.compute_logprobs_trajectories(batch, backward=True)
-        # Get rewards from batch
-        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
-
-        # Trajectory balance loss
-        loss = (self.logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2).mean()
-        return loss, loss, loss
-
-    def detailedbalance_loss(self, it, batch):
-        """
-        Computes the Detailed Balance GFlowNet loss of a batch
-        Reference : https://arxiv.org/pdf/2201.13259.pdf (eq 11)
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : Batch
-            A batch of data, containing all the states in the trajectories.
-
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        nonterm_loss : float
-            Loss of the intermediate nodes only
-        """
-
-        assert batch.is_valid()
-        # Get necessary tensors from batch
-        states = batch.get_states(policy=False)
-        states_policy = batch.get_states(policy=True)
-        actions = batch.get_actions()
-        parents = batch.get_parents(policy=False)
-        parents_policy = batch.get_parents(policy=True)
-        done = batch.get_done()
-        logrewards = batch.get_terminating_rewards(log=True, sort_by="insertion")
-
-        # Get logprobs
-        masks_f = batch.get_masks_forward(of_parents=True)
-        policy_output_f = self.forward_policy(parents_policy)
-        logprobs_f = self.env.get_logprobs(
-            policy_output_f, actions, masks_f, parents, is_backward=False
-        )
-        masks_b = batch.get_masks_backward()
-        policy_output_b = self.backward_policy(states_policy)
-        logprobs_b = self.env.get_logprobs(
-            policy_output_b, actions, masks_b, states, is_backward=True
-        )
-
-        # Get logflows
-        logflows_states = self.state_flow(states_policy)
-        logflows_states[done.eq(1)] = logrewards
-        # TODO: Optimise by reusing logflows_states and batch.get_parent_indices
-        logflows_parents = self.state_flow(parents_policy)
-
-        # Detailed balance loss
-        loss_all = (logflows_parents + logprobs_f - logflows_states - logprobs_b).pow(2)
-        loss = loss_all.mean()
-        loss_terminating = loss_all[done].mean()
-        loss_intermediate = loss_all[~done].mean()
-        return loss, loss_terminating, loss_intermediate
-
-    def forwardlooking_loss(self, it, batch):
-        """
-        Computes the Forward-Looking GFlowNet loss of a batch
-        Reference : https://arxiv.org/pdf/2302.01687.pdf
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : Batch
-            A batch of data, containing all the states in the trajectories.
-
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        nonterm_loss : float
-            Loss of the intermediate nodes only
-        """
-
-        assert batch.is_valid()
-        # Get necessary tensors from batch
-        states = batch.get_states(policy=False)
-        states_policy = batch.get_states(policy=True)
-        actions = batch.get_actions()
-        parents = batch.get_parents(policy=False)
-        parents_policy = batch.get_parents(policy=True)
-        logrewards_states = batch.get_rewards(log=True, do_non_terminating=True)
-        logrewards_parents = batch.get_rewards_parents(log=True)
-        done = batch.get_done()
-
-        # Get logprobs
-        masks_f = batch.get_masks_forward(of_parents=True)
-        policy_output_f = self.forward_policy(parents_policy)
-        logprobs_f = self.env.get_logprobs(
-            policy_output_f, actions, masks_f, parents, is_backward=False
-        )
-        masks_b = batch.get_masks_backward()
-        policy_output_b = self.backward_policy(states_policy)
-        logprobs_b = self.env.get_logprobs(
-            policy_output_b, actions, masks_b, states, is_backward=True
-        )
-
-        # Get FL logflows
-        logflflows_states = self.state_flow(states_policy)
-        # Log FL flow of terminal states is 0 (eq. 9 of paper)
-        logflflows_states[done.eq(1)] = 0.0
-        # TODO: Optimise by reusing logflows_states and batch.get_parent_indices
-        logflflows_parents = self.state_flow(parents_policy)
-
-        # Get energies transitions
-        energies_transitions = logrewards_parents - logrewards_states
-
-        # Forward-looking loss
-        loss_all = (
-            logflflows_parents
-            - logflflows_states
-            + logprobs_f
-            - logprobs_b
-            + energies_transitions
-        ).pow(2)
-        loss = loss_all.mean()
-        loss_terminating = loss_all[done].mean()
-        loss_intermediate = loss_all[~done].mean()
-        return loss, loss_terminating, loss_intermediate
-
     @torch.no_grad()
     def estimate_logprobs_data(
         self,
@@ -1105,11 +824,11 @@ class GFlowNetAgent:
             data_indices = traj_indices_batch // mult_indices
             traj_indices = traj_indices_batch % mult_indices
             # Compute log probabilities of the trajectories
-            logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-                batch, backward=False
+            logprobs_f[data_indices, traj_indices] = compute_logprobs_trajectories(
+                batch, self.env, forward_policy=self.forward_policy, backward=False
             )
-            logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-                batch, backward=True
+            logprobs_b[data_indices, traj_indices] = compute_logprobs_trajectories(
+                batch, self.env, backward_policy=self.backward_policy, backward=True
             )
             # Increment batch indices
             init_batch += batch_size
@@ -1134,15 +853,7 @@ class GFlowNetAgent:
         return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
-        # Metrics
-        loss_term_ema = None
-        loss_flow_ema = None
         # Train loop
-        collect_backwards_masks = self.loss in [
-            "trajectorybalance",
-            "detailedbalance",
-            "forwardlooking",
-        ]
         pbar = tqdm(
             initial=self.it - 1,
             total=self.n_train_steps,
@@ -1168,30 +879,17 @@ class GFlowNetAgent:
                     n_train=self.batch_size.backward_dataset,
                     n_replay=self.batch_size.backward_replay,
                     collect_forwards_masks=True,
-                    collect_backwards_masks=collect_backwards_masks,
+                    collect_backwards_masks=self.collect_backwards_masks,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
-                if self.loss == "flowmatch":
-                    losses = self.flowmatch_loss(
-                        self.it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
-                elif self.loss == "trajectorybalance":
-                    losses = self.trajectorybalance_loss(
-                        self.it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
-                elif self.loss == "detailedbalance":
-                    losses = self.detailedbalance_loss(self.it * self.ttsr + j, batch)
-                elif self.loss == "forwardlooking":
-                    losses = self.forwardlooking_loss(self.it * self.ttsr + j, batch)
-                else:
-                    print("Unknown loss!")
+                losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses]):
+                if not all([torch.isfinite(loss) for loss in losses.values()]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
-                    losses[0].backward()
+                    losses["all"].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
@@ -1203,25 +901,6 @@ class GFlowNetAgent:
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models
             times = self.log_train_iteration(pbar, losses, batch, times)
-
-            # Moving average of the loss for early stopping
-            if loss_term_ema and loss_flow_ema:
-                loss_term_ema = (
-                    self.ema_alpha * losses[1].item()
-                    + (1.0 - self.ema_alpha) * loss_term_ema
-                )
-                loss_flow_ema = (
-                    self.ema_alpha * losses[2].item()
-                    + (1.0 - self.ema_alpha) * loss_flow_ema
-                )
-                if (
-                    loss_term_ema < self.early_stopping
-                    and loss_flow_ema < self.early_stopping
-                ):
-                    break
-            else:
-                loss_term_ema = losses[1].item()
-                loss_flow_ema = losses[2].item()
 
             # Log times
             t1_iter = time.time()
@@ -1236,6 +915,14 @@ class GFlowNetAgent:
                 del batch
                 gc.collect()
                 torch.cuda.empty_cache()
+
+            # Check early stopping
+            if self.loss.do_early_stopping(losses["all"]):
+                print(
+                    "Ending training after meeting early stopping criteria: "
+                    f"{self.loss.loss_ema} < {self.loss.early_stopping_th}"
+                )
+                break
 
         # Save final model
         self.logger.save_checkpoint(
@@ -1270,8 +957,8 @@ class GFlowNetAgent:
         ----------
         pbar : tqdm
             Progress bar object
-        losses : list
-            List of losses after the training iteration
+        losses : dict
+            Dictionary of losses after the training iteration
         batch : Batch
             Training batch
         times : dict
@@ -1346,14 +1033,6 @@ class GFlowNetAgent:
             if len(learning_rates) == 1:
                 learning_rates += [None]
 
-            # Loss metrics
-            loss_metrics = dict(
-                zip(
-                    ["Loss", "Loss (terminating)", "Loss (non-term.)"],
-                    losses,
-                )
-            )
-
             # Log train rewards and scores
             self.logger.log_rewards_and_scores(
                 rewards,
@@ -1381,8 +1060,9 @@ class GFlowNetAgent:
             )
 
             # Log losses
+            losses["Loss"] = losses["all"]
             self.logger.log_metrics(
-                metrics=loss_metrics,
+                metrics=losses,
                 step=self.it,
                 use_context=self.use_context,
             )
@@ -1404,7 +1084,7 @@ class GFlowNetAgent:
 
         # Progress bar
         self.logger.progressbar_update(
-            pbar, losses[0].item(), rewards.tolist(), self.jsd, self.use_context
+            pbar, losses["all"].item(), rewards.tolist(), self.jsd, self.use_context
         )
 
         # Save intermediate models

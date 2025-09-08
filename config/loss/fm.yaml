@@ -1,0 +1,4 @@
+# This is just an alias for flowmatching,
+# so that we can do loss=fm instead of loss=flowmatching
+defaults:
+  - flowmatching

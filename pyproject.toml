@@ -46,7 +46,7 @@ dev = [
 # TODO: Consider relaxing the == dependency of pymatgen. As of Feb 2025, the latest version
 # is problematic. ==2024.3.1 is the minimum version required by pyxtal.
 materials = [
-    "dave @ git+https://github.com:sh-divya/crystalproxies.git@2.0.3",
+    "dave @ git+https://github.com:sh-divya/crystalproxies.git@2.0.6",
     "pymatgen ==2024.3.1",
     "pyshtools >=4.10.3",
     "pyxtal >=0.6.1",
