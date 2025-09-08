@@ -111,6 +111,7 @@ class TestGridBasic(common.BaseTestsDiscrete):
             "test__trajectories_are_reversible": 10,
             "test__step_random__does_not_sample_invalid_actions_forward": 10,
             "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__state2readable__is_reversible": 10,
         }
@@ -138,6 +139,7 @@ class TestGridDefaults(common.BaseTestsDiscrete):
             "test__trajectories_are_reversible": 10,
             "test__step_random__does_not_sample_invalid_actions_forward": 10,
             "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__state2readable__is_reversible": 10,
         }
@@ -165,6 +167,7 @@ class TestGridExtended2D(common.BaseTestsDiscrete):
             "test__trajectories_are_reversible": 10,
             "test__step_random__does_not_sample_invalid_actions_forward": 10,
             "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__state2readable__is_reversible": 10,
         }
@@ -192,6 +195,7 @@ class TestGridExtended3D(common.BaseTestsDiscrete):
             "test__trajectories_are_reversible": 10,
             "test__step_random__does_not_sample_invalid_actions_forward": 10,
             "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__state2readable__is_reversible": 10,
         }
