@@ -5,6 +5,7 @@ import torch
 from utils_for_tests import ch_tmpdir, load_base_test_config
 
 from gflownet.utils.common import gflownet_from_config
+from gflownet.utils.batch import compute_logprobs_trajectories
 
 
 @pytest.fixture
@@ -42,11 +43,15 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
 
     assert batch.logprobs_forward != batch_no_lp.logprobs_forward
 
-    lp_fw = gfn.compute_logprobs_trajectories(batch, False)
-    lp_bw = gfn.compute_logprobs_trajectories(batch, True)
+    lp_fw = compute_logprobs_trajectories(batch, None, gfn.forward_policy, None, False)
+    lp_bw = compute_logprobs_trajectories(batch, None, None, gfn.backward_policy, True)
 
-    lp_fw_no = gfn.compute_logprobs_trajectories(batch_no_lp, False)
-    lp_bw_no = gfn.compute_logprobs_trajectories(batch_no_lp, True)
+    lp_fw_no = compute_logprobs_trajectories(
+        batch_no_lp, None, gfn.forward_policy, None, False
+    )
+    lp_bw_no = compute_logprobs_trajectories(
+        batch_no_lp, None, None, gfn.backward_policy, True
+    )
 
     masks_f = batch_no_lp.get_masks_forward(of_parents=True)
     parents_policy = batch_no_lp.get_parents(policy=True)
@@ -109,11 +114,15 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
 
     assert batch.logprobs_forward != batch_no_lp.logprobs_forward
 
-    lp_fw = gfn.compute_logprobs_trajectories(batch, False)
-    lp_bw = gfn.compute_logprobs_trajectories(batch, True)
+    lp_fw = compute_logprobs_trajectories(batch, None, gfn.forward_policy, None, False)
+    lp_bw = compute_logprobs_trajectories(batch, None, None, gfn.backward_policy, True)
 
-    lp_fw_no = gfn.compute_logprobs_trajectories(batch_no_lp, False)
-    lp_bw_no = gfn.compute_logprobs_trajectories(batch_no_lp, True)
+    lp_fw_no = compute_logprobs_trajectories(
+        batch_no_lp, None, gfn.forward_policy, None, False
+    )
+    lp_bw_no = compute_logprobs_trajectories(
+        batch_no_lp, None, None, gfn.backward_policy, True
+    )
 
     assert torch.allclose(lp_fw, lp_fw_no, atol=1e-6)
     assert torch.allclose(lp_bw, lp_bw_no, atol=1e-6)
