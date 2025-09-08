@@ -34,7 +34,8 @@ class VarGrad(TrajectoryBalance):
         assert self.forward_policy is not None
         assert self.backward_policy is not None
 
-        # Attribute to indicate that logZ is required in the computation of the loss
+        # Attribute to indicate that logZ is *not* required in the computation of the
+        # loss, unlike in the parent class TrajectoryBalance
         self._requires_log_z = False
 
         self.name = "VarGrad"
