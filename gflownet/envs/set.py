@@ -685,7 +685,6 @@ class BaseSet(GFlowNetEnv):
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
-        get_logprobs: bool = True,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -707,7 +706,7 @@ class BaseSet(GFlowNetEnv):
         # space, since the super() method will select the actions by indexing the
         # action space, starting from 0.
         if any(is_set):
-            actions_set, _ = super().sample_actions_batch(
+            actions_set = super().sample_actions_batch(
                 self._get_policy_outputs_of_set_actions(policy_outputs[is_set]),
                 self._extract_core_mask(mask[is_set], idx_unique=-1),
                 None,
@@ -716,7 +715,6 @@ class BaseSet(GFlowNetEnv):
                 random_action_prob,
                 temperature_logits,
                 max_sampling_attempts,
-                get_logprobs,
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
@@ -725,7 +723,7 @@ class BaseSet(GFlowNetEnv):
         # If there are no states with active sub-environments, return here
         if len(active_subenvs) == 0:
             assert len(actions_set) == policy_outputs.shape[0]
-            return actions_set, None
+            return actions_set
 
         active_subenvs_int = active_subenvs.tolist()
         indices_unique_int = []
@@ -746,12 +744,12 @@ class BaseSet(GFlowNetEnv):
         indices_unique = tlong(indices_unique_int, device=self.device)
 
         # Sample actions from each unique environment
-        actions_logprobs_subenvs_dict = {}
+        actions_subenvs_dict = {}
         for idx, subenv in enumerate(self.envs_unique):
             indices_unique_mask = indices_unique == idx
             if not torch.any(indices_unique_mask):
                 continue
-            actions_logprobs_subenvs_dict[idx] = subenv.sample_actions_batch(
+            actions_subenvs_dict[idx] = subenv.sample_actions_batch(
                 self._get_policy_outputs_of_subenv(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
@@ -764,13 +762,12 @@ class BaseSet(GFlowNetEnv):
                 random_action_prob,
                 temperature_logits,
                 max_sampling_attempts,
-                get_logprobs,
             )
         # Stitch all environment actions in the right order, with the right padding
         actions_subenvs = []
         for idx in indices_unique_int:
             actions_subenvs.append(
-                self._pad_action(actions_logprobs_subenvs_dict[idx][0].pop(0), idx)
+                self._pad_action(actions_subenvs_dict[idx].pop(0), idx)
             )
 
         # Stitch all actions, both Set actions and sub-environment actions
@@ -780,7 +777,7 @@ class BaseSet(GFlowNetEnv):
                 actions.append(actions_subenvs.pop(0))
             else:
                 actions.append(actions_set.pop(0))
-        return actions, None
+        return actions
 
     def get_logprobs(
         self,

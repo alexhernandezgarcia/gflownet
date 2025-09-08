@@ -356,7 +356,7 @@ class GFlowNetAgent:
         policy_outputs = model(states_policy)
 
         # Sample actions from policy outputs
-        actions, logprobs = self.env.sample_actions_batch(
+        actions = self.env.sample_actions_batch(
             policy_outputs=policy_outputs,
             mask=mask_invalid_actions,
             states_from=states,
@@ -364,6 +364,15 @@ class GFlowNetAgent:
             sampling_method=sampling_method,
             random_action_prob=random_action_prob,
             temperature_logits=temperature,
+        )
+        # Compute logprobs from policy outputs
+        actions_tensor = tfloat(actions, device=self.device, float_type=self.float)
+        logprobs = self.env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions_tensor,
+            mask=mask_invalid_actions,
+            states_from=states,
+            is_backward=backward,
         )
         return actions, logprobs
 
