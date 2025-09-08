@@ -1,10 +1,12 @@
 """
 VarGrad loss or objective for training GFlowNets.
 
-The VarGrad (VG) loss or objective was defined by https://arxiv.org/abs/2010.10436 and https://arxiv.org/abs/2005.05409 , 
-Then it was rediscovered for GFNs.
+The VarGrad (VG) loss or objective was introduced by Richter and Boustati (2020) and
+Nüsken and Richter (2023). Then it was rediscovered for GFNs by Zhang et al. (2023).
 
-    .. . _a link (for rediscovering it for GFNs): https://arxiv.org/abs/2302.05446
+    .. _a link: https://arxiv.org/abs/2010.10436
+    .. _a link: https://arxiv.org/abs/2005.05409
+    .. _a link: https://arxiv.org/abs/2302.05446
 """
 
 from torchtyping import TensorType
