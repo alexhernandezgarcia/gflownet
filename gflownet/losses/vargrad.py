@@ -79,30 +79,3 @@ class VarGrad(TrajectoryBalance):
 
         # VarGrad loss
         return (logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2)
-
-    # TODO: extend with loss over the different types of trajectories (forward, replay
-    # buffer, training set...)
-    def aggregate_losses_of_batch(
-        self, losses: TensorType["batch_size"], batch: Batch
-    ) -> dict[str, float]:
-        """
-        Aggregates the losses computed from a batch to obtain the overall average loss.
-
-        The result is returned as a dictionary with the following items:
-        - 'all': Overall average loss
-
-        Parameters
-        ----------
-        losses : tensor
-            The loss of each trajectory in the batch.
-        batch : Batch
-            A batch of trajectories.
-
-        Returns
-        -------
-        loss_dict : dict
-            A dictionary of loss aggregations.
-        """
-        return {
-            "all": losses.mean(),
-        }
