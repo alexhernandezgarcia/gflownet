@@ -824,9 +824,9 @@ class Stack(GFlowNetEnv):
 
         # Stitch all actions in the right order, with the right padding
         actions = []
-        for stage in stages_int:
-            actions.append(self._pad_action(actions_dict[stage].pop(0), stage))
-        return actions
+        return [
+            self._pad_action(actions_dict[stage].pop(0), stage) for stage in stages_int
+        ]
 
     def get_logprobs(
         self,
