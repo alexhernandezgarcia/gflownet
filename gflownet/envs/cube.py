@@ -980,6 +980,44 @@ class ContinuousCube(CubeBase):
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
+
+        This method overwrites the methof of the GFlowNetEnv because it
+        is a continious enviroment.
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. Ignored in discrete
+            environments and only required in certain continuous environments.
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
+        sampling_method : str, optional
+            The sampling method to use to sample actions. The implemented options are:
+                - policy: the model outputs are used, optionally after tempering the
+                  distribution and randomizing actions.
+        random_action_prob : float, optional
+            The probability of sampling a random action. If larger than one, the model
+            outputs will be replaced by a random policy vector with probability
+            `random_action_prob`, according to Bernoulli distribution.
+        temperature_logits : float, optional
+            A scalar by which the model outputs are divided to temper the sampling
+            distribution.
+        max_sampling_attempts : int, optional
+            Maximum of number of attempts to sample actions that are not invalid
+            according to the mask before throwing an error, in order to ensure that
+            non-invalid actions are returned without getting stuck.
+
+        Returns
+        -------
+        actions : list
+            The list of sampled actions.
         """
         if not is_backward:
             return self._sample_actions_batch_forward(

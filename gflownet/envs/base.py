@@ -594,9 +594,6 @@ class GFlowNetEnv:
         -------
         actions : list
             The list of sampled actions.
-        logprobs : tensor
-            The log probabilities of the sampled actions, or None of get_logprobs is
-            False.
         """
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
