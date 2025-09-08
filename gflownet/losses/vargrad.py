@@ -44,9 +44,9 @@ class VarGrad(TrajectoryBalance):
         Computes the VarGrad loss for each trajectory of the input batch.
 
         The VarGrad loss or objective is computed in this method as is
-        defined in Equation 14 of Malkin et al. (2022).
+        defined in equation 8 of David W. Zhang's paper.
 
-        .. _a link: https://arxiv.org/abs/2201.13259
+        .. _a link: https://arxiv.org/pdf/2302.05446
 
         Parameters
         ----------
