@@ -800,6 +800,44 @@ class BaseTestsDiscrete(BaseTestsCommon):
             assert len(parents) == 0
             assert len(actions) == 0
 
+    def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(
+        self, n_repeat=1
+    ):
+        method_name = _get_current_method_name()
+
+        if hasattr(self, "repeats") and method_name in self.repeats:
+            n_repeat = self.repeats[method_name]
+
+        for _ in range(n_repeat):
+            self.env.reset()
+            while not self.env.done:
+                policy_outputs = torch.unsqueeze(self.env.random_policy_output, 0)
+                mask_invalid = self.env.get_mask_invalid_actions_forward()
+                masks_invalid_torch = torch.unsqueeze(
+                    tbool(mask_invalid, device=self.env.device), 0
+                )
+                actions = self.env.sample_actions_batch(
+                    policy_outputs,
+                    masks_invalid_torch,
+                    [self.env.state],
+                    is_backward=False,
+                )
+                actions_torch = torch.tensor(actions)
+                logprobs = self.env.get_logprobs(
+                    policy_outputs=policy_outputs,
+                    actions=actions_torch,
+                    mask=masks_invalid_torch,
+                    states_from=[self.env.state],
+                    is_backward=False,
+                )
+                action = actions[0]
+                assert (
+                    self.env.action2representative(action)
+                    in self.env.get_valid_actions()
+                )
+                assert torch.all(torch.isfinite(logprobs))
+                self.env.step(action)
+
     def test__get_parents_step_get_mask__are_compatible(self, n_repeat=1):
         method_name = _get_current_method_name()
 
