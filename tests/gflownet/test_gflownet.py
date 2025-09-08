@@ -4,8 +4,8 @@ import pytest
 import torch
 from utils_for_tests import ch_tmpdir, load_base_test_config
 
-from gflownet.utils.common import gflownet_from_config
 from gflownet.utils.batch import compute_logprobs_trajectories
+from gflownet.utils.common import gflownet_from_config
 
 
 @pytest.fixture
