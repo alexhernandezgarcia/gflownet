@@ -581,9 +581,7 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     policy_outputs[force_eos, -1] = torch.logit(torch.tensor(prob_force_eos))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=False
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=False)
     actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
     actions_eos = torch.all(actions_tensor == torch.inf, dim=1)
     assert torch.all(actions_eos == is_eos)
@@ -672,9 +670,7 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     policy_outputs[force_bts, -2] = torch.logit(torch.tensor(prob_force_bts))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=True
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=True)
     actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
     actions_bts = torch.all(actions_tensor[:, :-1] == states_torch, dim=1)
     assert torch.all(actions_bts == is_bts)
@@ -1196,6 +1192,8 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
         self.repeats = {
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 10,
@@ -1220,6 +1218,8 @@ class TestContinuousCube4DIgnoredDims(common.BaseTestsContinuous):
         self.repeats = {
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 10,

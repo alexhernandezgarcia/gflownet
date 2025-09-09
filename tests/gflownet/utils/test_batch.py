@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import pytest
 import torch
@@ -93,7 +95,7 @@ def test__add_to_batch__single_env_adds_expected(env, batch, request):
         # Sample random action
         state, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid is False:
             continue
         # Checks
@@ -119,7 +121,7 @@ def test__get_states__single_env_returns_expected(env, batch, request):
         # Sample random action
         state, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             states.append(copy(state))
     states_batch = batch.get_states()
@@ -144,7 +146,7 @@ def test__get_parents__single_env_returns_expected(env, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             parents.append(parent)
     parents_batch = batch.get_parents()
@@ -169,7 +171,7 @@ def test__get_parents_all__single_env_returns_expected(env, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             parents, parents_a = env.get_parents()
             parents_all.extend(parents)
@@ -204,7 +206,7 @@ def test__get_masks_forward__single_env_returns_expected(env, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             masks_forward.append(env.get_mask_invalid_actions_forward())
     masks_forward_batch = batch.get_masks_forward()
@@ -224,7 +226,7 @@ def test__get_masks_backward__single_env_returns_expected(env, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             masks_backward.append(env.get_mask_invalid_actions_backward())
     masks_backward_batch = batch.get_masks_backward()
@@ -250,7 +252,7 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             if env.done:
                 rewards.append(proxy.rewards(env.state2proxy())[0])
@@ -289,7 +291,7 @@ def test__get_logrewards__single_env_returns_expected(env, proxy, batch, request
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             if env.done:
                 logrewards.append(proxy.rewards(env.state2proxy(), log=True)[0])
@@ -394,7 +396,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
                 if env.done:
                     states_term_sorted[env.id] = env.state
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -416,6 +418,196 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
     actions_batch = batch.get_actions()
     assert torch.equal(
         actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
+    )
+    # Check done
+    done_batch = batch.get_done()
+    assert torch.equal(done_batch, tbool(done, device=batch.device))
+    # Check masks forward
+    masks_forward_batch = batch.get_masks_forward()
+    assert torch.equal(masks_forward_batch, tbool(masks_forward, device=batch.device))
+    # Check masks parents forward
+    masks_parents_forward_batch = batch.get_masks_forward(of_parents=True)
+    assert torch.equal(
+        masks_parents_forward_batch, tbool(masks_parents_forward, device=batch.device)
+    )
+    # Check masks backward
+    masks_backward_batch = batch.get_masks_backward()
+    assert torch.equal(masks_backward_batch, tbool(masks_backward, device=batch.device))
+    # Check parents
+    parents_batch = batch.get_parents()
+    parents_policy_batch = batch.get_parents(policy=True)
+    if torch.is_tensor(parents[0]):
+        assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
+    else:
+        assert parents_batch == parents
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
+    # Check parents_all
+    if not env.continuous:
+        parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
+        parents_all_policy_batch, _, _ = batch.get_parents_all(policy=True)
+        if torch.is_tensor(parents_all[0]):
+            assert torch.equal(torch.stack(parents_all_batch), torch.stack(parents_all))
+        else:
+            assert parents_all_batch == parents_all
+        assert torch.equal(
+            parents_all_a_batch,
+            tfloat(
+                parents_all_a,
+                device=batch.device,
+                float_type=batch.float,
+            ),
+        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
+    # Check rewards
+    rewards_batch = batch.get_rewards()
+    rewards = torch.stack(rewards)
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
+    ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
+    # Check terminating states (sorted by trajectory)
+    states_term_batch = batch.get_terminating_states(sort_by="traj")
+    states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
+    if torch.is_tensor(states_term_sorted[0]):
+        assert torch.equal(
+            torch.stack(states_term_batch), torch.stack(states_term_sorted)
+        )
+    else:
+        assert states_term_batch == states_term_sorted
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+)
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
+    env, proxy, batch, request
+):
+    batch_size = BATCH_SIZE
+    env_ref = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    proxy.setup(env_ref)
+    batch.set_env(env_ref)
+    batch.set_proxy(proxy)
+
+    # Make list of envs
+    envs = []
+    for idx in range(batch_size):
+        env_aux = env_ref.copy().reset(idx)
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    states = []
+    actions = []
+    done = []
+    masks_forward = []
+    masks_parents_forward = []
+    masks_backward = []
+    parents = []
+    parents_all = []
+    parents_all_a = []
+    logprobs = []
+    rewards = []
+    proxy_values = []
+    traj_indices = []
+    state_indices = []
+    states_term_sorted = [None for _ in range(batch_size)]
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        logprobs_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            # Make up random logprob
+            logprob = random.random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                logprobs_iter.append(logprob)
+                # Add to checking lists
+                states.append(copy(env.state))
+                actions.append(action)
+                logprobs.append(logprob)
+                done.append(env.done)
+                masks_forward.append(env.get_mask_invalid_actions_forward())
+                masks_parents_forward.append(
+                    env.get_mask_invalid_actions_forward(parent, done=False)
+                )
+                masks_backward.append(env.get_mask_invalid_actions_backward())
+                parents.append(parent)
+                if not env.continuous:
+                    env_parents, env_parents_a = env.get_parents()
+                    parents_all.extend(env_parents)
+                    parents_all_a.extend(env_parents_a)
+                if env.done:
+                    reward, proxy_value = proxy.rewards(
+                        env.state2proxy(), return_proxy=True
+                    )
+                    rewards.append(reward[0])
+                    proxy_values.append(proxy_value[0])
+                else:
+                    rewards.append(
+                        tfloat(
+                            proxy.get_min_reward(),
+                            float_type=batch.float,
+                            device=batch.device,
+                        )
+                    )
+                    proxy_values.append(
+                        tfloat(torch.inf, float_type=batch.float, device=batch.device)
+                    )
+                traj_indices.append(env.id)
+                state_indices.append(env.n_actions)
+                if env.done:
+                    states_term_sorted[env.id] = env.state
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, logprobs_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    # Check trajectory indices
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(traj_indices_batch, tlong(traj_indices, device=batch.device))
+    # Check state indices
+    state_indices_batch = batch.get_state_indices()
+    assert torch.equal(state_indices_batch, tlong(state_indices, device=batch.device))
+    # Check states
+    states_batch = batch.get_states()
+    states_policy_batch = batch.get_states(policy=True)
+    if torch.is_tensor(states[0]):
+        assert torch.equal(torch.stack(states_batch), torch.stack(states))
+    else:
+        assert states_batch == states
+    assert torch.equal(states_policy_batch, env.states2policy(states))
+    # Check actions
+    actions_batch = batch.get_actions()
+    assert torch.equal(
+        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
+    )
+    # Check logprobs
+    logprobs_batch = batch.get_logprobs()
+    assert torch.equal(
+        logprobs_batch, tfloat(logprobs, float_type=batch.float, device=batch.device)
     )
     # Check done
     done_batch = batch.get_done()
@@ -575,7 +767,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter, backward=True)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter, backward=True)
         # Remove finished trajectories (state reached source)
         envs = [env for env in envs if not env.equal(env.state, env.source)]
 
@@ -757,7 +949,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                 if env.done:
                     states_term_sorted[env.id] = env.state
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -825,7 +1017,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter, backward=True)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter, backward=True)
         # Remove finished trajectories (state reached source)
         envs = [env for env in envs if not env.equal(env.state, env.source)]
 
@@ -1011,7 +1203,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
                 if env.done:
                     states_term_sorted[env.id] = env.state
         # Add all envs, actions and valids to batch
-        batch_fw.add_to_batch(envs, actions_iter, valids_iter)
+        batch_fw.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1081,7 +1273,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
                 traj_indices.append(env.id + batch_size_forward)
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
-        batch_bw.add_to_batch(envs, actions_iter, valids_iter, backward=True)
+        batch_bw.add_to_batch(envs, actions_iter, None, valids_iter, backward=True)
         # Remove finished trajectories (state reached source)
         envs = [env for env in envs if not env.equal(env.state, env.source)]
 
@@ -1219,7 +1411,7 @@ def test__make_indices_consecutive__shuffled_indices_become_consecutive(
                 traj_indices_shuffled.append(env.id)
                 traj_indices_consecutive.append(shuffled2consecutive_dict[env.id])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1284,7 +1476,7 @@ def test__make_indices_consecutive__random_indices_become_consecutive(
                 traj_indices_random.append(env.id)
                 traj_indices_consecutive.append(random2consecutive_dict[env.id])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1348,7 +1540,7 @@ def test__make_indices_consecutive__multiplied_indices_become_consecutive(
                 traj_indices_multiplied.append(env.id)
                 traj_indices_consecutive.append(multiplied2consecutive_dict[env.id])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1393,7 +1585,7 @@ def test__get_rewards__single_env_returns_expected_non_terminating(
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             rewards.append(proxy.rewards(env.state2proxy())[0])
     rewards_batch = batch.get_rewards(do_non_terminating=True)
@@ -1427,7 +1619,7 @@ def test__get_proxy_values__single_env_returns_expected_non_terminating(
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             proxy_values.append(proxy(env.state2proxy())[0])
     proxy_values_batch = batch.get_proxy_values(do_non_terminating=True)
@@ -1461,7 +1653,7 @@ def test__get_logrewards__single_env_returns_expected_non_terminating(
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [valid])
+        batch.add_to_batch([env], [action], None, [valid])
         if valid:
             logrewards.append(proxy.rewards(env.state2proxy(), log=True)[0])
     logrewards_batch = batch.get_rewards(log=True, do_non_terminating=True)
@@ -1514,7 +1706,7 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
                 valids_iter.append(valid)
                 rewards.append(proxy.rewards(env.state2proxy())[0])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1571,7 +1763,7 @@ def test__get_proxy_values_multiple_env_returns_expected_non_zero_non_terminatin
                 valids_iter.append(valid)
                 proxy_values.append(proxy(env.state2proxy())[0])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1628,7 +1820,7 @@ def test__get_logrewards_multiple_env_returns_expected_non_neginf_non_terminatin
                 valids_iter.append(valid)
                 logrewards.append(proxy.rewards(env.state2proxy(), log=True)[0])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1694,7 +1886,7 @@ def test__get_rewards_parents_multiple_env_returns_expected_non_terminating(
                 rewards_parents.append(proxy.rewards(env.states2proxy([parent]))[0])
                 rewards.append(proxy.rewards(env.state2proxy())[0])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1770,7 +1962,7 @@ def test__get_logrewards_parents_multiple_env_returns_expected_non_terminating(
                 )
                 logrewards.append(proxy.rewards(env.state2proxy(), log=True)[0])
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, valids_iter)
+        batch.add_to_batch(envs, actions_iter, None, valids_iter)
         # Remove done envs
         envs = [env for env in envs if not env.done]
 

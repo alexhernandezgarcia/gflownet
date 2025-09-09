@@ -3345,9 +3345,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
     params = env.random_distr_params
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=False
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=False)
     # Sample actions are valid
     for state, action in zip(states, actions):
         assert env.action2representative(action) in env.get_valid_actions(
@@ -3567,9 +3565,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
     params = env.random_distr_params
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=True
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=True)
     # Sample actions are valid
     for state, action in zip(states, actions):
         assert env.action2representative(action) in env.get_valid_actions(
@@ -3937,9 +3933,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
     params = env.random_distr_params
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=False
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=False)
 
     actions_torch = torch.tensor(actions)
     logprobs = env.get_logprobs(
@@ -4261,9 +4255,7 @@ def test__get_logprobs_backward__all_finite(env, states, request):
     params = env.random_distr_params
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Sample actions
-    actions, _ = env.sample_actions_batch(
-        policy_outputs, masks, states, is_backward=True
-    )
+    actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=True)
 
     actions_torch = torch.tensor(actions)
     logprobs = env.get_logprobs(

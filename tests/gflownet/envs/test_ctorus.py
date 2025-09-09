@@ -59,7 +59,7 @@ def test__sample_actions_batch__special_cases(
         mask,
         [state],
         is_backward,
-    )[0][0]
+    )[0]
     assert all(np.isclose(action_sampled, action_expected))
 
 
@@ -99,7 +99,7 @@ def test__sample_actions_batch__not_special_cases(
         mask,
         [state],
         is_backward,
-    )[0][0]
+    )[0]
     assert action_sampled != action_special
 
 
