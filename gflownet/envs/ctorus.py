@@ -3,7 +3,7 @@ Classes to represent hyper-torus environments
 """
 
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
