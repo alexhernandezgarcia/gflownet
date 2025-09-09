@@ -3,7 +3,7 @@ Classes to represent hyper-torus environments
 """
 
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -303,14 +303,12 @@ class ContinuousTorus(HybridTorus):
                 )[do_bts, : self.n_dim]
                 actions_bts = states_from_angles - source_angles
                 actions_tensor[do_bts] = actions_bts
-        # TODO: is this too inefficient because of the multiple data transfers?
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -318,18 +316,15 @@ class ContinuousTorus(HybridTorus):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (angle increments) from each state in the batch for which to
             compute the log probability.
-
         states_from : tensor
             Ignored.
 
@@ -338,6 +333,7 @@ class ContinuousTorus(HybridTorus):
         """
         device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(do_sample):

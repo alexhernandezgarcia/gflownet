@@ -722,7 +722,6 @@ class Tree(GFlowNetEnv):
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
-        get_logprobs: bool = True,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -737,7 +736,6 @@ class Tree(GFlowNetEnv):
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
-                get_logprobs=get_logprobs,
             )
         else:
             return super().sample_actions_batch(
@@ -749,13 +747,12 @@ class Tree(GFlowNetEnv):
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
-                get_logprobs=get_logprobs,
             )
 
     def get_logprobs_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -763,6 +760,7 @@ class Tree(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         # TODO: make nicer
         if states_from is None:
@@ -807,7 +805,7 @@ class Tree(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
