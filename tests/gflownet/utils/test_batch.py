@@ -416,9 +416,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(done, device=batch.device))
@@ -601,9 +599,7 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
     # Check logprobs
     logprobs_batch = batch.get_logprobs()
     assert torch.equal(
@@ -787,9 +783,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(dones, device=batch.device))
@@ -1039,9 +1033,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(dones, device=batch.device))
@@ -1300,9 +1292,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(dones, device=batch.device))

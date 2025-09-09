@@ -12,7 +12,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tlong
+from gflownet.utils.common import copy, tfloat, tlong
 
 
 class BaseSet(GFlowNetEnv):
