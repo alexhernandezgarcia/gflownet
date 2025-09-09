@@ -19,7 +19,14 @@ import torch
 from torch.distributions import Bernoulli, Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
+from gflownet.utils.common import (
+    copy,
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tlong,
+)
 
 CMAP = mpl.colormaps["cividis"]
 """
@@ -60,6 +67,7 @@ class GFlowNetEnv:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
         self.action_space = self.get_action_space()
+        self._action2index = {a: idx for idx, a in enumerate(self.action_space)}
         self.action_space_torch = torch.tensor(
             self.action_space, device=self.device, dtype=self.float
         )
@@ -164,9 +172,21 @@ class GFlowNetEnv:
         Returns the index in the action space of the action passed as an argument, or
         its representative if it is a continuous action.
 
+        The method uses the dictionary lookup ``self._action2index``.
+
         See: self.action2representative()
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the action space.
+
+        Returns
+        -------
+        int
+            The index of the action in the action space.
         """
-        return self.action_space.index(self.action2representative(action))
+        return self._action2index[self.action2representative(action)]
 
     def actions2indices(
         self, actions: TensorType["batch_size", "action_dim"]
@@ -652,7 +672,7 @@ class GFlowNetEnv:
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["batch_size", "policy_output_dim"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -662,24 +682,22 @@ class GFlowNetEnv:
         implementation is generally valid for all discrete environments but continuous
         environments will likely have to implement its own.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask of invalid actions. For continuous or mixed environments, the mask
             may be tensor with an arbitrary length contaning information about special
             states, as defined elsewhere in the environment.
-
-        actions : tensor
+        actions : list or tensor
             The actions from each state in the batch for which to compute the log
-            probability.
-
+            probability. The actions may be a list or a tensor. Most environments
+            handle the actions as a list, but in some cases it is practical to use a
+            tensor for easier indexing, such as in meta-environments.
         states_from : tensor
             The states originating the actions, in GFlowNet format. Ignored in discrete
             environments and only required in certain continuous environments.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default). Ignored in discrete environments and only required in certain
@@ -690,14 +708,13 @@ class GFlowNetEnv:
         logits = policy_outputs.clone()
         if mask is not None:
             logits[mask] = -torch.inf
-        # TODO: improve efficiency
-        action_indices = (
-            torch.tensor(
-                [self.action_space.index(tuple(action.tolist())) for action in actions]
+        if torch.is_tensor(actions):
+            action_indices = tlong(self.actions2indices(actions), device=self.device)
+        else:
+            action_indices = tlong(
+                [self.action2index(action) for action in actions],
+                device=self.device,
             )
-            .to(int)
-            .to(device)
-        )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 

@@ -782,7 +782,7 @@ class BaseSet(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "mask_dim"],
         states_from: List,
         is_backward: bool,
@@ -790,32 +790,29 @@ class BaseSet(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information about invalid actions and special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (global) from each state in the batch for which to compute the
             log probability.
-
         states_from : tensor
             The states originating the actions, in environment format.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
         """
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
 
         # Get the states in the batch with and without an active sub-environment
         is_active = torch.any(mask[:, : self.max_elements], axis=1)
         is_set = torch.logical_not(is_active)
 
-        # Get logproobs of Set actions (to toggle a sub-environment or EOS).
+        # Get logprobs of Set actions (to toggle a sub-environment or EOS).
         # Note that this relies on the Set actions being placed first in the action
         # space, since the super() method will select the actions by indexing the
         # action space, starting from 0. states_from is ignored so can be None.
