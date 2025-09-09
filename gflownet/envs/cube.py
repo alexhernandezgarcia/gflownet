@@ -1157,8 +1157,7 @@ class ContinuousCube(CubeBase):
                 (increments, torch.zeros((increments.shape[0], 1))), dim=1
             )
         actions_tensor[is_source, -1] = 1
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def _sample_actions_batch_backward(
         self,
@@ -1274,8 +1273,7 @@ class ContinuousCube(CubeBase):
             actions_tensor[is_bts, :-1] = self._mask_ignored_dimensions(
                 mask[is_bts], actions_tensor[is_bts, :-1]
             )
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,

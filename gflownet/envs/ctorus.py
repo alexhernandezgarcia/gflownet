@@ -303,9 +303,7 @@ class ContinuousTorus(HybridTorus):
                 )[do_bts, : self.n_dim]
                 actions_bts = states_from_angles - source_angles
                 actions_tensor[do_bts] = actions_bts
-        # TODO: is this too inefficient because of the multiple data transfers?
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
