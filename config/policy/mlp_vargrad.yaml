@@ -1,0 +1,7 @@
+defaults:
+  - mlp
+
+backward:
+  shared_weights: True
+  checkpoint: null
+  reload_ckpt: False

@@ -1,0 +1,4 @@
+# This is just an alias for vargrad,
+# so that we can do loss=vg instead of loss=vargrad
+defaults:
+  - vargrad
