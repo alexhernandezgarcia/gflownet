@@ -32,6 +32,7 @@ class ForwardLooking(DetailedBalance):
         self.acronym = "FL"
         self.id = "forwardlooking"
 
+    # TODO reimplement this to reuse the logprobs from the batch
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
         Computes the Forward Looking loss for each state of the input batch.

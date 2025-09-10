@@ -55,6 +55,7 @@ class GFlowNetAgent:
         replay_sampling="permutation",
         train_sampling="permutation",
         garbage_collection_period: int = 0,
+        collect_reversed_logprobs=False,
         **kwargs,
     ):
         """
@@ -142,6 +143,7 @@ class GFlowNetAgent:
         else:
             self.logZ = None
         self.collect_backwards_masks = self.loss.requires_backward_policy()
+        self.collect_reversed_logprobs = collect_reversed_logprobs
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and not loss.is_defined_for_continuous():
@@ -330,8 +332,10 @@ class GFlowNetAgent:
                 random_action_prob = self.random_action_prob
         if backward:
             model = self.backward_policy
+            model_rev = self.forward_policy
         else:
             model = self.forward_policy
+            model_rev = self.backward_policy
 
         if not isinstance(envs, list):
             envs = [envs]
@@ -370,7 +374,34 @@ class GFlowNetAgent:
             states_from=states,
             is_backward=backward,
         )
-        return actions, logprobs
+        logprobs_rev = torch.zeros_like(logprobs)
+        if self.collect_reversed_logprobs and self.loss.requires_all_logprobs():
+            actions_rev, actions_rev_valid = batch.get_latest_added_actions(
+                envs, not backward
+            )
+            if any(actions_rev_valid):
+                if not all(actions_rev_valid):
+                    actions_rev = [
+                        act for act, val in zip(actions_rev, actions_rev_valid) if val
+                    ]
+                actions_rev = tfloat(
+                    actions_rev, device=self.device, float_type=self.float
+                )
+                actions_rev_valid = tbool(actions_rev_valid, device=self.device)
+                mask_invalid_actions_rev = self._get_masks(
+                    envs, batch, env_cond, not backward
+                )
+                policy_outputs_rev = model_rev(states_policy[actions_rev_valid])
+                states_from = [st for st, val in zip(states, actions_rev_valid) if val]
+                logrpobs_rev_val = self.env.get_logprobs(
+                    policy_outputs=policy_outputs_rev[actions_rev_valid],
+                    actions=actions_rev,
+                    mask=mask_invalid_actions_rev[actions_rev_valid],
+                    states_from=states_from,
+                    is_backward=not backward,
+                )
+                logprobs_rev[actions_rev_valid] = logrpobs_rev_val
+        return actions, logprobs, logprobs_rev
 
     def _get_masks(
         self,
@@ -553,7 +584,7 @@ class GFlowNetAgent:
         while envs:
             # Sample actions
             t0_a_envs = time.time()
-            actions, logprobs = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_forward,
                 env_cond,
@@ -565,7 +596,9 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
             actions_torch = torch.tensor(actions)
-            batch_forward.add_to_batch(envs, actions, logprobs, valids, train=train)
+            batch_forward.add_to_batch(
+                envs, actions, logprobs, logprobs_rev, valids, train=train
+            )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
@@ -593,7 +626,7 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            actions, logprobs = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_train,
                 env_cond,
@@ -606,7 +639,13 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
             batch_train.add_to_batch(
-                envs, actions, logprobs, valids, backward=True, train=train
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
             )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
@@ -643,7 +682,7 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            actions, logprobs = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_replay,
                 env_cond,
@@ -656,7 +695,13 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
             batch_replay.add_to_batch(
-                envs, actions, logprobs, valids, backward=True, train=train
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
             )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
@@ -802,7 +847,7 @@ class GFlowNetAgent:
             # Sample trajectories
             while envs:
                 # Sample backward actions
-                actions, logprobs = self.sample_actions(
+                actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
                     batch,
                     backward=True,
@@ -813,7 +858,13 @@ class GFlowNetAgent:
                 envs, actions, valids = self.step(envs, actions, backward=True)
                 # Add to batch
                 batch.add_to_batch(
-                    envs, actions, logprobs, valids, backward=True, train=True
+                    envs,
+                    actions,
+                    logprobs,
+                    logprobs_rev,
+                    valids,
+                    backward=True,
+                    train=True,
                 )
                 # Filter out finished trajectories
                 envs = [env for env in envs if not env.equal(env.state, env.source)]
