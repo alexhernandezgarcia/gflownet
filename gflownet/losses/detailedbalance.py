@@ -49,6 +49,19 @@ class DetailedBalance(BaseLoss):
         """
         return True
 
+    def requires_all_logprobs(self) -> bool:
+        """
+        Returns True if the loss function requires all (forward and
+        backward) logprobs.
+
+        The Detailed Balance loss requires both.
+
+        Returns
+        -------
+        True
+        """
+        return True
+
     def requires_state_flow_model(self) -> bool:
         """
         Returns True if the loss function requires a state flow model.

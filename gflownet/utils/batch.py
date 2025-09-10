@@ -238,6 +238,7 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         logprobs: TensorType,
+        logprobs_rev: TensorType,
         valids: List[bool],
         backward: Optional[bool] = False,
         train: Optional[bool] = True,
@@ -276,12 +277,12 @@ class Batch:
         if self.continuous is None:
             self.continuous = envs[0].continuous
 
-        # If logprobs is None, make a list of None
-        if logprobs is None:
-            logprobs = [None] * len(actions)
+        latest_added_indices = self.get_latest_added_indices(envs, backward)
 
         # Add data samples to the batch
-        for env, action, logp, valid in zip(envs, actions, logprobs, valids):
+        for env, action, logp, logpr, valid, lat_idx in zip(
+            envs, actions, logprobs, logprobs_rev, valids, latest_added_indices
+        ):
             if train is False and env.done is False:
                 continue
             if not valid:
@@ -307,7 +308,11 @@ class Batch:
             self.actions.append(action)
             if backward:
                 self.logprobs_backward.append(logp)
+                # Add placeholder for current logpf
                 self.logprobs_forward.append(None)
+                if lat_idx is not None:
+                    # Substitute placeholder with the actual value for previous logpf
+                    self.logprobs_forward[lat_idx] = logpr
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -317,7 +322,11 @@ class Batch:
                     self.done.append(env.done)
             else:
                 self.logprobs_forward.append(logp)
+                # Add placeholder for current logpb
                 self.logprobs_backward.append(None)
+                if lat_idx is not None:
+                    # Substitute placefolder with the actual value for previous logpb
+                    self.logprobs_backward[lat_idx] = logpr
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -1678,6 +1687,31 @@ class Batch:
                 "item must be one of: state, parent, action, done, mask_f[orward] or "
                 "mask_b[ackward]"
             )
+
+    def get_latest_added_indices(self, envs, backward):
+        """Get indices of the latest elements (states, actions, etc) added to the batch
+        for the provided ens"""
+        indices = []
+        for idx, env in enumerate(envs):
+            if env.id in self.trajectories:
+                indices.append(self.trajectories[env.id][0 if backward else -1])
+            else:
+                indices.append(None)
+        return indices
+
+    def get_latest_added_actions(self, envs, backward):
+        """Get the latest actions added to the batch for the provided envs"""
+        indices = self.get_latest_added_indices(envs, backward)
+        actions = []
+        actions_valid = []
+        for idx in indices:
+            if idx is not None:
+                actions.append(self.actions[idx])
+                actions_valid.append(True)
+            else:
+                actions.append(None)
+                actions_valid.append(False)
+        return actions, actions_valid
 
 
 def compute_logprobs_trajectories(
