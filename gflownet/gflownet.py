@@ -374,8 +374,9 @@ class GFlowNetAgent:
             states_from=states,
             is_backward=backward,
         )
-        logprobs_rev = torch.zeros_like(logprobs)
+
         if self.collect_reversed_logprobs and self.loss.requires_all_logprobs():
+            logprobs_rev = torch.zeros_like(logprobs)
             actions_rev, actions_rev_valid = batch.get_latest_added_actions(
                 envs, not backward
             )
@@ -401,6 +402,8 @@ class GFlowNetAgent:
                     is_backward=not backward,
                 )
                 logprobs_rev[actions_rev_valid] = logrpobs_rev_val
+        else:
+            logprobs_rev = [None] * len(actions)
         return actions, logprobs, logprobs_rev
 
     def _get_masks(

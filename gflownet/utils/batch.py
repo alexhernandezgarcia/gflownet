@@ -308,8 +308,9 @@ class Batch:
             self.actions.append(action)
             if backward:
                 self.logprobs_backward.append(logp)
-                # Add placeholder for current logpf
-                self.logprobs_forward.append(None)
+                if not env.done:
+                    # Add placeholder for current logpf
+                    self.logprobs_forward.append(None)
                 if lat_idx is not None:
                     # Substitute placeholder with the actual value for previous logpf
                     self.logprobs_forward[lat_idx] = logpr
@@ -322,8 +323,12 @@ class Batch:
                     self.done.append(env.done)
             else:
                 self.logprobs_forward.append(logp)
-                # Add placeholder for current logpb
-                self.logprobs_backward.append(None)
+                if not env.done:
+                    # Add placeholder for current logpb
+                    self.logprobs_backward.append(None)
+                else:
+                    # Terminating transition always has bakward logprobability = 0.
+                    self.logprobs_backward.append(0.0)
                 if lat_idx is not None:
                     # Substitute placefolder with the actual value for previous logpb
                     self.logprobs_backward[lat_idx] = logpr
