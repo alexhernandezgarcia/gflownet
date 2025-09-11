@@ -206,7 +206,7 @@ def test__get_masks_forward__single_env_returns_expected(env, batch, request):
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
-        batch.add_to_batch([env], [action], [None], [None][valid])
+        batch.add_to_batch([env], [action], [None], [None], [valid])
         if valid:
             masks_forward.append(env.get_mask_invalid_actions_forward())
     masks_forward_batch = batch.get_masks_forward()
@@ -822,7 +822,12 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
         batch.add_to_batch(
-            envs, actions_iter, [None], [None], valids_iter, backward=True
+            envs,
+            actions_iter,
+            [None] * len(envs),
+            [None] * len(envs),
+            valids_iter,
+            backward=True,
         )
         # Remove finished trajectories (state reached source)
         envs = [env for env in envs if not env.equal(env.state, env.source)]
@@ -1005,7 +1010,9 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                 if env.done:
                     states_term_sorted[env.id] = env.state
         # Add all envs, actions and valids to batch
-        batch.add_to_batch(envs, actions_iter, [None], [None], valids_iter)
+        batch.add_to_batch(
+            envs, actions_iter, [None] * len(envs), [None] * len(envs), valids_iter
+        )
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
@@ -1074,7 +1081,12 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                 state_indices.append(env.n_actions)
         # Add all envs, actions and valids to batch
         batch.add_to_batch(
-            envs, actions_iter, [None], [None], valids_iter, backward=True
+            envs,
+            actions_iter,
+            [None] * len(envs),
+            [None] * len(envs),
+            valids_iter,
+            backward=True,
         )
         # Remove finished trajectories (state reached source)
         envs = [env for env in envs if not env.equal(env.state, env.source)]
