@@ -93,6 +93,8 @@ class Batch:
         self.actions = []
         self.logprobs_forward = []
         self.logprobs_backward = []
+        self.logprobs_forward_valid = []
+        self.logprobs_backward_valid = []
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
@@ -308,12 +310,19 @@ class Batch:
             self.actions.append(action)
             if backward:
                 self.logprobs_backward.append(logp)
-                if not env.done:
+                self.logprobs_backward_valid.append(True)
+                if not env.is_source(env.state):
                     # Add placeholder for current logpf
                     self.logprobs_forward.append(None)
+                else:
+                    self.logprobs_forward.append(
+                        tfloat(0.0, device=self.device, float_type=self.float)
+                    )
+                self.logprobs_forward_valid.append(False)
                 if lat_idx is not None:
                     # Substitute placeholder with the actual value for previous logpf
                     self.logprobs_forward[lat_idx] = logpr
+                    self.logprobs_forward_valid[lat_idx] = True
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -323,15 +332,21 @@ class Batch:
                     self.done.append(env.done)
             else:
                 self.logprobs_forward.append(logp)
+                self.logprobs_forward_valid.append(True)
                 if not env.done:
                     # Add placeholder for current logpb
                     self.logprobs_backward.append(None)
+                    self.logprobs_backward_valid.append(False)
                 else:
                     # Terminating transition always has bakward logprobability = 0.
-                    self.logprobs_backward.append(0.0)
+                    self.logprobs_backward.append(
+                        tfloat(0.0, device=self.device, float_type=self.float)
+                    )
+                    self.logprobs_backward_valid.append(True)
                 if lat_idx is not None:
                     # Substitute placefolder with the actual value for previous logpb
                     self.logprobs_backward[lat_idx] = logpr
+                    self.logprobs_backward_valid[lat_idx] = True
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -613,22 +628,22 @@ class Batch:
         backward : bool
             Whether the requested logprobs are of backward transitions.
         """
-        try:
-            if backward:
-                if len(self.logprobs_backward) == 0:
-                    return None
-                return tfloat(
-                    self.logprobs_backward, float_type=self.float, device=self.device
-                )
-            else:
-                if len(self.logprobs_forward) == 0:
-                    return None
-                return tfloat(
-                    self.logprobs_forward, float_type=self.float, device=self.device
-                )
-        except TypeError as e:
-            if e == "must be real number, not NoneType":
-                return None
+
+        if backward:
+            if self.logprobs_backward[0] is None:
+                return None, None
+            logprobs = tfloat(
+                self.logprobs_backward, float_type=self.float, device=self.device
+            )
+            valids = tbool(self.logprobs_backward_valid, device=self.device)
+        else:
+            if self.logprobs_forward[0] is None:
+                return None, None
+            logprobs = tfloat(
+                self.logprobs_forward, float_type=self.float, device=self.device
+            )
+            valids = tbool(self.logprobs_forward_valid, device=self.device)
+        return logprobs, valids
 
     def get_done(self) -> TensorType["n_states"]:
         """
@@ -1418,6 +1433,8 @@ class Batch:
             self.actions.extend(batch.actions)
             self.logprobs_forward.extend(batch.logprobs_forward)
             self.logprobs_backward.extend(batch.logprobs_backward)
+            self.logprobs_forward_valid.extend(batch.logprobs_forward_valid)
+            self.logprobs_backward_valid.extend(batch.logprobs_backward_valid)
             self.done.extend(batch.done)
             self.masks_invalid_actions_forward = extend(
                 self.masks_invalid_actions_forward,
@@ -1763,7 +1780,9 @@ def compute_logprobs_trajectories(
         assert forward_policy is not None
 
     # Take logprobs from the batch if they are available.
-    logprobs_states = batch.get_logprobs(backward)
+    logprobs_states, logprobs_valid = batch.get_logprobs(backward)
+    if backward:
+        assert torch.all(logprobs_valid)
     traj_indices = batch.get_trajectory_indices(consecutive=True)
 
     # Otherwise, compute the log probs from the states and actions in the batch
