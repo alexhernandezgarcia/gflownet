@@ -58,7 +58,7 @@ class Corners(Proxy):
         self.mu = mu
         self.sigma = sigma
         self.do_threshold = do_threshold
-        self.thresholds = (tuple(el) for el in thresholds)
+        self.thresholds = tuple(tuple(el) for el in thresholds)
 
     def setup(self, env=None):
         if env:
