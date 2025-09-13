@@ -343,7 +343,9 @@ class GFlowNetAgent:
         states = [env.state for env in envs]
 
         # Obtain masks of invalid actions
-        mask_invalid_actions = self._get_masks(envs, batch, env_cond, backward)
+        mask_invalid_actions = self._get_masks(
+            envs, batch, env_cond, backward, backward
+        )
 
         # Get policy inputs from the states and obtain the policy outputs from the
         # model
@@ -390,7 +392,7 @@ class GFlowNetAgent:
                 )
                 actions_rev_valid = tbool(actions_rev_valid, device=self.device)
                 mask_invalid_actions_rev = self._get_masks(
-                    envs, batch, env_cond, not backward
+                    envs, batch, env_cond, not backward, backward
                 )
                 policy_outputs_rev = model_rev(states_policy[actions_rev_valid])
                 states_from = [st for st, val in zip(states, actions_rev_valid) if val]
@@ -411,7 +413,8 @@ class GFlowNetAgent:
         envs: List[GFlowNetEnv],
         batch: Optional[Batch] = None,
         env_cond: Optional[GFlowNetEnv] = None,
-        backward: Optional[bool] = False,
+        backward_mask: Optional[bool] = False,
+        backward_traj: Optional[bool] = False,
     ) -> List[List[bool]]:
         """
         Given a batch and/or a list of environments, obtains the mask of invalid
@@ -436,8 +439,11 @@ class GFlowNetAgent:
             An environment to do conditional sampling, that is restrict the action
             space via the masks of the main environments. Ignored if None.
 
-        backward : bool
-            True if sampling is backward. False (forward) by default.
+        backward_mack : bool
+            True if mask is for sampling backward. False (forward) by default.
+
+        backward_traj : bool
+            True if trajectories in the batch are sampled backward. False (forward) by default.
 
         Returns
         -------
@@ -447,22 +453,25 @@ class GFlowNetAgent:
         if not self.mask_invalid_actions:
             return None
         if batch is not None:
-            if backward:
+            if backward_mask:
                 mask_invalid_actions = tbool(
                     [
-                        batch.get_item("mask_backward", env, backward=True)
+                        batch.get_item("mask_backward", env, backward=backward_traj)
                         for env in envs
                     ],
                     device=self.device,
                 )
             else:
                 mask_invalid_actions = tbool(
-                    [batch.get_item("mask_forward", env) for env in envs],
+                    [
+                        batch.get_item("mask_forward", env, backward=backward_traj)
+                        for env in envs
+                    ],
                     device=self.device,
                 )
         # Compute masks since a batch was not provided
         else:
-            if backward:
+            if backward_mask:
                 mask_invalid_actions = tbool(
                     [env.get_mask_invalid_actions_backward() for env in envs],
                     device=self.device,
@@ -476,7 +485,7 @@ class GFlowNetAgent:
         if env_cond is not None:
             mask_invalid_actions = tbool(
                 [
-                    env.mask_conditioning(mask, env_cond, backward)
+                    env.mask_conditioning(mask, env_cond, backward_mask)
                     for env, mask in zip(envs, mask_invalid_actions)
                 ],
                 device=self.device,
