@@ -281,6 +281,14 @@ class Batch:
 
         latest_added_indices = self.get_latest_added_indices(envs, backward)
 
+        assert (
+            len(envs)
+            == len(actions)
+            == len(logprobs)
+            == len(logprobs_rev)
+            == len(valids)
+            == len(latest_added_indices)
+        )
         # Add data samples to the batch
         for env, action, logp, logpr, valid, lat_idx in zip(
             envs, actions, logprobs, logprobs_rev, valids, latest_added_indices
@@ -1851,6 +1859,7 @@ def compute_logprobs_trajectories(
             )
     elif torch.any(logprobs_nonvalid):
         # this happens only for forward logprobs when we sample backwards
+        assert not backward
         indices_nonvalid = torch.arange(len(logprobs_nonvalid))[logprobs_nonvalid]
         indices_nonvalid_list = indices_nonvalid.tolist()
         parents_all = batch.get_parents(policy=False)
