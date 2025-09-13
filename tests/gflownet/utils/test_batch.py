@@ -5,6 +5,7 @@ import pytest
 import torch
 
 from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
 from gflownet.envs.tetris import Tetris
 from gflownet.proxy.box.corners import Corners
@@ -62,6 +63,11 @@ def ctorus2d5l():
     ContinuousTorus(n_dim=5, length_traj=10, n_comp=2)
     """
     return ContinuousTorus(n_dim=2, length_traj=10, n_comp=2)
+
+
+@pytest.fixture
+def cube2d():
+    return ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1)
 
 
 @pytest.fixture()
@@ -314,7 +320,12 @@ def test__get_logrewards__single_env_returns_expected(env, proxy, batch, request
 @pytest.mark.repeat(N_REPETITIONS)
 @pytest.mark.parametrize(
     "env, proxy",
-    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score"),
+        ("ctorus2d5l", "corners"),
+        ("cube2d", "corners"),
+    ],
 )
 # @pytest.mark.skip(reason="skip while developping other tests")
 def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, request):
@@ -493,7 +504,12 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
 @pytest.mark.repeat(N_REPETITIONS)
 @pytest.mark.parametrize(
     "env, proxy",
-    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score"),
+        ("ctorus2d5l", "corners"),
+        ("cube2d", "corners"),
+    ],
 )
 # @pytest.mark.skip(reason="skip while developping other tests")
 def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
@@ -653,16 +669,18 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
         actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
     )
     # Check logprobs
-    logprobs_batch = batch.get_logprobs()
+    logprobs_batch, logprobs_valid = batch.get_logprobs()
     assert torch.equal(
         logprobs_batch, tfloat(logprobs, float_type=batch.float, device=batch.device)
     )
+    assert torch.all(logprobs_valid)
     # Check reversed logprobs
-    logprobs_batch_rev = batch.get_logprobs(backward=True)
+    logprobs_batch_rev, logprobs_rev_valid = batch.get_logprobs(backward=True)
     assert torch.equal(
         logprobs_batch_rev,
         tfloat(logprobs_rev, float_type=batch.float, device=batch.device),
     )
+    assert torch.all(logprobs_rev_valid)
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(done, device=batch.device))
@@ -735,7 +753,12 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
 @pytest.mark.repeat(N_REPETITIONS)
 @pytest.mark.parametrize(
     "env, proxy",
-    [("grid2d", "corners"), ("tetris6x4", "tetris_score")],
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score"),
+        ("ctorus2d5l", "corners"),
+        ("cube2d", "corners"),
+    ],
 )
 # @pytest.mark.skip(reason="skip while developping other tests")
 def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, request):
@@ -798,7 +821,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                     torch.inf, float_type=batch.float, device=batch.device
                 )
             if env.done:
-                states_term_sorted[env.id] = env.state
+                states_term_sorted[env.id] = copy(env.state)
             # Sample random action
             parent, action, valid = env.step_random(backward=True)
             if valid:
@@ -807,12 +830,12 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                 valids_iter.append(valid)
                 # Add to checking lists
                 states.append(state)
-                actions.append(action)
+                actions.append(copy(action))
                 dones.append(done)
                 masks_forward.append(mask_forward)
                 masks_parents_forward.append(env.get_mask_invalid_actions_forward())
                 masks_backward.append(mask_backward)
-                parents.append(parent)
+                parents.append(copy(parent))
                 if not env.continuous:
                     parents_all.extend(env_parents)
                     parents_all_a.extend(env_parents_a)
@@ -851,6 +874,241 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     assert torch.equal(
         actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
     )
+    # Check done
+    done_batch = batch.get_done()
+    assert torch.equal(done_batch, tbool(dones, device=batch.device))
+    # Check masks forward
+    masks_forward_batch = batch.get_masks_forward()
+    assert torch.equal(masks_forward_batch, tbool(masks_forward, device=batch.device))
+    # Check masks parents forward
+    masks_parents_forward_batch = batch.get_masks_forward(of_parents=True)
+    assert torch.equal(
+        masks_parents_forward_batch, tbool(masks_parents_forward, device=batch.device)
+    )
+    # Check masks backward
+    masks_backward_batch = batch.get_masks_backward()
+    assert torch.equal(masks_backward_batch, tbool(masks_backward, device=batch.device))
+    # Check parents
+    parents_batch = batch.get_parents()
+    parents_policy_batch = batch.get_parents(policy=True)
+    if torch.is_tensor(parents[0]):
+        assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
+    else:
+        assert parents_batch == parents
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
+    # Check parents_all
+    if not env.continuous:
+        parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
+        parents_all_policy_batch, _, _ = batch.get_parents_all(policy=True)
+        if torch.is_tensor(parents_all[0]):
+            assert torch.equal(torch.stack(parents_all_batch), torch.stack(parents_all))
+        else:
+            assert parents_all_batch == parents_all
+        assert torch.equal(
+            parents_all_a_batch,
+            tfloat(
+                parents_all_a,
+                device=batch.device,
+                float_type=batch.float,
+            ),
+        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
+    # Check rewards
+    rewards_batch = batch.get_rewards()
+    rewards = torch.stack(rewards)
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
+    ), (rewards, rewards_batch)
+    # Check proxy values
+    proxy_values_batch = batch.get_proxy_values()
+    proxy_values = torch.stack(proxy_values)
+    assert torch.all(
+        torch.isclose(
+            proxy_values_batch,
+            tfloat(proxy_values, device=batch.device, float_type=batch.float),
+        )
+    ), (proxy_values, proxy_values_batch)
+    # Check terminating states (sorted by trajectory)
+    states_term_batch = batch.get_terminating_states(sort_by="traj")
+    states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
+    if torch.is_tensor(states_term_sorted[0]):
+        assert torch.equal(
+            torch.stack(states_term_batch), torch.stack(states_term_sorted)
+        )
+    else:
+        assert states_term_batch == states_term_sorted
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score"),
+        ("ctorus2d5l", "corners"),
+        ("cube2d", "corners"),
+    ],
+)
+def test__backward_sampling_multiple_envs_with_logprobs_all_as_expected(
+    env, proxy, batch, request
+):
+    batch_size = BATCH_SIZE
+    env_ref = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    proxy.setup(env_ref)
+    batch.set_env(env_ref)
+    batch.set_proxy(proxy)
+
+    # Sample terminating states and build list of envs
+    x_batch = env_ref.get_random_terminating_states(n_states=batch_size)
+    envs = []
+    for idx, x in enumerate(x_batch):
+        env_aux = env_ref.copy().reset(idx)
+        env_aux = env_aux.set_state(state=x, done=True)
+        env_aux.n_actions = env_aux.max_traj_length
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    states = []
+    actions = []
+    dones = []
+    masks_forward = []
+    masks_parents_forward = []
+    masks_backward = []
+    parents = []
+    parents_all = []
+    parents_all_a = []
+    logprobs = []
+    logprobs_rev = []
+    rewards = []
+    proxy_values = []
+    traj_indices = []
+    state_indices = []
+    states_term_sorted = [copy(x) for x in x_batch]
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        logprobs_iter = []
+        logprobs_rev_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            # Compute variables before performing action
+            state = copy(env.state)
+            done = env.done
+            mask_forward = env.get_mask_invalid_actions_forward()
+            mask_backward = env.get_mask_invalid_actions_backward()
+            # Make up random logprob
+            logprob = random.random()
+            logprob_rev = random.random()
+            if not env.continuous:
+                env_parents, env_parents_a = env.get_parents()
+            if env.done:
+                reward, proxy_value = proxy.rewards(
+                    env.state2proxy(), return_proxy=True
+                )
+                reward = reward[0]
+                proxy_value = proxy_value[0]
+            else:
+                reward = tfloat(
+                    proxy.get_min_reward(), float_type=batch.float, device=batch.device
+                )
+                proxy_value = tfloat(
+                    torch.inf, float_type=batch.float, device=batch.device
+                )
+            if env.done:
+                states_term_sorted[env.id] = copy(env.state)
+            # Sample random action
+            parent, action, valid = env.step_random(backward=True)
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                logprobs_iter.append(logprob)
+                logprobs_rev_iter.append(logprob_rev)
+                # Add to checking lists
+                states.append(state)
+                actions.append(copy(action))
+                logprobs.append(logprob)
+                if not done:
+                    logprobs_rev.append(logprob_rev)
+                dones.append(done)
+                masks_forward.append(mask_forward)
+                masks_parents_forward.append(env.get_mask_invalid_actions_forward())
+                masks_backward.append(mask_backward)
+                parents.append(copy(parent))
+                if not env.continuous:
+                    parents_all.extend(env_parents)
+                    parents_all_a.extend(env_parents_a)
+                rewards.append(reward)
+                proxy_values.append(proxy_value)
+                traj_indices.append(env.id)
+                state_indices.append(env.n_actions)
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(
+            envs,
+            actions_iter,
+            logprobs_iter,
+            logprobs_rev_iter,
+            valids_iter,
+            backward=True,
+        )
+        # Remove finished trajectories (state reached source)
+        envs = [env for env in envs if not env.equal(env.state, env.source)]
+
+    # Check trajectory indices
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(traj_indices_batch, tlong(traj_indices, device=batch.device))
+    # Check state indices
+    state_indices_batch = batch.get_state_indices()
+    assert torch.equal(state_indices_batch, tlong(state_indices, device=batch.device))
+    # Check states
+    states_batch = batch.get_states()
+    states_policy_batch = batch.get_states(policy=True)
+    if torch.is_tensor(states[0]):
+        assert torch.equal(torch.stack(states_batch), torch.stack(states))
+    else:
+        assert states_batch == states
+    assert torch.equal(states_policy_batch, env.states2policy(states))
+    # Check actions
+    actions_batch = batch.get_actions()
+    assert torch.equal(
+        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
+    )
+
+    # Check logprobs backward
+    logprobs_batch, logprobs_valid = batch.get_logprobs(backward=True)
+    assert torch.equal(
+        logprobs_batch, tfloat(logprobs, float_type=batch.float, device=batch.device)
+    )
+    assert torch.all(logprobs_valid)
+    # Check logprobs forward
+    logprobs_rev_batch, logprobs_rev_valid = batch.get_logprobs(backward=False)
+    assert not torch.all(logprobs_rev_valid)
+    logprobs_rev_batch_nonval = logprobs_rev_batch[~logprobs_rev_valid]
+    assert torch.allclose(
+        logprobs_rev_batch_nonval, torch.zeros_like(logprobs_rev_batch_nonval)
+    )
+    logprobs_rev_batch_val = logprobs_rev_batch[logprobs_rev_valid]
+    assert torch.all(
+        ~torch.isclose(logprobs_rev_batch_val, torch.zeros_like(logprobs_rev_batch_val))
+    )
+    assert torch.equal(
+        logprobs_rev_batch_val,
+        tfloat(logprobs_rev, float_type=batch.float, device=batch.device),
+    )
+    indices_nonval = torch.arange(len(logprobs_rev_batch))[~logprobs_rev_valid].tolist()
+    for idx, p in enumerate(parents):
+        if idx in indices_nonval:
+            assert env.is_source(p)
+        else:
+            assert not env.is_source(p)
+
     # Check done
     done_batch = batch.get_done()
     assert torch.equal(done_batch, tbool(dones, device=batch.device))

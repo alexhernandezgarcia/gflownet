@@ -378,7 +378,7 @@ class GFlowNetAgent:
         if self.collect_reversed_logprobs and self.loss.requires_all_logprobs():
             logprobs_rev = torch.zeros_like(logprobs)
             actions_rev, actions_rev_valid = batch.get_latest_added_actions(
-                envs, not backward
+                envs, backward
             )
             if any(actions_rev_valid):
                 if not all(actions_rev_valid):

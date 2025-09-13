@@ -20,10 +20,29 @@ def gfn_ccube():
     return gfn
 
 
-def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed_cube(
+@pytest.mark.parametrize(
+    "do_grid, n_forward, n_train, n_replay, collect_reversed_logprobs",
+    [
+        (False, 100, 0, 0, False),
+        (False, 100, 0, 0, True),
+        (True, 100, 0, 0, False),
+        (True, 100, 0, 0, True),
+    ],
+)
+def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed_cube_and_grid(
     gfn_ccube,
+    gfn_grid,
+    do_grid,
+    n_forward,
+    n_train,
+    n_replay,
+    collect_reversed_logprobs,
 ):
-    gfn = gfn_ccube
+    if do_grid:
+        gfn = gfn_grid
+    else:
+        gfn = gfn_ccube
+    gfn.collect_reversed_logprobs = collect_reversed_logprobs
 
     collect_backwards_masks = gfn.loss in [
         "trajectorybalance",
@@ -32,16 +51,20 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     ]
 
     batch, times = gfn.sample_batch(
-        n_forward=gfn.batch_size.forward,
-        n_train=gfn.batch_size.backward_dataset,
-        n_replay=gfn.batch_size.backward_replay,
+        n_forward=n_forward,
+        n_train=n_train,
+        n_replay=n_replay,
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
     batch_no_lp = copy(batch)
     batch_no_lp.logprobs_forward = [None] * len(batch)
+    batch_no_lp.logprobs_backward = [None] * len(batch)
 
-    assert batch.logprobs_forward != batch_no_lp.logprobs_forward
+    if n_forward > 0 or (collect_reversed_logprobs and (n_train > 0 or n_replay > 0)):
+        assert batch.logprobs_forward != batch_no_lp.logprobs_forward
+    if n_train > 0 or n_replay > 0 or (collect_reversed_logprobs and n_forward > 0):
+        assert batch.logprobs_backward != batch_no_lp.logprobs_backward
 
     lp_fw = compute_logprobs_trajectories(batch, None, gfn.forward_policy, None, False)
     lp_bw = compute_logprobs_trajectories(batch, None, None, gfn.backward_policy, True)
@@ -63,7 +86,21 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         policy_output_f, actions, masks_f, parents, False
     )
 
-    logpobs_fw_from_batch = batch.get_logprobs()
+    states = batch.get_states(policy=False)
+    states_policy = batch.get_states(policy=True)
+    masks_b = batch.get_masks_backward()
+    policy_output_b = gfn.backward_policy(states_policy)
+    logprobs_states_bw = gfn.env.get_logprobs(
+        policy_output_b, actions, masks_b, states, True
+    )
+
+    logpobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
+    logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
+
+    if n_forward > 0 and collect_reversed_logprobs:
+        assert torch.all(logprobs_bw_valid)
+    if n_forward > 0 and n_train == 0 and n_replay == 0:
+        assert torch.all(logprobs_fw_valid)
 
     traj_idx = torch.tensor(batch.traj_indices)
     for tit in range(len(lp_fw)):
@@ -73,10 +110,23 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
             print(torch.isclose(lps_rc, lps_b))
             print(torch.sum(torch.logical_not(torch.isclose(lps_rc, lps_b))))
 
-    # import ipdb; ipdb.set_trace()
+    for tit in range(len(lp_bw)):
+        if not torch.allclose(lp_bw[tit], lp_bw_no[tit]):
+            lps_rc = logprobs_states_bw[traj_idx == tit]
+            lps_b = logpobs_bw_from_batch[traj_idx == tit]
+            print(f"Mistake in trajj: {tit}")
+            print(torch.isclose(lps_rc, lps_b))
+            print(f"Recomp lps: {lps_rc}")
+            print(f"Batch lps: {lps_b}")
+
     assert torch.allclose(logprobs_states_fw, logpobs_fw_from_batch, atol=1e-3)
     assert torch.allclose(lp_fw, lp_fw_no, atol=1e-3)
+    if n_forward > 0 and collect_reversed_logprobs:
+        assert torch.allclose(logprobs_states_bw, logpobs_bw_from_batch, atol=1e-3)
     assert torch.allclose(lp_bw, lp_bw_no, atol=1e-3)
+
+    assert lp_bw.requires_grad
+    assert lp_fw.requires_grad
 
 
 @pytest.fixture

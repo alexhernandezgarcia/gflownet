@@ -311,7 +311,7 @@ class Batch:
             if backward:
                 self.logprobs_backward.append(logp)
                 self.logprobs_backward_valid.append(True)
-                if not env.is_source(env.state):
+                if not env.is_source(env.state) or logpr is None:
                     # Add placeholder for current logpf
                     self.logprobs_forward.append(None)
                 else:
@@ -333,7 +333,7 @@ class Batch:
             else:
                 self.logprobs_forward.append(logp)
                 self.logprobs_forward_valid.append(True)
-                if not env.done:
+                if not env.done or logpr is None:
                     # Add placeholder for current logpb
                     self.logprobs_backward.append(None)
                     self.logprobs_backward_valid.append(False)
@@ -1403,6 +1403,45 @@ class Batch:
         else:
             raise ValueError("states can only be list, torch.tensor or ndarray")
 
+    def get_lobprobs_of_trajectory(
+        self,
+        traj_idx: int,
+        backward: bool = False,
+    ) -> Union[
+        TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
+    ]:
+        """
+        Returns the states of the trajectory indicated by traj_idx. If states and
+        traj_indices are not None, then these will be the only states and trajectory
+        indices considered.
+
+        See: states2policy()
+        See: states2proxy()
+
+        Args
+        ----
+        traj_idx : int
+            Index of the trajectory from which to return the states.
+
+        b
+
+        Returns
+        -------
+        Tensor, array or list of states of the requested trajectory.
+        """
+        # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
+        # If either states or traj_indices are not None, both must be the same type and
+        # have the same length.
+        # TODO: or add sort_by
+        if backward:
+            logprobs = self.logprobs_backward
+        else:
+            logprobs = self.logprobs_forward
+
+        traj_indices = self.traj_indices
+
+        return [x for x, idx in zip(logprobs, traj_indices) if idx == traj_idx]
+
     def merge(self, batches: List):
         """
         Merges the current Batch (self) with the Batch or list of Batches passed as
@@ -1781,8 +1820,10 @@ def compute_logprobs_trajectories(
 
     # Take logprobs from the batch if they are available.
     logprobs_states, logprobs_valid = batch.get_logprobs(backward)
-    if backward:
-        assert torch.all(logprobs_valid)
+    if logprobs_states is not None:
+        if backward:
+            assert torch.all(logprobs_valid)
+        logprobs_nonvalid = ~logprobs_valid
     traj_indices = batch.get_trajectory_indices(consecutive=True)
 
     # Otherwise, compute the log probs from the states and actions in the batch
@@ -1808,7 +1849,19 @@ def compute_logprobs_trajectories(
             logprobs_states = env.get_logprobs(
                 policy_output_f, actions, masks_f, parents, backward
             )
-
+    elif torch.any(logprobs_nonvalid):
+        # this happens only for forward logprobs when we sample backwards
+        indices_nonvalid = torch.arange(len(logprobs_nonvalid))[logprobs_nonvalid]
+        indices_nonvalid_list = indices_nonvalid.tolist()
+        parents_all = batch.get_parents(policy=False)
+        parents = [parents_all[idx] for idx in indices_nonvalid_list]
+        parents_policy = batch.states2policy(parents)
+        policy_output_f = forward_policy(parents_policy)
+        actions = batch.get_actions()[logprobs_nonvalid]
+        masks_f = batch.get_masks_forward(of_parents=True)[logprobs_nonvalid]
+        logprobs_states[logprobs_nonvalid] = env.get_logprobs(
+            policy_output_f, actions, masks_f, parents, backward
+        )
     # Sum log probabilities of all transitions in each trajectory
     logprobs = torch.zeros(
         batch.get_n_trajectories(),
