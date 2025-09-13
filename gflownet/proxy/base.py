@@ -19,8 +19,8 @@ LOGZERO = -1e3
 class Proxy(ABC):
     def __init__(
         self,
-        device,
-        float_precision,
+        device: str = "cpu",
+        float_precision: int = 32,
         reward_function: Optional[Union[Callable, str]] = "identity",
         logreward_function: Optional[Callable] = None,
         reward_function_kwargs: Optional[dict] = {},
