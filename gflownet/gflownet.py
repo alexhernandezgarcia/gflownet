@@ -343,13 +343,17 @@ class GFlowNetAgent:
 
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
-        idx_norandom = (
-            Bernoulli(
-                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
+        if random_action_prob > 0.0:
+            idx_norandom = (
+                Bernoulli(
+                    (1 - random_action_prob)
+                    * torch.ones(len(states), device=self.device)
+                )
+                .sample()
+                .to(bool)
             )
-            .sample()
-            .to(bool)
-        )
+        else:
+            idx_norandom = torch.ones(len(states), device=self.device).to(bool)
         # Get policy outputs from model
         if sampling_method == "policy":
             # Check for at least one non-random action

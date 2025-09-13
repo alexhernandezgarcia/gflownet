@@ -875,17 +875,12 @@ class ContinuousCube(CubeBase):
             increments_abs, self.min_incr, dtype=self.float, device=self.device
         )
         if is_backward:
-            increments_rel = (increments_abs - min_increments) / (
-                states - min_increments
-            )
-            # Add epsilon to numerator and denominator if values are unbounded
-            if not torch.all(torch.isfinite(increments_rel)):
-                increments_rel = (increments_abs - min_increments + 1e-9) / (
-                    states - min_increments + 1e-9
-                )
+            denominator = (states - min_increments).clamp(min=self.epsilon)
+            increments_rel = (increments_abs - min_increments) / denominator
             return increments_rel
         else:
-            return (increments_abs - min_increments) / (1.0 - states - min_increments)
+            denominator = (1.0 - states - min_increments).clamp(min=self.epsilon)
+            return (increments_abs - min_increments) / denominator
 
     @staticmethod
     def _get_beta_params_from_mean_variance(
