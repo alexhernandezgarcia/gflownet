@@ -294,7 +294,7 @@ class Batch:
             == len(indices_prev_trans)
         )
         # Add data samples to the batch
-        for env, action, logp, logpr, valid, idx_prev in zip(
+        for env, action, logp, logp_rev, valid, idx_prev in zip(
             envs, actions, logprobs, logprobs_rev, valids, indices_prev_trans
         ):
             if train is False and env.done is False:
@@ -325,7 +325,7 @@ class Batch:
                 self.logprobs_backward.append(logp)
                 self.logprobs_backward_valid.append(True)
                 # Add logpf for PREVIOUS action
-                if not env.is_source(env.state) or logpr is None:
+                if not env.is_source(env.state) or logp_rev is None:
                     # Put a None placeholder for the current logpf which will be replaced at the next step
                     self.logprobs_forward.append(None)
                 else:
@@ -338,7 +338,7 @@ class Batch:
                 self.logprobs_forward_valid.append(False)
                 if idx_prev is not None:
                     # Replace the None placeholder with the actual value for previous logpf
-                    self.logprobs_forward[idx_prev] = logpr
+                    self.logprobs_forward[idx_prev] = logp_rev
                     self.logprobs_forward_valid[idx_prev] = True
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
@@ -352,7 +352,7 @@ class Batch:
                 self.logprobs_forward.append(logp)
                 self.logprobs_forward_valid.append(True)
                 # Add logpb for PREVIOUS action
-                if not env.done or logpr is None:
+                if not env.done or logp_rev is None:
                     # Put a None placeholder for the current logpb which will be replaced at the next step
                     self.logprobs_backward.append(None)
                     self.logprobs_backward_valid.append(False)
@@ -364,7 +364,7 @@ class Batch:
                     self.logprobs_backward_valid.append(True)
                 if idx_prev is not None:
                     # Replace the None placeholder with the actual value for previous logpb
-                    self.logprobs_backward[idx_prev] = logpr
+                    self.logprobs_backward[idx_prev] = logp_rev
                     self.logprobs_backward_valid[idx_prev] = True
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
