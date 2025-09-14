@@ -256,11 +256,12 @@ class Batch:
             A list of environments (GFlowNetEnv).
         actions : list
             A list of actions attempted or performed on the envs.
-        logprobs : torch.tensor or list of Nones
+        logprobs : torch.tensor or list of None
             Log probabilities corresponding to the actions or None.
-        logprobs_rev : torch.tensor or list of Nones
-            Reversed log probabilities corresponding to the previously added
-            actions or list of Nones.
+        logprobs_rev : torch.tensor or list of None
+            Log probabilities corresponding to the transitions in the opposite
+            direction to the sampling direction, from the current states but with the
+            actions added in the previous step. It may be a list of None.
         valids : list
             A list of boolean values indicated whether the actions were valid.
         backward : bool
@@ -1771,21 +1772,24 @@ class Batch:
                 "mask_b[ackward]"
             )
 
-    def get_latest_added_indices(self, envs, backward):
+    def get_latest_added_indices(
+        self, envs: List[GFlowNetEnv], backward: bool
+    ) -> List[int]:
         """
-        Get batch indices of the latest elements (states, actions, etc) added to the batch
-        for the provided ens
+        Get batch indices of the latest elements (states, actions, etc) added to the
+        batch for the provided environments.
 
         Parameters
         ----------
         envs: list
-            List of envs for which the batch indices are requested
+            List of envs for which the batch indices are requested.
         backward: bool
-            Indicates whether the trajectories are sampled backward (True) or forward (False)
+            Whether the trajectories are sampled backward (True) or forward (False).
 
         Returns
         -------
-        List of ints, batch indices for the requested envs
+        list
+           Batch indices of the previous transitions for the requested environments.
         """
         indices = []
         for idx, env in enumerate(envs):
