@@ -25,8 +25,7 @@ def gfn_ccube():
 def gfn_grid():
     exp_name = "+experiments=/grid/corners"
     config = load_base_test_config(overrides=[exp_name])
-    # Change batch size
-    config.gflownet.optimizer.batch_size.forward = 6
+    # Change train
     config.buffer.train.type = "all"
     with ch_tmpdir() as tmpdir:
         print(f"Current GFlowNetAgent execution directory: {tmpdir}")
@@ -66,7 +65,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         "detailedbalance",
         "forwardlooking",
     ]
-
+    # Sample batch
     batch, times = gfn.sample_batch(
         n_forward=n_forward,
         n_train=n_train,
@@ -74,6 +73,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
+    # Create a copy with empty logrpobs
     batch_no_lp = copy(batch)
     batch_no_lp.logprobs_forward = [None] * len(batch)
     batch_no_lp.logprobs_backward = [None] * len(batch)
@@ -83,6 +83,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     if n_train > 0 or (collect_reversed_logprobs and n_forward > 0):
         assert batch.logprobs_backward != batch_no_lp.logprobs_backward
 
+    # Compute logprobs of the trajectories
     lp_fw = compute_logprobs_trajectories(batch, None, gfn.forward_policy, None, False)
     lp_bw = compute_logprobs_trajectories(batch, None, None, gfn.backward_policy, True)
 
@@ -92,6 +93,13 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     lp_bw_no = compute_logprobs_trajectories(
         batch_no_lp, None, None, gfn.backward_policy, True
     )
+
+    assert torch.allclose(lp_fw, lp_fw_no, atol=1e-3)
+    assert torch.allclose(lp_bw, lp_bw_no, atol=1e-3)
+    assert lp_bw.requires_grad
+    assert lp_fw.requires_grad
+
+    # Compute logprobs of each state manualy: relevant only for debugging
 
     masks_f = batch_no_lp.get_masks_forward(of_parents=True)
     parents_policy = batch_no_lp.get_parents(policy=True)
@@ -146,10 +154,6 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
             logpobs_fw_from_batch[logprobs_fw_valid],
             atol=1e-3,
         )
-    assert torch.allclose(lp_fw, lp_fw_no, atol=1e-3)
+
     if n_train > 0 or (n_forward > 0 and collect_reversed_logprobs):
         assert torch.allclose(logprobs_states_bw, logpobs_bw_from_batch, atol=1e-3)
-    assert torch.allclose(lp_bw, lp_bw_no, atol=1e-3)
-
-    assert lp_bw.requires_grad
-    assert lp_fw.requires_grad
