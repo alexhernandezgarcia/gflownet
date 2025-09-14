@@ -1,0 +1,57 @@
+# @package _global_
+# A Toy environment trained with the Uniform proxy and the TB loss
+
+defaults:
+   - override /env: toy
+   - override /gflownet: trajectorybalance
+   - override /proxy: uniform
+   - override /logger: wandb
+
+# Buffer
+buffer:
+  test:
+    type: all
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+    lr: 0.001
+    z_dim: 8
+    lr_z_mult: 100
+    n_train_steps: 1000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 64
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "toy"
+  run_name: "Unif. TB"
+  tags: 
+    - gflownet
+    - toy
+    - uniform
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 10
+  n: 100
+  checkpoints_period: 500
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/toy/uniform/${now:%Y-%m-%d_%H-%M-%S_%f}
