@@ -61,19 +61,6 @@ class FlowMatching(BaseLoss):
         """
         return False
 
-    def requires_all_logprobs(self) -> bool:
-        """
-        Returns True if the loss function requires all (forward and
-        backward) logprobs.
-
-        The Flow Matching loss does not require backward logprobs, hence false.
-
-        Returns
-        -------
-        False
-        """
-        return False
-
     def is_defined_for_continuous(self) -> bool:
         """
         Returns True if the loss function is well defined for continuous GFlowNets,

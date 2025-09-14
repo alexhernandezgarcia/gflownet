@@ -145,19 +145,6 @@ class BaseLoss(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def requires_all_logprobs(self) -> bool:
-        """
-        Returns True if the loss function requires all (forward and
-        backward) logprobs
-
-        Returns
-        -------
-        bool
-            Whether the loss function requires all logprobs.
-        """
-        pass
-
-    @abstractmethod
     def is_defined_for_continuous(self) -> bool:
         """
         Returns True if the loss function is well defined for continuous GFlowNets,

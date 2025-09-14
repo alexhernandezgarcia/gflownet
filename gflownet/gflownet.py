@@ -55,7 +55,7 @@ class GFlowNetAgent:
         replay_sampling="permutation",
         train_sampling="permutation",
         garbage_collection_period: int = 0,
-        collect_reversed_logprobs=False,
+        collect_reversed_logprobs: bool = False,
         **kwargs,
     ):
         """
@@ -115,6 +115,9 @@ class GFlowNetAgent:
             The periodicity to perform garbage collection and empty the cache of the
             GPU. By default it is 0, so no garbage collection is performed. This is
             because it can incur a large time overhead unnecessarily.
+        collect_reversed_logprobs: bool
+            If True, reversed logprobs will be computed and collected during sampling batches
+            for training
 
         Raises
         ------
@@ -254,6 +257,7 @@ class GFlowNetAgent:
         random_action_prob: Optional[float] = None,
         no_random: Optional[bool] = True,
         times: Optional[dict] = None,
+        compute_reversed_logprobs: Optional[bool] = False,
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
@@ -305,6 +309,9 @@ class GFlowNetAgent:
 
         times : dict
             Dictionary to store times. Currently not implemented.
+
+        compute_reversed_logprobs: bool
+            If True, reversed logprobs will be computed. Default is False
 
         Returns
         -------
@@ -377,7 +384,7 @@ class GFlowNetAgent:
             is_backward=backward,
         )
 
-        if self.collect_reversed_logprobs and self.loss.requires_all_logprobs():
+        if compute_reversed_logprobs:
             logprobs_rev = torch.zeros_like(logprobs)
             actions_rev, actions_rev_valid = batch.get_latest_added_actions(
                 envs, backward
@@ -602,6 +609,7 @@ class GFlowNetAgent:
                 env_cond,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
@@ -645,6 +653,7 @@ class GFlowNetAgent:
                 backward=True,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
@@ -701,6 +710,7 @@ class GFlowNetAgent:
                 backward=True,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
@@ -865,6 +875,7 @@ class GFlowNetAgent:
                     backward=True,
                     no_random=True,
                     times=times,
+                    compute_reversed_logprobs=True,
                 )
                 # Update environments with sampled actions
                 envs, actions, valids = self.step(envs, actions, backward=True)
