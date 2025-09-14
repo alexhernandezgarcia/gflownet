@@ -578,8 +578,8 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
             # Sample random action
             state, action, valid = env.step_random()
             # Make up random logprob
-            logprob = random.random()
-            logprob_rev = random.random()
+            logprob = torch.tensor(random.random())
+            logprob_rev = torch.tensor(random.random())
             if valid:
                 # Add to iter lists
                 actions_iter.append(action)
@@ -598,7 +598,7 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
                         idx_it_missing < len(it_done_envs_prev)
                         and it_conv > it_done_envs_prev[idx_it_missing]
                     ):
-                        logprobs_rev.append(0.0)
+                        logprobs_rev.append(torch.tensor(0.0))
                         idx_it_missing += 1
                     logprobs_rev.append(logprob_rev)
                 if env.done:
@@ -637,7 +637,7 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
                     states_term_sorted[env.id] = env.state
         # add logprobs_rev for finished envs
         while idx_it_missing < len(it_done_envs_prev):
-            logprobs_rev.append(0.0)
+            logprobs_rev.append(torch.tensor(0.0))
             idx_it_missing += 1
         # Add all envs, actions and valids to batch
         batch.add_to_batch(
@@ -647,7 +647,7 @@ def test__forward_sampling_multiple_envs_with_logprobs_all_as_expected(
         envs = [env for env in envs if not env.done]
     # add logprobs_rev for finished envs
     for _ in it_done_envs:
-        logprobs_rev.append(0.0)
+        logprobs_rev.append(torch.tensor(0.0))
 
     # Check trajectory indices
     traj_indices_batch = batch.get_trajectory_indices()
@@ -1004,8 +1004,8 @@ def test__backward_sampling_multiple_envs_with_logprobs_all_as_expected(
             mask_forward = env.get_mask_invalid_actions_forward()
             mask_backward = env.get_mask_invalid_actions_backward()
             # Make up random logprob
-            logprob = random.random()
-            logprob_rev = random.random()
+            logprob = torch.tensor(random.random())
+            logprob_rev = torch.tensor(random.random())
             if not env.continuous:
                 env_parents, env_parents_a = env.get_parents()
             if env.done:
