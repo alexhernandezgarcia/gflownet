@@ -311,7 +311,12 @@ class GFlowNetAgent:
             Dictionary to store times. Currently not implemented.
 
         compute_reversed_logprobs: bool
-            If True, reversed logprobs will be computed. Default is False
+            If True, reversed logprobs will be computed. Default is False. Reversed
+            logprobs correspond to the reversed direction to sampling, i.e. if
+            sampling is forwards, reversed logprobs are backward logprobs and
+            vise versa. Reversed logprobs are computed on the current states of
+            the envs and on the actions sampled (and added to the batch) before
+            the current step.
 
         Returns
         -------

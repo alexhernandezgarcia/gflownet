@@ -256,8 +256,11 @@ class Batch:
             A list of environments (GFlowNetEnv).
         actions : list
             A list of actions attempted or performed on the envs.
-        logprobs : torch.tensor or None
+        logprobs : torch.tensor or list of Nones
             Log probabilities corresponding to the actions or None.
+        logprobs_rev : torch.tensor or list of Nones
+            Reversed log probabilities corresponding to the previously added
+            actions or list of Nones.
         valids : list
             A list of boolean values indicated whether the actions were valid.
         backward : bool
@@ -317,18 +320,23 @@ class Batch:
             # Add states, parents, actions, logprobs, done and masks
             self.actions.append(action)
             if backward:
+                # Add logpb for current action
                 self.logprobs_backward.append(logp)
                 self.logprobs_backward_valid.append(True)
+                # Add logpf for PREVIOUS action
                 if not env.is_source(env.state) or logpr is None:
-                    # Add placeholder for current logpf
+                    # Put a None placeholder for the current logpf which will be replaced at the next step
                     self.logprobs_forward.append(None)
                 else:
+                    # Put a zero placeholder for logpf from source which will never be added to
+                    # the batch sampled backward. This should be computed and replaced separately
+                    # outside the batch
                     self.logprobs_forward.append(
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                 self.logprobs_forward_valid.append(False)
                 if lat_idx is not None:
-                    # Substitute placeholder with the actual value for previous logpf
+                    # Replace the None placeholder with the actual value for previous logpf
                     self.logprobs_forward[lat_idx] = logpr
                     self.logprobs_forward_valid[lat_idx] = True
                 self.parents.append(copy(env.state))
@@ -339,20 +347,22 @@ class Batch:
                     self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
                     self.done.append(env.done)
             else:
+                # Add logpf for current action
                 self.logprobs_forward.append(logp)
                 self.logprobs_forward_valid.append(True)
+                # Add logpb for PREVIOUS action
                 if not env.done or logpr is None:
-                    # Add placeholder for current logpb
+                    # Put a None placeholder for the current logpb which will be replaced at the next step
                     self.logprobs_backward.append(None)
                     self.logprobs_backward_valid.append(False)
                 else:
-                    # Terminating transition always has bakward logprobability = 0.
+                    # Terminating transition always has backward logprob = 0, can be added right away
                     self.logprobs_backward.append(
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                     self.logprobs_backward_valid.append(True)
                 if lat_idx is not None:
-                    # Substitute placefolder with the actual value for previous logpb
+                    # Replace the None placeholder with the actual value for previous logpb
                     self.logprobs_backward[lat_idx] = logpr
                     self.logprobs_backward_valid[lat_idx] = True
                 self.states.append(copy(env.state))
@@ -635,6 +645,15 @@ class Batch:
         ----------
         backward : bool
             Whether the requested logprobs are of backward transitions.
+
+        Returns
+        -------
+        logprobs : TensorType["n_states"]
+            Tensor of logprobs
+        valids: TensorType["n_states"]
+            Boolean tensor with flags indicating whether the correspondig logprobs are
+            valid. The flag is False if the corresponding logprob value is a zero / None
+            placefolder.
         """
 
         if backward:
@@ -1419,23 +1438,18 @@ class Batch:
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
         """
-        Returns the states of the trajectory indicated by traj_idx. If states and
-        traj_indices are not None, then these will be the only states and trajectory
-        indices considered.
-
-        See: states2policy()
-        See: states2proxy()
+        Returns the logprobs of the trajectory indicated by traj_idx.
 
         Args
         ----
         traj_idx : int
             Index of the trajectory from which to return the states.
-
-        b
+        backward: bool
+            If True, returns backward logprobs, othervise returns forward logprobs
 
         Returns
         -------
-        Tensor, array or list of states of the requested trajectory.
+        A list of logprobs of the actions the requested trajectory.
         """
         # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
         # If either states or traj_indices are not None, both must be the same type and
@@ -1758,8 +1772,21 @@ class Batch:
             )
 
     def get_latest_added_indices(self, envs, backward):
-        """Get indices of the latest elements (states, actions, etc) added to the batch
-        for the provided ens"""
+        """
+        Get batch indices of the latest elements (states, actions, etc) added to the batch
+        for the provided ens
+
+        Parameters
+        ----------
+        envs: list
+            List of envs for which the batch indices are requested
+        backward: bool
+            Indicates whether the trajectories are sampled backward (True) or forward (False)
+
+        Returns
+        -------
+        List of ints, batch indices for the requested envs
+        """
         indices = []
         for idx, env in enumerate(envs):
             if env.id in self.trajectories:
@@ -1769,7 +1796,24 @@ class Batch:
         return indices
 
     def get_latest_added_actions(self, envs, backward):
-        """Get the latest actions added to the batch for the provided envs"""
+        """
+        Get the latest actions added to the batch for the provided envs
+
+        Parameters
+        ----------
+        envs: list
+            List of envs for which the actions are requested
+        backward: bool
+            Indicates whether the trajectories are sampled backward (True) or forward (False)
+
+        Returns
+        -------
+        actions: list
+            Actions for the requested envs
+        actions_valid: list
+            List of boolean flags indicating whether the actions are valid. When flag is False, it means
+            the action is not in the batch and None is returned instead
+        """
         indices = self.get_latest_added_indices(envs, backward)
         actions = []
         actions_valid = []
@@ -1832,6 +1876,7 @@ def compute_logprobs_trajectories(
         if backward:
             assert torch.all(logprobs_valid)
         logprobs_nonvalid = ~logprobs_valid
+
     traj_indices = batch.get_trajectory_indices(consecutive=True)
 
     # Otherwise, compute the log probs from the states and actions in the batch
@@ -1858,7 +1903,8 @@ def compute_logprobs_trajectories(
                 policy_output_f, actions, masks_f, parents, backward
             )
     elif torch.any(logprobs_nonvalid):
-        # this happens only for forward logprobs when we sample backwards
+        # Compute missing logprobs. This should happen only for forward logprobs
+        # when the batch was sampled backwards
         assert not backward
         indices_nonvalid = torch.arange(len(logprobs_nonvalid))[logprobs_nonvalid]
         indices_nonvalid_list = indices_nonvalid.tolist()
