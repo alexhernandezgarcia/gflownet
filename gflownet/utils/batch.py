@@ -283,7 +283,7 @@ class Batch:
         if self.continuous is None:
             self.continuous = envs[0].continuous
 
-        latest_added_indices = self.get_latest_added_indices(envs, backward)
+        indices_prev_trans = self.get_indices_of_previous_transitions(envs, backward)
 
         assert (
             len(envs)
@@ -291,11 +291,11 @@ class Batch:
             == len(logprobs)
             == len(logprobs_rev)
             == len(valids)
-            == len(latest_added_indices)
+            == len(indices_prev_trans)
         )
         # Add data samples to the batch
-        for env, action, logp, logpr, valid, lat_idx in zip(
-            envs, actions, logprobs, logprobs_rev, valids, latest_added_indices
+        for env, action, logp, logpr, valid, idx_prev in zip(
+            envs, actions, logprobs, logprobs_rev, valids, indices_prev_trans
         ):
             if train is False and env.done is False:
                 continue
@@ -336,10 +336,10 @@ class Batch:
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                 self.logprobs_forward_valid.append(False)
-                if lat_idx is not None:
+                if idx_prev is not None:
                     # Replace the None placeholder with the actual value for previous logpf
-                    self.logprobs_forward[lat_idx] = logpr
-                    self.logprobs_forward_valid[lat_idx] = True
+                    self.logprobs_forward[idx_prev] = logpr
+                    self.logprobs_forward_valid[idx_prev] = True
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -362,10 +362,10 @@ class Batch:
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                     self.logprobs_backward_valid.append(True)
-                if lat_idx is not None:
+                if idx_prev is not None:
                     # Replace the None placeholder with the actual value for previous logpb
-                    self.logprobs_backward[lat_idx] = logpr
-                    self.logprobs_backward_valid[lat_idx] = True
+                    self.logprobs_backward[idx_prev] = logpr
+                    self.logprobs_backward_valid[idx_prev] = True
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -1772,7 +1772,7 @@ class Batch:
                 "mask_b[ackward]"
             )
 
-    def get_latest_added_indices(
+    def get_indices_of_previous_transitions(
         self, envs: List[GFlowNetEnv], backward: bool
     ) -> List[int]:
         """
@@ -1818,7 +1818,7 @@ class Batch:
             List of boolean flags indicating whether the actions are valid. When flag is False, it means
             the action is not in the batch and None is returned instead
         """
-        indices = self.get_latest_added_indices(envs, backward)
+        indices = self.get_indices_of_previous_transitions(envs, backward)
         actions = []
         actions_valid = []
         for idx in indices:
