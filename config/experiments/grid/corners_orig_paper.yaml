@@ -1,0 +1,74 @@
+# @package _global_
+# A configuration that works well with a 10x10 Grid environment and the corners proxy.
+
+defaults:
+   - override /env: grid
+   - override /gflownet: flowmatch
+   - override /loss: flowmatching
+   - override /proxy: box/corners
+   - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 4
+  length: 8
+  max_increment: 1
+  max_dim_per_action: 1
+
+# Proxy
+proxy:
+  mu: 0.7
+  sigma: 0.05
+  do_gaussians: False
+  scores:
+    - 2.0
+    - 0.5
+    - 0.01
+
+# Buffer
+buffer:
+  replay_capacity: 16
+  check_diversity: True
+  test:
+    type: all
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.0
+  optimizer:
+    batch_size:
+      forward: 16
+    lr: 0.0001
+    n_train_steps: 20000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 2
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "grid"
+  run_name: "4D L8 FM"
+  tags: 
+    - gflownet
+    - grid
+    - corners
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
