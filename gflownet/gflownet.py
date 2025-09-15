@@ -391,31 +391,33 @@ class GFlowNetAgent:
 
         if compute_reversed_logprobs:
             logprobs_rev = torch.zeros_like(logprobs)
-            actions_rev, actions_rev_valid = batch.get_latest_added_actions(
-                envs, backward
-            )
-            if any(actions_rev_valid):
-                if not all(actions_rev_valid):
-                    actions_rev = [
-                        act for act, val in zip(actions_rev, actions_rev_valid) if val
+            indices_rev = batch.get_indices_of_previous_transitions(envs, backward)
+            if any(indices_rev):
+                actions_all = batch.get_actions()
+                actions_rev, states_from = zip(
+                    *[
+                        (actions_all[idx], state)
+                        for idx, state in zip(indices_rev, states)
+                        if idx is not None
                     ]
-                actions_rev = tfloat(
-                    actions_rev, device=self.device, float_type=self.float
                 )
-                actions_rev_valid = tbool(actions_rev_valid, device=self.device)
+                actions_rev = tfloat(
+                    list(actions_rev), device=self.device, float_type=self.float
+                )
+                is_rev = torch.tensor(
+                    np.array(indices_rev) != None, dtype=torch.bool, device=self.device
+                )
                 mask_invalid_actions_rev = self._get_masks(
                     envs, batch, env_cond, not backward, backward
                 )
-                policy_outputs_rev = model_rev(states_policy[actions_rev_valid])
-                states_from = [st for st, val in zip(states, actions_rev_valid) if val]
-                logrpobs_rev_val = self.env.get_logprobs(
-                    policy_outputs=policy_outputs_rev[actions_rev_valid],
+                policy_outputs_rev = model_rev(states_policy[is_rev])
+                logprobs_rev[is_rev] = self.env.get_logprobs(
+                    policy_outputs=policy_outputs_rev[is_rev],
                     actions=actions_rev,
-                    mask=mask_invalid_actions_rev[actions_rev_valid],
-                    states_from=states_from,
+                    mask=mask_invalid_actions_rev[is_rev],
+                    states_from=list(states_from),
                     is_backward=not backward,
                 )
-                logprobs_rev[actions_rev_valid] = logrpobs_rev_val
         else:
             logprobs_rev = [None] * len(actions)
         return actions, logprobs, logprobs_rev

@@ -1797,45 +1797,38 @@ class Batch:
         -------
         list
            Batch indices of the previous transitions for the requested environments.
+           Environments without any previous transitions in the batch are assigned
+           None.
         """
         indices = []
-        for idx, env in enumerate(envs):
+        for env in envs:
             if env.id in self.trajectories:
                 indices.append(self.trajectories[env.id][0 if backward else -1])
             else:
                 indices.append(None)
         return indices
 
-    def get_latest_added_actions(self, envs, backward):
+    def get_actions_of_previous_transitions(
+        self, envs: List[GFlowNetEnv], backward: bool
+    ) -> List:
         """
-        Get the latest actions added to the batch for the provided envs
+        Retrieves the latest actions added to the batch for the provided envs.
 
         Parameters
         ----------
         envs: list
-            List of envs for which the actions are requested
+            List of envs for which the actions are requested.
         backward: bool
-            Indicates whether the trajectories are sampled backward (True) or forward (False)
+            Indicates whether the trajectories are sampled backward (True) or forward
+            (False).
 
         Returns
         -------
         actions: list
-            Actions for the requested envs
-        actions_valid: list
-            List of boolean flags indicating whether the actions are valid. When flag is False, it means
-            the action is not in the batch and None is returned instead
+            Actions of previous transitions for the requested envs
         """
         indices = self.get_indices_of_previous_transitions(envs, backward)
-        actions = []
-        actions_valid = []
-        for idx in indices:
-            if idx is not None:
-                actions.append(self.actions[idx])
-                actions_valid.append(True)
-            else:
-                actions.append(None)
-                actions_valid.append(False)
-        return actions, actions_valid
+        return [self.actions[idx] if idx is None else None for idx in indices]
 
 
 def compute_logprobs_trajectories(
