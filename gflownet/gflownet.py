@@ -607,6 +607,8 @@ class GFlowNetAgent:
             collect_forwards_masks=collect_forwards_masks,
             collect_backwards_masks=collect_backwards_masks,
         )
+        time_grads = 0
+        print("##############################################")
         while envs:
             # Sample actions
             t0_a_envs = time.time()
@@ -628,9 +630,13 @@ class GFlowNetAgent:
                 # print(
                 #     f"Allocated GPU memory: {torch.cuda.memory_allocated() / (1024**2):.2f} MB"
                 # )
+                start = time.time()
                 grads = self.loss.get_local_gradient(
                     logprobs, logprobs_rev, self.parameters(), backward=False
                 )
+                end = time.time()
+                time_grads += end - start
+                print(f"Time taken for grads: {end - start:.6f} seconds")
 
                 batch_forward.add_grads_to_batch(grads, envs)
                 del grads
@@ -648,6 +654,7 @@ class GFlowNetAgent:
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
+        print(f"Total taken for grads: {time_grads:.6f} seconds")
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
