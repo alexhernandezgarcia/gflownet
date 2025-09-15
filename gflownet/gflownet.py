@@ -451,10 +451,11 @@ class GFlowNetAgent:
             An environment to do conditional sampling, that is restrict the action
             space via the masks of the main environments. Ignored if None.
         is_backward_mask : bool
-            True if mask is for sampling backward. False (forward) by default.
+            Whether the masks are of backward transitions (True) or forward transitions
+            (False). False (forward) by default.
         is_backward_traj : bool
-            True if trajectories in the batch are sampled backward. False (forward) by
-            default.
+            Whether the trajectories in the batch are sampled backwards (True) or
+            forward (False). False (forward) by default.
 
         Returns
         -------
