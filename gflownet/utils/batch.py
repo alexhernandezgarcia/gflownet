@@ -324,20 +324,22 @@ class Batch:
                 # Add logpb for current action
                 self.logprobs_backward.append(logp)
                 self.logprobs_backward_valid.append(True)
-                # Add logpf for PREVIOUS action
+                # Add logpf for previous action
                 if not env.is_source(env.state) or logp_rev is None:
-                    # Put a None placeholder for the current logpf which will be replaced at the next step
+                    # Store a None placeholder for the current logpf which will be
+                    # replaced at the next step
                     self.logprobs_forward.append(None)
                 else:
-                    # Put a zero placeholder for logpf from source which will never be added to
-                    # the batch sampled backward. This should be computed and replaced separately
-                    # outside the batch
+                    # If the state is the source state, store a zero placeholder for
+                    # logpf which will never be added to the batch sampled backward.
+                    # This should be computed and replaced separately outside the batch
                     self.logprobs_forward.append(
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                 self.logprobs_forward_valid.append(False)
                 if idx_prev is not None:
-                    # Replace the None placeholder with the actual value for previous logpf
+                    # Replace the None placeholder with the actual value for previous
+                    # logpf
                     self.logprobs_forward[idx_prev] = logp_rev
                     self.logprobs_forward_valid[idx_prev] = True
                 self.parents.append(copy(env.state))
@@ -351,19 +353,22 @@ class Batch:
                 # Add logpf for current action
                 self.logprobs_forward.append(logp)
                 self.logprobs_forward_valid.append(True)
-                # Add logpb for PREVIOUS action
+                # Add logpb for previous action
                 if not env.done or logp_rev is None:
-                    # Put a None placeholder for the current logpb which will be replaced at the next step
+                    # Store a None placeholder for the current logpb which will be
+                    # replaced at the next step
                     self.logprobs_backward.append(None)
                     self.logprobs_backward_valid.append(False)
                 else:
-                    # Terminating transition always has backward logprob = 0, can be added right away
+                    # Terminating transition always has backward logprob = 0, so it can
+                    # be added right away
                     self.logprobs_backward.append(
                         tfloat(0.0, device=self.device, float_type=self.float)
                     )
                     self.logprobs_backward_valid.append(True)
                 if idx_prev is not None:
-                    # Replace the None placeholder with the actual value for previous logpb
+                    # Replace the None placeholder with the actual value for previous
+                    # logpb
                     self.logprobs_backward[idx_prev] = logp_rev
                     self.logprobs_backward_valid[idx_prev] = True
                 self.states.append(copy(env.state))
