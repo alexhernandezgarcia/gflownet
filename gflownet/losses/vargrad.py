@@ -9,6 +9,10 @@ Nüsken and Richter (2023). Then it was rediscovered for GFNs by Zhang et al. (2
     .. _a link: https://arxiv.org/abs/2302.05446
 """
 
+from torch.autograd import grad
+from torch.func import vmap
+import torch
+
 from torchtyping import TensorType
 
 from gflownet.losses.trajectorybalance import TrajectoryBalance
@@ -78,4 +82,65 @@ class VarGrad(TrajectoryBalance):
             logZ = (logrewards + logprobs_b - logprobs_f).mean(dim=0)
 
         # VarGrad loss
-        return (logZ + logprobs_f - logprobs_b - logrewards).pow(2)
+        losses_core = logZ + logprobs_f - logprobs_b - logrewards
+        self.losses_core = losses_core.detach()
+        return losses_core.pow(2)
+
+    def get_local_gradient(
+        self,
+        logprobs: TensorType,
+        logprobs_rev: TensorType,
+        parameters: list,
+        backward: bool = False,
+    ):
+
+        difference = logprobs - logprobs_rev
+        difference *= -1.0 if backward else 1.0
+
+        def get_grad(x, params):
+            grads = grad(
+                x, params, retain_graph=True, allow_unused=True, materialize_grads=True
+            )
+            return [g.detach() for g in grads]
+
+        grads = []
+        for diff in difference:
+            grads.append(get_grad(diff, parameters))
+
+        # def get_grad_my(lp, params):
+        #     return grad(lp, params, retain_graph=True, allow_unused=True, materialize_grads=True)
+
+        # bs = len(difference)
+        # import ipdb; ipdb.set_trace()
+        # params = [torch.broadcast_to(p, (bs, *p.shape)) for p in parameters]
+        # grads = vmap(get_grad_my)(difference, params)
+
+        return grads
+
+    def aggregate_losses_of_batch(
+        self, losses: TensorType["batch_size"], batch: Batch
+    ) -> dict[str, float]:
+        losses_dict = super().aggregate_losses_of_batch(losses, batch)
+        with torch.no_grad():
+            if len(batch.grads) > 0:
+                n_traj = len(losses)
+                grads = [None] * len(batch.grads[0])
+                for idx_grad in range(len(grads)):
+                    for idx_traj, env_id in enumerate(batch.trajectories.keys()):
+                        if grads[idx_grad] is None:
+                            grads[idx_grad] = (
+                                batch.grads[env_id][idx_grad]
+                                * 2
+                                * self.losses_core[idx_traj]
+                            )
+                        else:
+                            grads[idx_grad] += (
+                                batch.grads[env_id][idx_grad]
+                                * 2
+                                * self.losses_core[idx_traj]
+                            )
+                    grads[idx_grad] /= n_traj
+
+            losses_dict["grads"] = grads
+
+        return losses_dict

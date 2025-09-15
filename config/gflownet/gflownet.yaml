@@ -43,3 +43,4 @@ train_sampling: permutation
 use_context: False
 garbage_collection_period: 0
 collect_reversed_logprobs: false
+do_grad_accumulation: false

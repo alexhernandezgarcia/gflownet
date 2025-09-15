@@ -56,6 +56,7 @@ class GFlowNetAgent:
         train_sampling="permutation",
         garbage_collection_period: int = 0,
         collect_reversed_logprobs: bool = False,
+        do_grad_accumulation: bool = False,
         **kwargs,
     ):
         """
@@ -147,6 +148,7 @@ class GFlowNetAgent:
             self.logZ = None
         self.collect_backwards_masks = self.loss.requires_backward_policy()
         self.collect_reversed_logprobs = collect_reversed_logprobs
+        self.do_grad_accumulation = do_grad_accumulation
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and not loss.is_defined_for_continuous():
@@ -621,6 +623,25 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
             actions_torch = torch.tensor(actions)
+
+            if train and self.do_grad_accumulation:
+                # print(
+                #     f"Allocated GPU memory: {torch.cuda.memory_allocated() / (1024**2):.2f} MB"
+                # )
+                grads = self.loss.get_local_gradient(
+                    logprobs, logprobs_rev, self.parameters(), backward=False
+                )
+
+                batch_forward.add_grads_to_batch(grads, envs)
+                del grads
+
+                logprobs = logprobs.detach()
+                logprobs_rev = logprobs_rev.detach()
+
+            if not train:
+                logprobs = logprobs.detach()
+                logprobs_rev = logprobs_rev.detach()
+
             batch_forward.add_to_batch(
                 envs, actions, logprobs, logprobs_rev, valids, train=train
             )
@@ -964,18 +985,28 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses.values()]):
+                if not torch.isfinite(losses["all"]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
-                    losses["all"].backward()
+                    if "grads" in losses.keys():
+                        assert not losses["all"].requires_grad
+                        for param, grad in zip(self.parameters(), losses["grads"]):
+                            if param.grad is None:
+                                param.grad = grad
+                            else:
+                                param.grad += grad.detach()
+                    else:
+                        losses["all"].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
                         )
                     self.opt.step()
                     self.lr_scheduler.step()
-                    self.opt.zero_grad()
+                    self.opt.zero_grad(set_to_none=True)
+                    del losses["grads"]
+                    torch.cuda.memory.empty_cache()
 
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models

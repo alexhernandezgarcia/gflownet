@@ -95,6 +95,7 @@ class Batch:
         self.logprobs_backward = []
         self.logprobs_forward_valid = []
         self.logprobs_backward_valid = []
+        self.grads = OrderedDict()
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
@@ -1496,6 +1497,7 @@ class Batch:
             self.logprobs_backward.extend(batch.logprobs_backward)
             self.logprobs_forward_valid.extend(batch.logprobs_forward_valid)
             self.logprobs_backward_valid.extend(batch.logprobs_backward_valid)
+            self.grads.update(batch.grads)
             self.done.extend(batch.done)
             self.masks_invalid_actions_forward = extend(
                 self.masks_invalid_actions_forward,
@@ -1825,6 +1827,14 @@ class Batch:
                 actions.append(None)
                 actions_valid.append(False)
         return actions, actions_valid
+
+    def add_grads_to_batch(self, grads, envs):
+        for env, grad in zip(envs, grads):
+            if env.id not in self.grads:
+                self.grads[env.id] = list(grad)
+            else:
+                for idx in range(len(self.grads[env.id])):
+                    self.grads[env.id][idx] += grad[idx].detach()
 
 
 def compute_logprobs_trajectories(
