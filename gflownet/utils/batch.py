@@ -1438,7 +1438,7 @@ class Batch:
         else:
             raise ValueError("states can only be list, torch.tensor or ndarray")
 
-    def get_lobprobs_of_trajectory(
+    def get_logprobs_of_trajectory(
         self,
         traj_idx: int,
         backward: bool = False,
@@ -1448,8 +1448,8 @@ class Batch:
         """
         Returns the logprobs of the trajectory indicated by traj_idx.
 
-        Args
-        ----
+        Parameters
+        ----------
         traj_idx : int
             Index of the trajectory from which to return the states.
         backward: bool
