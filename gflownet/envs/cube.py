@@ -1154,7 +1154,13 @@ class ContinuousCube(CubeBase):
             increments = self._mask_ignored_dimensions(mask[do_increments], increments)
             # Add dimension is_source and add to actions tensor
             actions_tensor[do_increments] = torch.cat(
-                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+                (
+                    increments,
+                    torch.zeros(
+                        (increments.shape[0], 1), dtype=self.float, device=self.device
+                    ),
+                ),
+                dim=1,
             )
         actions_tensor[is_source, -1] = 1
         actions = [tuple(a.tolist()) for a in actions_tensor]
