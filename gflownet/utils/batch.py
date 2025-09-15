@@ -639,7 +639,9 @@ class Batch:
         """
         return tfloat(self.actions, float_type=self.float, device=self.device)
 
-    def get_logprobs(self, backward: bool = False) -> TensorType["n_states"]:
+    def get_logprobs(
+        self, backward: bool = False
+    ) -> Tuple[TensorType["n_states"], TensorType["n_states"]]:
         """
         Returns the logprobs in the batch as a float tensor.
 
