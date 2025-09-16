@@ -3,7 +3,7 @@ Classes to represent hyper-torus environments
 """
 
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -217,6 +217,7 @@ class ContinuousTorus(HybridTorus):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -255,9 +256,6 @@ class ContinuousTorus(HybridTorus):
         device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(
-            (n_states, self.n_dim), dtype=self.float, device=self.device
-        )
         # Initialize actions tensor with EOS actions (inf) since these will be the
         # actions for several special cases in both forward and backward actions.
         actions_tensor = torch.full(
@@ -271,14 +269,19 @@ class ContinuousTorus(HybridTorus):
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[do_sample, 0::3].reshape(
+                logits_sampling = policy_outputs.clone().detach()
+                logits_sampling = self.randomize_and_temper_sampling_distribution(
+                    logits_sampling, random_action_prob, temperature_logits
+                )
+
+                mix_logits = logits_sampling[do_sample, 0::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                locations = policy_outputs[do_sample, 1::3].reshape(
+                locations = logits_sampling[do_sample, 1::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                concentrations = policy_outputs[do_sample, 2::3].reshape(
+                concentrations = logits_sampling[do_sample, 2::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 vonmises = VonMises(
@@ -288,8 +291,6 @@ class ContinuousTorus(HybridTorus):
                 distr_angles = MixtureSameFamily(mix, vonmises)
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
-            logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
-        logprobs = torch.sum(logprobs, axis=1)
         # Catch special case for backwards backt-to-source (BTS) actions
         if is_backward:
             do_bts = mask[:, 0]
@@ -302,14 +303,12 @@ class ContinuousTorus(HybridTorus):
                 )[do_bts, : self.n_dim]
                 actions_bts = states_from_angles - source_angles
                 actions_tensor[do_bts] = actions_bts
-        # TODO: is this too inefficient because of the multiple data transfers?
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions, logprobs
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -317,18 +316,15 @@ class ContinuousTorus(HybridTorus):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (angle increments) from each state in the batch for which to
             compute the log probability.
-
         states_from : tensor
             Ignored.
 
@@ -337,6 +333,7 @@ class ContinuousTorus(HybridTorus):
         """
         device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(do_sample):

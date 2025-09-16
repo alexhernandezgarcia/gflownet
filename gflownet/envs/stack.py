@@ -779,6 +779,7 @@ class Stack(GFlowNetEnv):
         states_from: List = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -805,33 +806,32 @@ class Stack(GFlowNetEnv):
             states_dict[stage].append(self._get_substate(state, stage))
 
         # Sample actions from each sub-environment
-        actions_logprobs_dict = {}
+        actions_dict = {}
         for stage, subenv in self.subenvs.items():
             stage_mask = stages == stage
             if not torch.any(stage_mask):
                 continue
-            actions_logprobs_dict[stage] = subenv.sample_actions_batch(
+            actions_dict[stage] = subenv.sample_actions_batch(
                 self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
                 mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
                 states_dict[stage],
                 is_backward,
                 sampling_method,
+                random_action_prob,
                 temperature_logits,
                 max_sampling_attempts,
             )
 
         # Stitch all actions in the right order, with the right padding
         actions = []
-        for stage in stages_int:
-            actions.append(
-                self._pad_action(actions_logprobs_dict[stage][0].pop(0), stage)
-            )
-        return actions, None
+        return [
+            self._pad_action(actions_dict[stage].pop(0), stage) for stage in stages_int
+        ]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "mask_dim"],
         states_from: List,
         is_backward: bool,
@@ -839,25 +839,22 @@ class Stack(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information about invalid actions and special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (global) from each state in the batch for which to compute the
             log probability.
-
         states_from : tensor
             The states originating the actions, in environment format.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
         """
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         # Get the relevant stage of each mask from the one-hot prefix
         stages = torch.where(mask[:, : self.n_subenvs])[1]

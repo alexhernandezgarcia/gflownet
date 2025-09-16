@@ -76,7 +76,13 @@ class ModelBase(ABC):
                 *(
                     sum(
                         [
-                            [nn.Linear(idim, odim, dtype=self.float)]
+                            [
+                                nn.Linear(
+                                    idim,
+                                    odim,
+                                    dtype=self.float,
+                                )
+                            ]
                             + ([activation] if n < len(layers_dim) - 2 else [])
                             for n, (idim, odim) in enumerate(
                                 zip(layers_dim, layers_dim[1:])

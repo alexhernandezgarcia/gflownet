@@ -16,7 +16,6 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Bernoulli
 from torchtyping import TensorType
 from tqdm import tqdm, trange
 
@@ -56,6 +55,7 @@ class GFlowNetAgent:
         replay_sampling="permutation",
         train_sampling="permutation",
         garbage_collection_period: int = 0,
+        collect_reversed_logprobs: bool = False,
         **kwargs,
     ):
         """
@@ -115,6 +115,9 @@ class GFlowNetAgent:
             The periodicity to perform garbage collection and empty the cache of the
             GPU. By default it is 0, so no garbage collection is performed. This is
             because it can incur a large time overhead unnecessarily.
+        collect_reversed_logprobs: bool
+            If True, reversed logprobs will be computed and collected during sampling batches
+            for training
 
         Raises
         ------
@@ -143,6 +146,7 @@ class GFlowNetAgent:
         else:
             self.logZ = None
         self.collect_backwards_masks = self.loss.requires_backward_policy()
+        self.collect_reversed_logprobs = collect_reversed_logprobs
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and not loss.is_defined_for_continuous():
@@ -253,6 +257,7 @@ class GFlowNetAgent:
         random_action_prob: Optional[float] = None,
         no_random: Optional[bool] = True,
         times: Optional[dict] = None,
+        compute_reversed_logprobs: Optional[bool] = False,
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
@@ -305,10 +310,22 @@ class GFlowNetAgent:
         times : dict
             Dictionary to store times. Currently not implemented.
 
+        compute_reversed_logprobs: bool
+            If True, reversed logprobs will be computed. Default is False. Reversed
+            logprobs correspond to the reversed direction to sampling, i.e. if
+            sampling is forwards, reversed logprobs are backward logprobs and
+            vise versa. Reversed logprobs are computed on the current states of
+            the envs and on the actions sampled (and added to the batch) before
+            the current step.
+
         Returns
         -------
         actions : list of tuples
             The sampled actions, one for each environment in envs.
+        logprobs : tensor or None
+            Log probabilities corresponding to each sampled action. It may be None if
+            the environment's sampled_action_batch() method does not calculate the log
+            probs while sampling the actions.
         """
         # Preliminaries
         if sampling_method == "random":
@@ -326,63 +343,91 @@ class GFlowNetAgent:
             if random_action_prob is None:
                 random_action_prob = self.random_action_prob
         if backward:
-            # TODO: backward sampling with FM?
             model = self.backward_policy
+            model_rev = self.forward_policy
         else:
             model = self.forward_policy
+            model_rev = self.backward_policy
 
-        # TODO: implement backward sampling from forward policy as in old
-        # backward_sample.
         if not isinstance(envs, list):
             envs = [envs]
         # Build states and masks
         states = [env.state for env in envs]
 
         # Obtain masks of invalid actions
-        mask_invalid_actions = self._get_masks(envs, batch, env_cond, backward)
-
-        # Build policy outputs
-        policy_outputs = model.random_distribution(states)
-        idx_norandom = (
-            Bernoulli(
-                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
-            )
-            .sample()
-            .to(bool)
+        mask_invalid_actions = self._get_masks(
+            envs, batch, env_cond, backward, backward
         )
-        # Get policy outputs from model
-        if sampling_method == "policy":
-            # Check for at least one non-random action
-            if idx_norandom.sum() > 0:
-                states_policy = tfloat(
-                    self.env.states2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
-                    ),
-                    device=self.device,
-                    float_type=self.float,
-                )
-                policy_outputs[idx_norandom, :] = model(states_policy)
-        else:
-            raise NotImplementedError
+
+        # Get policy inputs from the states and obtain the policy outputs from the
+        # model
+        # TODO: get policy states from batch
+        states_policy = tfloat(
+            self.env.states2policy(states),
+            device=self.device,
+            float_type=self.float,
+        )
+        policy_outputs = model(states_policy)
 
         # Sample actions from policy outputs
-        # TODO: consider adding logprobs to batch
-        actions, logprobs = self.env.sample_actions_batch(
-            policy_outputs,
-            mask_invalid_actions,
-            states,
-            backward,
-            sampling_method,
-            temperature,
+        actions = self.env.sample_actions_batch(
+            policy_outputs=policy_outputs,
+            mask=mask_invalid_actions,
+            states_from=states,
+            is_backward=backward,
+            sampling_method=sampling_method,
+            random_action_prob=random_action_prob,
+            temperature_logits=temperature,
         )
-        return actions
+        # Compute logprobs from policy outputs
+        logprobs = self.env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask_invalid_actions,
+            states_from=states,
+            is_backward=backward,
+        )
+
+        if compute_reversed_logprobs:
+            logprobs_rev = torch.zeros_like(logprobs)
+            indices_rev = batch.get_indices_of_previous_transitions(envs, backward)
+            if any(indices_rev):
+                actions_all = batch.get_actions()
+                actions_rev, states_from = zip(
+                    *[
+                        (actions_all[idx], state)
+                        for idx, state in zip(indices_rev, states)
+                        if idx is not None
+                    ]
+                )
+                actions_rev = tfloat(
+                    list(actions_rev), device=self.device, float_type=self.float
+                )
+                is_rev = torch.tensor(
+                    np.array(indices_rev) != None, dtype=torch.bool, device=self.device
+                )
+                mask_invalid_actions_rev = self._get_masks(
+                    envs, batch, env_cond, not backward, backward
+                )
+                policy_outputs_rev = model_rev(states_policy[is_rev])
+                logprobs_rev[is_rev] = self.env.get_logprobs(
+                    policy_outputs=policy_outputs_rev[is_rev],
+                    actions=actions_rev,
+                    mask=mask_invalid_actions_rev[is_rev],
+                    states_from=list(states_from),
+                    is_backward=not backward,
+                )
+        else:
+            logprobs_rev = [None] * len(actions)
+        return actions, logprobs, logprobs_rev
 
     def _get_masks(
         self,
         envs: List[GFlowNetEnv],
         batch: Optional[Batch] = None,
         env_cond: Optional[GFlowNetEnv] = None,
-        backward: Optional[bool] = False,
+        is_backward_mask: Optional[bool] = False,
+        is_backward_traj: Optional[bool] = False,
     ) -> List[List[bool]]:
         """
         Given a batch and/or a list of environments, obtains the mask of invalid
@@ -395,20 +440,21 @@ class GFlowNetAgent:
         restrictions imposed by the conditioning environment, env_cond (see
         GFlowNetEnv.mask_conditioning()).
 
-        Args
-        ----
+        Parameters
+        ----------
         envs : list of GFlowNetEnv or derived
             A list of instances of the environment
-
         batch_forward : Batch
             A batch from which to obtain the masks to avoid recomputing them.
-
         env_cond : GFlowNetEnv or derived
             An environment to do conditional sampling, that is restrict the action
             space via the masks of the main environments. Ignored if None.
-
-        backward : bool
-            True if sampling is backward. False (forward) by default.
+        is_backward_mask : bool
+            Whether the masks are of backward transitions (True) or forward transitions
+            (False). False (forward) by default.
+        is_backward_traj : bool
+            Whether the trajectories in the batch are sampled backwards (True) or
+            forward (False). False (forward) by default.
 
         Returns
         -------
@@ -418,22 +464,25 @@ class GFlowNetAgent:
         if not self.mask_invalid_actions:
             return None
         if batch is not None:
-            if backward:
+            if is_backward_mask:
                 mask_invalid_actions = tbool(
                     [
-                        batch.get_item("mask_backward", env, backward=True)
+                        batch.get_item("mask_backward", env, backward=is_backward_traj)
                         for env in envs
                     ],
                     device=self.device,
                 )
             else:
                 mask_invalid_actions = tbool(
-                    [batch.get_item("mask_forward", env) for env in envs],
+                    [
+                        batch.get_item("mask_forward", env, backward=is_backward_traj)
+                        for env in envs
+                    ],
                     device=self.device,
                 )
         # Compute masks since a batch was not provided
         else:
-            if backward:
+            if is_backward_mask:
                 mask_invalid_actions = tbool(
                     [env.get_mask_invalid_actions_backward() for env in envs],
                     device=self.device,
@@ -447,7 +496,7 @@ class GFlowNetAgent:
         if env_cond is not None:
             mask_invalid_actions = tbool(
                 [
-                    env.mask_conditioning(mask, env_cond, backward)
+                    env.mask_conditioning(mask, env_cond, is_backward_mask)
                     for env, mask in zip(envs, mask_invalid_actions)
                 ],
                 device=self.device,
@@ -511,7 +560,7 @@ class GFlowNetAgent:
         # Return the requested instances
         return self.env_cache[:nb_env_instances]
 
-    @torch.no_grad()
+    # TODO: avoid computing gradients when not needed
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
         self,
@@ -558,18 +607,22 @@ class GFlowNetAgent:
         while envs:
             # Sample actions
             t0_a_envs = time.time()
-            actions = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_forward,
                 env_cond,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions)
             # Add to batch
-            batch_forward.add_to_batch(envs, actions, valids, train=train)
+            actions_torch = torch.tensor(actions)
+            batch_forward.add_to_batch(
+                envs, actions, logprobs, logprobs_rev, valids, train=train
+            )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
@@ -597,19 +650,28 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            actions = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_train,
                 env_cond,
                 backward=True,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
-            batch_train.add_to_batch(envs, actions, valids, backward=True, train=train)
+            batch_train.add_to_batch(
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
+            )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         times["train_actions"] = time.time() - t0_train
@@ -645,19 +707,28 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            actions = self.sample_actions(
+            actions, logprobs, logprobs_rev = self.sample_actions(
                 envs,
                 batch_replay,
                 env_cond,
                 backward=True,
                 no_random=not train,
                 times=times,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
-            batch_replay.add_to_batch(envs, actions, valids, backward=True, train=train)
+            batch_replay.add_to_batch(
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
+            )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         times["replay_actions"] = time.time() - t0_replay
@@ -802,17 +873,26 @@ class GFlowNetAgent:
             # Sample trajectories
             while envs:
                 # Sample backward actions
-                actions = self.sample_actions(
+                actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
                     batch,
                     backward=True,
                     no_random=True,
                     times=times,
+                    compute_reversed_logprobs=True,
                 )
                 # Update environments with sampled actions
                 envs, actions, valids = self.step(envs, actions, backward=True)
                 # Add to batch
-                batch.add_to_batch(envs, actions, valids, backward=True, train=True)
+                batch.add_to_batch(
+                    envs,
+                    actions,
+                    logprobs,
+                    logprobs_rev,
+                    valids,
+                    backward=True,
+                    train=True,
+                )
                 # Filter out finished trajectories
                 envs = [env for env in envs if not env.equal(env.state, env.source)]
             # Prepare data structures to compute log probabilities
