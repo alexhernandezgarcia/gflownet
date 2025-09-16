@@ -633,11 +633,16 @@ class Batch:
             return states_proxy
         return self.readonly_env.states2proxy(states)
 
-    def get_actions(self) -> TensorType["n_states, action_dim"]:
+    def get_actions(self) -> List:
         """
-        Returns the actions in the batch as a float tensor.
+        Returns the actions in the batch.
+
+        Returns
+        -------
+        list
+            The list of actions in the batch.
         """
-        return tfloat(self.actions, float_type=self.float, device=self.device)
+        return self.actions
 
     def get_logprobs(
         self, backward: bool = False

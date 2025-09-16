@@ -376,7 +376,7 @@ class HybridTorus(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", 2],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["batch_size", "policy_output_dim"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,

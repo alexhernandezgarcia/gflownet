@@ -233,7 +233,7 @@ class CubeBase(GFlowNetEnv, ABC):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -1157,8 +1157,7 @@ class ContinuousCube(CubeBase):
                 (increments, torch.zeros((increments.shape[0], 1))), dim=1
             )
         actions_tensor[is_source, -1] = 1
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def _sample_actions_batch_backward(
         self,
@@ -1274,13 +1273,12 @@ class ContinuousCube(CubeBase):
             actions_tensor[is_bts, :-1] = self._mask_ignored_dimensions(
                 mask[is_bts], actions_tensor[is_bts, :-1]
             )
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "mask_dim"],
         states_from: List,
         is_backward: bool,
@@ -1288,22 +1286,18 @@ class ContinuousCube(CubeBase):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information about invalid actions and special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (absolute increments) from each state in the batch for which to
             compute the log probability.
-
         states_from : tensor
             The states originating the actions, in GFlowNet format. They are required
             so as to compute the relative increments and the Jacobian.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default). Required, since the computation for forward and backward actions
@@ -1321,7 +1315,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -1329,6 +1323,7 @@ class ContinuousCube(CubeBase):
         Computes log probabilities of forward actions.
         """
         # Initialize variables
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         states_from_tensor = tfloat(
             states_from, float_type=self.float, device=self.device
@@ -1417,7 +1412,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -1425,6 +1420,7 @@ class ContinuousCube(CubeBase):
         Computes log probabilities of backward actions.
         """
         # Initialize variables
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         states_from_tensor = tfloat(
             states_from, float_type=self.float, device=self.device
