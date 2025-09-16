@@ -260,8 +260,8 @@ class Toy(GFlowNetEnv):
         A 2D tensor containing all the states in the batch.
         """
         states_policy = F.one_hot(
-            tlong(states, device=self.device).squeeze(), len(self.connections)
-        )
+            tlong(states, device=self.device), len(self.connections)
+        ).squeeze(1)
         return tfloat(states_policy, device=self.device, float_type=self.float)
 
     def state2readable(self, state: List[int] = None) -> str:
