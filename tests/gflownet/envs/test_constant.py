@@ -79,6 +79,7 @@ class TestConstantListCommon(common.BaseTestsDiscrete):
             "test__gflownet_minimal_runs": 3,
             "test__get_mask__is_consistent_regardless_of_inputs": 0,
             "test__get_valid_actions__is_consistent_regardless_of_inputs": 0,
+            "test__dimensionality_policy_representation": 0,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 1,
@@ -116,6 +117,7 @@ class TestConstantTensorCommon(common.BaseTestsDiscrete):
             "test__gflownet_minimal_runs": 3,
             "test__get_mask__is_consistent_regardless_of_inputs": 0,
             "test__get_valid_actions__is_consistent_regardless_of_inputs": 0,
+            "test__dimensionality_policy_representation": 0,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 1,

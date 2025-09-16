@@ -106,6 +106,7 @@ class TestDummyListCommon(common.BaseTestsDiscrete):
             "test__sample_backwards_reaches_source": 10,
             "test__state2readable__is_reversible": 0,
             "test__gflownet_minimal_runs": 3,
+            "test__dimensionality_policy_representation": 0,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 1,
@@ -141,6 +142,7 @@ class TestDummyTensorCommon(common.BaseTestsDiscrete):
             "test__sample_backwards_reaches_source": 10,
             "test__state2readable__is_reversible": 0,
             "test__gflownet_minimal_runs": 3,
+            "test__dimensionality_policy_representation": 0,
         }
         self.n_states = {
             "test__backward_actions_have_nonzero_forward_prob": 1,
