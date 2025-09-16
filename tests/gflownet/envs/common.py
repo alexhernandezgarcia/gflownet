@@ -753,11 +753,17 @@ class BaseTestsCommon:
         same for a batch with a single state than for a batch with multiple (2) states.
         This is to catch cases where with a single state a dimensions gets squeezed.
         """
-        batch_one = self.env.get_random_states(n_states=1)
-        batch_two = self.env.get_random_states(n_states=2)
-        batch_one_policy = self.env.states2policy(batch_one)
-        batch_two_policy = self.env.states2policy(batch_two)
-        assert batch_one_policy.ndim == batch_two_policy.ndim
+        method_name = _get_current_method_name()
+
+        if hasattr(self, "repeats") and method_name in self.repeats:
+            n_repeat = self.repeats[method_name]
+
+        for _ in range(n_repeat):
+            batch_one = self.env.get_random_states(n_states=1)
+            batch_two = self.env.get_random_states(n_states=2)
+            batch_one_policy = self.env.states2policy(batch_one)
+            batch_two_policy = self.env.states2policy(batch_two)
+            assert batch_one_policy.ndim == batch_two_policy.ndim
 
     def test__gflownet_minimal_runs(self, n_repeat=1, batch_size=2):
         method_name = _get_current_method_name()
