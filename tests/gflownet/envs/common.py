@@ -747,6 +747,18 @@ class BaseTestsCommon:
             assert torch.all(torch.isfinite(logprobs))
             assert torch.all(logprobs > -1e6)
 
+    def test__dimensionality_policy_representation(self, n_repeat=1):
+        """
+        Checks whether the number of dimensions of the policy representation is the
+        same for a batch with a single state than for a batch with multiple (2) states.
+        This is to catch cases where with a single state a dimensions gets squeezed.
+        """
+        batch_one = self.env.get_random_states(n_states=1)
+        batch_two = self.env.get_random_states(n_states=2)
+        batch_one_policy = self.env.states2policy(batch_one)
+        batch_two_policy = self.env.states2policy(batch_two)
+        assert batch_one_policy.ndim == batch_two_policy.ndim
+
     def test__gflownet_minimal_runs(self, n_repeat=1, batch_size=2):
         method_name = _get_current_method_name()
 
