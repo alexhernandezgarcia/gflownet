@@ -1915,13 +1915,13 @@ def compute_logprobs_trajectories(
         # Compute missing logprobs. This should happen only for forward logprobs
         # when the batch was sampled backwards
         assert not backward
-        indices_nonvalid = torch.arange(len(logprobs_nonvalid))[logprobs_nonvalid]
-        indices_nonvalid_list = indices_nonvalid.tolist()
+        indices_nonvalid = torch.where(logprobs_nonvalid)[0]
         parents_all = batch.get_parents(policy=False)
-        parents = [parents_all[idx] for idx in indices_nonvalid_list]
+        parents = [parents_all[idx] for idx in indices_nonvalid]
         parents_policy = batch.states2policy(parents)
         policy_output_f = forward_policy(parents_policy)
-        actions = batch.get_actions()[logprobs_nonvalid]
+        actions = batch.get_actions()
+        actions = [actions[idx] for idx in indices_nonvalid]
         masks_f = batch.get_masks_forward(of_parents=True)[logprobs_nonvalid]
         logprobs_states[logprobs_nonvalid] = env.get_logprobs(
             policy_output_f, actions, masks_f, parents, backward

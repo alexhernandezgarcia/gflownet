@@ -1071,9 +1071,7 @@ def test__backward_sampling_multiple_envs_with_logprobs_all_as_expected(
     assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
-    assert torch.equal(
-        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
-    )
+    assert actions_batch == actions
 
     # Check logprobs backward
     logprobs_batch, logprobs_valid = batch.get_logprobs(backward=True)

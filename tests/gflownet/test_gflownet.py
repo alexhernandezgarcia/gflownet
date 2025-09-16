@@ -34,30 +34,33 @@ def gfn_grid():
 
 
 @pytest.mark.parametrize(
-    "do_grid, n_forward, n_train, collect_reversed_logprobs",
+    "gfn",
     [
-        (False, 100, 0, False),
-        (False, 100, 0, True),
-        (True, 100, 0, False),
-        (True, 100, 0, True),
-        (False, 0, 100, False),
-        (True, 0, 100, False),
-        (True, 0, 100, True),
-        (False, 0, 100, True),
+        "gfn_grid",
+        "gfn_ccube",
     ],
 )
-def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed_cube_and_grid(
-    gfn_ccube,
-    gfn_grid,
-    do_grid,
+@pytest.mark.parametrize(
+    "n_forward, n_train, collect_reversed_logprobs",
+    [
+        (100, 0, False),
+        (100, 0, True),
+        (100, 0, False),
+        (100, 0, True),
+        (0, 100, False),
+        (0, 100, False),
+        (0, 100, True),
+        (0, 100, True),
+    ],
+)
+def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed(
+    gfn,
     n_forward,
     n_train,
     collect_reversed_logprobs,
+    request,
 ):
-    if do_grid:
-        gfn = gfn_grid
-    else:
-        gfn = gfn_ccube
+    gfn = request.getfixturevalue(gfn)
     gfn.collect_reversed_logprobs = collect_reversed_logprobs
 
     collect_backwards_masks = gfn.loss in [
