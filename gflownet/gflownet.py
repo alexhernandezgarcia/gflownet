@@ -975,6 +975,7 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
+                    batch.zero_logprobs()
 
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models
