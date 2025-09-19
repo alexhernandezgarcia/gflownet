@@ -51,6 +51,8 @@ def gfn_grid():
         (0, 100, False),
         (0, 100, True),
         (0, 100, True),
+        (100, 100, False),
+        (100, 100, True),
     ],
 )
 def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_computed(
@@ -125,7 +127,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     logpobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
     logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
 
-    if n_train > 0 or (collect_reversed_logprobs and n_forward > 0):
+    if (n_train > 0 and n_forward == 0) or collect_reversed_logprobs:
         assert torch.all(logprobs_bw_valid)
     if n_forward > 0 and n_train == 0:
         assert torch.all(logprobs_fw_valid)
