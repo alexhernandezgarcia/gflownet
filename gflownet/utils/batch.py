@@ -13,7 +13,7 @@ from gflownet.utils.common import (
     concat_items,
     copy,
     extend,
-    index_select,
+    select_indices,
     set_device,
     set_float_precision,
     tbool,
@@ -527,10 +527,10 @@ class Batch:
         if policy is True:
             if self.states_policy is None or force_recompute is True:
                 self.states_policy = self.states2policy()
-            return index_select(self.states_policy, index)
+            return select_indices(self.states_policy, index)
         if proxy is True:
-            return index_select(self.states2proxy(), index)
-        return index_select(self.states, index)
+            return select_indices(self.states2proxy(), index)
+        return select_indices(self.states, index)
 
     def states2policy(
         self,
@@ -660,7 +660,7 @@ class Batch:
             The list of actions in the batch with selected index. If index is None,
             all the actions will be returned.
         """
-        return index_select(self.actions, index)
+        return select_indices(self.actions, index)
 
     def get_logprobs(
         self, backward: bool = False
@@ -778,9 +778,9 @@ class Batch:
         if policy:
             if self._parents_policy_available is False or force_recompute is True:
                 self._compute_parents_policy()
-            return index_select(self.parents_policy, index)
+            return select_indices(self.parents_policy, index)
         else:
-            return index_select(self.parents, index)
+            return select_indices(self.parents, index)
 
     def get_parents_indices(self, index=None):
         """
@@ -797,7 +797,7 @@ class Batch:
         """
         if self._parents_available is False:
             self._compute_parents()
-        return index_select(self.parents_indices, index)
+        return select_indices(self.parents_indices, index)
 
     def _compute_parents(self):
         """
@@ -1053,8 +1053,8 @@ class Batch:
             masks_invalid_actions_forward_parents[parents_indices != -1] = (
                 masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
             )
-            return index_select(masks_invalid_actions_forward_parents, index)
-        return index_select(masks_invalid_actions_forward, index)
+            return select_indices(masks_invalid_actions_forward_parents, index)
+        return select_indices(masks_invalid_actions_forward, index)
 
     def _compute_masks_forward(self):
         """
@@ -1105,7 +1105,7 @@ class Batch:
         if self._masks_backward_available is False or force_recompute is True:
             self._compute_masks_backward()
         masks = tbool(self.masks_invalid_actions_backward, device=self.device)
-        return index_select(masks, index)
+        return select_indices(masks, index)
 
     def _compute_masks_backward(self):
         """

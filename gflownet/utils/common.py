@@ -776,7 +776,7 @@ def example_documented_function(arg1, arg2):
     return True
 
 
-def index_select(
+def select_indices(
     iterable: Union[List, Tuple, TensorType, npt.NDArray],
     index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
 ):
