@@ -510,7 +510,7 @@ class Batch:
             Ignored if policy is False.
 
         index: list, tuple, tensor or np.ndarray
-            1-dimentional sequence of bacth indecies for selecting states, optional.
+            1-dimensional sequence of batch indices for selecting states, optional.
             If None (default), all the states will be returned.
 
         Returns
