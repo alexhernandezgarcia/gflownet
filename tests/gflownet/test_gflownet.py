@@ -162,3 +162,67 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
 
     if n_train > 0 or (n_forward > 0 and collect_reversed_logprobs):
         assert torch.allclose(logprobs_states_bw, logpobs_bw_from_batch, atol=1e-3)
+
+
+@pytest.mark.parametrize(
+    "gfn",
+    [
+        "gfn_grid",
+        "gfn_ccube",
+    ],
+)
+@pytest.mark.parametrize(
+    "n_forward, n_train, collect_reversed_logprobs",
+    [
+        (100, 0, False),
+        (10, 0, True),
+        (100, 0, False),
+        (100, 0, True),
+        (0, 100, False),
+        (0, 100, False),
+        (0, 100, True),
+        (0, 100, True),
+        (100, 100, False),
+        (100, 100, True),
+    ],
+)
+def test__logprobs_validity(
+    gfn,
+    n_forward,
+    n_train,
+    collect_reversed_logprobs,
+    request,
+):
+    gfn = request.getfixturevalue(gfn)
+    gfn.collect_reversed_logprobs = collect_reversed_logprobs
+
+    collect_backwards_masks = gfn.loss in [
+        "trajectorybalance",
+        "detailedbalance",
+        "forwardlooking",
+    ]
+    # Sample batch
+    batch, times = gfn.sample_batch(
+        n_forward=n_forward,
+        n_train=n_train,
+        n_replay=0,
+        collect_forwards_masks=True,
+        collect_backwards_masks=collect_backwards_masks,
+    )
+
+    logpobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
+    logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
+    actions = batch.get_actions()
+
+    # Check that non-valid logprobs are zeros, and that logprob_bkw(eos) == 0 and valid
+    for lp, val in zip(logpobs_fw_from_batch.tolist(), logprobs_fw_valid.tolist()):
+        if not val:
+            assert lp == 0.0
+    for lp, val, act in zip(
+        logpobs_bw_from_batch.tolist(), logprobs_bw_valid.tolist(), actions
+    ):
+        if not val:
+            assert lp == 0.0
+        if act == gfn.env.eos:
+            assert lp == 0.0
+            assert val

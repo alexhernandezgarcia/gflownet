@@ -327,7 +327,7 @@ class Batch:
                 self.logprobs_backward.append(logp)
                 self.logprobs_backward_valid.append(True if logp is not None else False)
                 # Add logpf for previous action
-                if not env.is_source(env.state) or logp_rev is None:
+                if not env.is_source(env.state):
                     # Store a None placeholder for the current logpf which will be
                     # replaced at the next step
                     self.logprobs_forward.append(None)
@@ -356,7 +356,7 @@ class Batch:
                 self.logprobs_forward.append(logp)
                 self.logprobs_forward_valid.append(True if logp is not None else False)
                 # Add logpb for previous action
-                if not env.done or logp_rev is None:
+                if not env.done:
                     # Store a None placeholder for the current logpb which will be
                     # replaced at the next step
                     self.logprobs_backward.append(None)

@@ -4,7 +4,7 @@ from copy import deepcopy
 from functools import partial
 from os.path import expandvars
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
