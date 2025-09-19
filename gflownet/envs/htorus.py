@@ -311,15 +311,15 @@ class HybridTorus(GFlowNetEnv):
             parents = [state]
             return parents, [action]
 
+    # TODO: this is very outdated
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -328,11 +328,8 @@ class HybridTorus(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # Sample dimensions
-        if sampling_method == "uniform":
-            logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
-        elif sampling_method == "policy":
-            logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
-            logits_dims /= temperature_logits
+        logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
+        logits_dims /= temperature_logits
         if mask is not None:
             logits_dims[mask] = -torch.inf
         dimensions = Categorical(logits=logits_dims).sample()
@@ -343,22 +340,16 @@ class HybridTorus(GFlowNetEnv):
         angles = torch.zeros(n_states).to(device)
         logprobs_angles = torch.zeros(n_states).to(device)
         if len(dimensions_noeos) > 0:
-            if sampling_method == "uniform":
-                distr_angles = Uniform(
-                    torch.zeros(len(ns_range_noeos)),
-                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
-                )
-            elif sampling_method == "policy":
-                locations = policy_outputs[:, 1 :: self.n_params_per_dim][
-                    ns_range_noeos, dimensions_noeos
-                ]
-                concentrations = policy_outputs[:, 2 :: self.n_params_per_dim][
-                    ns_range_noeos, dimensions_noeos
-                ]
-                distr_angles = VonMises(
-                    locations,
-                    torch.exp(concentrations) + self.vonmises_min_concentration,
-                )
+            locations = policy_outputs[:, 1 :: self.n_params_per_dim][
+                ns_range_noeos, dimensions_noeos
+            ]
+            concentrations = policy_outputs[:, 2 :: self.n_params_per_dim][
+                ns_range_noeos, dimensions_noeos
+            ]
+            distr_angles = VonMises(
+                locations,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
+            )
             angles[ns_range_noeos] = distr_angles.sample()
             logprobs_angles[ns_range_noeos] = distr_angles.log_prob(
                 angles[ns_range_noeos]
