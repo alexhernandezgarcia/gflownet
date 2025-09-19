@@ -534,15 +534,28 @@ class GFlowNetEnv:
             The modified policy outputs.
         """
         if not math.isclose(temperature, 1.0, abs_tol=1e-08):
-            policy_outputs /= temperature
+            do_temper = True
+        else:
+            do_temper = False
         if not math.isclose(probability_random_action, 0.0, abs_tol=1e-08):
+            do_random = True
+        else:
+            do_random = False
+        if not do_temper and not do_random:
+            return policy_outputs
+
+        # Clone the sampling logits in order not to change the original tensor
+        logits_sampling = policy_outputs.clone().detach()
+        if do_temper:
+            logits_sampling /= temperature
+        if do_random:
             idx_random = tbool(
                 Bernoulli(
                     probability_random_action * torch.ones(policy_outputs.shape[0])
                 ).sample(),
                 device=self.device,
             )
-            policy_outputs[idx_random, :] = self.random_policy_output
+            logits_sampling[idx_random, :] = self.random_policy_output
         return policy_outputs
 
     def sample_actions_batch(
@@ -551,10 +564,8 @@ class GFlowNetEnv:
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -593,11 +604,6 @@ class GFlowNetEnv:
             True if the actions are backward, False if the actions are forward
             (default). Ignored in discrete environments and only required in certain
             continuous environments.
-        sampling_method : str, optional
-            The sampling method to use to sample actions. The implemented options are:
-                - policy: the model outputs are used, optionally after tempering the
-                  distribution and randomizing actions.
-                - uniform: all actions are sampled with equal probability.
         random_action_prob : float, optional
             The probability of sampling a random action. If larger than one, the model
             outputs will be replaced by a random policy vector with probability
@@ -605,66 +611,27 @@ class GFlowNetEnv:
         temperature_logits : float, optional
             A scalar by which the model outputs are divided to temper the sampling
             distribution.
-        max_sampling_attempts : int, optional
-            Maximum of number of attempts to sample actions that are not invalid
-            according to the mask before throwing an error, in order to ensure that
-            non-invalid actions are returned without getting stuck.
 
         Returns
         -------
         actions : list
             The list of sampled actions.
         """
-        device = policy_outputs.device
-        n_states = policy_outputs.shape[0]
-        ns_range = torch.arange(n_states, device=device)
-
-        if sampling_method == "policy":
-            logits_sampling = policy_outputs.clone().detach()
-        elif sampling_method == "uniform":
-            logits_sampling = torch.ones(
-                policy_outputs.shape, dtype=self.float, device=device
-            )
-        else:
-            raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. "
-                "Options are: policy, uniform."
-            )
-
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution(
-            logits_sampling, random_action_prob, temperature_logits
+            policy_outputs, random_action_prob, temperature_logits
         )
-        # Obtain the mask of invalid actions by making the logits equal to -inf.
-        mask_logits = torch.zeros(policy_outputs.shape, dtype=self.float, device=device)
+
+        # Make the logits of invalid actions equal to -inf.
         if mask is not None:
-            assert not torch.all(mask, dim=1).any(), dedent(
-                """
-            All actions in the mask are invalid for some states in the batch.
-            """
-            )
-            mask_logits[mask] = -torch.inf
-            logits_sampling += mask_logits
-
-        # Sample actions and make sure no action is invalid according to the mask.
-        # Otherwise throw an error.
-        for _ in range(max_sampling_attempts):
-            try:
-                action_indices = Categorical(logits=logits_sampling).sample()
-            except:
-                import ipdb
-
-                ipdb.set_trace()
-            if not torch.any(mask[ns_range, action_indices]):
-                break
-        else:
-            raise ValueError(
-                dedent(
-                    f"""
-            No valid action could be sampled after {max_sampling_attempts} attempts.
-            """
+            if torch.all(mask, dim=1).any():
+                raise RuntimeError(
+                    "All actions in the mask are invalid for some states in the batch."
                 )
-            )
+            logits_sampling[mask] = -torch.inf
+
+        # Sample actions from the Categorical distributions defined by the logits
+        action_indices = Categorical(logits=logits_sampling).sample()
         # Build actions
         actions = [self.action_space[idx] for idx in action_indices]
         return actions
@@ -718,7 +685,6 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    # TODO: add seed
     def step_random(self, backward: bool = False):
         """
         Samples a random action and executes the step.
@@ -747,15 +713,8 @@ class GFlowNetEnv:
             mask_invalid = torch.unsqueeze(
                 tbool(self.get_mask_invalid_actions_forward(), device=self.device), 0
             )
-        # TODO: implement random sampling policy in sample_actions_batch
-        random_policy = torch.unsqueeze(
-            tfloat(
-                self.random_policy_output, float_type=self.float, device=self.device
-            ),
-            0,
-        )
         actions = self.sample_actions_batch(
-            random_policy,
+            self.random_policy_output.clone().unsqueeze(0),
             mask_invalid,
             [self.state],
             backward,

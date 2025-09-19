@@ -653,10 +653,8 @@ class Tree(GFlowNetEnv):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs in the continuous mode.
@@ -674,10 +672,8 @@ class Tree(GFlowNetEnv):
                 mask[is_discrete, : self._index_continuous_policy_output],
                 None,
                 is_backward,
-                sampling_method,
                 random_action_prob,
                 temperature_logits,
-                max_sampling_attempts,
             )
         if torch.all(is_discrete):
             return actions_discrete
@@ -687,20 +683,14 @@ class Tree(GFlowNetEnv):
         policy_outputs_cont = policy_outputs[
             is_continuous, self._index_continuous_policy_output :
         ]
-        if sampling_method == "uniform":
-            distr_threshold = Uniform(
-                torch.zeros(n_cont),
-                torch.ones(n_cont),
-            )
-        elif sampling_method == "policy":
-            mix_logits = policy_outputs_cont[:, 0::3]
-            mix = Categorical(logits=mix_logits)
-            alphas = policy_outputs_cont[:, 1::3]
-            alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
-            betas = policy_outputs_cont[:, 2::3]
-            betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
-            beta_distr = Beta(alphas, betas)
-            distr_threshold = MixtureSameFamily(mix, beta_distr)
+        mix_logits = policy_outputs_cont[:, 0::3]
+        mix = Categorical(logits=mix_logits)
+        alphas = policy_outputs_cont[:, 1::3]
+        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+        betas = policy_outputs_cont[:, 2::3]
+        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+        beta_distr = Beta(alphas, betas)
+        distr_threshold = MixtureSameFamily(mix, beta_distr)
         thresholds = distr_threshold.sample()
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, -1, th.item()) for th in thresholds]
@@ -718,10 +708,8 @@ class Tree(GFlowNetEnv):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -732,10 +720,8 @@ class Tree(GFlowNetEnv):
                 mask=mask,
                 states_from=states_from,
                 is_backward=is_backward,
-                sampling_method=sampling_method,
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
-                max_sampling_attempts=max_sampling_attempts,
             )
         else:
             return super().sample_actions_batch(
@@ -743,10 +729,8 @@ class Tree(GFlowNetEnv):
                 mask=mask,
                 states_from=states_from,
                 is_backward=is_backward,
-                sampling_method=sampling_method,
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
-                max_sampling_attempts=max_sampling_attempts,
             )
 
     def get_logprobs_continuous(
