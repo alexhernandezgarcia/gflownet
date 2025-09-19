@@ -778,7 +778,7 @@ def example_documented_function(arg1, arg2):
 
 def select_indices(
     iterable: Union[List, Tuple, TensorType, npt.NDArray],
-    index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+    indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
 ):
     """
     Select elements form iterable
@@ -788,7 +788,7 @@ def select_indices(
     iterable: list, tuple, tensor or np.ndarray
         An iterable to select elements from. It can have multiple dimensions
         and selection is always preformed over the first dimension
-    index: list, tuple, tensor or np.ndarray
+    indices: list, tuple, tensor or np.ndarray
         1-dimentional sequence of indecies for selecting elements, optional. If None,
         the iterable will be returned as is. Default None
 
@@ -798,16 +798,16 @@ def select_indices(
         A sequence of selected elements. The type of the returned sequence is
         the same as the type of the input iterable
     """
-    if index is None:
+    if indices is None:
         return iterable
     if isinstance(iterable, (list, tuple)):
-        result = [iterable[idx] for idx in index]
+        result = [iterable[idx] for idx in indices]
         if isinstance(iterable, tuple):
             result = tuple(result)
         return result
     elif torch.is_tensor(iterable) or isinstance(iterable, np.ndarray):
-        if isinstance(index, tuple):
-            index = list(index)
-        return iterable[index]
+        if isinstance(indices, tuple):
+            indices = list(indices)
+        return iterable[indices]
     else:
         raise Exception(f"Cannot select elements from {type(iterable)}")
