@@ -705,21 +705,15 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        if backward:
-            mask_invalid = torch.unsqueeze(
-                tbool(self.get_mask_invalid_actions_backward(), device=self.device), 0
-            )
-        else:
-            mask_invalid = torch.unsqueeze(
-                tbool(self.get_mask_invalid_actions_forward(), device=self.device), 0
-            )
-        actions = self.sample_actions_batch(
+        mask_invalid = tbool(
+            self.get_mask(backward=backward), device=self.device
+        ).unsqueeze(0)
+        action = self.sample_actions_batch(
             self.random_policy_output.clone().unsqueeze(0),
             mask_invalid,
             [self.state],
             backward,
-        )
-        action = actions[0]
+        )[0]
         if backward:
             return self.step_backwards(action)
         return self.step(action)
