@@ -810,4 +810,4 @@ def index_select(
             index = list(index)
         return iterable[index]
     else:
-        raise Exception(f"Cannon select elements from {type(iterable)}")
+        raise Exception(f"Cannot select elements from {type(iterable)}")
