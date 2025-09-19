@@ -710,9 +710,29 @@ class Batch:
         )
         self._logprobs_available = True
 
-    def _logprobs_to_clean_tensor(self, logprobs, logprobs_valid):
+    def _logprobs_to_clean_tensor(self, logprobs: List, logprobs_valid: List[bool]):
         """
         Convert logprobs and logprobs_valid to tensors and update validity flags
+
+        Parameters
+        ----------
+        logprobs: list
+            A list of logprobs collected over a sequence of add_to_batch calls. The
+            elements could be None or a single-number torch.tensor attached or detached
+            from a computations graph collected to the loss
+        logprobs_valid: list of bools
+            A list of validity flags collected over a sequence of add_to_batch calls which
+            indicate whether the corresponding element in the logprobs list is a valid
+            logprob (True) or not (False). When the flag is False, the corresponding logprob
+            is either None or torch.tensor(0.0) detached from the computational graph.
+
+        Returns
+        -------
+        (logprobs_clean, logprobs_valid): a tuple of 1-d tensors
+            - logprobs_clean is a 1-d float tensor with logprobs, where all valid logprobs
+            remain connected to their computational graphs and all non-valid logprobs are zeros.
+            - logprobs_valid is a 1-d boolean tesor with flags indicating whether the corresponding
+            element in the logprobs is a valid logprob (True) or not (False).
         """
         if any(x is None for x in logprobs):
             logprobs_clean = []
