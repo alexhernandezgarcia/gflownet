@@ -728,11 +728,12 @@ class Batch:
 
         Returns
         -------
-        (logprobs_clean, logprobs_valid): a tuple of 1-d tensors
-            - logprobs_clean is a 1-d float tensor with logprobs, where all valid logprobs
-            remain connected to their computational graphs and all non-valid logprobs are zeros.
-            - logprobs_valid is a 1-d boolean tesor with flags indicating whether the corresponding
-            element in the logprobs is a valid logprob (True) or not (False).
+        logprobs_clean : tensor
+            A 1-d float tensor with logprobs, where all valid logprobs remain connected
+            to their computational graphs and all non-valid logprobs are zeros.
+        logprobs_valid : tensor
+            A 1-d boolean tesor with flags indicating whether the corresponding element
+            in the logprobs is a valid logprob (True) or not (False).
         """
         if any(x is None for x in logprobs):
             logprobs_clean = []
