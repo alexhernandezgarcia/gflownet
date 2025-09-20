@@ -339,9 +339,9 @@ class Batch:
                     tfloat(2.0, device=self.device, float_type=self.float)
                 )
                 self.logprobs_forward_avail.append(False)
-                # If the index for a previous transition is available, set the reverse
-                # (forward) logp at the index
-                if idx_prev is not None:
+                # If the index and logp for a previous transition are available, set
+                # the reverse (forward) logp at the index
+                if idx_prev is not None and logp_rev is not None:
                     self.logprobs_forward[idx_prev] = logp_rev
                     self.logprobs_forward_avail[idx_prev] = True
             # Handle forward transition
@@ -371,9 +371,9 @@ class Batch:
                         tfloat(2.0, device=self.device, float_type=self.float)
                     )
                     self.logprobs_backward_avail.append(False)
-                # If the index for a previous transition is available, set the reverse
-                # (backward) logp at the index
-                if idx_prev is not None:
+                # If the index and logp for a previous transition are available, set
+                # the reverse (backward) logp at the index
+                if idx_prev is not None and logp_rev is not None:
                     self.logprobs_backward[idx_prev] = logp_rev
                     self.logprobs_backward_avail[idx_prev] = True
             # Collect masks if needed
