@@ -1975,13 +1975,12 @@ def compute_logprobs_trajectories(
     # Otherwise, compute the log probs from the states and actions in the batch
     if torch.any(logprobs_nonvalid):
         if torch.all(logprobs_nonvalid):
-            # setting indecies to None to select everything
+            # Setting indices to None to select everything
             indices_nonvalid = None
         else:
             indices_nonvalid = torch.where(logprobs_nonvalid)[0]
 
         # Get necessary tensors from batch
-
         states = batch.get_states(policy=False, indices=indices_nonvalid)
         actions = batch.get_actions(indices=indices_nonvalid)
 
