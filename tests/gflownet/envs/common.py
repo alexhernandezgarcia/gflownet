@@ -116,7 +116,9 @@ class BaseTestsCommon:
                 self.env.set_state(state, done=True)
                 masks.append(self.env.get_mask_invalid_actions_backward())
             # Build random policy outputs and tensor masks
-            policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
+            policy_outputs = torch.tile(
+                self.env.random_policy_output.clone(), (len(states), 1)
+            )
             # Add noise to policy outputs
             policy_outputs += torch.randn(policy_outputs.shape)
             masks = tbool(masks, device=self.env.device)
@@ -152,7 +154,9 @@ class BaseTestsCommon:
                 (len(states), 1),
             )
             # Build random policy outputs and tensor masks
-            policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
+            policy_outputs = torch.tile(
+                self.env.random_policy_output.clone(), (len(states), 1)
+            )
             # Add noise to policy outputs
             policy_outputs += torch.randn(policy_outputs.shape)
             masks = tbool(masks, device=self.env.device)
@@ -268,7 +272,7 @@ class BaseTestsCommon:
 
         for _ in range(n_repeat):
             self.env.reset()
-            policy_random = torch.unsqueeze(self.env.random_policy_output, 0)
+            policy_random = self.env.random_policy_output.clone().unsqueeze(0)
             while not self.env.done:
                 state_next, action, valid = self.env.step_random(backward=False)
                 assert valid
@@ -304,7 +308,7 @@ class BaseTestsCommon:
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
-            policy_random = torch.unsqueeze(self.env.random_policy_output, 0)
+            policy_random = self.env.random_policy_output.clone().unsqueeze(0)
 
             for state in states:
                 # Reset environment and set state
@@ -443,7 +447,7 @@ class BaseTestsCommon:
                 )
                 # Policy outputs random
                 policy_outputs = torch.tile(
-                    self.env.random_policy_output, (len(states), 1)
+                    self.env.random_policy_output.clone(), (len(states), 1)
                 )
                 # Sample batch of actions
                 actions = self.env.sample_actions_batch(
@@ -508,7 +512,7 @@ class BaseTestsCommon:
                 )
                 # Policy outputs random
                 policy_outputs = torch.tile(
-                    self.env.random_policy_output, (len(states), 1)
+                    self.env.random_policy_output.clone(), (len(states), 1)
                 )
                 # Sample batch of actions
                 actions = self.env.sample_actions_batch(
@@ -582,7 +586,7 @@ class BaseTestsCommon:
             masks_f_all = tbool(masks_f_all, device=self.env.device)
             masks_b_all = tbool(masks_b_all, device=self.env.device)
             policy_outputs = torch.tile(
-                self.env.random_policy_output, (len(actions_all), 1)
+                self.env.random_policy_output.clone(), (len(actions_all), 1)
             )
             logprobs_f = self.env.get_logprobs(
                 policy_outputs=policy_outputs,
@@ -627,7 +631,9 @@ class BaseTestsCommon:
                 masks.append(self.env.get_mask_invalid_actions_forward())
             masks = tbool(masks, device=self.env.device)
             # Policy outputs random
-            policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
+            policy_outputs = torch.tile(
+                self.env.random_policy_output.clone(), (len(states), 1)
+            )
             # Sample batch of actions
             actions = self.env.sample_actions_batch(
                 policy_outputs=policy_outputs,
@@ -700,7 +706,9 @@ class BaseTestsCommon:
                 masks.append(self.env.get_mask_invalid_actions_backward())
             masks = tbool(masks, device=self.env.device)
             # Policy outputs random
-            policy_outputs = torch.tile(self.env.random_policy_output, (len(states), 1))
+            policy_outputs = torch.tile(
+                self.env.random_policy_output.clone(), (len(states), 1)
+            )
             # Sample batch of actions
             actions = self.env.sample_actions_batch(
                 policy_outputs=policy_outputs,
@@ -811,7 +819,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
         for _ in range(n_repeat):
             self.env.reset()
             while not self.env.done:
-                policy_outputs = torch.unsqueeze(self.env.random_policy_output, 0)
+                policy_outputs = self.env.random_policy_output.clone().unsqueeze(0)
                 mask_invalid = self.env.get_mask_invalid_actions_forward()
                 masks_invalid_torch = torch.unsqueeze(
                     tbool(mask_invalid, device=self.env.device), 0
