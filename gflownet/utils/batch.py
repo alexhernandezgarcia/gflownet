@@ -696,7 +696,8 @@ class Batch:
 
     def _compute_logprobs(self):
         """
-        Convert all logprobs and their validity flags to tensors and update validity flags
+        Convert all logprobs and their validity flags to tensors and update validity
+        flags.
         """
         self.logprobs_forward, self.logprobs_forward_valid = (
             self._logprobs_to_clean_tensor(
@@ -712,19 +713,20 @@ class Batch:
 
     def _logprobs_to_clean_tensor(self, logprobs: List, logprobs_valid: List[bool]):
         """
-        Convert logprobs and logprobs_valid to tensors and update validity flags
+        Convert logprobs and logprobs_valid to tensors and update validity flags.
 
         Parameters
         ----------
         logprobs: list
             A list of logprobs collected over a sequence of add_to_batch calls. The
             elements could be None or a single-number torch.tensor attached or detached
-            from a computations graph collected to the loss
+            from a computations graph collected to the loss.
         logprobs_valid: list of bools
-            A list of validity flags collected over a sequence of add_to_batch calls which
-            indicate whether the corresponding element in the logprobs list is a valid
-            logprob (True) or not (False). When the flag is False, the corresponding logprob
-            is either None or torch.tensor(0.0) detached from the computational graph.
+            A list of validity flags collected over a sequence of add_to_batch calls
+            which indicate whether the corresponding element in the logprobs list is a
+            valid logprob (True) or not (False). When the flag is False, the
+            corresponding logprob is either None or torch.tensor(0.0) detached from the
+            computational graph.
 
         Returns
         -------
@@ -735,22 +737,12 @@ class Batch:
             A 1-d boolean tesor with flags indicating whether the corresponding element
             in the logprobs is a valid logprob (True) or not (False).
         """
-        if any(x is None for x in logprobs):
-            logprobs_clean = []
-            for idx, lp in enumerate(logprobs):
-                if lp is None:
-                    logprobs_valid[idx] = False
-                    logprobs_clean.append(
-                        tfloat(0.0, device=self.device, float_type=self.float)
-                    )
-                else:
-                    logprobs_clean.append(lp)
-        else:
-            logprobs_clean = logprobs
+        tensor_inf = tfloat(torch.inf, device=self.device, float_type=self.float)
+        logprobs_clean = [logp if logp is not None else tensor_inf for logp in logprobs]
         logprobs_clean = tfloat(
             logprobs_clean, float_type=self.float, device=self.device
         )
-        logprobs_valid = tbool(logprobs_valid, device=self.device)
+        logprobs_valid = tbool(logprobs_clean != tensor_inf, device=self.device)
         return logprobs_clean, logprobs_valid
 
     def get_done(self) -> TensorType["n_states"]:
