@@ -5,7 +5,7 @@ import torch
 from utils_for_tests import ch_tmpdir, load_base_test_config
 
 from gflownet.utils.batch import compute_logprobs_trajectories
-from gflownet.utils.common import gflownet_from_config
+from gflownet.utils.common import gflownet_from_config, tfloat
 
 
 @pytest.fixture
@@ -78,10 +78,16 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
-    # Create a copy with empty logrpobs
+    # Create a copy with placeholder logprobs and unavailable logprobs
     batch_no_lp = copy(batch)
-    batch_no_lp.logprobs_forward = [None] * len(batch)
-    batch_no_lp.logprobs_backward = [None] * len(batch)
+    batch_no_lp.logprobs_forward = [
+        tfloat(2.0, device=gfn.device, float_type=gfn.float)
+    ] * len(batch)
+    batch_no_lp.logprobs_forward_avail = [False] * len(batch)
+    batch_no_lp.logprobs_backward = [
+        tfloat(2.0, device=gfn.device, float_type=gfn.float)
+    ] * len(batch)
+    batch_no_lp.logprobs_backward_avail = [False] * len(batch)
 
     if n_forward > 0 or (collect_reversed_logprobs and n_train > 0):
         assert batch.logprobs_forward != batch_no_lp.logprobs_forward
@@ -214,15 +220,15 @@ def test__logprobs_validity(
     logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
     actions = batch.get_actions()
 
-    # Check that non-valid logprobs are zeros, and that logprob_bkw(eos) == 0 and valid
+    # Check that non-valid logprobs are 2.0, and that logprob_bw(eos) == 0 and valid
     for lp, val in zip(logpobs_fw_from_batch.tolist(), logprobs_fw_valid.tolist()):
         if not val:
-            assert lp == 0.0
+            assert lp == 2.0
     for lp, val, act in zip(
         logpobs_bw_from_batch.tolist(), logprobs_bw_valid.tolist(), actions
     ):
         if not val:
-            assert lp == 0.0
+            assert lp == 2.0
         if act == gfn.env.eos:
             assert lp == 0.0
             assert val
