@@ -511,6 +511,11 @@ class GFlowNetEnv:
         Replaces the rows of `policy_outputs` by a vector corresponding to a random
         sampling policy with the probability indicated by `probability_random_action`.
 
+        Note that the tensor of policy outputs is not cloned if neither tempering nor
+        random actions are incorporated. This implies that the original tensor of
+        policy outputs may be modified by subsequent methods (namely
+        sample_actions_batch()), for example to mask the invalid actions.
+
         Parameters
         ----------
         policy_outputs : tensor
