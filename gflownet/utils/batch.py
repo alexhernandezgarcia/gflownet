@@ -1929,6 +1929,23 @@ class Batch:
         indices = self.get_indices_of_previous_transitions(envs, backward)
         return [self.actions[idx] if idx is None else None for idx in indices]
 
+    def zero_logprobs(self):
+        """
+        Zero out logprobs in the batch to enforce their recomputation
+        """
+        if self._logprobs_available:
+            self.logprobs_forward = torch.zeros_like(self.logprobs_forward)
+            self.logprobs_forward_valid = torch.zeros_like(self.logprobs_forward_valid)
+            self.logprobs_backward = torch.zeros_like(self.logprobs_backward)
+            self.logprobs_backward_valid = torch.zeros_like(
+                self.logprobs_backward_valid
+            )
+        else:
+            self.logprobs_forward = [None] * len(self.logprobs_forward)
+            self.logprobs_forward_valid = [False] * len(self.logprobs_forward)
+            self.logprobs_backward = [None] * len(self.logprobs_backward)
+            self.logprobs_backward_valid = [False] * len(self.logprobs_backward)
+
 
 def compute_logprobs_trajectories(
     batch: Batch,
