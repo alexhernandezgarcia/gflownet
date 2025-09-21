@@ -486,7 +486,7 @@ class Batch:
         policy: Optional[bool] = False,
         proxy: Optional[bool] = False,
         force_recompute: Optional[bool] = False,
-        index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+        indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
     ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
         """
         Returns all the states in the batch.
@@ -509,15 +509,15 @@ class Batch:
             If True, the policy states are recomputed even if they are available.
             Ignored if policy is False.
 
-        index: list, tuple, tensor or np.ndarray
-            1-dimentional sequence of bacth indecies for selecting states, optional.
+        indices: list, tuple, tensor or np.ndarray
+            1-dimensional sequence of batch indices for selecting states, optional.
             If None (default), all the states will be returned.
 
         Returns
         -------
         self.states or self.states_policy or self.states2proxy(self.states) : list or
         torch.tensor or ndarray
-            The set of states in the selected format with the selected index. If index is
+            The set of states in the selected format with the selected indices. If indices is
             None, all states of the batch are returned.
         """
         if policy is True and proxy is True:
@@ -527,10 +527,10 @@ class Batch:
         if policy is True:
             if self.states_policy is None or force_recompute is True:
                 self.states_policy = self.states2policy()
-            return select_indices(self.states_policy, index)
+            return select_indices(self.states_policy, indices)
         if proxy is True:
-            return select_indices(self.states2proxy(), index)
-        return select_indices(self.states, index)
+            return select_indices(self.states2proxy(), indices)
+        return select_indices(self.states, indices)
 
     def states2policy(
         self,
@@ -643,24 +643,24 @@ class Batch:
 
     def get_actions(
         self,
-        index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+        indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
     ) -> List:
         """
         Returns the actions in the batch.
 
         Parameters
         ----------
-        index: list, tuple, tensor or np.ndarray
+        indices: list, tuple, tensor or np.ndarray
             1-dimentional sequence of bacth indecies for selecting actions, optional.
             If None (default), all the actions will be returned.
 
         Returns
         -------
         list
-            The list of actions in the batch with selected index. If index is None,
+            The list of actions in the batch with selected indices. If indices is None,
             all the actions will be returned.
         """
-        return select_indices(self.actions, index)
+        return select_indices(self.actions, indices)
 
     def get_logprobs(
         self, backward: bool = False
@@ -710,9 +710,30 @@ class Batch:
         )
         self._logprobs_available = True
 
-    def _logprobs_to_clean_tensor(self, logprobs, logprobs_valid):
+    def _logprobs_to_clean_tensor(self, logprobs: List, logprobs_valid: List[bool]):
         """
         Convert logprobs and logprobs_valid to tensors and update validity flags
+
+        Parameters
+        ----------
+        logprobs: list
+            A list of logprobs collected over a sequence of add_to_batch calls. The
+            elements could be None or a single-number torch.tensor attached or detached
+            from a computations graph collected to the loss
+        logprobs_valid: list of bools
+            A list of validity flags collected over a sequence of add_to_batch calls which
+            indicate whether the corresponding element in the logprobs list is a valid
+            logprob (True) or not (False). When the flag is False, the corresponding logprob
+            is either None or torch.tensor(0.0) detached from the computational graph.
+
+        Returns
+        -------
+        logprobs_clean : tensor
+            A 1-d float tensor with logprobs, where all valid logprobs remain connected
+            to their computational graphs and all non-valid logprobs are zeros.
+        logprobs_valid : tensor
+            A 1-d boolean tesor with flags indicating whether the corresponding element
+            in the logprobs is a valid logprob (True) or not (False).
         """
         if any(x is None for x in logprobs):
             logprobs_clean = []
@@ -743,7 +764,7 @@ class Batch:
         self,
         policy: Optional[bool] = False,
         force_recompute: Optional[bool] = False,
-        index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+        indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
     ) -> TensorType["n_states", "..."]:
         """
         Returns the parent (single parent for each state) of all states in the batch.
@@ -763,14 +784,14 @@ class Batch:
         force_recompute : bool
             If True, the parents are recomputed even if they are available.
 
-        index: list, tuple, tensor or np.ndarray
+        indices: list, tuple, tensor or np.ndarray
             1-dimentional sequence of bacth indecies for selecting parents, optional.
             If None (default), the parents of all states in the batch will be returned.
 
         Returns
         -------
         self.parents or self.parents_policy : torch.tensor
-            The parent of states selected by index. If index is None, the parents of
+            The parent of states selected by indices. If indices is None, the parents of
             all states in the batch are returned.
         """
         if self._parents_available is False or force_recompute is True:
@@ -778,26 +799,31 @@ class Batch:
         if policy:
             if self._parents_policy_available is False or force_recompute is True:
                 self._compute_parents_policy()
-            return select_indices(self.parents_policy, index)
+            return select_indices(self.parents_policy, indices)
         else:
-            return select_indices(self.parents, index)
+            return select_indices(self.parents, indices)
 
-    def get_parents_indices(self, index=None):
+    def get_parents_indices(self, indices=None):
         """
         Returns the indices of the parents of the states in the batch.
 
-        Each i-th item in the returned list contains the index in self.states that
+        Each i-th item in the returned list contains the indices in self.states that
         contains the parent of self.states[i], if it is present there. If a parent
-        is not present in self.states (because it is the source), the index is -1.
+        is not present in self.states (because it is the source), the indices is -1.
 
         Returns
         -------
         self.parents_indices
             The indices in self.states of the parents of self.states.
+
+        indices: list, tuple, tensor or np.ndarray
+            1-dimentional sequence of bacth indecies for selecting parents indices,
+            optional. If None (default), the indices of parents of all states in the
+            batch will be returned.
         """
         if self._parents_available is False:
             self._compute_parents()
-        return select_indices(self.parents_indices, index)
+        return select_indices(self.parents_indices, indices)
 
     def _compute_parents(self):
         """
@@ -997,7 +1023,7 @@ class Batch:
         self,
         of_parents: bool = False,
         force_recompute: bool = False,
-        index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+        indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
         Returns the forward mask of invalid actions of all states in the batch or of
@@ -1014,14 +1040,14 @@ class Batch:
         force_recompute : bool
             If True, the masks are recomputed even if they are available.
 
-        index: list, tuple, tensor or np.ndarray
+        indices: list, tuple, tensor or np.ndarray
             1-dimentional sequence of bacth indecies for selecting masks, optional.
             If None (default), the masks of all states in the batch will be returned.
 
         Returns
         -------
         self.masks_invalid_actions_forward : torch.tensor
-            The forward mask of the selected states (by index). If index is None, the
+            The forward mask of the selected states (by indices). If indices is None, the
             masks of all states in the batch will be returned.
         """
         if self._masks_forward_available is False or force_recompute is True:
@@ -1053,8 +1079,8 @@ class Batch:
             masks_invalid_actions_forward_parents[parents_indices != -1] = (
                 masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
             )
-            return select_indices(masks_invalid_actions_forward_parents, index)
-        return select_indices(masks_invalid_actions_forward, index)
+            return select_indices(masks_invalid_actions_forward_parents, indices)
+        return select_indices(masks_invalid_actions_forward, indices)
 
     def _compute_masks_forward(self):
         """
@@ -1080,7 +1106,7 @@ class Batch:
     def get_masks_backward(
         self,
         force_recompute: bool = False,
-        index: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+        indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
         Returns the backward mask of invalid actions of all states in the batch. The
@@ -1092,20 +1118,20 @@ class Batch:
         force_recompute : bool
             If True, the masks are recomputed even if they are available.
 
-        index: list, tuple, tensor or np.ndarray
+        indices: list, tuple, tensor or np.ndarray
             1-dimentional sequence of bacth indecies for selecting masks, optional.
             If None (default), the masks of all states in the batch will be returned.
 
         Returns
         -------
         self.masks_invalid_actions_backward : torch.tensor
-            The backward mask of the selected states (by index). If index is None, the
+            The backward mask of the selected states (by indices). If indices is None, the
             masks of all states in the batch will be returned.
         """
         if self._masks_backward_available is False or force_recompute is True:
             self._compute_masks_backward()
         masks = tbool(self.masks_invalid_actions_backward, device=self.device)
-        return select_indices(masks, index)
+        return select_indices(masks, indices)
 
     def _compute_masks_backward(self):
         """
@@ -1981,16 +2007,16 @@ def compute_logprobs_trajectories(
 
         # Get necessary tensors from batch
 
-        states = batch.get_states(policy=False, index=indices_nonvalid)
-        actions = batch.get_actions(index=indices_nonvalid)
+        states = batch.get_states(policy=False, indices=indices_nonvalid)
+        actions = batch.get_actions(indices=indices_nonvalid)
 
-        parents = batch.get_parents(policy=False, index=indices_nonvalid)
+        parents = batch.get_parents(policy=False, indices=indices_nonvalid)
 
-        states_policy = batch.get_states(policy=True, index=indices_nonvalid)
-        parents_policy = batch.get_parents(policy=True, index=indices_nonvalid)
+        states_policy = batch.get_states(policy=True, indices=indices_nonvalid)
+        parents_policy = batch.get_parents(policy=True, indices=indices_nonvalid)
         if backward:
             # Backward trajectories
-            masks_b = batch.get_masks_backward(index=indices_nonvalid)
+            masks_b = batch.get_masks_backward(indices=indices_nonvalid)
             policy_output_b = backward_policy(states_policy)
             logprobs_states_val = env.get_logprobs(
                 policy_output_b, actions, masks_b, states, backward
@@ -2001,7 +2027,7 @@ def compute_logprobs_trajectories(
                 logprobs_states[indices_nonvalid] = logprobs_states_val
         else:
             # Forward trajectories
-            masks_f = batch.get_masks_forward(of_parents=True, index=indices_nonvalid)
+            masks_f = batch.get_masks_forward(of_parents=True, indices=indices_nonvalid)
             policy_output_f = forward_policy(parents_policy)
             logprobs_states_val = env.get_logprobs(
                 policy_output_f, actions, masks_f, parents, backward
