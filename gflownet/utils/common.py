@@ -4,9 +4,10 @@ from copy import deepcopy
 from functools import partial
 from os.path import expandvars
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import get_original_cwd, instantiate
@@ -773,3 +774,40 @@ def example_documented_function(arg1, arg2):
     if arg1 == arg2:
         raise ValueError("arg1 must not be equal to arg2")
     return True
+
+
+def select_indices(
+    iterable: Union[List, Tuple, TensorType, npt.NDArray],
+    indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+):
+    """
+    Select elements form iterable
+
+    Parameters
+    ----------
+    iterable: list, tuple, tensor or np.ndarray
+        An iterable to select elements from. It can have multiple dimensions
+        and selection is always preformed over the first dimension
+    indices: list, tuple, tensor or np.ndarray
+        1-dimentional sequence of indecies for selecting elements, optional. If None,
+        the iterable will be returned as is. Default None
+
+    Returns
+    -------
+    list, tuple, tensor or np.ndarray
+        A sequence of selected elements. The type of the returned sequence is
+        the same as the type of the input iterable
+    """
+    if indices is None:
+        return iterable
+    if isinstance(iterable, (list, tuple)):
+        result = [iterable[idx] for idx in indices]
+        if isinstance(iterable, tuple):
+            result = tuple(result)
+        return result
+    elif torch.is_tensor(iterable) or isinstance(iterable, np.ndarray):
+        if isinstance(indices, tuple):
+            indices = list(indices)
+        return iterable[indices]
+    else:
+        raise Exception(f"Cannot select elements from {type(iterable)}")
