@@ -381,13 +381,16 @@ class BaseBuffer:
         self.replay : The updated replay buffer
         """
         for sample, traj, value in zip(samples, trajectories, values):
-            self._add_greater_single_sample(sample, traj, value, do_update, it)
+            if do_update:
+                self._add_greater_update_single_sample(sample, traj, value, it)
+            else:
+                self._add_greater_single_sample(sample, traj, value, it)
         self.save_replay()
         return self.replay
 
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
-    def _add_greater_single_sample(self, sample, trajectory, value, do_update, it):
+    def _add_greater_single_sample(self, sample, trajectory, value, it):
         """
         Adds a single sample (with the trajectory actions and value) to the buffer
         if the state value is larger than the minimum value in the buffer.
@@ -403,8 +406,6 @@ class BaseBuffer:
             A list of trajectory actions of leading to the terminating state.
         value : float
             The value (reward or loss) associated to the terminating state.
-        do_update : bool
-            Whether equal or similar samples should be updated.
         it : int
             Iteration number.
 
@@ -416,36 +417,28 @@ class BaseBuffer:
         # initialize to False for now.
         if len(self.replay) < self.replay_capacity:
             can_add = True
-            index_update = -1
+            index_min = -1
         else:
             can_add = False
 
         # If the buffer is full (can_add is False), check if the value is larger than
         # the minimum value in the buffer. If so, set can_add to True, which may result
-        # in dropping the sample with the minimum value. If do_update is True, a sample
-        # can be added to the buffer too. Otherwise, return.
+        # in dropping the sample with the minimum value. Otherwise, return.
         if not can_add:
-            index_update = self.replay.index[self.replay["values"].argmin()]
-            if do_update:
-                can_add = True
-            elif value > self.replay["values"].loc[index_update]:
+            index_min = self.replay.index[self.replay["values"].argmin()]
+            if value > self.replay["values"].loc[index_min]:
                 can_add = True
             else:
                 return
 
         # Check whether the sample is close to any sample already present in the buffer
-        # If do_update is True, set the first close sample found as the index to drop.
         # Otherwise, return immediately since the buffer should not be updated.
-        if do_update or self.check_diversity:
+        if self.check_diversity:
             # If the value similarity is negative, compare with the full replay buffer
             if self.diversity_check_value_similarity < 0.0:
                 for idx, rsample in enumerate(self.replay["samples"]):
                     if self.env.isclose(sample, rsample):
-                        if do_update:
-                            idx_update = idx
-                            break
-                        else:
-                            return
+                        return
             # Otherwise, compare only with samples with similar value
             else:
                 values_range = self.replay["values"].max() - self.replay["values"].min()
@@ -456,10 +449,103 @@ class BaseBuffer:
                     if self.env.isclose(sample, rsample):
                         return
 
-        # If index_update is larger than zero, drop the sample with the minimum value`
-        if index_update >= 0:
-            self.replay.drop(self.replay.index[index_update], inplace=True)
+        # If index_min is larger than zero, drop the sample with the minimum value`
+        if index_min >= 0:
+            self.replay.drop(self.replay.index[index_min], inplace=True)
 
+        # Add the sample to the buffer
+        self.replay_updated = True
+        if torch.is_tensor(sample):
+            sample = sample.tolist()
+        if torch.is_tensor(trajectory):
+            trajectory = trajectory.tolist()
+        if torch.is_tensor(value):
+            value = value.item()
+        self.replay = pd.concat(
+            [
+                self.replay,
+                pd.DataFrame(
+                    {
+                        "samples": [sample],
+                        "trajectories": [trajectory],
+                        "values": [value],
+                        "iter": [it],
+                        "samples_readable": [self.env.state2readable(sample)],
+                        "trajectories_readable": [self.env.traj2readable(trajectory)],
+                    }
+                ),
+            ],
+            ignore_index=True,
+        )
+
+    # TODO: there may be issues with certain state types
+    # TODO: add parameter(s) to control isclose()
+    def _add_greater_update_single_sample(self, sample, trajectory, value, it):
+        """
+        Adds a single sample (with the trajectory actions and value) to the buffer
+        if the state value is larger than the minimum value in the buffer.
+
+        Additionally, the following mechanism is followed: If the state is equal or
+        similar to a state already in the buffer, the state and value are replaced
+        unless the value is smaller than the minimum value in the buffer, in which case
+        the existing matching state is dropped. This is done under the assumption that
+        the existing state and value are obsolete and the new state and value do not
+        meet the criteria to be in the bufffer.
+
+        For example, if the buffer as states and values (A, 10) and (B, 20) with
+        capacity 2 (full), we can consider the following situations for candidate
+        states and values:
+            - (C, 5): do not add because the state is not in the buffer and the value
+              is smaller than the minimum in the buffer.
+            - (C, 15): add because the value is larger than the minimum in the buffer.
+              Replace (A, 10).
+            - (B, 25): add because the state is already in the buffer and the value is
+              greater than the currently stored value. Replace (B, 20).
+            - (B, 15): add because the state is already in the buffer and the value is
+              greater than the minimum in the buffer. Replace (B, 20).
+            - (B, 5): do not add because the state although already in the buffer, the
+              value is smaller than the minimum in the buffer. However, drop (B, 20)
+              from the buffer.
+
+        Parameters
+        ----------
+        samples : list, tensor, array, dict
+            A terminating state.
+        trajectory : list
+            A list of trajectory actions of leading to the terminating state.
+        value : float
+            The value (reward or loss) associated to the terminating state.
+        it : int
+            Iteration number.
+
+        Returns
+        -------
+        self.replay : The updated replay buffer
+        """
+        # Check whether the sample is close to any sample already present in the buffer
+        # If a match is found, drop it and return if the new value is smaller than the
+        # minimum in the buffer, otherwise, replace just drop it and it will be
+        # replaced.
+        for idx, rsample in enumerate(self.replay["samples"]):
+            if self.env.isclose(sample, rsample):
+                self.replay.drop(self.replay.index[idx], inplace=True)
+                if value < self.replay["values"].min():
+                    return
+                else:
+                    break
+
+        # If the buffer is full but the value is smaller than the minimum value in the
+        # buffer, then drop the sample with minimum value to add the new one.
+        if len(self.replay) >= self.replay_capacity:
+            index_min = self.replay.index[self.replay["values"].argmin()]
+            if value > self.replay["values"].loc[index_min]:
+                self.replay.drop(self.replay.index[index_update], inplace=True)
+            else:
+                return
+        else:
+            return
+
+        # TODO: make separate method common to all
         # Add the sample to the buffer
         self.replay_updated = True
         if torch.is_tensor(sample):
