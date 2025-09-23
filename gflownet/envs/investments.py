@@ -3,10 +3,11 @@ Climate-economics environment:
 Discrete investment options
 """
 
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union, Dict
 
 import torch
 import torch.nn.functional as F
+from sympy.physics.quantum import state
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
@@ -204,13 +205,11 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         self.idx2token_amounts = {idx + 1: token for idx, token in enumerate(self.amounts)}
         self.token2idx_amounts = {token: idx for idx, token in enumerate(self.idx2token_techs.items())}
         # Source state: undefined investment
-        #self.source = {'SECTOR': 0,
-        #               'TAG': 0,
-        #               'TECH': 0,
-        #               'AMOUNT': 0,
-        #               }
-        self.source = [0,0,0,0]
-        self.state_names = ['SECTOR', 'TAG', 'TECH', 'AMOUNT']
+        self.source = {'SECTOR': 0,
+                       'TAG': 0,
+                       'TECH': 0,
+                       'AMOUNT': 0,
+                       }
 
         self.network_structure = {
             "sector2tag": ALLOWED_SECTOR2TAGS,
@@ -218,8 +217,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             "sector2tech": ALLOWED_SECTOR2TECH,
             "tag2tech": ALLOWED_TAG2TECH,
         }
-        # DO WE NEED AN END OF SEQUENCE ACTION?
-        # self.eos = (self.eos_idx,)
+
+        self.eos = (-1,-1)
 
         # Base class init
         super().__init__(**kwargs)
@@ -238,12 +237,13 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             (self.token2idx_choices['SECTOR'], self.token2idx_sectors[token_S]) for token_S in self.sectors] + [
             (self.token2idx_choices['TAG'], self.token2idx_tags[token_t]) for token_t in self.tags] + [
             (self.token2idx_choices['TECH'], self.token2idx_techs[token_T]) for token_T in self.techs] + [
-            (self.token2idx_choices['AMOUNT'], self.token2idx_amounts[token_A]) for token_A in self.amounts]
+            (self.token2idx_choices['AMOUNT'], self.token2idx_amounts[token_A]) for token_A in self.amounts] + [
+            self.eos]
         return all_actions
 
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[List[int]] = None,
+        state: Optional[Dict] = None,
         done: Optional[bool] = None,
     ) -> List[bool]:
         """
@@ -270,31 +270,36 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         mask = [False for _ in range(self.action_space_dim)]
         flags = []
 
-        assigned = [i for i, val in enumerate(state) if val != 0]
+        assigned = self.get_assigned_attributes(state)
+        if self.well_defined_investment(state): #if you have tech and amount only eos
+            mask = [True for _ in range(self.action_space_dim)]
+            mask[-1] = False
+            return mask
+        mask[-1] = True #eos only if TECH and AMOUNT are both assigned
+
         for a in assigned: #what is already set cannot be changed
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if x == a)
+            flags.extend(i for i, (x, y) in enumerate(self.action_space) if self.idx2token_choices[x] == a)
 
-        if (state[self.state_names.index('TECH')]!=0): #If the tech is set, only the amount can be chosen
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if x != self.state_names.index('AMOUNT'))
+        if 'TECH' in assigned:#If the tech is set, only the amount can be chosen
+            flags.extend(i for i, (x, y) in enumerate(self.action_space) if self.idx2token_choices[x] != 'AMOUNT')
 
-        if (state[self.state_names.index('SECTOR')] != 0): #if the sector is set, choose only a compatible tech
-            allowed_techs = self.network_structure['sector2tech'][
-                self.state_names[state[self.state_names.index('SECTOR')]]]
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (x == self.state_names.index('TECH') and not
-                                                                          self.idx2token_techs[y] in allowed_techs))
-            if (state[self.state_names.index('TAG')] == 0): #if the sector is chosen and the tag not, choose only a compatible tag
-                allowed_tags = self.network_structure['sector2tags'][self.state_names[state[self.state_names.index('SECTOR')]]]
-                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (x == self.state_names.index('TAG') and not
-                                                                             self.idx2token_tags[y] in allowed_tags))
+        if 'SECTOR' in assigned: #if the sector is set, choose only a compatible tech
+            allowed_techs = self.network_structure['sector2tech'][self.idx2token_sectors[state['SECTOR']]]
+            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TECH' and not
+                                                                            self.idx2token_techs[y] in allowed_techs))
+            if 'TAG' not in assigned: #if the sector is chosen and the tag not, choose only a compatible tag
+                allowed_tags =self.network_structure['sector2tags'][self.idx2token_sectors[state['SECTOR']]]
+                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TAG' and not
+                                                                                self.idx2token_tags[y] in allowed_tags))
 
-        if (state[self.state_names.index('TAG')] != 0): #if the taf is set, choose only a compatible tech
-            allowed_techs = self.network_structure['tag2tech'][self.state_names[state[self.state_names.index('TAG')]]]
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (x == self.state_names.index('TECH') and not
-                                                                        self.idx2token_techs[y] in allowed_techs))
-            if (state[self.state_names.index('SECTOR')] == 0): #if the tag is set and the sector not, choose only a compatible sector
-                allowed_sectors = self.network_structure['tags2sector'][self.state_names[state[self.state_names.index('TAG')]]]
-                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (x == self.state_names.index('SECTOR') and not
-                                                                             self.idx2token_sectors[y] in allowed_sectors))
+        if 'TAG' in assigned: #if the tag is set, choose only a compatible tech
+            allowed_techs = self.network_structure['tag2tech'][self.idx2token_tags[state['TAG']]]
+            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TECH' and not
+                                                                            self.idx2token_techs[y] in allowed_techs))
+            if 'SECTOR' not in assigned:
+                allowed_sectors = self.network_structure['tags2sector'][self.idx2token_sectors[state['TAG']]]
+                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'SECTOR' and not
+                                                                                self.idx2token_sectors[y] in allowed_sectors))
 
         for f in set(flags):
             mask[f] = True
@@ -302,7 +307,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
 
     def get_parents(
         self,
-        state: Optional[List[int]] = None,
+        state: Optional[Dict] = None,
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
@@ -333,30 +338,32 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             environment has a single parent per state.
         """
         state = self._get_state(state)
-
+        done = self._get_done(done)
+        if done:
+            return [state], [self.eos]
         if self.equal(state, self.source):
             return [], []
 
-        assigned = [i for i, val in enumerate(state) if val != 0]
+        assigned = self.get_assigned_attributes(state)
 
         parents = []
         actions = []
         # Parents are the ones who could have assigned each value
         # exceptions: if the tech is already assigned, sector and tag had to be previously assigned
         for a in assigned:
-            if (self.state_names[a] == 'SECTOR' and state[self.state_names.index('TECH')] != 0) or (self.state_names[a] == 'TAG' and state[self.state_names.index('TECH')] != 0):
+            if (a == 'SECTOR' and 'TECH' in assigned) or (a == 'TAG' and 'TECH' in assigned):
                 continue
             temp_state = copy(state)
             temp_state[a] = 0
             parents.append(copy(temp_state))
-            temp_action = (a, state[a])
+            temp_action = (self.token2idx_choices[a], state[a])
             actions.append(copy(temp_action))
 
         return parents, actions
 
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
-    ) -> [List[int], Tuple[int], bool]:
+    ) -> [Dict, Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -372,7 +379,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
 
         Returns
         -------
-        self.state : list
+        self.state : Dictionary
             The sequence after executing the action
 
         action : tuple
@@ -381,7 +388,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, exit immediately <- CHECK WITH ALEX
+
         if self.done:
             return self.state, action, False
 
@@ -392,16 +399,19 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
+        if action == self.eos: #if eos check investment first
+            if self.well_defined_investment():
+                self.done = True
+                return self.state, action, True
+            else:
+                return self.state, action, False
+
         valid = True
         self.n_actions += 1
 
         # read the choice, and apply the value
-        #self.state[self.idx2token_choices[action[0]]] = action[1] # WORKS ON DICTIONARY
-        self.state[action[0]] = action[1]
+        self.state[self.idx2token_choices[action[0]]] = action[1]
 
-        #check if action is complete
-        if self.state[self.state_names.index('TECH')] != 0 and self.state[self.state_names.index('AMOUNT')] != 0:
-            self.done = True
         return self.state, action, valid
 
     def _get_max_trajectory_length(self) -> int:
@@ -522,3 +532,12 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         for idx, length in enumerate(lengths):
             samples[idx, length:] = 0
         return samples.tolist()
+
+    def well_defined_investment(self, state: Optional[Dict] = None,) -> bool:
+        state = self._get_state(state)
+        assigned = self.get_assigned_attributes(state)
+        return ('TECH' in assigned and 'AMOUNT' in assigned)
+
+    def get_assigned_attributes(self, state: Optional[Dict] = None,) -> List[str]:
+        state = self._get_state(state)
+        return [key for key, value in state.items() if value != 0]
