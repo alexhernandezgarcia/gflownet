@@ -963,7 +963,7 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses.values()]):
+                if not torch.isfinite(losses["all"]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
@@ -1077,10 +1077,16 @@ class GFlowNetAgent:
             )
 
         # Update replay buffer
+        # TODO: improve handling of losses depending on loss
+        if self.loss.id in ["trajectorybalance", "vargrad"]:
+            losses_buffer = losses["units"]
+        else:
+            loss_buffer = None
         self.buffer.add(
             states_term,
             actions_trajectories,
             rewards,
+            losses_buffer,
             self.it,
             buffer="replay",
         )
