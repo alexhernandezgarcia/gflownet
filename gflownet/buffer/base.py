@@ -35,11 +35,12 @@ class BaseBuffer:
         datadir: Union[str, PosixPath],
         replay_buffer: Union[str, PosixPath] = None,
         replay_capacity: int = 0,
+        replay_criterion: str = "reward",
         train: Dict = None,
         test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
-        diversity_check_reward_similarity: float = 0.1,
+        diversity_check_value_similarity: float = 0.1,
         progress_process_dataset: bool = False,
         **kwargs,
     ):
@@ -60,6 +61,11 @@ class BaseBuffer:
         replay_capacity : int
             Size of the replay buffer. By default, it is zero, thus no replay buffer is
             used.
+        replay_criterion : str
+            The identifier of the criterion to be used to dynamically maintain the
+            replay buffer. The valid options are:
+                - reward[s]: the replay buffer stores samples with the largest rewards.
+                - loss[es]: the replay buffer stores samples with the largest loss.
         train : dict
             A dictionary describing the training data. The dictionary can have the
             following keys:
@@ -91,14 +97,14 @@ class BaseBuffer:
             for the comparison. It is False by default because this comparison can
             easily take most of the running time with an uncertain impact on the
             performance. The implementation should be improved to make this functional.
-        diversity_check_reward_similarity : float
-            The accepted level of similarity of rewards to include samples from the
-            replay buffer in the diversity check. Assuming check_diversity is True,
-            given a sample x with reward R(x), the diversity check will only be
-            performed against those samples in the replay buffer whose reward
-            difference with respect to R(x) is smaller than
-            diversity_check_reward_similarity times the difference between the maximum
-            reward and the minimum reward in the replay buffer. By default, it is 0.1.
+        diversity_check_value_similarity : float
+            The accepted level of similarity of rewards or losses to include samples
+            from the replay buffer in the diversity check. Assuming check_diversity is
+            True, given a sample x with reward value y, the diversity check will only
+            be performed against those samples in the replay buffer whose value
+            difference with respect to y is smaller than
+            diversity_check_value_similarity times the difference between the maximum
+            value and the minimum value in the replay buffer. By default, it is 0.1.
             If the value is -1 (or smaller than 0.0), then the diversity check will be
             done with the full replay buffer. Note too that a value of 0.0 is
             equivalent to not doing any diversity check at all.
@@ -110,11 +116,12 @@ class BaseBuffer:
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
+        self.replay_criterion = replay_criterion
         self.train_config = self._process_data_config(train)
         self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
         self.check_diversity = check_diversity
-        self.diversity_check_reward_similarity = diversity_check_reward_similarity
+        self.diversity_check_value_similarity = diversity_check_value_similarity
         self.progress_process_dataset = progress_process_dataset
         if self.use_main_buffer:
             self.main = pd.DataFrame(
@@ -268,6 +275,7 @@ class BaseBuffer:
         samples,
         trajectories,
         rewards: Union[List, TensorType],
+        losses: TensorType,
         it,
         buffer="main",
         criterion="greater",
@@ -283,15 +291,24 @@ class BaseBuffer:
             The list of trajectory actions of each terminating state.
         rewards : list or tensor
             The reward of each terminating state.
+        losses : list or tensor
+            The loss of each trajectory if they are available; otherwise None.
         it : int
             Iteration number.
         buffer : str
             Identifier of the buffer: main or replay
-        criterion : str
-            Identifier of the criterion. Currently, only greater is implemented.
         """
-        if torch.is_tensor(rewards):
-            rewards = rewards.tolist()
+        if self.replay_criterion.startswith("reward"):
+            if torch.is_tensor(rewards):
+                values = rewards.tolist()
+        elif self.replay_criterion.startswith("loss") and torch.is_tensor(losses):
+            if torch.is_tensor(losses):
+                values = losses.detach().tolist()
+        else:
+            raise ValueError(
+                f"Unknown criterion identifier. Received {buffer}, "
+                "expected reward or loss"
+            )
 
         if buffer == "main":
             self.main = pd.concat(
@@ -303,7 +320,7 @@ class BaseBuffer:
                             "trajectories": [
                                 self.env.traj2readable(t) for t in trajectories
                             ],
-                            "rewards": rewards,
+                            "values": values,
                             "iter": it,
                         }
                     ),
@@ -314,12 +331,14 @@ class BaseBuffer:
         elif buffer == "replay":
             if self.replay_capacity > 0:
                 self.replay_updated = False
-                if criterion == "greater":
+                if self.replay_criterion.startswith("reward"):
                     self.replay = self._add_greater(samples, trajectories, rewards, it)
+                elif self.replay_criterion.startswith("loss"):
+                    self.replay = self._add_greater(samples, trajectories, losses, it)
                 else:
                     raise ValueError(
                         f"Unknown criterion identifier. Received {buffer}, "
-                        "expected greater"
+                        "expected reward or loss"
                     )
         else:
             raise ValueError(
@@ -333,13 +352,14 @@ class BaseBuffer:
         self,
         samples: List,
         trajectories: List,
-        rewards: List,
+        values: List,
+        do_update: bool,
         it: int,
     ):
         """
-        Adds a batch of samples (with the trajectory actions and rewards) to the buffer
-        if the state reward is larger than the minimum reward in the buffer and the
-        trajectory is not yet in the buffer.
+        Adds a batch of samples, with the trajectory actions and values (rewards or
+        losses) to the buffer if the value is larger than the minimum value in
+        the buffer.
 
         Parameters
         ----------
@@ -347,8 +367,12 @@ class BaseBuffer:
             A batch of terminating states.
         trajectories : list
             The list of trajectory actions of each terminating state.
-        rewards : list
-            The reward of each terminating state.
+        values : list
+            The relevant value associated to of each terminating state. Depending on
+            the criterion used to maintain the buffer, the values may be rewards or
+            losses.
+        do_update : bool
+            If True, equal or similar samples will be updated if the value is greater.
         it : int
             Iteration number.
 
@@ -356,21 +380,20 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
-        for sample, traj, reward in zip(samples, trajectories, rewards):
-            self._add_greater_single_sample(sample, traj, reward, it)
+        for sample, traj, value in zip(samples, trajectories, values):
+            self._add_greater_single_sample(sample, traj, value, do_update, it)
         self.save_replay()
         return self.replay
 
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
-    def _add_greater_single_sample(self, sample, trajectory, reward, it):
+    def _add_greater_single_sample(self, sample, trajectory, value, do_update, it):
         """
-        Adds a single sample (with the trajectory actions and reward) to the buffer
-        if the state reward is larger than the minimum reward in the buffer and the
-        trajectory is not yet in the buffer.
+        Adds a single sample (with the trajectory actions and value) to the buffer
+        if the state value is larger than the minimum value in the buffer.
 
-        If the sample is similar to any sample already present in the buffer, then the
-        sample will not be added.
+        If the sample and value are similar to any sample already present in the
+        buffer, then the sample will not be added.
 
         Parameters
         ----------
@@ -378,8 +401,10 @@ class BaseBuffer:
             A terminating state.
         trajectory : list
             A list of trajectory actions of leading to the terminating state.
-        reward : float
-            The reward of the terminating state.
+        value : float
+            The value (reward or loss) associated to the terminating state.
+        do_update : bool
+            Whether equal or similar samples should be updated.
         it : int
             Iteration number.
 
@@ -387,46 +412,53 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
-        # If the buffer is not full, sample can be added to the buffer
+        # If the buffer is not full, sample can be added to the buffer. Otherwise,
+        # initialize to False for now.
         if len(self.replay) < self.replay_capacity:
             can_add = True
-            index_min = -1
+            index_update = -1
         else:
             can_add = False
 
-        # If the buffer is full (can_add is False), check if the reward is larger than
-        # the minimum reward in the buffer. If so, set can_add to True, which may
-        # result in dropping the sample with the minimum reward. Otherwise, return.
+        # If the buffer is full (can_add is False), check if the value is larger than
+        # the minimum value in the buffer. If so, set can_add to True, which may result
+        # in dropping the sample with the minimum value. If do_update is True, a sample
+        # can be added to the buffer too. Otherwise, return.
         if not can_add:
-            index_min = self.replay.index[self.replay["rewards"].argmin()]
-            if reward > self.replay["rewards"].loc[index_min]:
+            index_update = self.replay.index[self.replay["values"].argmin()]
+            if do_update:
+                can_add = True
+            elif value > self.replay["values"].loc[index_update]:
                 can_add = True
             else:
                 return
 
-        # Return without adding if the sample is close to any sample already present in
-        # the buffer
-        if self.check_diversity:
-            # If the reward similarity is negative, compare with the full replay buffer
-            if self.diversity_check_reward_similarity < 0.0:
-                for rsample in self.replay["samples"]:
+        # Check whether the sample is close to any sample already present in the buffer
+        # If do_update is True, set the first close sample found as the index to drop.
+        # Otherwise, return immediately since the buffer should not be updated.
+        if do_update or self.check_diversity:
+            # If the value similarity is negative, compare with the full replay buffer
+            if self.diversity_check_value_similarity < 0.0:
+                for idx, rsample in enumerate(self.replay["samples"]):
                     if self.env.isclose(sample, rsample):
-                        return
-            # Otherwise, compare only with samples with similar reward
+                        if do_update:
+                            idx_update = idx
+                            break
+                        else:
+                            return
+            # Otherwise, compare only with samples with similar value
             else:
-                rewards_range = (
-                    self.replay["rewards"].max() - self.replay["rewards"].min()
-                )
-                max_reward_diff = self.diversity_check_reward_similarity * rewards_range
+                values_range = self.replay["values"].max() - self.replay["values"].min()
+                max_value_diff = self.diversity_check_value_similarity * values_range
                 for rsample in self.replay.loc[
-                    np.abs(self.replay["rewards"] - reward) < max_reward_diff
+                    np.abs(self.replay["values"] - value) < max_value_diff
                 ]["samples"]:
                     if self.env.isclose(sample, rsample):
                         return
 
-        # If index_min is larger than zero, drop the sample with the minimum reward
-        if index_min >= 0:
-            self.replay.drop(self.replay.index[index_min], inplace=True)
+        # If index_update is larger than zero, drop the sample with the minimum value`
+        if index_update >= 0:
+            self.replay.drop(self.replay.index[index_update], inplace=True)
 
         # Add the sample to the buffer
         self.replay_updated = True
@@ -434,8 +466,8 @@ class BaseBuffer:
             sample = sample.tolist()
         if torch.is_tensor(trajectory):
             trajectory = trajectory.tolist()
-        if torch.is_tensor(reward):
-            reward = reward.item()
+        if torch.is_tensor(value):
+            value = value.item()
         self.replay = pd.concat(
             [
                 self.replay,
@@ -443,7 +475,7 @@ class BaseBuffer:
                     {
                         "samples": [sample],
                         "trajectories": [trajectory],
-                        "rewards": [reward],
+                        "values": [value],
                         "iter": [it],
                         "samples_readable": [self.env.state2readable(sample)],
                         "trajectories_readable": [self.env.traj2readable(trajectory)],
