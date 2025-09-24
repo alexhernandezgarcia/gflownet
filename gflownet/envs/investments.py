@@ -35,45 +35,39 @@ SECTORS = tuple(
     ]
 )
 
-TAGS = tuple(
-    [
-        "GREEN",
-        "BROWN",
-        "CCS"
-    ]
-)
+TAGS = tuple(["GREEN", "BROWN", "CCS"])
 
 TECHS = tuple(
     [
-        'power_COAL_noccs',
-        'power_COAL_ccs',
-        'power_NUCLEAR',
-        'power_OIL',
-        'power_GAS_noccs',
-        'power_GAS_ccs',
-        'power_HYDRO',
-        'power_BIOMASS_noccs',
-        'power_BIOMASS_ccs',
-        'power_WIND_onshore',
-        'power_WIND_offshore',
-        'power_SOLAR',
-        'thermal_SOLAR',
-        'enduse_COAL_ccs',
-        'power_STORAGE',
-        'production_HYDROGEN',
-        'refueling_station_HYDROGEN',
-        'pipelines_HYDROGEN',
-        'DAC_liquid_sorbents',
-        'DAC_solid_sorbents',
-        'DAC_calcium_oxide',
-        'CARS_trad',
-        'CARS_hybrid',
-        'CARS_electric',
-        'CARS_fuelcell',
-        'HEAVYDUTY_trad',
-        'HEAVYDUTY_hybrid',
-        'HEAVYDUTY_electric',
-        'HEAVYDUTY_fuelcell',
+        "power_COAL_noccs",
+        "power_COAL_ccs",
+        "power_NUCLEAR",
+        "power_OIL",
+        "power_GAS_noccs",
+        "power_GAS_ccs",
+        "power_HYDRO",
+        "power_BIOMASS_noccs",
+        "power_BIOMASS_ccs",
+        "power_WIND_onshore",
+        "power_WIND_offshore",
+        "power_SOLAR",
+        "thermal_SOLAR",
+        "enduse_COAL_ccs",
+        "power_STORAGE",
+        "production_HYDROGEN",
+        "refueling_station_HYDROGEN",
+        "pipelines_HYDROGEN",
+        "DAC_liquid_sorbents",
+        "DAC_solid_sorbents",
+        "DAC_calcium_oxide",
+        "CARS_trad",
+        "CARS_hybrid",
+        "CARS_electric",
+        "CARS_fuelcell",
+        "HEAVYDUTY_trad",
+        "HEAVYDUTY_hybrid",
+        "HEAVYDUTY_electric",
+        "HEAVYDUTY_fuelcell",
     ]
 )
 
@@ -87,79 +81,89 @@ AMOUNTS = tuple(
 )
 
 ALLOWED_SECTOR2TAGS = {
-    "POWER" : ["GREEN", "BROWN", "CCS"],
-    "ENERGY" : ["GREEN", "CCS"],
-    "VEHICLES" : ["GREEN", "BROWN"],
-    "STORAGE" : ["GREEN"],
-    "DAC" : ["CCS"],
+    "POWER": ["GREEN", "BROWN", "CCS"],
+    "ENERGY": ["GREEN", "CCS"],
+    "VEHICLES": ["GREEN", "BROWN"],
+    "STORAGE": ["GREEN"],
+    "DAC": ["CCS"],
 }
 ALLOWED_TAG2SECTOR = {
-    "GREEN" : ["POWER", "ENERGY", "VEHICLES", "STORAGE"],
-    "BROWN" : ["POWER", "VEHICLES"],
-    "CCS" : ["POWER", "ENERGY", "DAC"],
+    "GREEN": ["POWER", "ENERGY", "VEHICLES", "STORAGE"],
+    "BROWN": ["POWER", "VEHICLES"],
+    "CCS": ["POWER", "ENERGY", "DAC"],
 }
 ALLOWED_SECTOR2TECH = {
-    "POWER": ['power_COAL_noccs',
-        'power_COAL_ccs',
-        'power_NUCLEAR',
-        'power_OIL',
-        'power_GAS_noccs',
-        'power_GAS_ccs',
-        'power_HYDRO',
-        'power_BIOMASS_noccs',
-        'power_BIOMASS_ccs',
-        'power_WIND_onshore',
-        'power_WIND_offshore',
-        'power_SOLAR'],
-    "ENERGY": ['thermal_SOLAR',
-        'enduse_COAL_ccs'],
-    "VEHICLES": ['CARS_trad',
-        'CARS_hybrid',
-        'CARS_electric',
-        'CARS_fuelcell',
-        'HEAVYDUTY_trad',
-        'HEAVYDUTY_hybrid',
-        'HEAVYDUTY_electric',
-        'HEAVYDUTY_fuelcell'],
-    "STORAGE": ['power_STORAGE',
-        'production_HYDROGEN',
-        'refueling_station_HYDROGEN',
-        'pipelines_HYDROGEN'],
-    "DAC": ['DAC_liquid_sorbents',
-        'DAC_solid_sorbents',
-        'DAC_calcium_oxide'],
+    "POWER": [
+        "power_COAL_noccs",
+        "power_COAL_ccs",
+        "power_NUCLEAR",
+        "power_OIL",
+        "power_GAS_noccs",
+        "power_GAS_ccs",
+        "power_HYDRO",
+        "power_BIOMASS_noccs",
+        "power_BIOMASS_ccs",
+        "power_WIND_onshore",
+        "power_WIND_offshore",
+        "power_SOLAR",
+    ],
+    "ENERGY": ["thermal_SOLAR", "enduse_COAL_ccs"],
+    "VEHICLES": [
+        "CARS_trad",
+        "CARS_hybrid",
+        "CARS_electric",
+        "CARS_fuelcell",
+        "HEAVYDUTY_trad",
+        "HEAVYDUTY_hybrid",
+        "HEAVYDUTY_electric",
+        "HEAVYDUTY_fuelcell",
+    ],
+    "STORAGE": [
+        "power_STORAGE",
+        "production_HYDROGEN",
+        "refueling_station_HYDROGEN",
+        "pipelines_HYDROGEN",
+    ],
+    "DAC": ["DAC_liquid_sorbents", "DAC_solid_sorbents", "DAC_calcium_oxide"],
 }
 ALLOWED_TAG2TECH = {
-    "GREEN" : ['power_NUCLEAR',
-        'power_HYDRO',
-        'power_WIND_onshore',
-        'power_WIND_offshore',
-        'power_SOLAR',
-        'thermal_SOLAR',
-        'power_STORAGE',
-        'production_HYDROGEN',
-        'refueling_station_HYDROGEN',
-        'pipelines_HYDROGEN',
-        'CARS_hybrid',
-        'CARS_electric',
-        'CARS_fuelcell',
-               'HEAVYDUTY_hybrid',
-        'HEAVYDUTY_electric',
-        'HEAVYDUTY_fuelcell'],
-    "BROWN" : ['power_COAL_noccs',
-        'power_OIL',
-        'power_GAS_noccs',
-        'power_BIOMASS_noccs',
-        'CARS_trad',
-        'HEAVYDUTY_trad'],
-    "CCS" : ['power_COAL_ccs',
-        'power_GAS_ccs',
-        'power_BIOMASS_ccs',
-        'enduse_COAL_ccs',
-        'DAC_liquid_sorbents',
-        'DAC_solid_sorbents',
-        'DAC_calcium_oxide']
+    "GREEN": [
+        "power_NUCLEAR",
+        "power_HYDRO",
+        "power_WIND_onshore",
+        "power_WIND_offshore",
+        "power_SOLAR",
+        "thermal_SOLAR",
+        "power_STORAGE",
+        "production_HYDROGEN",
+        "refueling_station_HYDROGEN",
+        "pipelines_HYDROGEN",
+        "CARS_hybrid",
+        "CARS_electric",
+        "CARS_fuelcell",
+        "HEAVYDUTY_hybrid",
+        "HEAVYDUTY_electric",
+        "HEAVYDUTY_fuelcell",
+    ],
+    "BROWN": [
+        "power_COAL_noccs",
+        "power_OIL",
+        "power_GAS_noccs",
+        "power_BIOMASS_noccs",
+        "CARS_trad",
+        "HEAVYDUTY_trad",
+    ],
+    "CCS": [
+        "power_COAL_ccs",
+        "power_GAS_ccs",
+        "power_BIOMASS_ccs",
+        "enduse_COAL_ccs",
+        "DAC_liquid_sorbents",
+        "DAC_solid_sorbents",
+        "DAC_calcium_oxide",
+    ],
 }
+
 
 class Single_Investment_DISCRETE(GFlowNetEnv):
 
@@ -195,26 +199,41 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             self.amounts = amounts
         self.n_amounts = len(self.amounts)
         # Dictionaries
-        self.idx2token_choices = {idx + 1: token for idx, token in enumerate(self.choices)}
-        self.token2idx_choices = {token: idx for idx, token in self.idx2token_choices.items()}
+        self.idx2token_choices = {
+            idx + 1: token for idx, token in enumerate(self.choices)
+        }
+        self.token2idx_choices = {
+            token: idx for idx, token in self.idx2token_choices.items()
+        }
 
-        self.idx2token_sectors = {idx + 1: token for idx, token in enumerate(self.sectors)}
-        self.token2idx_sectors = {token: idx for idx, token in self.idx2token_sectors.items()}
+        self.idx2token_sectors = {
+            idx + 1: token for idx, token in enumerate(self.sectors)
+        }
+        self.token2idx_sectors = {
+            token: idx for idx, token in self.idx2token_sectors.items()
+        }
 
         self.idx2token_tags = {idx + 1: token for idx, token in enumerate(self.tags)}
         self.token2idx_tags = {token: idx for idx, token in self.idx2token_tags.items()}
 
         self.idx2token_techs = {idx + 1: token for idx, token in enumerate(self.techs)}
-        self.token2idx_techs = {token: idx for idx, token in self.idx2token_techs.items()}
+        self.token2idx_techs = {
+            token: idx for idx, token in self.idx2token_techs.items()
+        }
 
-        self.idx2token_amounts = {idx + 1: token for idx, token in enumerate(self.amounts)}
-        self.token2idx_amounts = {token: idx for idx, token in self.idx2token_amounts.items()}
+        self.idx2token_amounts = {
+            idx + 1: token for idx, token in enumerate(self.amounts)
+        }
+        self.token2idx_amounts = {
+            token: idx for idx, token in self.idx2token_amounts.items()
+        }
         # Source state: undefined investment
-        self.source = {'SECTOR': 0,
-                       'TAG': 0,
-                       'TECH': 0,
-                       'AMOUNT': 0,
-                       }
+        self.source = {
+            "SECTOR": 0,
+            "TAG": 0,
+            "TECH": 0,
+            "AMOUNT": 0,
+        }
 
         self.network_structure = {
             "sector2tag": ALLOWED_SECTOR2TAGS,
@@ -223,7 +242,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             "tag2tech": ALLOWED_TAG2TECH,
         }
 
-        self.eos = (-1,-1)
+        self.eos = (-1, -1)
 
         # Base class init
         super().__init__(**kwargs)
@@ -238,12 +257,25 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         The action space of this parent class is:
             action_space: [(0,), (1,), (-1,)]
         """
-        all_actions = [
-            (self.token2idx_choices['SECTOR'], self.token2idx_sectors[token_S]) for token_S in self.sectors] + [
-            (self.token2idx_choices['TAG'], self.token2idx_tags[token_t]) for token_t in self.tags] + [
-            (self.token2idx_choices['TECH'], self.token2idx_techs[token_T]) for token_T in self.techs] + [
-            (self.token2idx_choices['AMOUNT'], self.token2idx_amounts[token_A]) for token_A in self.amounts] + [
-            self.eos]
+        all_actions = (
+            [
+                (self.token2idx_choices["SECTOR"], self.token2idx_sectors[token_S])
+                for token_S in self.sectors
+            ]
+            + [
+                (self.token2idx_choices["TAG"], self.token2idx_tags[token_t])
+                for token_t in self.tags
+            ]
+            + [
+                (self.token2idx_choices["TECH"], self.token2idx_techs[token_T])
+                for token_T in self.techs
+            ]
+            + [
+                (self.token2idx_choices["AMOUNT"], self.token2idx_amounts[token_A])
+                for token_A in self.amounts
+            ]
+            + [self.eos]
+        )
         return all_actions
 
     def get_mask_invalid_actions_forward(
@@ -276,7 +308,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         flags = []
 
         assigned = self.get_assigned_attributes(state)
-        if self.well_defined_investment(state): #if you have tech and amount only eos
+        if self.well_defined_investment(state):  # if you have tech and amount only eos
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
             return mask
@@ -284,29 +316,73 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         mask[-1] = True  # eos only if TECH and AMOUNT are both assigned
         action_space_without_EOS = self.action_space[0:-1]
 
-        for a in assigned: #what is already set cannot be changed
-            flags.extend([i for i, (x, y) in enumerate(action_space_without_EOS) if self.idx2token_choices[x] == a])
+        for a in assigned:  # what is already set cannot be changed
+            flags.extend(
+                [
+                    i
+                    for i, (x, y) in enumerate(action_space_without_EOS)
+                    if self.idx2token_choices[x] == a
+                ]
+            )
 
-        if 'TECH' in assigned:#If the tech is set, only the amount can be chosen
-            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if self.idx2token_choices[x] != 'AMOUNT')
+        if "TECH" in assigned:  # If the tech is set, only the amount can be chosen
+            flags.extend(
+                i
+                for i, (x, y) in enumerate(action_space_without_EOS)
+                if self.idx2token_choices[x] != "AMOUNT"
+            )
 
-        if 'SECTOR' in assigned: #if the sector is set, choose only a compatible tech
-            allowed_techs = self.network_structure['sector2tech'][self.idx2token_sectors[state['SECTOR']]]
-            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TECH' and not
-                                                                            self.idx2token_techs[y] in allowed_techs))
-            if 'TAG' not in assigned: #if the sector is chosen and the tag not, choose only a compatible tag
-                allowed_tags =self.network_structure['sector2tag'][self.idx2token_sectors[state['SECTOR']]]
-                flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TAG' and not
-                                                                                self.idx2token_tags[y] in allowed_tags))
+        if "SECTOR" in assigned:  # if the sector is set, choose only a compatible tech
+            allowed_techs = self.network_structure["sector2tech"][
+                self.idx2token_sectors[state["SECTOR"]]
+            ]
+            flags.extend(
+                i
+                for i, (x, y) in enumerate(action_space_without_EOS)
+                if (
+                    self.idx2token_choices[x] == "TECH"
+                    and not self.idx2token_techs[y] in allowed_techs
+                )
+            )
+            if (
+                "TAG" not in assigned
+            ):  # if the sector is chosen and the tag not, choose only a compatible tag
+                allowed_tags = self.network_structure["sector2tag"][
+                    self.idx2token_sectors[state["SECTOR"]]
+                ]
+                flags.extend(
+                    i
+                    for i, (x, y) in enumerate(action_space_without_EOS)
+                    if (
+                        self.idx2token_choices[x] == "TAG"
+                        and not self.idx2token_tags[y] in allowed_tags
+                    )
+                )
 
-        if 'TAG' in assigned: #if the tag is set, choose only a compatible tech
-            allowed_techs = self.network_structure['tag2tech'][self.idx2token_tags[state['TAG']]]
-            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TECH' and not
-                                                                            self.idx2token_techs[y] in allowed_techs))
-            if 'SECTOR' not in assigned:
-                allowed_sectors = self.network_structure['tag2sector'][self.idx2token_tags[state['TAG']]]
-                flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'SECTOR' and not
-                                                                                self.idx2token_sectors[y] in allowed_sectors))
+        if "TAG" in assigned:  # if the tag is set, choose only a compatible tech
+            allowed_techs = self.network_structure["tag2tech"][
+                self.idx2token_tags[state["TAG"]]
+            ]
+            flags.extend(
+                i
+                for i, (x, y) in enumerate(action_space_without_EOS)
+                if (
+                    self.idx2token_choices[x] == "TECH"
+                    and not self.idx2token_techs[y] in allowed_techs
+                )
+            )
+            if "SECTOR" not in assigned:
+                allowed_sectors = self.network_structure["tag2sector"][
+                    self.idx2token_tags[state["TAG"]]
+                ]
+                flags.extend(
+                    i
+                    for i, (x, y) in enumerate(action_space_without_EOS)
+                    if (
+                        self.idx2token_choices[x] == "SECTOR"
+                        and not self.idx2token_sectors[y] in allowed_sectors
+                    )
+                )
 
         for f in set(flags):
             mask[f] = True
@@ -358,7 +434,9 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         # Parents are the ones who could have assigned each value
         # exceptions: if the tech is already assigned, sector and tag had to be previously assigned
         for a in assigned:
-            if (a == 'SECTOR' and 'TECH' in assigned) or (a == 'TAG' and 'TECH' in assigned):
+            if (a == "SECTOR" and "TECH" in assigned) or (
+                a == "TAG" and "TECH" in assigned
+            ):
                 continue
             temp_state = copy(state)
             temp_state[a] = 0
@@ -399,7 +477,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         if self.done:
             return self.state, action, False
 
-        if action == self.eos: #if eos check investment first
+        if action == self.eos:  # if eos check investment first
             if self.well_defined_investment():
                 self.n_actions += 1
                 self.done = True
@@ -413,7 +491,6 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         )
         if not do_step:
             return self.state, action, False
-
 
         valid = True
         self.n_actions += 1
@@ -453,14 +530,14 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         batch_tensor = torch.zeros((batch_size, len(self.techs)), dtype=torch.float32)
 
         for i, single_state in enumerate(states):
-            pos = single_state['TECH']
-            val = single_state['AMOUNT']
+            pos = single_state["TECH"]
+            val = single_state["AMOUNT"]
             batch_tensor[i, pos - 1] = val  # subtract 1 since positions start at 1
         return tlong(batch_tensor, device=self.device)
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
-    ) -> torch.Tensor:#TensorType["batch", "policy_input_dim"]:
+    ) -> torch.Tensor:  # TensorType["batch", "policy_input_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
@@ -475,21 +552,28 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        sectors = tlong([s['SECTOR'] for s in states], self.device)
-        tags = tlong([s['TAG'] for s in states], self.device)
-        techs = tlong([s['TECH'] for s in states], self.device)
-        amounts = tlong([s['AMOUNT'] for s in states], self.device)
+        sectors = tlong([s["SECTOR"] for s in states], self.device)
+        tags = tlong([s["TAG"] for s in states], self.device)
+        techs = tlong([s["TECH"] for s in states], self.device)
+        amounts = tlong([s["AMOUNT"] for s in states], self.device)
 
         # One-hot encode each
-        onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors+1).to(self.float)#0 is admissible
-        onehot_tag = F.one_hot(tags, num_classes=self.n_tags+1).to(self.float)#0 is admissible
-        onehot_tech = F.one_hot(techs, num_classes=self.n_techs+1).to(self.float)#0 is not admissible
-        onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts+1).to(self.float)#0 is not admissible
+        onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(
+            self.float
+        )  # 0 is admissible
+        onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(
+            self.float
+        )  # 0 is admissible
+        onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(
+            self.float
+        )  # 0 is not admissible
+        onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(
+            self.float
+        )  # 0 is not admissible
 
         # Concatenate along the last dimension
         batch_tensor = torch.cat(
-            [onehot_sector, onehot_tag, onehot_tech, onehot_amount],
-            dim=-1
+            [onehot_sector, onehot_tag, onehot_tech, onehot_amount], dim=-1
         )
         return batch_tensor
 
@@ -512,22 +596,22 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         state = self._get_state(state)
         assigned = self.get_assigned_attributes(state)
         # Map each index to its token
-        if 'SECTOR' in assigned:
-            sector_str = self.idx2token_sectors[state['SECTOR']]
+        if "SECTOR" in assigned:
+            sector_str = self.idx2token_sectors[state["SECTOR"]]
         else:
-            sector_str = 'UNASSIGNED_SECTOR'
-        if 'TAG' in assigned:
-            tag_str = self.idx2token_tags[state['TAG']]
+            sector_str = "UNASSIGNED_SECTOR"
+        if "TAG" in assigned:
+            tag_str = self.idx2token_tags[state["TAG"]]
         else:
-            tag_str = 'UNASSIGNED_TAG'
-        if 'TECH' in assigned:
-            tech_str = self.idx2token_techs[state['TECH']]
+            tag_str = "UNASSIGNED_TAG"
+        if "TECH" in assigned:
+            tech_str = self.idx2token_techs[state["TECH"]]
         else:
-            tech_str = 'UNASSIGNED_TECH'
-        if 'AMOUNT' in assigned:
-            amount_str = self.idx2token_amounts[state['AMOUNT']]
+            tech_str = "UNASSIGNED_TECH"
+        if "AMOUNT" in assigned:
+            amount_str = self.idx2token_amounts[state["AMOUNT"]]
         else:
-            amount_str = 'UNASSIGNED_AMOUNT'
+            amount_str = "UNASSIGNED_AMOUNT"
 
         # Combine into a single readable string
         return f"{sector_str} | {tag_str} | {tech_str} | {amount_str}"
@@ -601,17 +685,21 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             amount_token = random.choice(self.amounts)
             amount_idx = self.token2idx_amounts[amount_token]
 
-            sector_idx = 0 # default = unassigned
-            for sector, tech_list in self.network_structure['sector2tech'].items():
+            sector_idx = 0  # default = unassigned
+            for sector, tech_list in self.network_structure["sector2tech"].items():
                 if tech_token in tech_list:
-                    if random.random() < 0.5: # 50% chance to assign, else leave unassigned
+                    if (
+                        random.random() < 0.5
+                    ):  # 50% chance to assign, else leave unassigned
                         sector_idx = self.token2idx_sectors[sector]
                     break
 
-            tag_idx = 0 # default = unassigned
-            for tag, tech_list in self.network_structure['tag2tech'].items():
+            tag_idx = 0  # default = unassigned
+            for tag, tech_list in self.network_structure["tag2tech"].items():
                 if tech_token in tech_list:
-                    if random.random() < 0.5: # 50% chance to assign, else leave unassigned
+                    if (
+                        random.random() < 0.5
+                    ):  # 50% chance to assign, else leave unassigned
                         tag_idx = self.token2idx_tags[tag]
                     break
 
@@ -625,11 +713,17 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
 
         return states
 
-    def well_defined_investment(self, state: Optional[Dict] = None,) -> bool:
+    def well_defined_investment(
+        self,
+        state: Optional[Dict] = None,
+    ) -> bool:
         state = self._get_state(state)
         assigned = self.get_assigned_attributes(state)
-        return ('TECH' in assigned and 'AMOUNT' in assigned)
+        return "TECH" in assigned and "AMOUNT" in assigned
 
-    def get_assigned_attributes(self, state: Optional[Dict] = None,) -> List[str]:
+    def get_assigned_attributes(
+        self,
+        state: Optional[Dict] = None,
+    ) -> List[str]:
         state = self._get_state(state)
         return [key for key, value in state.items() if value != 0]
