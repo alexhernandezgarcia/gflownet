@@ -3,7 +3,8 @@ Climate-economics environment:
 Discrete investment options
 """
 
-from typing import Iterable, List, Optional, Tuple, Union, Dict
+import random
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
@@ -13,8 +14,6 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tlong
-
-import random
 
 CHOICES = tuple(
     [

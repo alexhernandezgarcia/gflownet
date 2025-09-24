@@ -1,6 +1,6 @@
-import tests.gflownet.envs.common as common
 import pytest
 
+import tests.gflownet.envs.common as common
 from gflownet.envs.investments import Single_Investment_DISCRETE
 
 
