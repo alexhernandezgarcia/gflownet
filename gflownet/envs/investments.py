@@ -205,10 +205,10 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         self.token2idx_tags = {token: idx for idx, token in self.idx2token_tags.items()}
 
         self.idx2token_techs = {idx + 1: token for idx, token in enumerate(self.techs)}
-        self.token2idx_techs = {token: idx for idx, token in enumerate(self.idx2token_techs.items())}
+        self.token2idx_techs = {token: idx for idx, token in self.idx2token_techs.items()}
 
         self.idx2token_amounts = {idx + 1: token for idx, token in enumerate(self.amounts)}
-        self.token2idx_amounts = {token: idx for idx, token in enumerate(self.idx2token_techs.items())}
+        self.token2idx_amounts = {token: idx for idx, token in self.idx2token_amounts.items()}
         # Source state: undefined investment
         self.source = {'SECTOR': 0,
                        'TAG': 0,
@@ -280,30 +280,32 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
             return mask
-        mask[-1] = True #eos only if TECH and AMOUNT are both assigned
+
+        mask[-1] = True  # eos only if TECH and AMOUNT are both assigned
+        action_space_without_EOS = self.action_space[0:-1]
 
         for a in assigned: #what is already set cannot be changed
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if self.idx2token_choices[x] == a)
+            flags.extend([i for i, (x, y) in enumerate(action_space_without_EOS) if self.idx2token_choices[x] == a])
 
         if 'TECH' in assigned:#If the tech is set, only the amount can be chosen
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if self.idx2token_choices[x] != 'AMOUNT')
+            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if self.idx2token_choices[x] != 'AMOUNT')
 
         if 'SECTOR' in assigned: #if the sector is set, choose only a compatible tech
             allowed_techs = self.network_structure['sector2tech'][self.idx2token_sectors[state['SECTOR']]]
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TECH' and not
+            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TECH' and not
                                                                             self.idx2token_techs[y] in allowed_techs))
             if 'TAG' not in assigned: #if the sector is chosen and the tag not, choose only a compatible tag
-                allowed_tags =self.network_structure['sector2tags'][self.idx2token_sectors[state['SECTOR']]]
-                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TAG' and not
+                allowed_tags =self.network_structure['sector2tag'][self.idx2token_sectors[state['SECTOR']]]
+                flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TAG' and not
                                                                                 self.idx2token_tags[y] in allowed_tags))
 
         if 'TAG' in assigned: #if the tag is set, choose only a compatible tech
             allowed_techs = self.network_structure['tag2tech'][self.idx2token_tags[state['TAG']]]
-            flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'TECH' and not
+            flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'TECH' and not
                                                                             self.idx2token_techs[y] in allowed_techs))
             if 'SECTOR' not in assigned:
-                allowed_sectors = self.network_structure['tags2sector'][self.idx2token_sectors[state['TAG']]]
-                flags.extend(i for i, (x, y) in enumerate(self.action_space) if (self.idx2token_choices[x] == 'SECTOR' and not
+                allowed_sectors = self.network_structure['tag2sector'][self.idx2token_tags[state['TAG']]]
+                flags.extend(i for i, (x, y) in enumerate(action_space_without_EOS) if (self.idx2token_choices[x] == 'SECTOR' and not
                                                                                 self.idx2token_sectors[y] in allowed_sectors))
 
         for f in set(flags):
@@ -397,6 +399,14 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         if self.done:
             return self.state, action, False
 
+        if action == self.eos: #if eos check investment first
+            if self.well_defined_investment():
+                self.n_actions += 1
+                self.done = True
+                return self.state, action, True
+            else:
+                return self.state, action, False
+
         # Generic pre-step checks
         do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
@@ -404,12 +414,6 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
-        if action == self.eos: #if eos check investment first
-            if self.well_defined_investment():
-                self.done = True
-                return self.state, action, True
-            else:
-                return self.state, action, False
 
         valid = True
         self.n_actions += 1
@@ -426,7 +430,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         The maximum trajectory lenght is the maximum sequence length (self.max_length)
         plus one (EOS action).
         """
-        return 4
+        return 5
 
     def states2proxy(
         self, states: Union[List[Dict], List[TensorType["max_length"]]]
@@ -452,7 +456,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             pos = single_state['TECH']
             val = single_state['AMOUNT']
             batch_tensor[i, pos - 1] = val  # subtract 1 since positions start at 1
-        return tlong(states, device=self.device)
+        return tlong(batch_tensor, device=self.device)
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
@@ -479,8 +483,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         # One-hot encode each
         onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors+1).to(self.float)#0 is admissible
         onehot_tag = F.one_hot(tags, num_classes=self.n_tags+1).to(self.float)#0 is admissible
-        onehot_tech = F.one_hot(techs, num_classes=self.n_techs).to(self.float)#0 is not admissible
-        onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts).to(self.float)#0 is not admissible
+        onehot_tech = F.one_hot(techs, num_classes=self.n_techs+1).to(self.float)#0 is not admissible
+        onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts+1).to(self.float)#0 is not admissible
 
         # Concatenate along the last dimension
         batch_tensor = torch.cat(

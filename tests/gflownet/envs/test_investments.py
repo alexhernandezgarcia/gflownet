@@ -1,4 +1,4 @@
-import common
+import tests.gflownet.envs.common as common
 import pytest
 
 from gflownet.envs.investments import Single_Investment_DISCRETE
@@ -74,12 +74,12 @@ def test__get_action_space__returns_expected(env, action_space):
         ),# State with SECTOR, TAG, and AMOUNT
         (
             {'SECTOR': 1, 'TAG': 2, 'TECH': 0, 'AMOUNT': 1},  # POWER, power_NUCLEAR, HIGH
-            [{'SECTOR': 0, 'TAG': 2, 'TECH': 0, 'AMOUNT': 1},
-             {'SECTOR': 1, 'TAG': 0, 'TECH': 0, 'AMOUNT': 1},
+            [{'SECTOR': 1, 'TAG': 0, 'TECH': 0, 'AMOUNT': 1},
+             {'SECTOR': 0, 'TAG': 2, 'TECH': 0, 'AMOUNT': 1},
              {'SECTOR': 1, 'TAG': 2, 'TECH': 0, 'AMOUNT': 0}
              ],
-            [(0, 1),
-             (2, 2),
+            [(2, 2),
+             (1, 1),
              (4, 1)],
         ),
     ],
@@ -157,7 +157,7 @@ def test__get_parents__returns_expected(
         (
             {'SECTOR': 1, 'TAG': 2, 'TECH': 0, 'AMOUNT': 0},
             (3, 3),
-            {'SECTOR': 1, 'TAG': 2, 'TECH': 3, 'AMOUNT': 0},
+            {'SECTOR': 1, 'TAG': 2, 'TECH': 0, 'AMOUNT': 0},
             False,
         ),
     ],
