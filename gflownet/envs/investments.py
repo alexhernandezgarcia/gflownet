@@ -14,6 +14,8 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tlong
 
+import random
+
 CHOICES = tuple(
     [
         "SECTOR",
@@ -176,19 +178,22 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             self.sectors = SECTORS
         else:
             self.sectors = sectors
+        self.n_sectors = len(self.sectors)
         if tags is None:
             self.tags = TAGS
         else:
             self.tags = tags
+        self.n_tags = len(self.tags)
         if techs is None:
             self.techs = TECHS
         else:
             self.techs = techs
+        self.n_techs = len(self.techs)
         if amounts is None:
             self.amounts = AMOUNTS
         else:
             self.amounts = amounts
-        self.n_sectors = len(self.sectors)
+        self.n_amounts = len(self.amounts)
         # Dictionaries
         self.idx2token_choices = {idx + 1: token for idx, token in enumerate(self.choices)}
         self.token2idx_choices = {token: idx for idx, token in self.idx2token_choices.items()}
@@ -424,7 +429,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         return 4
 
     def states2proxy(
-        self, states: Union[List[List[int]], List[TensorType["max_length"]]]
+        self, states: Union[List[Dict], List[TensorType["max_length"]]]
     ) -> TensorType["batch", "state_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy: the batch is
@@ -443,14 +448,15 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         batch_size = len(states)
         batch_tensor = torch.zeros((batch_size, len(self.techs)), dtype=torch.float32)
 
-        for i, row in enumerate(states):
-            pos, val = row[2], row[3]
+        for i, single_state in enumerate(states):
+            pos = single_state['TECH']
+            val = single_state['AMOUNT']
             batch_tensor[i, pos - 1] = val  # subtract 1 since positions start at 1
         return tlong(states, device=self.device)
 
     def states2policy(
-        self, states: Union[List[List[int]], List[TensorType["max_length"]]]
-    ) -> TensorType["batch", "policy_input_dim"]:
+        self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
+    ) -> torch.Tensor:#TensorType["batch", "policy_input_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
@@ -465,10 +471,25 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        states = tlong(states, device=self.device)
-        return states
+        sectors = tlong([s['SECTOR'] for s in states], self.device)
+        tags = tlong([s['TAG'] for s in states], self.device)
+        techs = tlong([s['TECH'] for s in states], self.device)
+        amounts = tlong([s['AMOUNT'] for s in states], self.device)
 
-    def state2readable(self, state: List[int] = None) -> str:
+        # One-hot encode each
+        onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors+1).to(self.float)#0 is admissible
+        onehot_tag = F.one_hot(tags, num_classes=self.n_tags+1).to(self.float)#0 is admissible
+        onehot_tech = F.one_hot(techs, num_classes=self.n_techs).to(self.float)#0 is not admissible
+        onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts).to(self.float)#0 is not admissible
+
+        # Concatenate along the last dimension
+        batch_tensor = torch.cat(
+            [onehot_sector, onehot_tag, onehot_tech, onehot_amount],
+            dim=-1
+        )
+        return batch_tensor
+
+    def state2readable(self, state: Dict[str, int] = None) -> str:
         """
         Converts a state into a human-readable string.
 
@@ -485,29 +506,72 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         A string of space-separated letters.
         """
         state = self._get_state(state)
-        state = self._unpad(state)
-        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
+        assigned = self.get_assigned_attributes(state)
+        # Map each index to its token
+        if 'SECTOR' in assigned:
+            sector_str = self.idx2token_sectors[state['SECTOR']]
+        else:
+            sector_str = 'UNASSIGNED_SECTOR'
+        if 'TAG' in assigned:
+            tag_str = self.idx2token_tags[state['TAG']]
+        else:
+            tag_str = 'UNASSIGNED_TAG'
+        if 'TECH' in assigned:
+            tech_str = self.idx2token_techs[state['TECH']]
+        else:
+            tech_str = 'UNASSIGNED_TECH'
+        if 'AMOUNT' in assigned:
+            amount_str = self.idx2token_amounts[state['AMOUNT']]
+        else:
+            amount_str = 'UNASSIGNED_AMOUNT'
 
-    def readable2state(self, readable: str) -> List[int]:
+        # Combine into a single readable string
+        return f"{sector_str} | {tag_str} | {tech_str} | {amount_str}"
+
+    def readable2state(self, readable: str) -> Dict[str, int]:
         """
-        Converts a state in readable format into the "environment format" (tensor)
+        Converts a state in readable format into the environment format (dict of indices).
 
         Args
         ----
         readable : str
-            A state in readable format - space-separated letters.
+            A state in readable format, with fields separated by " | ".
+            Example: "POWER | UNASSIGNED_TAG | power_HYDRO | HIGH"
 
         Returns
         -------
-        A tensor containing the indices of the letters.
+        dict
+            A state dictionary with indices for SECTOR, TAG, TECH, and AMOUNT.
         """
-        if readable == "":
-            return self.source
-        return self._pad([self.token2idx[token] for token in readable.split(" ")])
+
+        parts = [p.strip() for p in readable.split("|")]
+        state = {}
+
+        if parts[0] != "UNASSIGNED_SECTOR":
+            state["SECTOR"] = self.token2idx_sectors[parts[0]]
+        else:
+            state["SECTOR"] = 0
+
+        if parts[1] != "UNASSIGNED_TAG":
+            state["TAG"] = self.token2idx_tags[parts[1]]
+        else:
+            state["TAG"] = 0
+
+        if parts[2] != "UNASSIGNED_TECH":
+            state["TECH"] = self.token2idx_techs[parts[2]]
+        else:
+            state["TECH"] = 0
+
+        if parts[3] != "UNASSIGNED_AMOUNT":
+            state["AMOUNT"] = self.token2idx_amounts[parts[3]]
+        else:
+            state["AMOUNT"] = 0
+
+        return state
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
-    ) -> List[List[int]]:
+    ) -> List[Dict[str, int]]:
         """
         Constructs a batch of n states uniformly sampled in the sample space of the
         environment.
@@ -520,18 +584,42 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         seed : int
             Random seed.
         """
-        n_letters = len(self.letters)
-        n_per_length = tlong(
-            [n_letters**length for length in range(1, self.max_length + 1)],
-            device=self.device,
-        )
-        lengths = Categorical(logits=n_per_length.repeat(n_states, 1)).sample() + 1
-        samples = torch.randint(
-            low=1, high=n_letters + 1, size=(n_states, self.max_length)
-        )
-        for idx, length in enumerate(lengths):
-            samples[idx, length:] = 0
-        return samples.tolist()
+        if seed is not None:
+            random.seed(seed)
+            torch.manual_seed(seed)
+
+        states = []
+
+        for _ in range(n_states):
+            tech_token = random.choice(self.techs)
+            tech_idx = self.token2idx_techs[tech_token]
+
+            amount_token = random.choice(self.amounts)
+            amount_idx = self.token2idx_amounts[amount_token]
+
+            sector_idx = 0 # default = unassigned
+            for sector, tech_list in self.network_structure['sector2tech'].items():
+                if tech_token in tech_list:
+                    if random.random() < 0.5: # 50% chance to assign, else leave unassigned
+                        sector_idx = self.token2idx_sectors[sector]
+                    break
+
+            tag_idx = 0 # default = unassigned
+            for tag, tech_list in self.network_structure['tag2tech'].items():
+                if tech_token in tech_list:
+                    if random.random() < 0.5: # 50% chance to assign, else leave unassigned
+                        tag_idx = self.token2idx_tags[tag]
+                    break
+
+            state = {
+                "SECTOR": sector_idx,
+                "TAG": tag_idx,
+                "TECH": tech_idx,
+                "AMOUNT": amount_idx,
+            }
+            states.append(state)
+
+        return states
 
     def well_defined_investment(self, state: Optional[Dict] = None,) -> bool:
         state = self._get_state(state)
