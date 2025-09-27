@@ -223,7 +223,7 @@ class BaseBuffer:
                 columns=[
                     "samples",
                     "trajectories",
-                    "rewards",
+                    "values",
                     "iter",
                     "samples_readable",
                     "trajectories_readable",
@@ -301,9 +301,11 @@ class BaseBuffer:
         if self.replay_criterion.startswith("reward"):
             if torch.is_tensor(rewards):
                 values = rewards.tolist()
+                do_update = False
         elif self.replay_criterion.startswith("loss") and torch.is_tensor(losses):
             if torch.is_tensor(losses):
                 values = losses.detach().tolist()
+                do_update = True
         else:
             raise ValueError(
                 f"Unknown criterion identifier. Received {buffer}, "
@@ -331,15 +333,9 @@ class BaseBuffer:
         elif buffer == "replay":
             if self.replay_capacity > 0:
                 self.replay_updated = False
-                if self.replay_criterion.startswith("reward"):
-                    self.replay = self._add_greater(samples, trajectories, rewards, it)
-                elif self.replay_criterion.startswith("loss"):
-                    self.replay = self._add_greater(samples, trajectories, losses, it)
-                else:
-                    raise ValueError(
-                        f"Unknown criterion identifier. Received {buffer}, "
-                        "expected reward or loss"
-                    )
+                self.replay = self._add_greater(
+                    samples, trajectories, values, do_update, it
+                )
         else:
             raise ValueError(
                 f"Unknown buffer identifier. Received {buffer}, expected main or replay"
@@ -698,8 +694,8 @@ class BaseBuffer:
             - weighted: data points are sampled with probability proportional to their
               score.
 
-        Args
-        ----
+        Parameters
+        ----------
         data_dict : dict
             A dictionary containing data for various data samples. The keys of the
             dictionary represent the sample attributes and the values are lists
@@ -707,13 +703,10 @@ class BaseBuffer:
             All the values in the data dictionary should have the same length.
             If mode == "weighted", the data dictionary must contain sample scores
             (key "scores" or "rewards").
-
         n : int
             The number of samples to select from the dictionary.
-
         mode : str
             Sampling mode. Options: permutation, weighted.
-
         rng : np.random.Generator
             A numpy random number generator, used for the permutation mode. Ignored
             otherwise.
@@ -740,13 +733,13 @@ class BaseBuffer:
         elif mode == "weighted":
             # Determine which attribute to compute the sample probabilities from
             score = None
-            for name in ["rewards", "reward", "score", "scores"]:
+            for name in ["rewards", "reward", "score", "scores", "values"]:
                 if name in df:
                     score = name
                     break
             if score is None:
                 raise ValueError(
-                    f"Data set does not contain reward(s) or score(s) key. "
+                    f"Data set does not contain values, reward(s) or score(s) key. "
                     "Cannot sample in weighted mode."
                 )
             scores = df[score].values
