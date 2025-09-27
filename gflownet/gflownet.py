@@ -1077,16 +1077,11 @@ class GFlowNetAgent:
             )
 
         # Update replay buffer
-        # TODO: improve handling of losses depending on loss
-        if self.loss.id in ["trajectorybalance", "vargrad"]:
-            losses_buffer = losses["units"]
-        else:
-            loss_buffer = None
         self.buffer.add(
             states_term,
             actions_trajectories,
             rewards,
-            losses_buffer,
+            losses.pop("units", None),
             self.it,
             buffer="replay",
         )
