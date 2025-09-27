@@ -13,11 +13,23 @@ from omegaconf import OmegaConf
 
 from gflownet.buffer.base import BaseBuffer
 from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.envs.grid import Grid
+from gflownet.proxy.box.corners import Corners
 from gflownet.proxy.torus import Torus
 from gflownet.utils.common import tbool, tfloat, tlong
 
 # Skip all Buffer tests until they get updated
-pytest.skip(allow_module_level=True)
+# pytest.skip(allow_module_level=True)
+
+
+@pytest.fixture
+def grid():
+    return Grid(n_dim=2, length=3)
+
+
+@pytest.fixture
+def corners():
+    return Corners(mu=0.75, sigma=0.05)
 
 
 @pytest.fixture
@@ -383,3 +395,81 @@ def test__select_ctorus(env_ctorus, proxy_ctorus, tmp_local, mode):
 
     shutil.rmtree(temp_dir)
     print(f"\nDeleted temporary folder: {temp_dir}")
+
+
+@pytest.mark.parametrize(
+    "samples, trajectories, values, should_adds, sizes",
+    [
+        # Should not add last sample ([1, 1]) because the state is not in the buffer
+        # and the value (5) is smaller than the minimum in the buffer (10).
+        (
+            [[0, 0], [0, 1], [1, 1]],
+            [[(0, 0)], [(0, 1), (0, 0)], [(0, 1), (1, 1), (0, 0)]],
+            [10, 20, 5],
+            [True, True, False],
+            [1, 2, 2],
+        ),
+        # Should add last sample ([1, 1]) because the state is not in the buffer
+        # and the value (15) is greater than the minimum in the buffer (10).
+        (
+            [[0, 0], [0, 1], [1, 1]],
+            [[(0, 0)], [(0, 1), (0, 0)], [(0, 1), (1, 1), (0, 0)]],
+            [10, 20, 15],
+            [True, True, True],
+            [1, 2, 2],
+        ),
+        # Should add last sample ([0, 0]) because the state is already in the buffer
+        # and the value (25) is greater than the currently stored value (10).
+        (
+            [[0, 0], [0, 1], [0, 0]],
+            [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
+            [10, 20, 25],
+            [True, True, True],
+            [1, 2, 2],
+        ),
+        # Should add last sample ([0, 0]) because the state is already in the buffer
+        # and the value (15) is greater than the minimum in the buffer (10).
+        (
+            [[0, 0], [0, 1], [0, 0]],
+            [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
+            [10, 20, 25],
+            [True, True, True],
+            [1, 2, 2],
+        ),
+        # Should not add last sample ([0, 0]) because while the state is already in the
+        # buffer, the value (5) is smaller than the minimum in the buffer (10). The
+        # existing sample should be dropped.
+        (
+            [[0, 0], [0, 1], [0, 0]],
+            [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
+            [10, 20, 5],
+            [True, True, False],
+            [1, 2, 1],
+        ),
+    ],
+)
+def test__add_greater_update_single_sample(
+    tmp_local, grid, corners, samples, trajectories, values, should_adds, sizes
+):
+
+    # Initialize buffer with capacity 2
+    tmpdir = Path(tempfile.mkdtemp(prefix="add_greater_update", dir=tmp_local))
+    buffer = BaseBuffer(
+        env=grid,
+        proxy=corners,
+        replay_capacity=2,
+        datadir=tmpdir,
+    )
+
+    # Iterate over candidates to add to the batch and check whether the behaviour is as
+    # expected
+    for it, (sample, traj, value, should_add, size) in enumerate(
+        zip(samples, trajectories, values, should_adds, sizes)
+    ):
+        is_added = buffer._add_greater_update_single_sample(sample, traj, value, it)
+        assert is_added == should_add
+        if is_added:
+            assert sample in list(buffer.replay.samples.values)
+            assert traj in list(buffer.replay.trajectories.values)
+            assert value in list(buffer.replay["values"].values)
+        assert len(buffer.replay) == size
