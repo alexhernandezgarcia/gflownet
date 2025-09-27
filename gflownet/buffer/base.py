@@ -436,7 +436,7 @@ class BaseBuffer:
         if self.check_diversity:
             # If the value similarity is negative, compare with the full replay buffer
             if self.diversity_check_value_similarity < 0.0:
-                for idx, rsample in enumerate(self.replay["samples"]):
+                for rsample in self.replay["samples"]:
                     if self.env.isclose(sample, rsample):
                         return
             # Otherwise, compare only with samples with similar value
@@ -449,7 +449,7 @@ class BaseBuffer:
                     if self.env.isclose(sample, rsample):
                         return
 
-        # If index_min is larger than zero, drop the sample with the minimum value`
+        # If index_min is larger than zero, drop the sample with the minimum value
         if index_min >= 0:
             self.replay.drop(self.replay.index[index_min], inplace=True)
 
