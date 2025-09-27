@@ -691,8 +691,8 @@ class GFlowNetAgent:
             and self.buffer.replay is not None
             and len(self.buffer.replay) > 0
         ):
-            envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
             n_replay = min(n_replay, len(self.buffer.replay))
+            envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
             x_replay = self.buffer.select(
                 self.buffer.replay,
                 n_replay,
@@ -1149,7 +1149,7 @@ class GFlowNetAgent:
 
             # Log replay buffer values
             if self.buffer.replay_updated:
-                values_replay = self.buffer.replay.values
+                values_replay = self.buffer.replay["values"].values
                 if self.buffer.replay_criterion == "reward":
                     self.logger.log_rewards_and_scores(
                         values_replay,
