@@ -540,11 +540,9 @@ class BaseBuffer:
         if len(self.replay) >= self.replay_capacity:
             index_min = self.replay.index[self.replay["values"].argmin()]
             if value > self.replay["values"].loc[index_min]:
-                self.replay.drop(self.replay.index[index_update], inplace=True)
+                self.replay.drop(self.replay.index[index_min], inplace=True)
             else:
                 return False
-        else:
-            return False
 
         # TODO: make separate method common to all
         # Add the sample to the buffer
