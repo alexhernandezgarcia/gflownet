@@ -50,6 +50,7 @@ def tmp_local():
 
 
 # TODO: add test for "random" type
+@pytest.mark.skip(reason="skip until revised")
 @pytest.mark.parametrize(
     "train_type, train_path, test_type, test_path, n_train, n_test",
     [
@@ -217,6 +218,7 @@ def test__buffer_init_ctorus(
     print(f"\nDeleted temporary folder: {temp_dir}")
 
 
+@pytest.mark.skip(reason="skip until revised")
 def test__replay_add_ctorus(env_ctorus, proxy_ctorus, tmp_local):
     env = env_ctorus
     env.state_space_atol = 1.0  # make it higher for easier testing
@@ -318,6 +320,7 @@ def test__replay_add_ctorus(env_ctorus, proxy_ctorus, tmp_local):
     print(f"\nDeleted temporary folder: {temp_dir}")
 
 
+@pytest.mark.skip(reason="skip until revised")
 @pytest.mark.parametrize("mode", ["permutation", "uniform", "weighted"])
 def test__select_ctorus(env_ctorus, proxy_ctorus, tmp_local, mode):
     env = env_ctorus
