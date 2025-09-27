@@ -480,7 +480,7 @@ class BaseBuffer:
 
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
-    def _add_greater_update_single_sample(self, sample, trajectory, value, it):
+    def _add_greater_update_single_sample(self, sample, trajectory, value, it) -> bool:
         """
         Adds a single sample (with the trajectory actions and value) to the buffer
         if the state value is larger than the minimum value in the buffer.
@@ -520,7 +520,8 @@ class BaseBuffer:
 
         Returns
         -------
-        self.replay : The updated replay buffer
+        bool
+            Whether the same is added to the buffer or not.
         """
         # Check whether the sample is close to any sample already present in the buffer
         # If a match is found, drop it and return if the new value is smaller than the
@@ -530,7 +531,7 @@ class BaseBuffer:
             if self.env.isclose(sample, rsample):
                 self.replay.drop(self.replay.index[idx], inplace=True)
                 if value < self.replay["values"].min():
-                    return
+                    return False
                 else:
                     break
 
@@ -541,9 +542,9 @@ class BaseBuffer:
             if value > self.replay["values"].loc[index_min]:
                 self.replay.drop(self.replay.index[index_update], inplace=True)
             else:
-                return
+                return False
         else:
-            return
+            return False
 
         # TODO: make separate method common to all
         # Add the sample to the buffer
@@ -570,6 +571,7 @@ class BaseBuffer:
             ],
             ignore_index=True,
         )
+        return True
 
     def make_data_set(self, config):
         """
