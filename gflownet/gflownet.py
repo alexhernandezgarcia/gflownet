@@ -1147,17 +1147,30 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-            # Log replay buffer rewards
+            # Log replay buffer values
             if self.buffer.replay_updated:
-                rewards_replay = self.buffer.replay.rewards
-                self.logger.log_rewards_and_scores(
-                    rewards_replay,
-                    np.log(rewards_replay),
-                    scores=None,
-                    step=self.it,
-                    prefix="Replay buffer -",
-                    use_context=self.use_context,
-                )
+                values_replay = self.buffer.replay.values
+                if self.buffer.replay_criterion == "reward":
+                    self.logger.log_rewards_and_scores(
+                        values_replay,
+                        np.log(values_replay),
+                        scores=None,
+                        step=self.it,
+                        prefix="Replay buffer -",
+                        use_context=self.use_context,
+                    )
+                elif self.buffer.replay_criterion == "loss":
+                    self.logger.log_min_max_mean(
+                        values_replay,
+                        step=self.it,
+                        prefix="Replay buffer loss -",
+                        use_context=self.use_context,
+                    )
+                else:
+                    raise ValueError(
+                        "Unknown replay buffer criterion identifier. Received "
+                        f"{self.buffer.replay_criterion}, expected reward or loss"
+                    )
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})
