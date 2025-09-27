@@ -248,7 +248,7 @@ class Logger:
 
     def log_min_max_mean(
         self,
-        scores: Union[npt.NDArray, TensorType["n_samples"]],
+        values: Union[npt.NDArray, TensorType["n_samples"]],
         step: int,
         prefix: str,
         use_context: bool = True,
@@ -271,9 +271,9 @@ class Logger:
             return
 
         metrics = {
-            f"{prefix} min": rewards.min(),
-            f"{prefix} max": rewards.max(),
-            f"{prefix} mean": rewards.mean(),
+            f"{prefix} min": values.min(),
+            f"{prefix} max": values.max(),
+            f"{prefix} mean": values.mean(),
         }
         self.log_metrics(metrics, step=step, use_context=use_context)
 
