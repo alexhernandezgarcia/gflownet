@@ -130,8 +130,8 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         policy_output_b, actions, masks_b, states, True
     )
 
-    logpobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
-    logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
+    logprobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
+    logprobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
 
     if (n_train > 0 and n_forward == 0) or collect_reversed_logprobs:
         assert torch.all(logprobs_bw_valid)
@@ -144,7 +144,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     for tit in range(len(lp_fw)):
         if not torch.allclose(lp_fw[tit], lp_fw_no[tit]):
             lps_rc = logprobs_states_fw[traj_idx == tit]
-            lps_b = logpobs_fw_from_batch[traj_idx == tit]
+            lps_b = logprobs_fw_from_batch[traj_idx == tit]
             print(f"Mistake in trajj: {tit}")
             print(torch.isclose(lps_rc, lps_b))
             print(f"Recomp lps: {lps_rc}")
@@ -153,7 +153,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     for tit in range(len(lp_bw)):
         if not torch.allclose(lp_bw[tit], lp_bw_no[tit]):
             lps_rc = logprobs_states_bw[traj_idx == tit]
-            lps_b = logpobs_bw_from_batch[traj_idx == tit]
+            lps_b = logprobs_bw_from_batch[traj_idx == tit]
             print(f"Mistake in trajj: {tit}")
             print(torch.isclose(lps_rc, lps_b))
             print(f"Recomp lps: {lps_rc}")
@@ -162,14 +162,14 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     if (n_train > 0 and collect_reversed_logprobs) or n_forward > 0:
         assert torch.allclose(
             logprobs_states_fw[logprobs_fw_valid],
-            logpobs_fw_from_batch[logprobs_fw_valid],
+            logprobs_fw_from_batch[logprobs_fw_valid],
             atol=1e-3,
         )
 
     if (n_train > 0 and n_forward == 0) or (
         n_forward > 0 and collect_reversed_logprobs
     ):
-        assert torch.allclose(logprobs_states_bw, logpobs_bw_from_batch, atol=1e-3)
+        assert torch.allclose(logprobs_states_bw, logprobs_bw_from_batch, atol=1e-3)
 
 
 @pytest.mark.parametrize(
@@ -218,16 +218,16 @@ def test__logprobs_validity(
         collect_backwards_masks=collect_backwards_masks,
     )
 
-    logpobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
-    logpobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
+    logprobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
+    logprobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
     actions = batch.get_actions()
 
     # Check that non-valid logprobs are 2.0, and that logprob_bw(eos) == 0 and valid
-    for lp, val in zip(logpobs_fw_from_batch.tolist(), logprobs_fw_valid.tolist()):
+    for lp, val in zip(logprobs_fw_from_batch.tolist(), logprobs_fw_valid.tolist()):
         if not val:
             assert lp == 2.0
     for lp, val, act in zip(
-        logpobs_bw_from_batch.tolist(), logprobs_bw_valid.tolist(), actions
+        logprobs_bw_from_batch.tolist(), logprobs_bw_valid.tolist(), actions
     ):
         if not val:
             assert lp == 2.0
