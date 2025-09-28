@@ -75,6 +75,7 @@ class Tetris(GFlowNetEnv):
         height: int = 20,
         pieces: List = ["I", "J", "L", "O", "S", "T", "Z"],
         rotations: List = [0, 90, 180, 270],
+        flatten: bool = True,
         allow_redundant_rotations: bool = False,
         allow_eos_before_full: bool = False,
         **kwargs,
@@ -87,6 +88,7 @@ class Tetris(GFlowNetEnv):
         self.height = height
         self.pieces = pieces
         self.rotations = rotations
+        self.flatten = flatten
         self.allow_redundant_rotations = allow_redundant_rotations
         self.allow_eos_before_full = allow_eos_before_full
         self.max_pieces_per_type = 100
@@ -307,7 +309,9 @@ class Tetris(GFlowNetEnv):
         A tensor containing all the states in the batch.
         """
         states = tint(states, device=self.device, int_type=self.int)
-        return self.states2proxy(states).flatten(start_dim=1).to(self.float)
+        if self.flatten:
+            return self.states2proxy(states).flatten(start_dim=1).to(self.float)
+        return self.states2proxy(states).to(self.float)
 
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
@@ -584,7 +588,7 @@ class Tetris(GFlowNetEnv):
         linewidth : int
             The width of the separation between cells, in pixels.
         """
-        board = board.clone().numpy()
+        board = board.clone().cpu().numpy()
         height = board.shape[0] * cellsize
         width = board.shape[1] * cellsize
         board_img = 128 * np.ones(

@@ -11,6 +11,8 @@ height: 20
 pieces: ["I", "J", "L", "O", "S", "T", "Z"]
 # Allowed roations
 rotations: [0, 90, 180, 270]
+# Don't flatten if using CNN
+flatten: True
 # Other config
 allow_redundant_rotations: False
 allow_eos_before_full: False
