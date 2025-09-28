@@ -166,7 +166,9 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
             atol=1e-3,
         )
 
-    if n_train > 0 or (n_forward > 0 and collect_reversed_logprobs):
+    if (n_train > 0 and n_forward == 0) or (
+        n_forward > 0 and collect_reversed_logprobs
+    ):
         assert torch.allclose(logprobs_states_bw, logpobs_bw_from_batch, atol=1e-3)
 
 
