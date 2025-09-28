@@ -17,6 +17,9 @@ class CNNPolicy(Policy):
         self.channels = config.get("channels", [16] * self.n_layers)
         self.kernel_sizes = config.get("kernel_sizes", [(3, 3)] * self.n_layers)
         self.strides = config.get("strides", [(1, 1)] * self.n_layers)
+        # Input width and height
+        self.width = env.width
+        self.height = env.height
         # Base init
         super().__init__(**kwargs)
 
