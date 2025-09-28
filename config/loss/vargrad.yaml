@@ -1,0 +1,4 @@
+defaults:
+  - base
+
+_target_: gflownet.losses.vargrad.VarGrad

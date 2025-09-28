@@ -654,6 +654,7 @@ class Tree(GFlowNetEnv):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -661,7 +662,6 @@ class Tree(GFlowNetEnv):
         Samples a batch of actions from a batch of policy outputs in the continuous mode.
         """
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
         is_discrete = mask[:, self._action_index_pick_threshold]
         if torch.any(is_discrete):
@@ -669,18 +669,18 @@ class Tree(GFlowNetEnv):
                 is_discrete, : self._index_continuous_policy_output
             ]
             # states_from can be None because it will be ignored
-            actions_discrete, logprobs_discrete = super().sample_actions_batch(
+            actions_discrete = super().sample_actions_batch(
                 policy_outputs_discrete,
                 mask[is_discrete, : self._index_continuous_policy_output],
                 None,
                 is_backward,
                 sampling_method,
+                random_action_prob,
                 temperature_logits,
                 max_sampling_attempts,
             )
-            logprobs[is_discrete] = logprobs_discrete
         if torch.all(is_discrete):
-            return actions_discrete, logprobs
+            return actions_discrete
         # Continuous actions
         is_continuous = torch.logical_not(is_discrete)
         n_cont = is_continuous.sum()
@@ -702,8 +702,6 @@ class Tree(GFlowNetEnv):
             beta_distr = Beta(alphas, betas)
             distr_threshold = MixtureSameFamily(mix, beta_distr)
         thresholds = distr_threshold.sample()
-        # Log probs
-        logprobs[is_continuous] = distr_threshold.log_prob(thresholds)
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, -1, th.item()) for th in thresholds]
         actions = []
@@ -712,7 +710,7 @@ class Tree(GFlowNetEnv):
                 actions.append(actions_discrete.pop(0))
             else:
                 actions.append(actions_cont.pop(0))
-        return actions, logprobs
+        return actions
 
     def sample_actions_batch(
         self,
@@ -721,6 +719,7 @@ class Tree(GFlowNetEnv):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -734,6 +733,7 @@ class Tree(GFlowNetEnv):
                 states_from=states_from,
                 is_backward=is_backward,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
             )
@@ -744,6 +744,7 @@ class Tree(GFlowNetEnv):
                 states_from=states_from,
                 is_backward=is_backward,
                 sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
                 max_sampling_attempts=max_sampling_attempts,
             )
@@ -751,7 +752,7 @@ class Tree(GFlowNetEnv):
     def get_logprobs_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -759,6 +760,7 @@ class Tree(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         # TODO: make nicer
         if states_from is None:
@@ -803,7 +805,7 @@ class Tree(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -1223,8 +1225,12 @@ class Tree(GFlowNetEnv):
         else:
             return super().action2representative(action=action)
 
-    def get_max_traj_length(self) -> int:
-        return self.n_nodes * Attribute.N
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return self.n_nodes * Attribute.N + 1
 
     @staticmethod
     def _get_graph(

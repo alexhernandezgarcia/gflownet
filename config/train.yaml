@@ -1,0 +1,33 @@
+defaults:
+  - _self_
+  - env: grid
+  - gflownet: trajectorybalance
+  - loss: trajectorybalance
+  - policy: mlp_${gflownet}
+  - proxy: uniform
+  - logger: wandb
+  - user: default
+  - evaluator: base
+  - buffer: base
+
+# Device
+device: cpu
+# Float precision
+float_precision: 32
+# Number of objects to sample at the end of training
+n_samples: 1000
+# Random seeds
+seed: 0
+
+# Hydra config
+hydra:
+  # See: https://hydra.cc/docs/configure_hydra/workdir/
+  # See: https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+  run:
+    dir: ${user.logdir.root}/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
+  sweep:
+    dir: ${user.logdir.root}/${oc.env:SLURM_JOB_ID,local}/multirun/${now:%Y-%m-%d_%H-%M-%S_%f}
+  job:
+    # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
+    # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
+    chdir: False

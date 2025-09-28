@@ -15,6 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.set import SetFix
 from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
 CELL_MIN = -1.0
@@ -35,24 +36,21 @@ class CubeBase(GFlowNetEnv, ABC):
     ----------
     n_dim : int
         Dimensionality of the hyper-cube.
-
     min_incr : float
         Minimum increment in the actions, in (0, 1). This is necessary to ensure
         that all trajectories have finite length.
-
     n_comp : int
         Number of components in the mixture of Beta distributions.
-
     epsilon : float
         Small constant to control the clamping interval of the inputs to the
         calculation of log probabilities. Clamping interval will be [epsilon, 1 -
-        epsilon]. Default: 1e-6.
-
+        epsilon]. The smaller the value, the lower the probability to incur an
+        unbounded result due to numerical precision, but the lower the precision too.
+        Default: 1e-6.
     kappa : float
         Small constant to control the intervals of the generated sets of states (in a
         grid or uniformly). States will be in the interval [kappa, 1 - kappa]. Default:
         1e-3.
-
     ignored_dims : list
         Boolean mask of ignored dimensions. This can be used for trajectories that may
         have multiple dimensions coupled or fixed. For each dimension, True if ignored,
@@ -216,6 +214,7 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         pass
 
+    # TODO? make arguments of this method consistent with Base env?
     @abstractmethod
     def sample_actions_batch(
         self,
@@ -234,7 +233,7 @@ class CubeBase(GFlowNetEnv, ABC):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -296,6 +295,144 @@ class CubeBase(GFlowNetEnv, ABC):
         state = self._get_state(state)
         return [s for s, ign_dim in zip(state, self.ignored_dims) if not ign_dim]
 
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
+        """
+        samples = torch2np(samples)
+        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
+
+    def plot_reward_samples(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        alpha: float = 0.5,
+        dpi: int = 150,
+        max_samples: int = 500,
+        **kwargs,
+    ):
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom. The same is assumed for
+            samples_reward.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
+        # Create mesh grid from samples_reward
+        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
+        assert n_per_dim**2 == samples_reward.shape[0]
+        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot reward contour
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
+        ax.axis("scaled")
+        fig.colorbar(h, ax=ax)
+        # Plot samples
+        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
+        ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
+        # Figure settings
+        ax.grid()
+        padding = 0.05 * (CELL_MAX - CELL_MIN)
+        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
+        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
+        plt.tight_layout()
+        return fig
+
+    def plot_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kde,
+        alpha: float = 0.5,
+        dpi=150,
+        colorbar: bool = True,
+        **kwargs,
+    ):
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
+        # Score samples with KDE
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot KDE
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
+        ax.axis("scaled")
+        if colorbar:
+            fig.colorbar(h, ax=ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        # Set tight layout
+        plt.tight_layout()
+        return fig
+
 
 class ContinuousCube(CubeBase):
     """
@@ -329,14 +466,28 @@ class ContinuousCube(CubeBase):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        # Mask dimensionality: 3 + number of dimensions
+        # Number of fixed entries in the mask
         self.mask_dim_base = 3
-        self.mask_dim = self.mask_dim_base + self.n_dim
+        super().__init__(**kwargs)
+
+    def _compute_mask_dim(self):
+        """
+        Calculates the mask dimensionality..
+
+        The mask consists of three fixed flags, plus a flag for each dimension.
+
+        Returns
+        -------
+        int
+            The number of elements in the Stack masks.
+        """
+        return self.mask_dim_base + self.n_dim
 
     def get_action_space(self):
         """
         The action space is continuous, thus not defined as such here.
+
+        The actions contained in the action space are "representatives"
 
         The actions are tuples of length n_dim + 1, where the value at position d
         indicates the increment of dimension d, and the value at position -1 indicates
@@ -344,17 +495,51 @@ class ContinuousCube(CubeBase):
 
         EOS is indicated by np.inf for all dimensions.
 
-        This method defines self.eos and the returned action space is simply
-        a representative (arbitrary) action with an increment of 0.0 in all dimensions,
-        and EOS.
+        The action space consists of the EOS actions and two representatives:
+        - Generic increment action, not from or to source: (0, 0, ..., 0, 0)
+        - Generic increment action, from or to source: (0, 0, ..., 0, 1)
+        - EOS: (inf, inf, ..., inf, inf)
         """
         actions_dim = self.n_dim + 1
         self.eos = tuple([np.inf] * actions_dim)
-        self.representative_action = tuple([0.0] * actions_dim)
-        return [self.representative_action, self.eos]
+        self.representative_no_source = tuple([0.0] * self.n_dim) + (0,)
+        self.representative_source = tuple([0.0] * self.n_dim) + (1,)
+        return [self.representative_no_source, self.representative_source, self.eos]
 
-    def get_max_traj_length(self):
-        return np.ceil(1.0 / self.min_incr) + 2
+    def action2representative(self, action: Tuple) -> Tuple:
+        """
+        Replaces the continuous values of an action by 0s (the "generic" or
+        "representative" action in the first position of the action space), so that
+        they can be compared against the action space or a mask.
+
+        If the action is EOS, it is returned as is.
+
+        Parameters
+        ----------
+        action : tuple
+            An actual action of the Cube environment (with continuous values)
+
+        Returns
+        -------
+        tuple
+            A representative of the action, where continuous values are replaced by
+            zeros.
+        """
+        if action == self.eos:
+            return action
+        elif action[-1] == 0:
+            return self.action_space[0]
+        elif action[-1] == 1:
+            return self.action_space[1]
+        else:
+            raise ValueError(f"Action {action} does not seem like a valid action")
+
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return int(np.ceil(1.0 / self.min_incr) + 2) + 1
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -578,6 +763,56 @@ class ContinuousCube(CubeBase):
         mask[0] = False
         return mask
 
+    def get_valid_actions(
+        self,
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        As a continuous environment, the returned actions are "representatives", that
+        is the actions represented in the action space.
+
+        Parameters
+        ----------
+        mask : list (optional)
+            The mask of a state. If None, it is computed in place.
+        state : list (optional)
+            A state in GFlowNet format. If None, self.state is used.
+        done : bool (optional)
+            Whether the trajectory is done. If None, self.done is used.
+        backward : bool
+            True if the transtion is backwards; False if forward.
+
+        Returns
+        -------
+        list
+            The list of representatives of the valid actions.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+
+        actions_valid = []
+        if backward:
+            if mask[0] is False or mask[1] is False:
+                actions_valid.append(self.action_space[1])
+            if mask[0] is False:
+                actions_valid.append(self.action_space[0])
+        else:
+            if mask[1] is False:
+                actions_valid.append(self.action_space[1])
+            elif mask[0] is False:
+                actions_valid.append(self.action_space[0])
+        if mask[2] is False:
+            actions_valid.append(self.eos)
+        return actions_valid
+
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
     ) -> Tuple[List[List], List[Tuple[int, float]]]:
@@ -641,17 +876,12 @@ class ContinuousCube(CubeBase):
             increments_abs, self.min_incr, dtype=self.float, device=self.device
         )
         if is_backward:
-            increments_rel = (increments_abs - min_increments) / (
-                states - min_increments
-            )
-            # Add epsilon to numerator and denominator if values are unbounded
-            if not torch.all(torch.isfinite(increments_rel)):
-                increments_rel = (increments_abs - min_increments + 1e-9) / (
-                    states - min_increments + 1e-9
-                )
+            denominator = (states - min_increments).clamp(min=self.epsilon)
+            increments_rel = (increments_abs - min_increments) / denominator
             return increments_rel
         else:
-            return (increments_abs - min_increments) / (1.0 - states - min_increments)
+            denominator = (1.0 - states - min_increments).clamp(min=self.epsilon)
+            return (increments_abs - min_increments) / denominator
 
     @staticmethod
     def _get_beta_params_from_mean_variance(
@@ -744,19 +974,70 @@ class ContinuousCube(CubeBase):
         states_from: List = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
+
+        This method overwrites the methof of the GFlowNetEnv because it
+        is a continious enviroment.
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. Ignored in discrete
+            environments and only required in certain continuous environments.
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
+        sampling_method : str, optional
+            The sampling method to use to sample actions. The implemented options are:
+                - policy: the model outputs are used, optionally after tempering the
+                  distribution and randomizing actions.
+        random_action_prob : float, optional
+            The probability of sampling a random action. If larger than one, the model
+            outputs will be replaced by a random policy vector with probability
+            `random_action_prob`, according to Bernoulli distribution.
+        temperature_logits : float, optional
+            A scalar by which the model outputs are divided to temper the sampling
+            distribution.
+        max_sampling_attempts : int, optional
+            Maximum of number of attempts to sample actions that are not invalid
+            according to the mask before throwing an error, in order to ensure that
+            non-invalid actions are returned without getting stuck.
+
+        Returns
+        -------
+        actions : list
+            The list of sampled actions.
         """
         if not is_backward:
             return self._sample_actions_batch_forward(
-                policy_outputs, mask, states_from, sampling_method, temperature_logits
+                policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
+                temperature_logits=temperature_logits,
+                max_sampling_attempts=max_sampling_attempts,
             )
         else:
             return self._sample_actions_batch_backward(
-                policy_outputs, mask, states_from, sampling_method, temperature_logits
+                policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                sampling_method=sampling_method,
+                random_action_prob=random_action_prob,
+                temperature_logits=temperature_logits,
+                max_sampling_attempts=max_sampling_attempts,
             )
 
     def _sample_actions_batch_forward(
@@ -765,6 +1046,7 @@ class ContinuousCube(CubeBase):
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -817,11 +1099,25 @@ class ContinuousCube(CubeBase):
         is_eos[is_eos_forced] = True
         # Ensure that is_eos_forced does not include any source state
         assert not torch.any(torch.logical_and(is_source, is_eos_forced))
+
+        # Initialise sampling logits
+        if sampling_method == "policy":
+            logits_sampling = policy_outputs.clone().detach()
+        else:
+            raise NotImplementedError(
+                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
+            )
+
+        # Randomize actions and temper the logits
+        logits_sampling = self.randomize_and_temper_sampling_distribution(
+            logits_sampling, random_action_prob, temperature_logits
+        )
+
         # Sample EOS from Bernoulli distribution
         do_eos = torch.logical_and(~is_source, ~is_eos_forced)
         if torch.any(do_eos):
             is_eos_sampled = torch.zeros_like(do_eos)
-            logits_eos = self._get_policy_eos_logit(policy_outputs)[do_eos]
+            logits_eos = self._get_policy_eos_logit(logits_sampling)[do_eos]
             distr_eos = Bernoulli(logits=logits_eos)
             is_eos_sampled[do_eos] = tbool(distr_eos.sample(), device=self.device)
             is_eos[is_eos_sampled] = True
@@ -832,7 +1128,7 @@ class ContinuousCube(CubeBase):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                    logits_sampling[do_increments]
                 )
             # Shape of increments: [n_do_increments, n_dim]
             increments = distr_increments.sample()
@@ -861,8 +1157,7 @@ class ContinuousCube(CubeBase):
                 (increments, torch.zeros((increments.shape[0], 1))), dim=1
             )
         actions_tensor[is_source, -1] = 1
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions, None
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def _sample_actions_batch_backward(
         self,
@@ -870,6 +1165,7 @@ class ContinuousCube(CubeBase):
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -908,11 +1204,25 @@ class ContinuousCube(CubeBase):
         # Back-to-source (BTS) is the only possible action if mask[1] is False
         is_bts_forced = ~mask[:, 1]
         is_bts[is_bts_forced] = True
+
+        # Initialise sampling logits
+        if sampling_method == "policy":
+            logits_sampling = policy_outputs.clone().detach()
+        else:
+            raise NotImplementedError(
+                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
+            )
+
+        # Randomize actions and temper the logits
+        logits_sampling = self.randomize_and_temper_sampling_distribution(
+            logits_sampling, random_action_prob, temperature_logits
+        )
+
         # Sample BTS from Bernoulli distribution
         do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
         if torch.any(do_bts):
             is_bts_sampled = torch.zeros_like(do_bts)
-            logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
+            logits_bts = self._get_policy_source_logit(logits_sampling)[do_bts]
             distr_bts = Bernoulli(logits=logits_bts)
             is_bts_sampled[do_bts] = tbool(distr_bts.sample(), device=self.device)
             is_bts[is_bts_sampled] = True
@@ -923,7 +1233,7 @@ class ContinuousCube(CubeBase):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                    logits_sampling[do_increments]
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments = distr_increments.sample()
@@ -963,13 +1273,12 @@ class ContinuousCube(CubeBase):
             actions_tensor[is_bts, :-1] = self._mask_ignored_dimensions(
                 mask[is_bts], actions_tensor[is_bts, :-1]
             )
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions, None
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "mask_dim"],
         states_from: List,
         is_backward: bool,
@@ -977,22 +1286,18 @@ class ContinuousCube(CubeBase):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information about invalid actions and special cases.
-
-        actions : tensor
+        actions : list or tensor
             The actions (absolute increments) from each state in the batch for which to
             compute the log probability.
-
         states_from : tensor
             The states originating the actions, in GFlowNet format. They are required
             so as to compute the relative increments and the Jacobian.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default). Required, since the computation for forward and backward actions
@@ -1010,7 +1315,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -1018,6 +1323,7 @@ class ContinuousCube(CubeBase):
         Computes log probabilities of forward actions.
         """
         # Initialize variables
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         states_from_tensor = tfloat(
             states_from, float_type=self.float, device=self.device
@@ -1106,7 +1412,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "actions_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -1114,6 +1420,7 @@ class ContinuousCube(CubeBase):
         Computes log probabilities of backward actions.
         """
         # Initialize variables
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         states_from_tensor = tfloat(
             states_from, float_type=self.float, device=self.device
@@ -1369,14 +1676,6 @@ class ContinuousCube(CubeBase):
         # Otherwise perform action
         return self._step(action, backward=True)
 
-    def action2representative(self, action: Tuple) -> Tuple:
-        """
-        Replaces the continuous values of an action by 0s (the "generic" or
-        "representative" action in the first position of the action space), so that
-        they can be compared against the action space or a mask.
-        """
-        return self.action_space[0]
-
     def get_grid_terminating_states(
         self, n_states: int, kappa: Optional[float] = None
     ) -> List[List]:
@@ -1429,28 +1728,141 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
+
+class HybridCube(SetFix):
+    """
+    Hybrid hyper-cube environment (continuous version of a hyper-grid) in which the
+    action space consists of the increment of one dimension dimension at a time, as
+    opposed to the ContinuousCube, in which all dimensions are incremented at once.
+
+    In practice, it is implemented as a SetFix of M 1D ContinuousCube environments, where
+    M is the dimensionality of the hyper-cube.
+
+    Attributes
+    ----------
+    n_dim : int
+        Dimensionality of the hyper-cube.
+
+    min_incr : float
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
+    """
+
+    def __init__(self, **kwargs):
+        # Set number of dimensions as attribute
+        self.n_dim = kwargs["n_dim"]
+        # Change number of dimensions in kwargs to 1, to be passed to the
+        # ContinuousCube environments
+        kwargs["n_dim"] = 1
+        # The sub-environments are self.n_dim 1D ContinuousCube environments
+        subenvs = [ContinuousCube(**kwargs) for _ in range(self.n_dim)]
+        super().__init__(subenvs=subenvs, **kwargs)
+
+    def states2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        r"""
+        Prepares a batch of states in environment format for a proxy.
+
+        The input states are in the environment format of the Set. The outputs contain
+        only the Cube part and the format is as in
+        :py:meth:`gflownet.envs.cube.ContinuousCube.states2proxy`.
+
+        Parameters
+        ----------
+        states : list
+            A batch of states in Set environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        # Construct list of states as if they came from a ContinuousCube with self.n_dim
+        states = [[s[0] for s in self._get_substates(state)] for state in states]
+        # Convert to proxy via states2proxy() of the ContinuousCube
+        return self.subenvs[0].states2proxy(states)
+
+    def get_grid_terminating_states(
+        self, n_states: int, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.subenvs[0].kappa
+        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        linspaces = [
+            np.linspace(kappa, 1.0 - kappa, n_per_dim) for _ in range(self.n_dim)
+        ]
+        states = []
+        for dims in itertools.product(*linspaces):
+            state = copy(self.source)
+            for idx in range(self.n_subenvs):
+                state = self._set_subdone(idx, True, state)
+                state = self._set_substate(idx, [dims[idx]], state)
+            states.append(state)
+        return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Number of states in the returned list.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.subenvs[0].kappa
+        rng = np.random.default_rng(seed)
+        states_cube = rng.uniform(
+            low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim)
+        )
+        states = []
+        for dims in states_cube:
+            state = copy(self.source)
+            for idx in range(self.n_subenvs):
+                state = self._set_subdone(idx, True, state)
+                state = self._set_substate(idx, [dims[idx]], state)
+            states.append(state)
+        return states
+
     def fit_kde(
         self,
         samples: TensorType["batch_size", "state_proxy_dim"],
         kernel: str = "gaussian",
         bandwidth: float = 0.1,
     ):
-        r"""
+        """
         Fits a Kernel Density Estimator on a batch of samples.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples in proxy format.
-        kernel : str
-            An identifier of the kernel to use for the density estimation. It must be a
-            valid kernel for the scikit-learn method
-            :py:meth:`sklearn.neighbors.KernelDensity`.
-        bandwidth : float
-            The bandwidth of the kernel.
+        Simply calls fit_kde() of CubeBase.
         """
-        samples = torch2np(samples)
-        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
+        return CubeBase.fit_kde(self, samples, kernel, bandwidth)
 
     def plot_reward_samples(
         self,
@@ -1465,56 +1877,11 @@ class ContinuousCube(CubeBase):
         """
         Plots the reward contour alongside a batch of samples.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples from the GFlowNet policy in proxy format. These samples
-            will be plotted on top of the reward density.
-        samples_reward : tensor
-            A batch of samples containing a grid over the sample space, from which the
-            reward has been obtained. These samples are used to plot the contour of
-            reward density.
-        rewards : tensor
-            The rewards of samples_reward. It should be a vector of dimensionality
-            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
-            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
-            row of the grid of samples, from top to bottom. The same is assumed for
-            samples_reward.
-        alpha : float
-            Transparency of the reward contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
-        max_samples : int
-            Maximum of number of samples to include in the plot.
+        Simply calls plot_reward_samples() of CubeBase.
         """
-        if self.n_dim != 2:
-            return None
-        samples = torch2np(samples)
-        samples_reward = torch2np(samples_reward)
-        rewards = torch2np(rewards)
-        # Create mesh grid from samples_reward
-        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
-        assert n_per_dim**2 == samples_reward.shape[0]
-        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
-        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
-        rewards = rewards.reshape((n_per_dim, n_per_dim))
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot reward contour
-        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
-        ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
-        # Plot samples
-        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
-        ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
-        # Figure settings
-        ax.grid()
-        padding = 0.05 * (CELL_MAX - CELL_MIN)
-        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
-        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
-        plt.tight_layout()
-        return fig
+        return CubeBase.plot_reward_samples(
+            self, samples, samples_reward, rewards, alpha, dpi, max_samples
+        )
 
     def plot_kde(
         self,
@@ -1529,40 +1896,6 @@ class ContinuousCube(CubeBase):
         Plots the density previously estimated from a batch of samples via KDE over the
         entire sample space.
 
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples containing a grid over the sample space. These samples
-            are used to plot the contour of the estimated density.
-        kde : KDE
-            A scikit-learn KDE object fit with a batch of samples.
-        alpha : float
-            Transparency of the density contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
+        Simply calls plot_reward_samples() of CubeBase.
         """
-        if self.n_dim != 2:
-            return None
-        samples = torch2np(samples)
-        # Create mesh grid from samples
-        n_per_dim = int(np.sqrt(samples.shape[0]))
-        assert n_per_dim**2 == samples.shape[0]
-        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
-        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
-        # Score samples with KDE
-        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot KDE
-        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
-        ax.axis("scaled")
-        if colorbar:
-            fig.colorbar(h, ax=ax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        # Set tight layout
-        plt.tight_layout()
-        return fig
+        return CubeBase.plot_kde(self, samples, kde, alpha, dpi, colorbar)

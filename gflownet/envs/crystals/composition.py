@@ -2,14 +2,10 @@
 Classes to represent material compositions (stoichiometry)
 """
 
-import itertools
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import torch
-from pyxtal.symmetry import Group
-from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -141,6 +137,17 @@ class Composition(GFlowNetEnv):
         self.eos = (-1, -1)
         super().__init__(**kwargs)
 
+    def set_space_group(self, space_group: int):
+        """
+        Sets the space group.
+
+        Parameters
+        ----------
+        space_group : int
+            Space group number.
+        """
+        self.space_group = space_group
+
     def get_action_space(self):
         """
         Constructs list with all possible actions. An action is described by a
@@ -154,8 +161,12 @@ class Composition(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def get_max_traj_length(self):
-        return min(self.max_diff_elem, self.max_atoms // self.min_atom_i)
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
+        return min(self.max_diff_elem, self.max_atoms // self.min_atom_i) + 1
 
     def _refine_compatibility_check(
         self, state, mask_required_element, mask_unrequired_element
@@ -182,7 +193,7 @@ class Composition(GFlowNetEnv):
             trajectory.
         """
         space_group = get_space_group(self.space_group)
-        n_atoms = list(state.values())
+        n_atoms_per_element = self.get_n_atoms_per_element(state)
 
         # Get the greated common divisor of the group's wyckoff position.
         # It cannot be valid to add a number of atoms that is not a
@@ -229,7 +240,7 @@ class Composition(GFlowNetEnv):
                 # If the composition resulting from this action is
                 # incompatible with the space group, mark action as
                 # invalid
-                n_atoms_post_action = n_atoms + [nb_atoms_action]
+                n_atoms_post_action = n_atoms_per_element + [nb_atoms_action]
                 sg_compatible = space_group_check_compatible(
                     self.space_group, n_atoms_post_action
                 )
@@ -273,8 +284,10 @@ class Composition(GFlowNetEnv):
 
             # Determine if the current composition is compatible with the
             # space group
-            n_atoms = list(state.values())
-            sg_compatible = space_group_check_compatible(self.space_group, n_atoms)
+            n_atoms_per_element = self.get_n_atoms_per_element(state)
+            sg_compatible = space_group_check_compatible(
+                self.space_group, n_atoms_per_element
+            )
         else:
             # Don't impose additional constraints on the min/max number of
             # atoms per element
@@ -625,6 +638,27 @@ class Composition(GFlowNetEnv):
                     self.n_actions += 1
             return self.state, self.eos, valid
 
+    def get_n_atoms_per_element(self, state: Optional[List[int]] = None) -> List[int]:
+        """
+        Returns the number of atoms per element.
+
+        The result is returned as a list of integers, with no particular order. That
+        is, the output does not allow to identify which element has how many atoms,
+        since the intended use is mainly to check the compatibility with a space group.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format. If None, self.state is used.
+
+        Returns
+        -------
+        list
+            A list of integers containing the number of atoms per element in the state.
+        """
+        state = self._get_state(state)
+        return list(state.values())
+
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
         """
         Helper that checks whether there is a configuration of oxidation states that
@@ -678,7 +712,7 @@ class Composition(GFlowNetEnv):
             True if the state is valid according to the attributes of the environment;
             False otherwise.
         """
-        n_atoms_per_element = state.values()
+        n_atoms_per_element = self.get_n_atoms_per_element(state)
         # Check total number of atoms
         n_atoms = sum(n_atoms_per_element)
         if n_atoms < self.min_atoms:

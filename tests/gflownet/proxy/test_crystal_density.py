@@ -1,4 +1,12 @@
 import pytest
+
+# Skip the entire module if pyxtal is not installed / cannot be imported
+pytest.importorskip(
+    "pyxtal",
+    reason="Skipping all tests in test_crystal_density.py because pyxtal could not be "
+    "imported",
+)
+
 import torch
 
 from gflownet.envs.crystals.crystal import Crystal

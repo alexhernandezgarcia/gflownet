@@ -18,4 +18,4 @@ cd {code_dir}
 python3 -c 'print("\n" + "-" * 40 + "\n" + "-" * 40)'
 echo
 
-python main.py {main_args}
+python train.py {main_args}

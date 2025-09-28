@@ -15,9 +15,3 @@ max_dim_per_action: 1
 # Mapping coordinates
 cell_min: -1
 cell_max: 1
-# Buffer
-buffer:
-  data_path: null
-  train: null
-  test:
-    type: all

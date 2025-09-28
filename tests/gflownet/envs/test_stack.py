@@ -8,6 +8,7 @@ from torch import Tensor
 
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
+from gflownet.envs.set import SetFix
 from gflownet.envs.stack import Stack
 from gflownet.envs.tetris import Tetris
 from gflownet.utils.common import tbool, tfloat
@@ -65,8 +66,66 @@ def env_cube_tetris_grid():
     )
 
 
+@pytest.fixture
+def env_cube_setgrids():
+    return Stack(
+        subenvs=(
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            SetFix(
+                subenvs=(
+                    Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+                    Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+                )
+            ),
+        )
+    )
+
+
+@pytest.fixture
+def env_cube_setstacks():
+    """
+    Stack of set of stacks, to test compositionality of meta environments.
+    0: Cube
+    1: SetFix
+        Stack
+            0: Cube
+            1: Grid
+        Stack
+            0: Grid
+            1: Cube
+    """
+    return Stack(
+        subenvs=(
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            SetFix(
+                subenvs=(
+                    Stack(
+                        subenvs=(
+                            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+                            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+                        )
+                    ),
+                    Stack(
+                        subenvs=(
+                            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+                            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+                        )
+                    ),
+                )
+            ),
+        )
+    )
+
+
 @pytest.mark.parametrize(
-    "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
+    "env",
+    [
+        "env_grid2d_tetrismini",
+        "env_cube_tetris",
+        "env_cube_tetris_grid",
+        "env_cube_setgrids",
+        "env_cube_setstacks",
+    ],
 )
 def test__environment__initializes_properly(env, request):
     env = request.getfixturevalue(env)
@@ -92,9 +151,9 @@ def test__environment__is_continuous(env, is_continuous, request):
         ("env_grid2d_tetrismini", (0, 1, 0, 0), (0, 1, 0, 0)),
         ("env_grid2d_tetrismini", (1, 1, 0, 3), (1, 1, 0, 3)),
         ("env_cube_tetris", (0, 0.2, 0.3, 0), (0, 0, 0, 0)),
-        ("env_cube_tetris", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris", (0, 0.5, 0.7, 1), (0, 0, 0, 1)),
         ("env_cube_tetris", (1, 4, 0, 2), (1, 4, 0, 2)),
-        ("env_cube_tetris_grid", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris_grid", (0, 0.5, 0.7, 1), (0, 0, 0, 1)),
         ("env_cube_tetris_grid", (1, 4, 0, 2), (1, 4, 0, 2)),
         ("env_cube_tetris_grid", (2, 0, 1, 0), (2, 0, 1, 0)),
         ("env_cube_tetris_grid", (2, 0, 0, 0), (2, 0, 0, 0)),
@@ -162,6 +221,34 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
 
 
 @pytest.mark.parametrize(
+    "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
+)
+def test__action_space__contains_actions_of_all_subenvs(env, request):
+    env = request.getfixturevalue(env)
+    action_space = env.action_space
+    for stage, subenv in env.subenvs.items():
+        assert all(
+            [
+                env._pad_action(action, stage) in action_space
+                for action in subenv.action_space
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "env, mask_dim_expected",
+    [
+        ("env_grid2d_tetrismini", max([3, 8]) + 2),
+        ("env_cube_tetris", max([5, 6]) + 2),
+        ("env_cube_tetris_grid", max([5, 8, 3]) + 3),
+    ],
+)
+def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
+    env = request.getfixturevalue(env)
+    assert env.mask_dim == mask_dim_expected
+
+
+@pytest.mark.parametrize(
     "env, source",
     [
         (
@@ -219,6 +306,122 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
 def test__source_is_expected(env, source, request):
     env = request.getfixturevalue(env)
     assert env.equal(env.source, source)
+
+
+@pytest.mark.parametrize(
+    "env, state, is_source",
+    [
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                0,
+                [0, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            True,
+        ),
+        (
+            "env_cube_tetris",
+            [
+                # fmt: off
+                0,
+                [-1.0, -1.0],
+                torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            True,
+        ),
+        (
+            "env_cube_tetris_grid",
+            [
+                # fmt: off
+                0,
+                [-1.0, -1.0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                [0, 0, 0],
+                # fmt: on
+            ],
+            True,
+        ),
+        (
+            "env_cube_tetris_grid",
+            [
+                # fmt: off
+                1,
+                [-1.0, -1.0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                [0, 0, 0],
+                # fmt: on
+            ],
+            False,
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                0,
+                [-1, -1],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            True,
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                1,
+                [-1, -1],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            False,
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                0,
+                [0.0, 0.0],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            False,
+        ),
+    ],
+)
+def test__is_source__returns_expected(env, state, is_source, request):
+    env = request.getfixturevalue(env)
+    assert env.is_source(state) == is_source
+    env.set_state(state)
+    assert env.is_source() == is_source
 
 
 @pytest.mark.parametrize(
@@ -340,6 +543,163 @@ def test__source_is_expected(env, source, request):
                     [100, 400, 400, 000],
                 ], dtype=torch.int16, device="cpu"),
                 # fmt: on
+            ],
+            [True, True],
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                0,
+                [-1, -1],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            [False, False],
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                0,
+                [0.3, 0.7],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            [False, False],
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                1,
+                [0.3, 0.7],
+                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            [True, False],
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                1,
+                [0.3, 0.7],
+                [[0, 0, [0, 0], [0, 0]], {0: [1, 0], 1: [0, 0]}],
+                # fmt: on
+            ],
+            [True, False],
+        ),
+        (
+            "env_cube_setgrids",
+            [
+                # fmt: off
+                1,
+                [0.3, 0.7],
+                [[-1, 0, [1, 1], [0, 0]], {0: [1, 2], 1: [1, 1]}],
+                # fmt: on
+            ],
+            [True, True],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                0,
+                [-1, -1],
+                [
+                    # fmt: off
+                    [-1, 0, [0, 0], [0, 1]],
+                    {
+                        0: [0, [-1.0, -1.0], [0, 0]],
+                        1: [0, [0, 0], [-1.0, -1.0]]
+                    },
+                    # fmt: on
+                ],
+            ],
+            [False, False],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                0,
+                [0.3, 0.7],
+                [
+                    # fmt: off
+                    [-1, 0, [0, 0], [0, 1]],
+                    {
+                        0: [0, [-1.0, -1.0], [0, 0]],
+                        1: [0, [0, 0], [-1.0, -1.0]]
+                    },
+                    # fmt: on
+                ],
+            ],
+            [False, False],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                1,
+                [0.3, 0.7],
+                [
+                    # fmt: off
+                    [-1, 0, [0, 0], [0, 1]],
+                    {
+                        0: [0, [-1.0, -1.0], [0, 0]],
+                        1: [0, [0, 0], [-1.0, -1.0]]
+                    },
+                    # fmt: on
+                ],
+            ],
+            [True, False],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                1,
+                [0.3, 0.7],
+                [
+                    # fmt: off
+                    [0, 0, [0, 0], [0, 1]],
+                    {
+                        0: [0, [0.1, 0.2], [0, 0]],
+                        1: [0, [0, 0], [-1.0, -1.0]]
+                    },
+                    # fmt: on
+                ],
+            ],
+            [True, False],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                1,
+                [0.3, 0.7],
+                [
+                    # fmt: off
+                    [-1, 0, [1, 0], [0, 1]],
+                    {
+                        0: [1, [0.1, 0.2], [2, 1]],
+                        1: [0, [0, 0], [-1.0, -1.0]]
+                    },
+                    # fmt: on
+                ],
+            ],
+            [True, False],
+        ),
+        (
+            "env_cube_setstacks",
+            [
+                1,
+                [0.3, 0.7],
+                [
+                    # fmt: off
+                    [-1, 0, [1, 1], [0, 1]],
+                    {
+                        0: [1, [0.1, 0.2], [2, 1]],
+                        1: [0, [1, 2], [0.3, 0.8]]
+                    },
+                    # fmt: on
+                ],
             ],
             [True, True],
         ),
@@ -1164,7 +1524,14 @@ def test__step_random__does_not_crash_from_source(env, request):
 
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
-    "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
+    "env",
+    [
+        "env_grid2d_tetrismini",
+        "env_cube_tetris",
+        "env_cube_tetris_grid",
+        "env_cube_setgrids",
+        "env_cube_setstacks",
+    ],
 )
 def test__trajectory_random__does_not_crash_from_source(env, request):
     """
@@ -1173,25 +1540,131 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     env = request.getfixturevalue(env)
     env.reset()
     env.trajectory_random()
-    pass
+    assert True
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
-@pytest.mark.repeat(100)
 @pytest.mark.parametrize(
-    "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
+    "env, state, parents_exp, parent_actions_exp",
+    [
+        # Source
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                0,
+                [0, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [],
+            [],
+        ),
+        # Intermediate grid
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                0,
+                [1, 2],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [
+                [
+                    # fmt: off
+                    0,
+                    [0, 2],
+                    torch.tensor([
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                    # fmt: on
+                ],
+                [
+                    # fmt: off
+                    0,
+                    [1, 1],
+                    torch.tensor([
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                    # fmt: on
+                ],
+            ],
+            [(0, 1, 0, 0), (0, 0, 1, 0)],
+        ),
+        # Source Tetris
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                1,
+                [1, 2],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [
+                [
+                    # fmt: off
+                    0,
+                    [1, 2],
+                    torch.tensor([
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                    # fmt: on
+                ],
+            ],
+            [(0, 0, 0, 0)],
+        ),
+    ],
 )
-def test__state2readable__is_reversible(env, request):
+def test__get_parents__returns_expected(
+    env, state, parents_exp, parent_actions_exp, request
+):
     env = request.getfixturevalue(env)
-    env = env.reset()
-    while not env.done:
-        state_recovered = env.readable2state(env.state2readable())
-        if state_recovered is not None:
-            assert env.equal(env.state, state_recovered)
-        env.step_random()
+
+    parents, parent_actions = env.get_parents(state, done=False)
+
+    # Create dictionaries of parent_action: parent for comparison
+    parents_actions_exp_dict = {}
+    for parent, action in zip(parents_exp, parent_actions_exp):
+        parents_actions_exp_dict[action] = tuple(parent.copy())
+    parents_actions_dict = {}
+    for parent, action in zip(parents, parent_actions):
+        parents_actions_dict[action] = tuple(parent.copy())
+
+    assert sorted(parents_actions_exp_dict) == sorted(parents_actions_dict)
 
 
-class TestGrid2DTetrisMini(common.BaseTestsContinuous):
+class TestStackGrid2DTetrisMini(common.BaseTestsDiscrete):
     """Common tests for Grid 3x3 -> Tetris-mini."""
 
     @pytest.fixture(autouse=True)
@@ -1199,11 +1672,34 @@ class TestGrid2DTetrisMini(common.BaseTestsContinuous):
         self.env = env_grid2d_tetrismini
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
 
 
-class TestCubeTetris(common.BaseTestsContinuous):
+class TestStackCubeTetris(common.BaseTestsContinuous):
     """Common tests for Cube -> Tetris."""
 
     @pytest.fixture(autouse=True)
@@ -1211,11 +1707,34 @@ class TestCubeTetris(common.BaseTestsContinuous):
         self.env = env_cube_tetris
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
 
 
-class TestCubeTetris(common.BaseTestsContinuous):
+class TestStackCubeTetrisGrid(common.BaseTestsContinuous):
     """Common tests for Cube -> Tetris -> Grid 3x3x3."""
 
     @pytest.fixture(autouse=True)
@@ -1223,5 +1742,98 @@ class TestCubeTetris(common.BaseTestsContinuous):
         self.env = env_cube_tetris_grid
         self.repeats = {
             "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestStackCubeSetFixGrids(common.BaseTestsContinuous):
+    """Common tests for Cube -> SetFix(Grid, Grid)."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_setgrids):
+        self.env = env_cube_setgrids
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestStackCubeSetFixStacks(common.BaseTestsContinuous):
+    """Common tests for Cube -> SetFix(Stack(Cube, Grid), Stack(Grid, Cube))."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_setstacks):
+        self.env = env_cube_setstacks
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }

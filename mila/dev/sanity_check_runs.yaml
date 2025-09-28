@@ -16,32 +16,56 @@ jobs:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: flowmatch
-      proxy: corners
+      loss: flowmatching
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 FM
   - slurm:
       job_name: sanity-grid-tb
     script:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: trajectorybalance
-      proxy: corners
+      loss: trajectorybalance
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 TB
   - slurm:
       job_name: sanity-grid-db
     script:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: detailedbalance
-      proxy: corners
+      loss: detailedbalance
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 DB
   - slurm:
       job_name: sanity-grid-fl
     script:
       env:
         __value__: grid
         length: 10
+      buffer:
+        test:
+          type: all
       gflownet: forwardlooking
-      proxy: corners
+      loss: forwardlooking
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 FL
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
@@ -50,11 +74,18 @@ jobs:
         __value__: tetris
         width: 5
         height: 10
+      buffer:
+        test:
+          type: random
+          n: 10
       gflownet: flowmatch
+      loss: flowmatching
       proxy: tetris
       evaluator:
         top_k: 10
         n_top_k: 100
+      logger:
+        run_name: Tetris 5x10 FM
   - slurm:
       job_name: sanity-tetris-tb
     script:
@@ -62,64 +93,28 @@ jobs:
         __value__: tetris
         width: 5
         height: 10
+      buffer:
+        test:
+          type: random
+          n: 10
       gflownet: trajectorybalance
+      loss: trajectorybalance
       proxy: tetris
       evaluator:
         top_k: 10
         n_top_k: 100
-  # Mini-Tetris
-  - slurm:
-      job_name: sanity-mintetris-fm
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: flowmatch
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-tb
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: trajectorybalance
-      evaluator:
-        top_k: 10
-        n_top_k: 100
-  - slurm:
-      job_name: sanity-mintetris-fl
-    script:
-      env:
-        __value__: tetris
-        width: 3
-        height: 10
-        pieces: ["J", "L", "S", "Z"]
-        allow_eos_before_full: True
-      proxy:
-        __value__: tetris
-        reward_function: exponential
-      gflownet: forwardlooking
-      evaluator:
-        top_k: 10
-        n_top_k: 100
+      logger:
+        run_name: Tetris 5x10 TB
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
-      evalutor:
+      buffer:
+        test:
+          type: grid
+          n: 1000
+      evaluator:
         period: 500
+      logger:
+        run_name: CTorus

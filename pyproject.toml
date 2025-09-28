@@ -1,99 +1,68 @@
-[tool.poetry]
+[project]
 name = "gflownet"
 version = "0.1.0"
 description = "GFlowNets, generative flow networks for probabilistic modelling"
-authors = ["Alex <alex.hernandez-garcia@mila.quebec>"]
+authors = [
+    {name = "alexhernandezgarcia", email = "alex.hernandez-garcia@mila.quebec"},
+    {name = "AlexandraVolokhova"},
+    {name = "nikita-0209"},
+    {name = "michalkoziarski"},
+    {name = "sh-divya"},
+    {name = "carriepl"},
+    {name = "vict0rsch"},
+    {name = "josephdviviano"},
+    {name = "engmubarak48"},
+]
 readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "botorch >=0.10.0",
+    "hydra-core >=1.3.2",
+    "matplotlib",
+    "numpy >=1.26.4,<2.0.0",
+    "pandas",
+    "plotly >=5.17.0",
+    "scikit-learn >=1.2.2",
+    "scipy >=1.11.2",
+    "six >=1.16.0",
+    "torch ==2.5.1",
+    "torchtyping >=0.1.4",
+    "tqdm",
+    "wandb >=0.15.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black >=23.9.1",
+    "flake8 >=6.1.0",
+    "isort >=5.12.0",
+    "ipdb >=0.13.13",
+    "jupyter >=1.0.0",
+    "pylint >=2.17.6",
+    "pytest >=7.4.2",
+    "pytest-repeat >=0.9.1",
+]
+
+# TODO: Consider relaxing the == dependency of pymatgen. As of Feb 2025, the latest version
+# is problematic. ==2024.3.1 is the minimum version required by pyxtal.
+materials = [
+    "dave @ git+https://github.com:sh-divya/crystalproxies.git@2.0.6",
+    "pymatgen ==2024.3.1",
+    "pyshtools >=4.10.3",
+    "pyxtal >=0.6.1",
+    "torch_scatter >=2.1.2",
+]
+
+# TODO: Dependencies in molecules should be further tested
+molecules = [
+    "rdkit ==2024.9.5",
+    "torch-geometric >=2.6.1",
+    "torchani >=2.2.4",
+]
+tree = [
+    "torch-geometric >=2.6.1",
+]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.dependencies]
-# Base dependencies.
-botorch = ">=0.10.0"
-hydra-core = ">=1.3.2"
-matplotlib = "*"
-numpy = "*"
-pandas = "*"
-plotly = ">=5.17.0"
-scikit-learn = ">=1.2.2"
-scipy = ">=1.11.2"
-six = ">=1.16.0"
-torch = "==2.0.1"
-torchtyping = ">=0.1.4"
-tqdm = "*"
-wandb = ">=0.15.11"
-
-# Dev dependencies.
-black = { version = ">=23.9.1", optional = true }
-flake8 = { version = ">=6.1.0", optional = true }
-isort = { version = ">=5.12.0", optional = true }
-pylint = { version = ">=2.17.6", optional = true }
-ipdb = { version = ">=0.13.13", optional = true }
-jupyter = { version = ">=1.0.0", optional = true }
-pytest = { version = ">=7.4.2", optional = true }
-pytest-repeat = { version = ">=0.9.1", optional = true }
-
-# Materials / crystal environments.
-pymatgen = {version = ">=2023.12.18", optional = true }
-pyxtal = {version = ">=0.6.1", optional = true }
-# To potentially update! Also, this really should be named activelearningproxy.
-dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
-pyshtools = {version = "==4.10.3", optional = true }
-
-# Molecules.
-# TODO: Remove Handled (for now) via a specialized script.
-# pyg_lib = {version = "0.3.1+pt20cu118", optional = true }
-# torch-scatter = { version = "2.1.2+pt20cu118", optional = true }
-# torch-sparse = { version = "0.6.18+pt20cu118", optional = true }
-# torch-cluster = {version = "1.6.3+pt20cu118", optional = true }
-# torch-spline-conv = {version = "1.2.2+pt20cu118", optional = true }
-torch-geometric = { version = ">=2.3.1", optional = true }
-torchani = { version = "2.2.4", optional = true }
-rdkit = { version = "2023.3.1", optional = true }
-
-
-[tool.poetry.extras]
-dev = [
-    "black",
-    "flake8",
-    "isort",
-    "pylint",
-    "ipdb",
-    "jupyter",
-    "pytest",
-    "pytest-repeat",
-]
-materials = ["pymatgen", "pyxtal", "dave", "pyshtools"]
-molecules = [
-    "pyg_lib",
-    "torch-geometric",
-    "torch-scatter",
-    "torch-sparse",
-    "torch-cluster",
-    "torch-spline-conv",
-    "torchani",
-    "rdkit",
-]
-all = [
-    "black",
-    "flake8",
-    "isort",
-    "pylint",
-    "ipdb",
-    "jupyter",
-    "pytest",
-    "pytest-repeat",
-    "pymatgen",
-    "pyxtal",
-    "dave",
-    "pyshtools",
-    "pyg_lib",
-    "torch-scatter",
-    "torch-sparse",
-    "torch-cluster",
-    "torch-spline-conv",
-    "torchani",
-    "rdkit",
-]

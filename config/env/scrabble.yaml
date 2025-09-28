@@ -4,10 +4,3 @@ defaults:
 _target_: gflownet.envs.scrabble.Scrabble
 
 id: scrabble
-# Buffer
-buffer:
-  data_path: null
-  train: null
-  test:
-    type: uniform
-    n: 10

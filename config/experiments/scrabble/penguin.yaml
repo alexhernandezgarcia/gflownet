@@ -5,18 +5,15 @@
 defaults:
    - override /env: scrabble
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: scrabble
    - override /logger: wandb
 
-# Environment
-env:
-  # Buffer
-  buffer:
-    data_path: null
-    train: null
-    test:
-      type: random
-      n: 1000
+# Buffer
+buffer:
+  test:
+    type: random
+    n: 1000
 
 # Proxy
 proxy:

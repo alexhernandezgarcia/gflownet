@@ -1,0 +1,4 @@
+# This is just an alias for forwardlooking,
+# so that we can do loss=fl instead of loss=forwardlooking
+defaults:
+  - forwardlooking

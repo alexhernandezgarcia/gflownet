@@ -3,14 +3,17 @@
 defaults:
    - override /env: crystals/lattice_parameters
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /policy: mlp
    - override /proxy: crystals/lattice_parameters
    - override /logger: wandb
 
 # Environment
 env:
-  buffer:
-    replay_capacity: 1000
+
+# Buffer
+buffer:
+  replay_capacity: 1000
 
 # Proxy
 proxy:

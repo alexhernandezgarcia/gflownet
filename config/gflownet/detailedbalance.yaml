@@ -3,7 +3,6 @@ defaults:
   - state_flow: mlp
 
 optimizer:
-  loss: detailedbalance
   lr: 0.0001
   lr_decay_period: 1000000
   lr_decay_gamma: 0.5

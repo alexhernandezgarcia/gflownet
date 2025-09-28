@@ -5,7 +5,8 @@ _target_: gflownet.envs.crystals.composition.Composition
 
 # Composition parameters
 id: composition
-max_diff_elem: 4
+elements: 94
+max_diff_elem: 5
 min_diff_elem: 2
 elements: 5
 min_atoms: 2
@@ -15,10 +16,3 @@ max_atom_i: 16
 space_group: null
 do_charge_check: False
 do_spacegroup_check: True
-# Buffer
-buffer:
-  data_path: null
-  train:
-    type: all
-  test:
-    type: all

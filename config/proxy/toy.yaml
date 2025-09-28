@@ -1,0 +1,12 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.toy.ToyScorer
+
+values: 
+  3: 30
+  4: 14
+  6: 23
+  8: 10
+  9: 30
+  10: 5

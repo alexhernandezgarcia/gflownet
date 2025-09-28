@@ -4,15 +4,21 @@
 defaults:
    - override /env: grid
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/corners
    - override /logger: wandb
 
 # Environment
 env:
   n_dim: 2
-  length: 10
+  length: 20
   max_increment: 1
   max_dim_per_action: 1
+
+# Buffer
+buffer:
+  test:
+    type: all
 
 # GFlowNet hyperparameters
 gflownet:
@@ -23,7 +29,7 @@ gflownet:
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 10000
+    n_train_steps: 3000
 
 # Policy
 policy:
@@ -31,10 +37,8 @@ policy:
     type: mlp
     n_hid: 128
     n_layers: 2
-    checkpoint: forward
   backward:
     shared_weights: True
-    checkpoint: backward
 
 # WandB
 logger:
@@ -42,6 +46,7 @@ logger:
     online: False
   lightweight: True
   project_name: "grid"
+  run_name: "20x20"
   tags: 
     - gflownet
     - grid

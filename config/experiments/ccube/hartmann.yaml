@@ -5,6 +5,7 @@
 defaults:
    - override /env: ccube
    - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
    - override /proxy: box/hartmann
    - override /logger: wandb
 
@@ -28,6 +29,12 @@ env:
     bernoulli_eos_prob: 0.1
     bernoulli_bts_prob: 0.1
   reward_func: identity
+
+# Buffer
+buffer:
+  test:
+    type: grid
+    n: 900
 
 # GFlowNet hyperparameters
 gflownet:

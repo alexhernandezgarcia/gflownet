@@ -27,10 +27,3 @@ random_distr_params:
   beta_beta: 10.0
   bernoulli_bts_prob: 0.1
   bernoulli_eos_prob: 0.1
-# Buffer
-buffer:
-  data_path: null
-  train: null
-  test:
-    type: grid
-    n: 900

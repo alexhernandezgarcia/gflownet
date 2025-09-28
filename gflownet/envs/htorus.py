@@ -376,7 +376,7 @@ class HybridTorus(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", 2],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["batch_size", "policy_output_dim"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -517,7 +517,7 @@ class HybridTorus(GFlowNetEnv):
             A list of randomly sampled terminating states.
         """
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspace = np.linspace(0, 2 * np.pi, n_per_dim)
+        linspace = np.linspace(0, 2 * np.pi, n_per_dim + 1)[:-1]
         angles = np.meshgrid(*[linspace] * self.n_dim)
         angles = np.stack(angles).reshape((self.n_dim, -1)).T
         states = np.concatenate(

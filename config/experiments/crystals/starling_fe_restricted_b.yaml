@@ -1,5 +1,6 @@
 # @package _global_
 #
+# EFORM PROXY
 # Restricted sampling B: Composition Li-Mn-O
 #   - max_diff_elem and min_diff_elem are set to 3
 #
@@ -9,6 +10,7 @@
 defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
   - override /proxy: crystals/dave
   - override /logger: wandb
 
@@ -16,10 +18,21 @@ device: cpu
 
 # Environment
 env:
+  do_spacegroup: True
+  do_lattice_parameters: True
+
+  do_sg_before_composition: True
+
   do_composition_to_sg_constraints: False
   do_sg_to_composition_constraints: True
   do_sg_to_lp_constraints: True
   do_sg_before_composition: True
+
+  # Space group config
+  space_group_kwargs:
+    space_groups_subset: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 25, 26, 29, 30, 31, 33, 36, 38, 40, 41, 43, 44, 46, 47, 51, 52, 53, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 69, 70, 71, 72, 74, 82, 84, 85, 86, 87, 88, 92, 99, 102, 107, 113, 114, 121, 122, 123, 126, 129, 131, 136, 137, 138, 139, 140, 141, 146, 147, 148, 150, 155, 156, 160, 161, 162, 163, 164, 166, 167, 176, 181, 185, 186, 187, 189, 192, 194, 198, 199, 205, 206, 216, 217, 220, 221, 224, 225, 227, 229, 230]
+
+  # Composition config
   composition_kwargs:
     elements: [3, 8, 25]
     max_diff_elem: 3
@@ -29,8 +42,8 @@ env:
     min_atom_i: 1
     max_atom_i: 16
     do_charge_check: True
-  space_group_kwargs:
-    space_groups_subset: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 25, 26, 29, 30, 31, 33, 36, 38, 40, 41, 43, 44, 46, 47, 51, 52, 53, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 69, 70, 71, 72, 74, 82, 84, 85, 86, 87, 88, 92, 99, 102, 107, 113, 114, 121, 122, 123, 126, 129, 131, 136, 137, 138, 139, 140, 141, 146, 147, 148, 150, 155, 156, 160, 161, 162, 163, 164, 166, 167, 176, 181, 185, 186, 187, 189, 192, 194, 198, 199, 205, 206, 216, 217, 220, 221, 224, 225, 227, 229, 230]
+
+  # Lattice parameters config
   lattice_parameters_kwargs:
     min_length: 0.9
     max_length: 100.0
@@ -52,14 +65,18 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  buffer:
-    replay_capacity: 1000
-    train:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/train.csv
-    test:
-      type: csv
-      path: /network/projects/crystalgfn/data/eform/val.csv
+
+# Buffer
+buffer:
+  replay_capacity: 1000
+  check_diversity: True
+  diversity_check_reward_similarity: 0.01
+  train:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/train.csv
+  test:
+    type: csv
+    path: /network/projects/crystalgfn/data/eform/val.csv
 
 # GFlowNet hyperparameters
 gflownet:
@@ -96,7 +113,7 @@ policy:
 proxy:
   reward_min: 1e-08
   do_clip_rewards: True
-  release: 0.3.4 # Formation energy release
+  ckpt_path: /network/projects/crystalgfn/ckpts/dave/eform/
   # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
   reward_function: exponential
   # Parameters of the reward function

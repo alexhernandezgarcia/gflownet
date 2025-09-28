@@ -16,9 +16,3 @@ flatten: True
 # Other config
 allow_redundant_rotations: False
 allow_eos_before_full: False
-buffer:
-  data_path: null
-  train: null
-  test:
-    type: random
-    n: 10

@@ -1,11 +1,13 @@
 import os
 import random
 from copy import deepcopy
+from functools import partial
 from os.path import expandvars
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import get_original_cwd, instantiate
@@ -186,20 +188,18 @@ def resolve_path(path: str) -> Path:
     return Path(expandvars(str(path))).expanduser().resolve()
 
 
-def find_latest_checkpoint(ckpt_dir, ckpt_name):
+def find_latest_checkpoint(ckpt_dir):
     """
-    Find the latest checkpoint in the directory with the specified name.
+    Find the latest checkpoint in the input directory.
 
-    If the checkpoint name contains the string "final", that checkpoint is returned.
-    Otherwise, the latest checkpoint is returned based on the iteration number.
+    If the directory contains a checkpoint file with the name "final", that checkpoint
+    is returned. Otherwise, the latest checkpoint is returned based on the iteration
+    number set in the file names.
 
     Parameters
     ----------
     ckpt_dir : Union[str, Path]
         Directory in which to search for the checkpoints.
-    ckpt_name : str
-        Name of the checkpoint. Typically, this is the name of forward or backward
-        policy.
 
     Returns
     -------
@@ -209,30 +209,27 @@ def find_latest_checkpoint(ckpt_dir, ckpt_name):
     Raises
     ------
     ValueError
-        If no final checkpoint is found and no other checkpoints are found according to
-        the specified pattern: `{ckpt_name}*`.
+        If no checkpoint files are found in the input directory.
     """
-    if ckpt_name is None:
-        return None
-    ckpt_name = Path(ckpt_name).stem
-    final = list(ckpt_dir.glob(f"{ckpt_name}*final*"))
+    ckpt_dir = Path(ckpt_dir)
+    final = [f for f in ckpt_dir.glob(f"*final*")]
     if len(final) > 0:
         return final[0]
-    ckpts = list(ckpt_dir.glob(f"{ckpt_name}*"))
+    ckpts = [f for f in ckpt_dir.glob(f"iter_*")]
     if not ckpts:
         raise ValueError(
-            f"No final checkpoints found in {ckpt_dir} with pattern {ckpt_name}*final*"
+            f"No checkpoints found in {ckpt_dir} with pattern iter_* or *final*"
         )
-    return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
+    return sorted(ckpts, key=lambda f: float(f.stem.split("iter_")[1]))[-1]
 
 
-def read_hydra_config(run_path=None, config_name="config"):
-    if run_path is None:
-        run_path = Path(config_name)
-        hydra_dir = run_path.parent
-        config_name = run_path.name
+def read_hydra_config(rundir=None, config_name="config"):
+    if rundir is None:
+        rundir = Path(config_name)
+        hydra_dir = rundir.parent
+        config_name = rundir.name
     else:
-        hydra_dir = run_path / ".hydra"
+        hydra_dir = rundir / ".hydra"
 
     with initialize_config_dir(
         version_base=None, config_dir=str(hydra_dir), job_name="xxx"
@@ -240,7 +237,7 @@ def read_hydra_config(run_path=None, config_name="config"):
         return compose(config_name=config_name)
 
 
-def gflownet_from_config(config):
+def gflownet_from_config(config, env=None):
     """
     Create GFlowNet from a Hydra OmegaConf config.
 
@@ -248,6 +245,9 @@ def gflownet_from_config(config):
     ----------
     config : DictConfig
         Config.
+
+    env : GFlowNetEnv
+        Optional environment instance to be used in the initialization.
 
     Returns
     -------
@@ -257,21 +257,39 @@ def gflownet_from_config(config):
     # Logger
     logger = instantiate(config.logger, config, _recursive_=False)
 
-    # The proxy is required in the env for scoring
+    # The proxy is required by the GFlowNetAgent for computing rewards
     proxy = instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
 
-    # The proxy is passed to env and used for computing rewards
-    env_maker = instantiate(
-        config.env,
-        device=config.device,
-        float_precision=config.float_precision,
-        _partial_=True,
+    # Using Hydra's partial instantiation, see:
+    # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
+    # If env is passed as an argument, we create an env maker with a partial
+    # instantiation from the copy method of the environment (this is used in unit
+    # tests, for example). Otherwise, we create the env maker with partial
+    # instantiation from the config.
+    if env is not None:
+        env_maker = partial(env.copy)
+    else:
+        env_maker = instantiate(
+            config.env,
+            device=config.device,
+            float_precision=config.float_precision,
+            _partial_=True,
+        )
+        env = env_maker()
+
+    # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
+    # dataset) it has the correct infro from env
+    # proxy.setup(env)
+    buffer = instantiate(
+        config.buffer,
+        env=env,
+        proxy=proxy,
+        datadir=logger.datadir,
     )
-    env = env_maker()
 
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
@@ -306,6 +324,16 @@ def gflownet_from_config(config):
     else:
         state_flow = None
 
+    # Loss
+    loss = instantiate(
+        config.loss,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
+        state_flow=state_flow,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+
     # GFlowNet Agent
     gflownet = instantiate(
         config.gflownet,
@@ -313,10 +341,11 @@ def gflownet_from_config(config):
         float_precision=config.float_precision,
         env_maker=env_maker,
         proxy=proxy,
+        loss=loss,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,
-        buffer=config.env.buffer,
+        buffer=buffer,
         logger=logger,
         evaluator=evaluator,
     )
@@ -324,31 +353,32 @@ def gflownet_from_config(config):
     return gflownet
 
 
-def load_gflow_net_from_run_path(
-    run_path,
+def load_gflownet_from_rundir(
+    rundir,
     no_wandb=True,
     print_config=False,
-    device="cuda",
-    load_final_ckpt=True,
-    empty_ok=False,
+    device=None,
+    load_last_checkpoint=True,
+    is_resumed: bool = False,
 ):
     """
     Load GFlowNet from a run path (directory with a `.hydra` directory inside).
 
     Parameters
     ----------
-    run_path : Union[str, Path]
+    rundir : Union[str, Path]
         Path to the run directory. Must contain a `.hydra` directory.
     no_wandb : bool, optional
         Whether to disable wandb in the GFN init, by default True.
     print_config : bool, optional
         Whether to print the loaded config, by default False.
     device : str, optional
-        Device to which the models should be moved, by default "cuda".
-    load_final_ckpt : bool, optional
+        Device to which the models should be moved. If None (default), take the device
+        from the loaded config.
+    load_last_checkpoint : bool, optional
         Whether to load the final models, by default True.
-    empty_ok : bool, optional
-        Whether to allow the checkpoints directory to be empty, by default False.
+    is_resumed : bool, optional
+        Whether the GFlowNet is loaded to resume training.
 
     Returns
     -------
@@ -360,49 +390,62 @@ def load_gflow_net_from_run_path(
     ValueError
         If no checkpoints are found in the directory.
     """
-    run_path = resolve_path(run_path)
-    config = read_hydra_config(run_path)
+    rundir = resolve_path(rundir)
+
+    # Read experiment config
+    config = OmegaConf.load(Path(rundir) / ".hydra" / "config.yaml")
+    # Resolve variables
+    config = OmegaConf.to_container(config, resolve=True)
+    # Re-create OmegaCong DictConfig
+    config = OmegaConf.create(config)
 
     if print_config:
         print(OmegaConf.to_yaml(config))
+
+    # Device
+    if device is None:
+        device = config.device
 
     if no_wandb:
         # Disable wandb
         config.logger.do.online = False
 
+    # -----------------------------------------
+    # -----  Load last model checkpoints  -----
+    # -----------------------------------------
+
+    if load_last_checkpoint:
+        checkpoint_latest = find_latest_checkpoint(rundir / config.logger.logdir.ckpts)
+        checkpoint = torch.load(checkpoint_latest, map_location=set_device(device))
+
+        # Set run id in logger to enable WandB resume
+        config.logger.run_id = checkpoint["run_id"]
+
+        # Set up Buffer configuration to load data sets and buffers from run
+        if checkpoint["buffer"]["train"]:
+            config.buffer.train = {
+                "type": "pkl",
+                "path": checkpoint["buffer"]["train"],
+            }
+        if checkpoint["buffer"]["test"]:
+            config.buffer.test = {
+                "type": "pkl",
+                "path": checkpoint["buffer"]["test"],
+            }
+        if checkpoint["buffer"]["replay"]:
+            config.buffer.replay_buffer = checkpoint["buffer"]["replay"]
+        # load them here
+
+        if is_resumed:
+            config.logger.logdir.root = rundir
+            config.logger.is_resumed = True
+
+    # Initialize a GFlowNet agent from the configuration
     gflownet = gflownet_from_config(config)
 
-    if not load_final_ckpt:
-        return gflownet, config
-
-    # -------------------------------
-    # -----  Load final models  -----
-    # -------------------------------
-
-    ckpt_dir = [f for f in run_path.rglob(config.logger.logdir.ckpts) if f.is_dir()][0]
-
-    forward_final = find_latest_checkpoint(ckpt_dir, config.policy.forward.checkpoint)
-    if forward_final is None:
-        print("Warning: no forward policy checkpoint found")
-    else:
-        print(f"\nLoading forward policy checkpoint: {str(forward_final)}")
-        gflownet.forward_policy.model.load_state_dict(
-            torch.load(forward_final, map_location=set_device(device))
-        )
-
-    backward_final = find_latest_checkpoint(ckpt_dir, config.policy.backward.checkpoint)
-    if backward_final is None:
-        print("Warning: no backward policy checkpoint found")
-    else:
-        print(f"Loading backward policy checkpoint: {str(backward_final)}\n")
-        gflownet.backward_policy.model.load_state_dict(
-            torch.load(backward_final, map_location=set_device(device))
-        )
-
-    if forward_final is None and backward_final is None:
-        if not empty_ok:
-            raise ValueError("No checkpoints found in", str(ckpt_dir))
-        print("Warning: no checkpoints found in", str(ckpt_dir))
+    # Load checkpoint into the GFlowNet agent
+    if load_last_checkpoint:
+        gflownet.load_checkpoint(checkpoint)
 
     return gflownet, config
 
@@ -731,3 +774,40 @@ def example_documented_function(arg1, arg2):
     if arg1 == arg2:
         raise ValueError("arg1 must not be equal to arg2")
     return True
+
+
+def select_indices(
+    iterable: Union[List, Tuple, TensorType, npt.NDArray],
+    indices: Optional[Union[List, Tuple, TensorType, npt.NDArray]] = None,
+):
+    """
+    Select elements form iterable
+
+    Parameters
+    ----------
+    iterable: list, tuple, tensor or np.ndarray
+        An iterable to select elements from. It can have multiple dimensions
+        and selection is always preformed over the first dimension
+    indices: list, tuple, tensor or np.ndarray
+        1-dimentional sequence of indecies for selecting elements, optional. If None,
+        the iterable will be returned as is. Default None
+
+    Returns
+    -------
+    list, tuple, tensor or np.ndarray
+        A sequence of selected elements. The type of the returned sequence is
+        the same as the type of the input iterable
+    """
+    if indices is None:
+        return iterable
+    if isinstance(iterable, (list, tuple)):
+        result = [iterable[idx] for idx in indices]
+        if isinstance(iterable, tuple):
+            result = tuple(result)
+        return result
+    elif torch.is_tensor(iterable) or isinstance(iterable, np.ndarray):
+        if isinstance(indices, tuple):
+            indices = list(indices)
+        return iterable[indices]
+    else:
+        raise Exception(f"Cannot select elements from {type(iterable)}")
