@@ -87,10 +87,7 @@ class BaseTestsCommon:
                 np.random.randint(low=0, high=self.env.action_space_dim)
             ]
             next_state, action_step, valid = self.env.step(action)
-            if torch.is_tensor(self.env.state):
-                assert self.env.equal(next_state, self.env.state)
-            else:
-                assert next_state == self.env.state
+            assert self.env.equal(next_state, self.env.state)
             assert action_step == action
             assert valid is False
 
