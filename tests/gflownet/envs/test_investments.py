@@ -323,16 +323,26 @@ def test__get_uniform_terminating_states__returns_valid_states(env):
 
 def test__network_structure_consistency(env):
     """Test that the network structure mappings are consistent."""
-    # Check that sector2tech and tag2tech are consistent with allowed mappings
+    # Check that network structures are consistent with allowed mappings
     for sector, techs in env.network_structure["sector2tech"].items():
         assert sector in env.sectors
         for tech in techs:
             assert tech in env.techs
 
+    for sector, tags in env.network_structure["sector2tag"].items():
+        assert sector in env.sectors
+        for tag in tags:
+            assert tag in env.tags
+
     for tag, techs in env.network_structure["tag2tech"].items():
         assert tag in env.tags
         for tech in techs:
             assert tech in env.techs
+
+    for tag, sectors in env.network_structure["tag2sector"].items():
+        assert tag in env.tags
+        for sector in sectors:
+            assert sector in env.sectors
 
 
 class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
@@ -342,8 +352,8 @@ class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
     def setup(self, env):
         self.env = env
         self.repeats = {
-            "test__reset__state_is_source": 10,
-            "test__get_parents__all_parents_are_reached_with_different_actions": 10,
-            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+            "test__reset__state_is_source": 100,
+            "test__get_parents__all_parents_are_reached_with_different_actions": 100,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 100,
         }
         self.n_states = {}  # TODO: Populate.
