@@ -13,6 +13,11 @@ def test__environment_initializes_properly():
     env = Single_Investment_DISCRETE()
     assert True
 
+def test__get_right_mask(env):
+    actions = [False] + [True]*(env.action_space_dim-1)
+    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 1}) == actions)
+    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 0}) == actions)
+    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 1, "TECH": 1, "AMOUNT": 0}) == actions)
 
 @pytest.mark.parametrize(
     "action_space",
@@ -92,36 +97,25 @@ def test__get_action_space__returns_expected(env, action_space):
             [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}],
             [(1, 1)],  # SECTOR=POWER action
         ),
-        # State with TECH and AMOUNT (well-defined investment)
+        # State with TECH and AMOUNT, can only be tech, else it would immediatly assign sector and tag
         (
             {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},  # power_NUCLEAR, HIGH
             [
                 {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
             ],
-            [(3, 3), (4, 1)],
+            [(3, 3)],
         ),
-        # State with SECTOR, TECH, and AMOUNT (TECH was assigned after SECTOR)
+        # State with SECTOR, TECH, and AMOUNT (cannot assign amount before filling in tech, had to be there before)
         (
-            {
-                "SECTOR": 1,
-                "TAG": 0,
-                "TECH": 3,
-                "AMOUNT": 1,
-            },  # POWER, power_NUCLEAR, HIGH
+            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 1,},  # POWER, power_NUCLEAR, HIGH
             [
                 {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            ],  # Parent missing TECH
-            [(3, 3), (4, 1)],  # TECH=power_NUCLEAR action
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1,}
+            ],
+            [(3, 3), (1,1)],  # TECH=power_NUCLEAR action
         ),  # State with SECTOR, TAG, and AMOUNT
         (
-            {
-                "SECTOR": 1,
-                "TAG": 2,
-                "TECH": 0,
-                "AMOUNT": 1,
-            },  # POWER, power_NUCLEAR, HIGH
+            {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 1,},  # POWER, power_NUCLEAR, HIGH
             [
                 {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
                 {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},
@@ -174,18 +168,25 @@ def test__get_parents__returns_expected(
             {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
             True,
         ),
-        # Complete investment with AMOUNT
+        # Assign AMOUNT from TECH -> FALSE, should fill in sector and tag first
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
             (4, 1),  # AMOUNT=HIGH
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
-            True,
+            {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
+            False,
         ),
-        # EOS on well-defined investment
+        # EOS on missing SECTOR AND TAG
         (
             {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
             (-1, -1),  # EOS
             {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
+            False,
+        ),
+        # EOS on well defined investment
+        (
+            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+            (-1, -1),  # EOS
+            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
             True,
         ),
         # Invalid: EOS on incomplete investment
@@ -208,6 +209,27 @@ def test__get_parents__returns_expected(
             (3, 3),
             {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
             False,
+        ),
+        # Fill in SECTOR
+        (
+            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            (1, 1),
+            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            True,
+        ),
+        # Fill in TAG before SECTOR
+        (
+            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            (2, 1),
+            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            False,
+        ),
+        # Fill in TAG after SECTOR
+        (
+            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+            (2, 1),
+            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
+            True,
         ),
     ],
 )
@@ -276,7 +298,9 @@ def test__readable2state__returns_expected(env, readable, state):
         ({"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0}, False),  # Only sector
         ({"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0}, False),  # Only tech
         ({"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1}, False),  # Only amount
-        ({"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1}, True),  # Tech + Amount
+        ({"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1}, False),  # Tech + Amount
+        ({"SECTOR": 0, "TAG": 1, "TECH": 3, "AMOUNT": 1}, False),  # missing sector
+        ({"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 1}, False),  # Missing tag
         ({"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1}, True),  # Complete investment
     ],
 )
@@ -299,7 +323,7 @@ def test__get_mask_invalid_actions_forward__source_state(env):
 
 def test__get_mask_invalid_actions_forward__well_defined_state(env):
     """Test masking at well-defined state - should only allow EOS."""
-    state = {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1}  # Tech + Amount assigned
+    state = {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1}  # Tech + Amount assigned
     mask = env.get_mask_invalid_actions_forward(state)
 
     # Only EOS should be valid (False in mask)

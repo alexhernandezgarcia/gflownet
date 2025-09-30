@@ -239,6 +239,12 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             "tag2sector": ALLOWED_TAG2SECTOR,
             "sector2tech": ALLOWED_SECTOR2TECH,
             "tag2tech": ALLOWED_TAG2TECH,
+            "tech2tag": {tech: tag
+                         for tag, techs in ALLOWED_TAG2TECH.items()
+                         for tech in techs},
+            "tech2sector": {tech: sector
+                         for sector, techs in ALLOWED_SECTOR2TECH.items()
+                         for tech in techs},
         }
 
         self.eos = (-1, -1)
@@ -307,13 +313,33 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         flags = []
 
         assigned = self.get_assigned_attributes(state)
-        if self.well_defined_investment(state):  # if you have tech and amount only eos
+        if self.well_defined_investment(state):  # if you have full investment
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
             return mask
 
-        mask[-1] = True  # eos only if TECH and AMOUNT are both assigned
+        mask[-1] = True  # eos only if plan is full
         action_space_without_EOS = self.action_space[0:-1]
+
+        if "TECH" in assigned and not "SECTOR" in assigned:
+            mask = [True for _ in range(self.action_space_dim)]
+            element = next(i for i, (x, y) in enumerate(action_space_without_EOS)
+                if (
+                    self.idx2token_choices[x] == "SECTOR"
+                    and self.idx2token_sectors[y] == self.network_structure['tech2sector'][self.idx2token_techs[state["TECH"]]]
+                ))
+            mask[element] = False
+            return mask
+
+        if "TECH" in assigned and not "TAG" in assigned:
+            mask = [True for _ in range(self.action_space_dim)]
+            element = next(i for i, (x, y) in enumerate(action_space_without_EOS)
+                if (
+                    self.idx2token_choices[x] == "TAG"
+                    and self.idx2token_tags[y] == self.network_structure['tech2tag'][self.idx2token_techs[state["TECH"]]]
+                ))
+            mask[element] = False
+            return mask
 
         for a in assigned:  # what is already set cannot be changed
             flags.extend(
@@ -322,13 +348,6 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
                     for i, (x, y) in enumerate(action_space_without_EOS)
                     if self.idx2token_choices[x] == a
                 ]
-            )
-
-        if "TECH" in assigned:  # If the tech is set, only the amount can be chosen
-            flags.extend(
-                i
-                for i, (x, y) in enumerate(action_space_without_EOS)
-                if self.idx2token_choices[x] != "AMOUNT"
             )
 
         if "SECTOR" in assigned:  # if the sector is set, choose only a compatible tech
@@ -431,11 +450,9 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         parents = []
         actions = []
         # Parents are the ones who could have assigned each value
-        # exceptions: if the tech is already assigned, sector and tag had to be previously assigned
+        #exceptions: force avoiding path tech -> tag -> sector, or assigning an amount in the middle of the tech-sector-tag sequence
         for a in assigned:
-            if (a == "SECTOR" and "TECH" in assigned) or (
-                a == "TAG" and "TECH" in assigned
-            ):
+            if (a == "TAG" and "TECH" in assigned and "SECTOR" not in assigned) or (a == 'AMOUNT' and "TECH" in assigned and ("SECTOR" not in assigned or "TAG" not in assigned)):
                 continue
             temp_state = copy(state)
             temp_state[a] = 0
@@ -684,22 +701,14 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             amount_token = random.choice(self.amounts)
             amount_idx = self.token2idx_amounts[amount_token]
 
-            sector_idx = 0  # default = unassigned
             for sector, tech_list in self.network_structure["sector2tech"].items():
                 if tech_token in tech_list:
-                    if (
-                        random.random() < 0.5
-                    ):  # 50% chance to assign, else leave unassigned
-                        sector_idx = self.token2idx_sectors[sector]
+                    sector_idx = self.token2idx_sectors[sector]
                     break
 
-            tag_idx = 0  # default = unassigned
             for tag, tech_list in self.network_structure["tag2tech"].items():
                 if tech_token in tech_list:
-                    if (
-                        random.random() < 0.5
-                    ):  # 50% chance to assign, else leave unassigned
-                        tag_idx = self.token2idx_tags[tag]
+                    tag_idx = self.token2idx_tags[tag]
                     break
 
             state = {
@@ -718,7 +727,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
     ) -> bool:
         state = self._get_state(state)
         assigned = self.get_assigned_attributes(state)
-        return "TECH" in assigned and "AMOUNT" in assigned
+        return "TECH" in assigned and "AMOUNT" in assigned and "SECTOR" in assigned and "TAG" in assigned
 
     def get_assigned_attributes(
         self,
