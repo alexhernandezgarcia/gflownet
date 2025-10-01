@@ -1,0 +1,6 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.investments.Single_Investment_DISCRETE
+
+id: investments
