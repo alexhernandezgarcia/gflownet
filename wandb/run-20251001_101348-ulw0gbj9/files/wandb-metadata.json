@@ -1,0 +1,45 @@
+{
+  "os": "Windows-10-10.0.26100-SP0",
+  "python": "CPython 3.10.11",
+  "startedAt": "2025-10-01T14:13:48.510001Z",
+  "args": [
+    "env=investments",
+    "proxy=uniform",
+    "logger.do.online=True"
+  ],
+  "program": "C:\\Users\\jacop\\Desktop\\newsce\\repos\\gflownet\\train.py",
+  "codePath": "train.py",
+  "codePathLocal": "train.py",
+  "git": {
+    "remote": "https://github.com/alexhernandezgarcia/gflownet.git",
+    "commit": "4f642a257d10aff017cb4d8af5e998380f67ed31"
+  },
+  "email": "jacopo.ghirri@gmail.com",
+  "root": "C:\\Users\\jacop\\Desktop\\newsce\\repos\\gflownet",
+  "host": "Jacopoli",
+  "executable": "C:\\Users\\jacop\\Desktop\\newsce\\repos\\gflownet\\gflownet-env\\Scripts\\python.exe",
+  "cpu_count": 14,
+  "cpu_count_logical": 20,
+  "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "994670800896",
+      "used": "486009024512"
+    }
+  },
+  "memory": {
+    "total": "34078003200"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA GeForce RTX 4070 Laptop GPU",
+      "memoryTotal": "8585740288",
+      "cudaCores": 4608,
+      "architecture": "Ada",
+      "uuid": "GPU-d9f3bb95-a1f2-1cc1-4ccf-6157105d9ca0"
+    }
+  ],
+  "cudaVersion": "12.8",
+  "writerId": "enkdg92g461fpvmvmqwptbztd4u1fipb"
+}

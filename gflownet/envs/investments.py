@@ -701,15 +701,11 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             amount_token = random.choice(self.amounts)
             amount_idx = self.token2idx_amounts[amount_token]
 
-            for sector, tech_list in self.network_structure["sector2tech"].items():
-                if tech_token in tech_list:
-                    sector_idx = self.token2idx_sectors[sector]
-                    break
+            sector_token = self.network_structure["tech2sector"][tech_token]
+            sector_idx = self.token2idx_sectors[sector_token]
 
-            for tag, tech_list in self.network_structure["tag2tech"].items():
-                if tech_token in tech_list:
-                    tag_idx = self.token2idx_tags[tag]
-                    break
+            tag_token = self.network_structure["tech2tag"][tech_token]
+            tag_idx = self.token2idx_tags[tag_token]
 
             state = {
                 "SECTOR": sector_idx,
