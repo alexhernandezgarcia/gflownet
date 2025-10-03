@@ -1,16 +1,16 @@
+import common
 import pytest
 
-import tests.gflownet.envs.common as common
-from gflownet.envs.investments import Single_Investment_DISCRETE
+from gflownet.envs.iam.investment import InvestmentDiscrete
 
 
 @pytest.fixture
 def env():
-    return Single_Investment_DISCRETE()
+    return InvestmentDiscrete()
 
 
 def test__environment_initializes_properly():
-    env = Single_Investment_DISCRETE()
+    env = InvestmentDiscrete()
     assert True
 
 

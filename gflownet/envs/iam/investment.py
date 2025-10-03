@@ -164,7 +164,7 @@ ALLOWED_TAG2TECH = {
 }
 
 
-class Single_Investment_DISCRETE(GFlowNetEnv):
+class InvestmentDiscrete(GFlowNetEnv):
 
     def __init__(
         self,
@@ -295,14 +295,12 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             - True if the forward action is invalid from the current state.
             - False otherwise.
 
-        Args
-        ----
-        state : tensor
+        Parameters
+        ----------
+        state : dict
             Input state. If None, self.state is used.
-
         done : bool
             Whether the trajectory is done. If None, self.done is used.
-
         Returns
         -------
         A list of boolean values.
@@ -315,14 +313,18 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         flags = []
 
         assigned = self.get_assigned_attributes(state)
-        if self.well_defined_investment(state):  # if you have full investment
+        # If the plan is full, all actions are invalid except EOS
+        if self.well_defined_investment(state):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
             return mask
 
-        mask[-1] = True  # eos only if plan is full
+        # Initialize EOS to invalid, since it is only valid if the plan is full
+        mask[-1] = True
         action_space_without_EOS = self.action_space[0:-1]
 
+        # If tech is assigned but sector is not, force action that assignes sector
+        # corresponding to tech
         if "TECH" in assigned and not "SECTOR" in assigned:
             mask = [True for _ in range(self.action_space_dim)]
             element = next(
@@ -339,6 +341,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             mask[element] = False
             return mask
 
+        # If tech is assigned but tag is not, force action that assignes tag
+        # corresponding to tech
         if "TECH" in assigned and not "TAG" in assigned:
             mask = [True for _ in range(self.action_space_dim)]
             element = next(
@@ -355,7 +359,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             mask[element] = False
             return mask
 
-        for a in assigned:  # what is already set cannot be changed
+        # What is already set cannot be changed
+        for a in assigned:
             flags.extend(
                 [
                     i
@@ -364,7 +369,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
                 ]
             )
 
-        if "SECTOR" in assigned:  # if the sector is set, choose only a compatible tech
+        # If the sector is set, only compatible techs are valid
+        if "SECTOR" in assigned:
             allowed_techs = self.network_structure["sector2tech"][
                 self.idx2token_sectors[state["SECTOR"]]
             ]
@@ -391,6 +397,7 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
                     )
                 )
 
+        # If the tag is set, only compatible techs are valid
         if "TAG" in assigned:  # if the tag is set, choose only a compatible tech
             allowed_techs = self.network_structure["tag2tech"][
                 self.idx2token_tags[state["TAG"]]
@@ -429,28 +436,21 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         """
         Determines all parents and actions that lead to state.
 
-        The GFlowNet graph is a tree and there is only one parent per state.
-
-        Args
-        ----
-        state : tensor
+        Parameters
+        ----------
+        state : dict
             Input state. If None, self.state is used.
-
         done : bool
             Whether the trajectory is done. If None, self.done is used.
-
         action : None
             Ignored
 
         Returns
         -------
         parents : list
-            List of parents in state format. This environment has a single parent per
-            state.
-
+            List of parents in environment format.
         actions : list
-            List of actions that lead to state for each parent in parents. This
-            environment has a single parent per state.
+            List of actions that lead to state for each parent in parents.
         """
         state = self._get_state(state)
         done = self._get_done(done)
@@ -463,8 +463,9 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
 
         parents = []
         actions = []
-        # Parents are the ones who could have assigned each value
-        # exceptions: force avoiding path tech -> tag -> sector, or assigning an amount in the middle of the tech-sector-tag sequence
+        # Parents are the ones which could have assigned each value
+        # Exceptions: force avoiding path tech -> tag -> sector, or assigning an amount
+        # in the middle of the tech-sector-tag sequence
         for a in assigned:
             if (a == "TAG" and "TECH" in assigned and "SECTOR" not in assigned) or (
                 a == "AMOUNT"
@@ -486,39 +487,23 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         """
         Executes step given an action.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
-            Action to be executed. An action is a tuple int values indicating the
-            dimensions to increment by 1.
-
+            Action to be executed.
         skip_mask_check : bool
             If True, skip computing forward mask of invalid actions to check if the
             action is valid.
 
         Returns
         -------
-        self.state : Dictionary
+        self.state : dict
             The sequence after executing the action
-
         action : tuple
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state.
         """
-
-        if self.done:
-            return self.state, action, False
-
-        if action == self.eos:  # if eos check investment first
-            if self.well_defined_investment():
-                self.n_actions += 1
-                self.done = True
-                return self.state, action, True
-            else:
-                return self.state, action, False
-
         # Generic pre-step checks
         do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
@@ -526,10 +511,19 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
+        # If EOS check investment first
+        if action == self.eos:
+            if self.well_defined_investment():
+                self.n_actions += 1
+                self.done = True
+                return self.state, action, True
+            else:
+                return self.state, action, False
+
         valid = True
         self.n_actions += 1
 
-        # read the choice, and apply the value
+        # Read the choice, and apply the value
         self.state[self.idx2token_choices[action[0]]] = action[1]
 
         return self.state, action, valid
@@ -538,8 +532,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         """
         Returns the maximum trajectory length of the environment.
 
-        The maximum trajectory lenght is the maximum sequence length (self.max_length)
-        plus one (EOS action).
+        The maximum trajectory length is 5, corresponding to one action per choice plus
+        EOS.
         """
         return 5
 
@@ -550,8 +544,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         Prepares a batch of states in "environment format" for a proxy: the batch is
         simply converted into a tensor of indices.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list or tensor
             A batch of states in environment format, either as a list of states or as a
             list of tensors.
@@ -576,8 +570,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list or tensor
             A batch of states in environment format, either as a list of states or as a
             list of tensors.
@@ -698,8 +692,8 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         Constructs a batch of n states uniformly sampled in the sample space of the
         environment.
 
-        Args
-        ----
+        Parameters
+        ----------
         n_states : int
             The number of states to sample.
 
