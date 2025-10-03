@@ -239,12 +239,14 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
             "tag2sector": ALLOWED_TAG2SECTOR,
             "sector2tech": ALLOWED_SECTOR2TECH,
             "tag2tech": ALLOWED_TAG2TECH,
-            "tech2tag": {tech: tag
-                         for tag, techs in ALLOWED_TAG2TECH.items()
-                         for tech in techs},
-            "tech2sector": {tech: sector
-                         for sector, techs in ALLOWED_SECTOR2TECH.items()
-                         for tech in techs},
+            "tech2tag": {
+                tech: tag for tag, techs in ALLOWED_TAG2TECH.items() for tech in techs
+            },
+            "tech2sector": {
+                tech: sector
+                for sector, techs in ALLOWED_SECTOR2TECH.items()
+                for tech in techs
+            },
         }
 
         self.eos = (-1, -1)
@@ -323,21 +325,33 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
 
         if "TECH" in assigned and not "SECTOR" in assigned:
             mask = [True for _ in range(self.action_space_dim)]
-            element = next(i for i, (x, y) in enumerate(action_space_without_EOS)
+            element = next(
+                i
+                for i, (x, y) in enumerate(action_space_without_EOS)
                 if (
                     self.idx2token_choices[x] == "SECTOR"
-                    and self.idx2token_sectors[y] == self.network_structure['tech2sector'][self.idx2token_techs[state["TECH"]]]
-                ))
+                    and self.idx2token_sectors[y]
+                    == self.network_structure["tech2sector"][
+                        self.idx2token_techs[state["TECH"]]
+                    ]
+                )
+            )
             mask[element] = False
             return mask
 
         if "TECH" in assigned and not "TAG" in assigned:
             mask = [True for _ in range(self.action_space_dim)]
-            element = next(i for i, (x, y) in enumerate(action_space_without_EOS)
+            element = next(
+                i
+                for i, (x, y) in enumerate(action_space_without_EOS)
                 if (
                     self.idx2token_choices[x] == "TAG"
-                    and self.idx2token_tags[y] == self.network_structure['tech2tag'][self.idx2token_techs[state["TECH"]]]
-                ))
+                    and self.idx2token_tags[y]
+                    == self.network_structure["tech2tag"][
+                        self.idx2token_techs[state["TECH"]]
+                    ]
+                )
+            )
             mask[element] = False
             return mask
 
@@ -450,9 +464,13 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
         parents = []
         actions = []
         # Parents are the ones who could have assigned each value
-        #exceptions: force avoiding path tech -> tag -> sector, or assigning an amount in the middle of the tech-sector-tag sequence
+        # exceptions: force avoiding path tech -> tag -> sector, or assigning an amount in the middle of the tech-sector-tag sequence
         for a in assigned:
-            if (a == "TAG" and "TECH" in assigned and "SECTOR" not in assigned) or (a == 'AMOUNT' and "TECH" in assigned and ("SECTOR" not in assigned or "TAG" not in assigned)):
+            if (a == "TAG" and "TECH" in assigned and "SECTOR" not in assigned) or (
+                a == "AMOUNT"
+                and "TECH" in assigned
+                and ("SECTOR" not in assigned or "TAG" not in assigned)
+            ):
                 continue
             temp_state = copy(state)
             temp_state[a] = 0
@@ -723,7 +741,12 @@ class Single_Investment_DISCRETE(GFlowNetEnv):
     ) -> bool:
         state = self._get_state(state)
         assigned = self.get_assigned_attributes(state)
-        return "TECH" in assigned and "AMOUNT" in assigned and "SECTOR" in assigned and "TAG" in assigned
+        return (
+            "TECH" in assigned
+            and "AMOUNT" in assigned
+            and "SECTOR" in assigned
+            and "TAG" in assigned
+        )
 
     def get_assigned_attributes(
         self,

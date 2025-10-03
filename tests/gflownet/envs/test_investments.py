@@ -13,11 +13,28 @@ def test__environment_initializes_properly():
     env = Single_Investment_DISCRETE()
     assert True
 
+
 def test__get_right_mask(env):
-    actions = [False] + [True]*(env.action_space_dim-1)
-    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 1}) == actions)
-    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 0}) == actions)
-    assert(env.get_mask_invalid_actions_forward({"SECTOR": 0, "TAG": 1, "TECH": 1, "AMOUNT": 0}) == actions)
+    actions = [False] + [True] * (env.action_space_dim - 1)
+    assert (
+        env.get_mask_invalid_actions_forward(
+            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 1}
+        )
+        == actions
+    )
+    assert (
+        env.get_mask_invalid_actions_forward(
+            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 0}
+        )
+        == actions
+    )
+    assert (
+        env.get_mask_invalid_actions_forward(
+            {"SECTOR": 0, "TAG": 1, "TECH": 1, "AMOUNT": 0}
+        )
+        == actions
+    )
+
 
 @pytest.mark.parametrize(
     "action_space",
@@ -107,15 +124,30 @@ def test__get_action_space__returns_expected(env, action_space):
         ),
         # State with SECTOR, TECH, and AMOUNT (cannot assign amount before filling in tech, had to be there before)
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 1,},  # POWER, power_NUCLEAR, HIGH
+            {
+                "SECTOR": 1,
+                "TAG": 0,
+                "TECH": 3,
+                "AMOUNT": 1,
+            },  # POWER, power_NUCLEAR, HIGH
             [
                 {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1,}
+                {
+                    "SECTOR": 0,
+                    "TAG": 0,
+                    "TECH": 3,
+                    "AMOUNT": 1,
+                },
             ],
-            [(3, 3), (1,1)],  # TECH=power_NUCLEAR action
+            [(3, 3), (1, 1)],  # TECH=power_NUCLEAR action
         ),  # State with SECTOR, TAG, and AMOUNT
         (
-            {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 1,},  # POWER, power_NUCLEAR, HIGH
+            {
+                "SECTOR": 1,
+                "TAG": 2,
+                "TECH": 0,
+                "AMOUNT": 1,
+            },  # POWER, power_NUCLEAR, HIGH
             [
                 {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
                 {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},

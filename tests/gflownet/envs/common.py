@@ -16,10 +16,10 @@ import pytest
 import torch
 import yaml
 from hydra import compose, initialize
-from tests.utils_for_tests import load_base_test_config
 
 from gflownet.utils.common import copy, gflownet_from_config, tbool, tfloat
 from gflownet.utils.policy import parse_policy_config
+from tests.utils_for_tests import load_base_test_config
 
 
 class BaseTestsCommon:
