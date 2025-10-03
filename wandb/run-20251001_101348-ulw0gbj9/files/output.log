@@ -1,6 +1,0 @@
-[34m[1mwandb[0m: [33mWARNING[0m The get_url method is deprecated and will be removed in a future release. Please use `run.url` instead.
-	Important: offline trajectories will NOT be sampled. In order to  sample offline trajectories, the train configuration of the buffer  should be provided.
-	Important: test metrics will NOT be computed. In order to compute test metrics, the test configuration of the buffer should be provided.
-C:\Users\jacop\Desktop\newsce\repos\gflownet\gflownet-env\lib\site-packages\torch\_compile.py:53: UserWarning: optimizer contains a parameter group with duplicate parameters; in future, this will cause an error; see github.com/pytorch/pytorch/issues/40967 for more information
-  return disable_fn(*args, **kwargs)
-Loss: 11.0825 | Mean rewards: 1.00 | JSD: -1.0000:  58%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▊                                                                                           | 2879/5000 [00:51<00:37, 56.40it/s]
