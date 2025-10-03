@@ -1,3 +1,6 @@
+"""
+IMPORTANT: this environment is not up to date.
+"""
 import pickle
 import warnings
 from collections import Counter
@@ -647,6 +650,7 @@ class Tree(GFlowNetEnv):
             )
         return super().set_state(state, done)
 
+    # TODO: needs to be update
     def sample_actions_batch_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
