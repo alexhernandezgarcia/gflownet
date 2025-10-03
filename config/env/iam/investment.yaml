@@ -4,3 +4,8 @@ defaults:
 _target_: gflownet.envs.investments.Single_Investment_DISCRETE
 
 id: investments
+
+sectors: null
+tags: null
+techs: null
+amounts: null
