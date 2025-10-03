@@ -214,15 +214,15 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         pass
 
-    # TODO? make arguments of this method consistent with Base env?
     @abstractmethod
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
-        temperature_logits: float = 1.0,
-        loginf: float = 1000,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        random_action_prob: Optional[float] = 0.0,
+        temperature_logits: Optional[float] = 1.0,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -973,10 +973,8 @@ class ContinuousCube(CubeBase):
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -998,10 +996,6 @@ class ContinuousCube(CubeBase):
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
-        sampling_method : str, optional
-            The sampling method to use to sample actions. The implemented options are:
-                - policy: the model outputs are used, optionally after tempering the
-                  distribution and randomizing actions.
         random_action_prob : float, optional
             The probability of sampling a random action. If larger than one, the model
             outputs will be replaced by a random policy vector with probability
@@ -1009,10 +1003,6 @@ class ContinuousCube(CubeBase):
         temperature_logits : float, optional
             A scalar by which the model outputs are divided to temper the sampling
             distribution.
-        max_sampling_attempts : int, optional
-            Maximum of number of attempts to sample actions that are not invalid
-            according to the mask before throwing an error, in order to ensure that
-            non-invalid actions are returned without getting stuck.
 
         Returns
         -------
@@ -1024,20 +1014,16 @@ class ContinuousCube(CubeBase):
                 policy_outputs=policy_outputs,
                 mask=mask,
                 states_from=states_from,
-                sampling_method=sampling_method,
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
-                max_sampling_attempts=max_sampling_attempts,
             )
         else:
             return self._sample_actions_batch_backward(
                 policy_outputs=policy_outputs,
                 mask=mask,
                 states_from=states_from,
-                sampling_method=sampling_method,
                 random_action_prob=random_action_prob,
                 temperature_logits=temperature_logits,
-                max_sampling_attempts=max_sampling_attempts,
             )
 
     def _sample_actions_batch_forward(
@@ -1045,10 +1031,8 @@ class ContinuousCube(CubeBase):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a a batch of forward actions from a batch of policy outputs.
@@ -1100,17 +1084,9 @@ class ContinuousCube(CubeBase):
         # Ensure that is_eos_forced does not include any source state
         assert not torch.any(torch.logical_and(is_source, is_eos_forced))
 
-        # Initialise sampling logits
-        if sampling_method == "policy":
-            logits_sampling = policy_outputs.clone().detach()
-        else:
-            raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
-            )
-
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution(
-            logits_sampling, random_action_prob, temperature_logits
+            policy_outputs, random_action_prob, temperature_logits
         )
 
         # Sample EOS from Bernoulli distribution
@@ -1124,12 +1100,9 @@ class ContinuousCube(CubeBase):
         # Sample (relative) increments if EOS is not the (sampled or forced) action
         do_increments = ~is_eos
         if torch.any(do_increments):
-            if sampling_method == "uniform":
-                raise NotImplementedError()
-            elif sampling_method == "policy":
-                distr_increments = self._make_increments_distribution(
-                    logits_sampling[do_increments]
-                )
+            distr_increments = self._make_increments_distribution(
+                logits_sampling[do_increments]
+            )
             # Shape of increments: [n_do_increments, n_dim]
             increments = distr_increments.sample()
             # Compute absolute increments from sampled relative increments if state is
@@ -1164,10 +1137,8 @@ class ContinuousCube(CubeBase):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a a batch of backward actions from a batch of policy outputs.
@@ -1205,17 +1176,9 @@ class ContinuousCube(CubeBase):
         is_bts_forced = ~mask[:, 1]
         is_bts[is_bts_forced] = True
 
-        # Initialise sampling logits
-        if sampling_method == "policy":
-            logits_sampling = policy_outputs.clone().detach()
-        else:
-            raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. " "Options are: policy"
-            )
-
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution(
-            logits_sampling, random_action_prob, temperature_logits
+            policy_outputs, random_action_prob, temperature_logits
         )
 
         # Sample BTS from Bernoulli distribution
@@ -1229,12 +1192,9 @@ class ContinuousCube(CubeBase):
         # Sample relative increments if actions are neither BTS nor EOS
         do_increments = torch.logical_and(~is_bts, ~is_eos)
         if torch.any(do_increments):
-            if sampling_method == "uniform":
-                raise NotImplementedError()
-            elif sampling_method == "policy":
-                distr_increments = self._make_increments_distribution(
-                    logits_sampling[do_increments]
-                )
+            distr_increments = self._make_increments_distribution(
+                logits_sampling[do_increments]
+            )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments = distr_increments.sample()
             # Compute absolute increments from all sampled relative increments

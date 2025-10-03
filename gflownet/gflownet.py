@@ -93,7 +93,7 @@ class GFlowNetAgent:
         random_action_prob : float
             Probability of sampling random actions. If None (default),
             self.random_action_prob is used, unless its value is forced to either 0.0 or
-            1.0 by other arguments (sampling_method or no_random).
+            1.0 by other arguments.
         logger : gflownet.utils.logger.Logger
             Logger object to be used for logging and saving checkpoints
             (`gflownet/utils/logger.py:Logger`).
@@ -375,7 +375,6 @@ class GFlowNetAgent:
             mask=mask_invalid_actions,
             states_from=states,
             is_backward=backward,
-            sampling_method=sampling_method,
             random_action_prob=random_action_prob,
             temperature_logits=temperature,
         )

@@ -778,10 +778,8 @@ class Stack(GFlowNetEnv):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: List = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -816,10 +814,8 @@ class Stack(GFlowNetEnv):
                 mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
                 states_dict[stage],
                 is_backward,
-                sampling_method,
                 random_action_prob,
                 temperature_logits,
-                max_sampling_attempts,
             )
 
         # Stitch all actions in the right order, with the right padding

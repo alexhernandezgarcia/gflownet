@@ -681,10 +681,8 @@ class BaseSet(GFlowNetEnv):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: List = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -711,10 +709,8 @@ class BaseSet(GFlowNetEnv):
                 self._extract_core_mask(mask[is_set], idx_unique=-1),
                 None,
                 is_backward,
-                sampling_method,
                 random_action_prob,
                 temperature_logits,
-                max_sampling_attempts,
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
@@ -758,10 +754,8 @@ class BaseSet(GFlowNetEnv):
                 ),
                 states_dict[idx],
                 is_backward,
-                sampling_method,
                 random_action_prob,
                 temperature_logits,
-                max_sampling_attempts,
             )
         # Stitch all environment actions in the right order, with the right padding
         actions_subenvs = []

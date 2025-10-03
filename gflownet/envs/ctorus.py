@@ -216,10 +216,8 @@ class ContinuousTorus(HybridTorus):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs. The angle increments
@@ -238,57 +236,51 @@ class ContinuousTorus(HybridTorus):
         - If the number of steps is equal to 1, then the only valid action is to return
           to the source. The specific action depends on the current state.
 
-        Args
-        ----
+        Parameters
+        ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-
         mask : tensor
             The mask containing information about special cases.
-
         states_from : tensor
             The states originating the actions, in GFlowNet format.
-
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
+        random_action_prob : float, optional
+            The probability of sampling a random action.
+        temperature_logits : float, optional
+            A scalar by which the model outputs are divided to temper the sampling
+            distribution.
         """
-        device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
         # Initialize actions tensor with EOS actions (inf) since these will be the
         # actions for several special cases in both forward and backward actions.
         actions_tensor = torch.full(
-            (n_states, self.n_dim), torch.inf, dtype=self.float, device=device
+            (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
         )
         # Sample angle increments
         if torch.any(do_sample):
-            if sampling_method == "uniform":
-                distr_angles = Uniform(
-                    torch.zeros(len(ns_range_noeos)),
-                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
-                )
-            elif sampling_method == "policy":
-                logits_sampling = policy_outputs.clone().detach()
-                logits_sampling = self.randomize_and_temper_sampling_distribution(
-                    logits_sampling, random_action_prob, temperature_logits
-                )
+            logits_sampling = self.randomize_and_temper_sampling_distribution(
+                policy_outputs, random_action_prob, temperature_logits
+            )
 
-                mix_logits = logits_sampling[do_sample, 0::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                mix = Categorical(logits=mix_logits)
-                locations = logits_sampling[do_sample, 1::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                concentrations = logits_sampling[do_sample, 2::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                vonmises = VonMises(
-                    locations,
-                    torch.exp(concentrations) + self.vonmises_min_concentration,
-                )
-                distr_angles = MixtureSameFamily(mix, vonmises)
+            mix_logits = logits_sampling[do_sample, 0::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            mix = Categorical(logits=mix_logits)
+            locations = logits_sampling[do_sample, 1::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            concentrations = logits_sampling[do_sample, 2::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            vonmises = VonMises(
+                locations,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
+            )
+            distr_angles = MixtureSameFamily(mix, vonmises)
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
         # Catch special case for backwards backt-to-source (BTS) actions
