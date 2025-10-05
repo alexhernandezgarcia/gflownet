@@ -172,6 +172,7 @@ class InvestmentDiscrete(GFlowNetEnv):
         tags: Iterable = None,
         techs: Iterable = None,
         amounts: Iterable = None,
+        techs_available: Iterable = None,
         **kwargs,
     ):
         # Main attributes
@@ -233,6 +234,16 @@ class InvestmentDiscrete(GFlowNetEnv):
             "TECH": 0,
             "AMOUNT": 0,
         }
+        # Available technologies
+        if techs_available is None:
+            self.techs_available = tuple(range(1, self.n_techs + 1))
+        else:
+            if isinstance(techs_available[0], str):
+                self.techs_available = tuple(
+                    [self.token2idx_techs[tech] for tech in techs_available]
+                )
+            elif isinstance(techs_available[0], int):
+                self.techs_available = tuple(techs_available)
 
         self.network_structure = {
             "sector2tag": ALLOWED_SECTOR2TAGS,
@@ -748,3 +759,17 @@ class InvestmentDiscrete(GFlowNetEnv):
     ) -> List[str]:
         state = self._get_state(state)
         return [key for key, value in state.items() if value != 0]
+
+    def set_available_techs(self, techs: Iterable):
+        """
+        Updates the set of available techs.
+
+        This method modifies ``self.techs_available`` by updating with a tuple version
+        of the technology indices passed as input.
+
+        Parameters
+        ----------
+        techs : iterable
+            A set of technology indices.
+        """
+        self.techs_available = tuple(techs)
