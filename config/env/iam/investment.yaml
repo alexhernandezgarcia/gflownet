@@ -3,7 +3,7 @@ defaults:
 
 _target_: gflownet.envs.iam.investment.InvestmentDiscrete
 
-id: investments
+id: investment
 
 sectors: null
 tags: null
