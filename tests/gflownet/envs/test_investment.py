@@ -402,7 +402,7 @@ def test__network_structure_consistency(env):
 
 
 class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
-    """Common tests for Scrabble."""
+    """Common tests for InvestmentDiscrete."""
 
     @pytest.fixture(autouse=True)
     def setup(self, env):
