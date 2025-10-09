@@ -1,0 +1,11 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.iam.investment.InvestmentDiscrete
+
+id: investments
+
+sectors: null
+tags: null
+techs: null
+amounts: null
