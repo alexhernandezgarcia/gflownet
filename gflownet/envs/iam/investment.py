@@ -258,11 +258,10 @@ class InvestmentDiscrete(GFlowNetEnv):
         """
         Constructs list with all possible actions, including eos.
 
-        An action is represented by a single-element tuple indicating the index of the
-        letter to be added to the current sequence (state).
+        An action is represented by a two-element tuple indicating the in its first position the index
+         of the element of the dictionary (state) to be changed, and the value used to uodate the state.
 
-        The action space of this parent class is:
-            action_space: [(0,), (1,), (-1,)]
+         e.g. (3,2): Assign to 3rd attribute (technology) its 2nd value (Coal power with CCS)
         """
         all_actions = (
             [
@@ -309,122 +308,80 @@ class InvestmentDiscrete(GFlowNetEnv):
         done = self._get_done(done)
         if done:
             return [True for _ in range(self.action_space_dim)]
-        mask = [False for _ in range(self.action_space_dim)]
-        flags = []
+
+        mask = [True for _ in range(self.action_space_dim)] #start with all actions masked
 
         assigned = self.get_assigned_attributes(state)
-        # If the plan is full, all actions are invalid except EOS
-        if self.well_defined_investment(state):
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-1] = False
+        if self.well_defined_investment(state):  # if you have full investment
+            mask[self.action2index(self.eos)] = False
             return mask
 
-        # Initialize EOS to invalid, since it is only valid if the plan is full
-        mask[-1] = True
-        action_space_without_EOS = self.action_space[0:-1]
-
-        # If tech is assigned but sector is not, force action that assignes sector
-        # corresponding to tech
         if "TECH" in assigned and not "SECTOR" in assigned:
-            mask = [True for _ in range(self.action_space_dim)]
-            element = next(
-                i
-                for i, (x, y) in enumerate(action_space_without_EOS)
-                if (
-                    self.idx2token_choices[x] == "SECTOR"
-                    and self.idx2token_sectors[y]
-                    == self.network_structure["tech2sector"][
-                        self.idx2token_techs[state["TECH"]]
-                    ]
-                )
-            )
-            mask[element] = False
+            forced_sector_token = self.network_structure['tech2sector'][self.idx2token_techs[state["TECH"]]]
+            forced_action = (self.token2idx_choices['SECTOR'], self.token2idx_sectors[forced_sector_token])
+            mask[self.action2index(forced_action)] = False
             return mask
 
-        # If tech is assigned but tag is not, force action that assignes tag
-        # corresponding to tech
         if "TECH" in assigned and not "TAG" in assigned:
-            mask = [True for _ in range(self.action_space_dim)]
-            element = next(
-                i
-                for i, (x, y) in enumerate(action_space_without_EOS)
-                if (
-                    self.idx2token_choices[x] == "TAG"
-                    and self.idx2token_tags[y]
-                    == self.network_structure["tech2tag"][
-                        self.idx2token_techs[state["TECH"]]
-                    ]
-                )
-            )
-            mask[element] = False
+            forced_tag_token = self.network_structure['tech2tag'][self.idx2token_techs[state["TECH"]]]
+            forced_action = (self.token2idx_choices['TAG'], self.token2idx_tags[forced_tag_token])
+            mask[self.action2index(forced_action)] = False
             return mask
 
-        # What is already set cannot be changed
-        for a in assigned:
-            flags.extend(
-                [
-                    i
-                    for i, (x, y) in enumerate(action_space_without_EOS)
-                    if self.idx2token_choices[x] == a
-                ]
-            )
 
-        # If the sector is set, only compatible techs are valid
-        if "SECTOR" in assigned:
-            allowed_techs = self.network_structure["sector2tech"][
-                self.idx2token_sectors[state["SECTOR"]]
-            ]
-            flags.extend(
-                i
-                for i, (x, y) in enumerate(action_space_without_EOS)
-                if (
-                    self.idx2token_choices[x] == "TECH"
-                    and not self.idx2token_techs[y] in allowed_techs
-                )
-            )
-            if (
-                "TAG" not in assigned
-            ):  # if the sector is chosen and the tag not, choose only a compatible tag
-                allowed_tags = self.network_structure["sector2tag"][
-                    self.idx2token_sectors[state["SECTOR"]]
-                ]
-                flags.extend(
-                    i
-                    for i, (x, y) in enumerate(action_space_without_EOS)
-                    if (
-                        self.idx2token_choices[x] == "TAG"
-                        and not self.idx2token_tags[y] in allowed_tags
-                    )
-                )
-
-        # If the tag is set, only compatible techs are valid
-        if "TAG" in assigned:  # if the tag is set, choose only a compatible tech
-            allowed_techs = self.network_structure["tag2tech"][
-                self.idx2token_tags[state["TAG"]]
-            ]
-            flags.extend(
-                i
-                for i, (x, y) in enumerate(action_space_without_EOS)
-                if (
-                    self.idx2token_choices[x] == "TECH"
-                    and not self.idx2token_techs[y] in allowed_techs
-                )
-            )
-            if "SECTOR" not in assigned:
+        if "SECTOR" not in assigned:
+            if "TAG" in assigned:
                 allowed_sectors = self.network_structure["tag2sector"][
                     self.idx2token_tags[state["TAG"]]
                 ]
-                flags.extend(
-                    i
-                    for i, (x, y) in enumerate(action_space_without_EOS)
-                    if (
-                        self.idx2token_choices[x] == "SECTOR"
-                        and not self.idx2token_sectors[y] in allowed_sectors
-                    )
-                )
+                for a in allowed_sectors:
+                    mask[self.action2index((self.token2idx_choices['SECTOR'], self.token2idx_sectors[a]))] = False
+            else:
+                for b in range(self.n_sectors):
+                    mask[self.action2index((self.token2idx_choices['SECTOR'], b+1))] = False
 
-        for f in set(flags):
-            mask[f] = True
+        if "TAG" not in assigned:
+            if "SECTOR" in assigned:
+                allowed_tags = self.network_structure["sector2tag"][
+                    self.idx2token_sectors[state["SECTOR"]]
+                ]
+                for a in allowed_tags:
+                    mask[self.action2index((self.token2idx_choices['TAG'], self.token2idx_tags[a]))] = False
+            else:
+                for b in range(self.n_tags):
+                    mask[self.action2index((self.token2idx_choices['TAG'], b+1))] = False
+
+        if "TECH" not in assigned:
+            if 'SECTOR' in assigned and 'TAG' in assigned:
+                allowed_techs_sector = self.network_structure["sector2tech"][
+                    self.idx2token_sectors[state["SECTOR"]]
+                ]
+                allowed_techs_tag = self.network_structure["tag2tech"][
+                    self.idx2token_tags[state["TAG"]]
+                ]
+                allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
+                for a in allowed_techs:
+                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
+            elif 'SECTOR' in assigned and 'TAG' not in assigned:
+                allowed_techs = self.network_structure["sector2tech"][
+                    self.idx2token_sectors[state["SECTOR"]]
+                ]
+                for a in allowed_techs:
+                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
+            elif 'SECTOR' not in assigned and 'TAG' in assigned:
+                allowed_techs = self.network_structure["tag2tech"][
+                    self.idx2token_tags[state["TAG"]]
+                ]
+                for a in allowed_techs:
+                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
+            else:
+                for b in range(self.n_techs):
+                    mask[self.action2index((self.token2idx_choices['TECH'], b+1))] = False
+
+        if "AMOUNT" not in assigned:
+            for b in range(self.n_amounts):
+                mask[self.action2index((self.token2idx_choices['AMOUNT'], b+1))] = False
+
         return mask
 
     def get_parents(
