@@ -309,7 +309,9 @@ class InvestmentDiscrete(GFlowNetEnv):
         if done:
             return [True for _ in range(self.action_space_dim)]
 
-        mask = [True for _ in range(self.action_space_dim)] #start with all actions masked
+        mask = [
+            True for _ in range(self.action_space_dim)
+        ]  # start with all actions masked
 
         assigned = self.get_assigned_attributes(state)
         if self.well_defined_investment(state):  # if you have full investment
@@ -317,17 +319,26 @@ class InvestmentDiscrete(GFlowNetEnv):
             return mask
 
         if "TECH" in assigned and not "SECTOR" in assigned:
-            forced_sector_token = self.network_structure['tech2sector'][self.idx2token_techs[state["TECH"]]]
-            forced_action = (self.token2idx_choices['SECTOR'], self.token2idx_sectors[forced_sector_token])
+            forced_sector_token = self.network_structure["tech2sector"][
+                self.idx2token_techs[state["TECH"]]
+            ]
+            forced_action = (
+                self.token2idx_choices["SECTOR"],
+                self.token2idx_sectors[forced_sector_token],
+            )
             mask[self.action2index(forced_action)] = False
             return mask
 
         if "TECH" in assigned and not "TAG" in assigned:
-            forced_tag_token = self.network_structure['tech2tag'][self.idx2token_techs[state["TECH"]]]
-            forced_action = (self.token2idx_choices['TAG'], self.token2idx_tags[forced_tag_token])
+            forced_tag_token = self.network_structure["tech2tag"][
+                self.idx2token_techs[state["TECH"]]
+            ]
+            forced_action = (
+                self.token2idx_choices["TAG"],
+                self.token2idx_tags[forced_tag_token],
+            )
             mask[self.action2index(forced_action)] = False
             return mask
-
 
         if "SECTOR" not in assigned:
             if "TAG" in assigned:
@@ -335,10 +346,19 @@ class InvestmentDiscrete(GFlowNetEnv):
                     self.idx2token_tags[state["TAG"]]
                 ]
                 for a in allowed_sectors:
-                    mask[self.action2index((self.token2idx_choices['SECTOR'], self.token2idx_sectors[a]))] = False
+                    mask[
+                        self.action2index(
+                            (
+                                self.token2idx_choices["SECTOR"],
+                                self.token2idx_sectors[a],
+                            )
+                        )
+                    ] = False
             else:
                 for b in range(self.n_sectors):
-                    mask[self.action2index((self.token2idx_choices['SECTOR'], b+1))] = False
+                    mask[
+                        self.action2index((self.token2idx_choices["SECTOR"], b + 1))
+                    ] = False
 
         if "TAG" not in assigned:
             if "SECTOR" in assigned:
@@ -346,13 +366,19 @@ class InvestmentDiscrete(GFlowNetEnv):
                     self.idx2token_sectors[state["SECTOR"]]
                 ]
                 for a in allowed_tags:
-                    mask[self.action2index((self.token2idx_choices['TAG'], self.token2idx_tags[a]))] = False
+                    mask[
+                        self.action2index(
+                            (self.token2idx_choices["TAG"], self.token2idx_tags[a])
+                        )
+                    ] = False
             else:
                 for b in range(self.n_tags):
-                    mask[self.action2index((self.token2idx_choices['TAG'], b+1))] = False
+                    mask[self.action2index((self.token2idx_choices["TAG"], b + 1))] = (
+                        False
+                    )
 
         if "TECH" not in assigned:
-            if 'SECTOR' in assigned and 'TAG' in assigned:
+            if "SECTOR" in assigned and "TAG" in assigned:
                 allowed_techs_sector = self.network_structure["sector2tech"][
                     self.idx2token_sectors[state["SECTOR"]]
                 ]
@@ -361,26 +387,42 @@ class InvestmentDiscrete(GFlowNetEnv):
                 ]
                 allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
                 for a in allowed_techs:
-                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
-            elif 'SECTOR' in assigned and 'TAG' not in assigned:
+                    mask[
+                        self.action2index(
+                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
+                        )
+                    ] = False
+            elif "SECTOR" in assigned and "TAG" not in assigned:
                 allowed_techs = self.network_structure["sector2tech"][
                     self.idx2token_sectors[state["SECTOR"]]
                 ]
                 for a in allowed_techs:
-                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
-            elif 'SECTOR' not in assigned and 'TAG' in assigned:
+                    mask[
+                        self.action2index(
+                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
+                        )
+                    ] = False
+            elif "SECTOR" not in assigned and "TAG" in assigned:
                 allowed_techs = self.network_structure["tag2tech"][
                     self.idx2token_tags[state["TAG"]]
                 ]
                 for a in allowed_techs:
-                    mask[self.action2index((self.token2idx_choices['TECH'], self.token2idx_techs[a]))] = False
+                    mask[
+                        self.action2index(
+                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
+                        )
+                    ] = False
             else:
                 for b in range(self.n_techs):
-                    mask[self.action2index((self.token2idx_choices['TECH'], b+1))] = False
+                    mask[self.action2index((self.token2idx_choices["TECH"], b + 1))] = (
+                        False
+                    )
 
         if "AMOUNT" not in assigned:
             for b in range(self.n_amounts):
-                mask[self.action2index((self.token2idx_choices['AMOUNT'], b+1))] = False
+                mask[self.action2index((self.token2idx_choices["AMOUNT"], b + 1))] = (
+                    False
+                )
 
         return mask
 
