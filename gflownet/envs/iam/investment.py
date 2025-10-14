@@ -576,30 +576,25 @@ class InvestmentDiscrete(GFlowNetEnv):
         return 5
 
     def states2proxy(
-        self, states: Union[List[Dict], List[TensorType["max_length"]]]
-    ) -> TensorType["batch", "state_dim"]:
+        self, states: List[Dict]
+    ) -> List[List[Dict]]:#TensorType["batch", "state_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy: the batch is
         simply converted into a tensor of indices.
 
         Parameters
         ----------
-        states : list or tensor
-            A batch of states in environment format, either as a list of states or as a
-            list of tensors.
+        states : list of dictionaries
+            A batch of states in environment format, as list of states
 
         Returns
         -------
-        A list containing all the states in the batch, represented themselves as lists.
+        The same list, but as a list of lists of one dictionary each, for compatibility with plan.
+        Processing is performed in the proxy model
         """
-        batch_size = len(states)
-        batch_tensor = torch.zeros((batch_size, len(self.techs)), dtype=torch.float32)
+        processed_states = [[single_state] for single_state in states]
 
-        for i, single_state in enumerate(states):
-            pos = single_state["TECH"]
-            val = single_state["AMOUNT"]
-            batch_tensor[i, pos - 1] = val  # subtract 1 since positions start at 1
-        return tlong(batch_tensor, device=self.device)
+        return processed_states
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]

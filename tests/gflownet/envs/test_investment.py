@@ -14,25 +14,25 @@ def test__environment_initializes_properly():
     assert True
 
 
-def test__get_right_mask(env):
+def test__get_right_mask(env):#check that if tech has been assigned, but sector is not, there's only one available action
     actions = [False] + [True] * (env.action_space_dim - 1)
     assert (
-        env.get_mask_invalid_actions_forward(
-            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 1}
-        )
-        == actions
+            env.get_mask_invalid_actions_forward(
+                {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 1}
+            )
+            == actions
     )
     assert (
-        env.get_mask_invalid_actions_forward(
-            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 0}
-        )
-        == actions
+            env.get_mask_invalid_actions_forward(
+                {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 0}
+            )
+            == actions
     )
     assert (
-        env.get_mask_invalid_actions_forward(
-            {"SECTOR": 0, "TAG": 1, "TECH": 1, "AMOUNT": 0}
-        )
-        == actions
+            env.get_mask_invalid_actions_forward(
+                {"SECTOR": 0, "TAG": 1, "TECH": 1, "AMOUNT": 0}
+            )
+            == actions
     )
 
 
@@ -92,8 +92,8 @@ def test__get_right_mask(env):
 )
 def test__get_action_space__returns_expected(env, action_space):
     assert (
-        len(env.action_space)
-        == len(env.sectors) + len(env.tags) + len(env.techs) + len(env.amounts) + 1
+            len(env.action_space)
+            == len(env.sectors) + len(env.tags) + len(env.techs) + len(env.amounts) + 1
     )
     assert env.eos in env.action_space
     assert set(action_space) == set(env.action_space)
@@ -104,61 +104,61 @@ def test__get_action_space__returns_expected(env, action_space):
     [
         # Source state has no parents
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            [],
-            [],
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                [],
+                [],
         ),
         # State with only SECTOR assigned
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},  # POWER sector
-            [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}],
-            [(1, 1)],  # SECTOR=POWER action
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},  # POWER sector
+                [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}],
+                [(1, 1)],  # SECTOR=POWER action
         ),
-        # State with TECH and AMOUNT, can only be tech, else it would immediatly assign sector and tag
+        # State with TECH and AMOUNT, can only be tech, else it would immediately assign sector and tag
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},  # power_NUCLEAR, HIGH
-            [
-                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-            ],
-            [(3, 3)],
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},  # power_NUCLEAR, HIGH
+                [
+                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1},
+                ],
+                [(3, 3)],
         ),
         # State with SECTOR, TECH, and AMOUNT (cannot assign amount before filling in tech, had to be there before)
         (
-            {
-                "SECTOR": 1,
-                "TAG": 0,
-                "TECH": 3,
-                "AMOUNT": 1,
-            },  # POWER, power_NUCLEAR, HIGH
-            [
-                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
                 {
-                    "SECTOR": 0,
+                    "SECTOR": 1,
                     "TAG": 0,
                     "TECH": 3,
                     "AMOUNT": 1,
-                },
-            ],
-            [(3, 3), (1, 1)],  # TECH=power_NUCLEAR action
+                },  # POWER, power_NUCLEAR, HIGH
+                [
+                    {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
+                    {
+                        "SECTOR": 0,
+                        "TAG": 0,
+                        "TECH": 3,
+                        "AMOUNT": 1,
+                    },
+                ],
+                [(3, 3), (1, 1)],  # TECH=power_NUCLEAR action
         ),  # State with SECTOR, TAG, and AMOUNT
         (
-            {
-                "SECTOR": 1,
-                "TAG": 2,
-                "TECH": 0,
-                "AMOUNT": 1,
-            },  # POWER, power_NUCLEAR, HIGH
-            [
-                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},
-                {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-            ],
-            [(2, 2), (1, 1), (4, 1)],
+                {
+                    "SECTOR": 1,
+                    "TAG": 2,
+                    "TECH": 0,
+                    "AMOUNT": 1,
+                },  # POWER, BROWN, HIGH
+                [
+                    {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
+                    {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},
+                    {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                ],
+                [(2, 2), (1, 1), (4, 1)],
         ),
     ],
 )
 def test__get_parents__returns_expected(
-    env, state, parents_expected, parents_a_expected
+        env, state, parents_expected, parents_a_expected
 ):
     parents, parents_a = env.get_parents(state)
     assert len(parents) == len(parents_expected)
@@ -181,87 +181,87 @@ def test__get_parents__returns_expected(
     [
         # From source, assign SECTOR
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            (1, 1),  # SECTOR=POWER
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            True,
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                (1, 1),  # SECTOR=POWER
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                True,
         ),
         # From source, assign TAG
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            (2, 1),  # TAG=GREEN
-            {"SECTOR": 0, "TAG": 1, "TECH": 0, "AMOUNT": 0},
-            True,
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                (2, 1),  # TAG=GREEN
+                {"SECTOR": 0, "TAG": 1, "TECH": 0, "AMOUNT": 0},
+                True,
         ),
         # From source, assign TECH directly
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            (3, 3),  # TECH=power_NUCLEAR
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            True,
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                (3, 3),  # TECH=power_NUCLEAR
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                True,
         ),
         # Assign AMOUNT from TECH -> FALSE, should fill in sector and tag first
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
-            (4, 1),  # AMOUNT=HIGH
-            {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
-            False,
+                {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
+                (4, 1),  # AMOUNT=HIGH
+                {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
+                False,
         ),
         # EOS on missing SECTOR AND TAG
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
-            (-1, -1),  # EOS
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
-            False,
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
+                (-1, -1),  # EOS
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
+                False,
         ),
         # EOS on well defined investment
         (
-            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-            (-1, -1),  # EOS
-            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-            True,
+                {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+                (-1, -1),  # EOS
+                {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+                True,
         ),
         # Invalid: EOS on incomplete investment
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            (-1, -1),  # EOS
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            False,
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                (-1, -1),  # EOS
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                False,
         ),
         # Invalid: Reassigning SECTOR
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            (1, 2),  # Try to change SECTOR to ENERGY
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            False,
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                (1, 2),  # Try to change SECTOR to ENERGY
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                False,
         ),
         # Invalid: incompatible Tech: nuclear on brown
         (
-            {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-            (3, 3),
-            {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-            False,
+                {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                (3, 3),
+                {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                False,
         ),
         # Fill in SECTOR
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            (1, 1),
-            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            True,
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                (1, 1),
+                {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                True,
         ),
         # Fill in TAG before SECTOR
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            (2, 1),
-            {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            False,
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                (2, 1),
+                {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                False,
         ),
         # Fill in TAG after SECTOR
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-            (2, 1),
-            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
-            True,
+                {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                (2, 1),
+                {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
+                True,
         ),
     ],
 )
@@ -277,20 +277,20 @@ def test__step__returns_expected(env, state, action, next_state, valid):
     "state, readable",
     [
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            "UNASSIGNED_SECTOR | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "UNASSIGNED_SECTOR | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
         ),
         (
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-            "POWER | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "POWER | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
         ),
         (
-            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-            "POWER | GREEN | power_NUCLEAR | HIGH",
+                {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+                "POWER | GREEN | power_NUCLEAR | HIGH",
         ),
         (
-            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 2},
-            "UNASSIGNED_SECTOR | UNASSIGNED_TAG | power_COAL_noccs | MEDIUM",
+                {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 2},
+                "UNASSIGNED_SECTOR | UNASSIGNED_TAG | power_COAL_noccs | MEDIUM",
         ),
     ],
 )
@@ -302,20 +302,20 @@ def test__state2readable__returns_expected(env, state, readable):
     "readable, state",
     [
         (
-            "UNASSIGNED_SECTOR | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
-            {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "UNASSIGNED_SECTOR | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
         ),
         (
-            "POWER | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
-            {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "POWER | UNASSIGNED_TAG | UNASSIGNED_TECH | UNASSIGNED_AMOUNT",
+                {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
         ),
         (
-            "POWER | GREEN | power_NUCLEAR | HIGH",
-            {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+                "POWER | GREEN | power_NUCLEAR | HIGH",
+                {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
         ),
         (
-            "UNASSIGNED_SECTOR | UNASSIGNED_TAG | power_COAL_noccs | MEDIUM",
-            {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 2},
+                "UNASSIGNED_SECTOR | UNASSIGNED_TAG | power_COAL_noccs | MEDIUM",
+                {"SECTOR": 0, "TAG": 0, "TECH": 1, "AMOUNT": 2},
         ),
     ],
 )
@@ -355,7 +355,7 @@ def test__get_mask_invalid_actions_forward__source_state(env):
 
 def test__get_mask_invalid_actions_forward__well_defined_state(env):
     """Test masking at well-defined state - should only allow EOS."""
-    state = {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1}  # Tech + Amount assigned
+    state = {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1}  # All 4 attributes assigned
     mask = env.get_mask_invalid_actions_forward(state)
 
     # Only EOS should be valid (False in mask)
@@ -375,6 +375,8 @@ def test__get_uniform_terminating_states__returns_valid_states(env):
         assert env.well_defined_investment(state)
         assert "TECH" in env.get_assigned_attributes(state)
         assert "AMOUNT" in env.get_assigned_attributes(state)
+        assert "SECTOR" in env.get_assigned_attributes(state)
+        assert "TAG" in env.get_assigned_attributes(state)
 
 
 def test__network_structure_consistency(env):
@@ -401,6 +403,80 @@ def test__network_structure_consistency(env):
             assert sector in env.sectors
 
 
+def test__set_available_techs__masks_unavailable_techs(env):
+    """Test that setting available techs properly masks unavailable options."""
+    # Limit to only nuclear and solar
+    env.set_available_techs([
+        env.token2idx_techs['power_NUCLEAR'],
+        env.token2idx_techs['power_SOLAR']
+    ])
+
+    mask = env.get_mask_invalid_actions_forward()
+
+    # Check that coal is masked (unavailable)
+    coal_action = (env.token2idx_choices['TECH'], env.token2idx_techs['power_COAL_noccs'])
+    assert mask[env.action2index(coal_action)] == True
+
+    # Check that nuclear is not masked (available)
+    nuclear_action = (env.token2idx_choices['TECH'], env.token2idx_techs['power_NUCLEAR'])
+    assert mask[env.action2index(nuclear_action)] == False
+
+    # Check that solar is not masked (available)
+    solar_action = (env.token2idx_choices['TECH'], env.token2idx_techs['power_SOLAR'])
+    assert mask[env.action2index(solar_action)] == False
+
+
+def test__set_available_techs__masks_unavailable_sectors(env):
+    """Test that sectors with no available techs are also masked."""
+    # Limit to only DAC technologies
+    dac_techs = [env.token2idx_techs[t] for t in env.network_structure['sector2tech']['DAC']]
+    env.set_available_techs(dac_techs)
+
+    mask = env.get_mask_invalid_actions_forward()
+
+    # POWER sector should be masked (no available techs)
+    power_action = (env.token2idx_choices['SECTOR'], env.token2idx_sectors['POWER'])
+    assert mask[env.action2index(power_action)] == True
+
+    # DAC sector should not be masked (has available techs)
+    dac_action = (env.token2idx_choices['SECTOR'], env.token2idx_sectors['DAC'])
+    assert mask[env.action2index(dac_action)] == False
+
+
+def test__set_available_techs__masks_unavailable_tags(env):
+    """Test that tags with no available techs are also masked."""
+    # Limit to only BROWN technologies
+    brown_techs = [env.token2idx_techs[t] for t in env.network_structure['tag2tech']['BROWN']]
+    env.set_available_techs(brown_techs)
+
+    mask = env.get_mask_invalid_actions_forward()
+
+    # GREEN tag should be masked (no available techs)
+    green_action = (env.token2idx_choices['TAG'], env.token2idx_tags['GREEN'])
+    assert mask[env.action2index(green_action)] == True
+
+    # BROWN tag should not be masked (has available techs)
+    brown_action = (env.token2idx_choices['TAG'], env.token2idx_tags['BROWN'])
+    assert mask[env.action2index(brown_action)] == False
+
+
+def test__states2proxy__returns_correct_format(env):
+    """Test that states2proxy returns the expected format."""
+    states = [
+        {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+        {"SECTOR": 2, "TAG": 2, "TECH": 5, "AMOUNT": 2},
+    ]
+
+    processed = env.states2proxy(states)
+
+    # Should return list of lists with single state dict each
+    assert len(processed) == 2
+    assert len(processed[0]) == 1
+    assert len(processed[1]) == 1
+    assert processed[0][0] == states[0]
+    assert processed[1][0] == states[1]
+
+
 class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
     """Common tests for InvestmentDiscrete."""
 
@@ -412,4 +488,4 @@ class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
             "test__get_parents__all_parents_are_reached_with_different_actions": 100,
             "test__get_logprobs__all_finite_in_random_backward_transitions": 100,
         }
-        self.n_states = {}  # TODO: Populate.
+        self.n_states = {}  # TODO: Populate if needed
