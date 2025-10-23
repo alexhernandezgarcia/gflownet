@@ -263,6 +263,13 @@ def test__get_parents__returns_expected(
                 {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
                 True,
         ),
+        # Fill in TAG after SECTOR
+        (
+                {"SECTOR": 3, "TAG": 2, "TECH": 0, "AMOUNT": 2},
+                (3, 26),
+                {"SECTOR": 3, "TAG": 2, "TECH": 26, "AMOUNT": 2},
+                True,
+        ),
     ],
 )
 def test__step__returns_expected(env, state, action, next_state, valid):
