@@ -7,8 +7,8 @@ number of technologies. Each technology must be selected once, therefore the
 inter-environment constraints restrict the choice of technologies to those that have
 not been set yet.
 """
-
-from typing import Iterable, List, Optional, Set, Tuple
+import copy
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from gflownet.envs.iam.investment import TECHS, InvestmentDiscrete
 from gflownet.envs.stack import Stack
@@ -137,3 +137,31 @@ class Plan(Stack):
             if tech != 0:
                 techs.append(tech)
         return set(techs)
+
+    def states2proxy(self, states: List[List]) -> List[List[Dict]]:
+        """
+        Prepares a batch of states in "environment format" for a proxy: the batch is
+        simply converted into a tensor of indices.
+
+        Parameters
+        ----------
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            list of tensors.
+
+        Returns
+        -------
+        The same list of lists, but with only the dictionaries, processing is performed in the proxy model
+        """
+        processed_states = [
+            [self.decode_investment_for_proxy(x) for x in single_plan if isinstance(x, dict)]
+            for single_plan in states
+        ]
+        return processed_states
+
+    def decode_investment_for_proxy(self, state: Dict) -> Dict:
+        to_pass = copy.deepcopy(state)
+        to_pass["TECH"] = "SUBS_"+self.subenvs[0].idx2token_techs[state["TECH"]]
+        to_pass["AMOUNT"] = self.subenvs[0].idx2token_amounts[state["AMOUNT"]]
+        return to_pass
+
