@@ -7,6 +7,7 @@ number of technologies. Each technology must be selected once, therefore the
 inter-environment constraints restrict the choice of technologies to those that have
 not been set yet.
 """
+
 import copy
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
@@ -154,14 +155,17 @@ class Plan(Stack):
         The same list of lists, but with only the dictionaries, processing is performed in the proxy model
         """
         processed_states = [
-            [self.decode_investment_for_proxy(x) for x in single_plan if isinstance(x, dict)]
+            [
+                self.decode_investment_for_proxy(x)
+                for x in single_plan
+                if isinstance(x, dict)
+            ]
             for single_plan in states
         ]
         return processed_states
 
     def decode_investment_for_proxy(self, state: Dict) -> Dict:
         to_pass = copy.deepcopy(state)
-        to_pass["TECH"] = "SUBS_"+self.subenvs[0].idx2token_techs[state["TECH"]]
+        to_pass["TECH"] = "SUBS_" + self.subenvs[0].idx2token_techs[state["TECH"]]
         to_pass["AMOUNT"] = self.subenvs[0].idx2token_amounts[state["AMOUNT"]]
         return to_pass
-
