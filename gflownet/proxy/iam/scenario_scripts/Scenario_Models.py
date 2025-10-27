@@ -120,6 +120,9 @@ def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
         print("Dataset loaded from file.")
     else:
         scen_data = witch_proc_data(
+            subsidies_parquet = 'gflownet/proxy/iam/scenario_data/subsidies_df.parquet',
+            variables_parquet = 'gflownet/proxy/iam/scenario_data/variables_df.parquet',
+            keys_parquet = 'gflownet/proxy/iam/scenario_data/keys_df.parquet',
             scaling_type=scaling_type,
             with_cuda=True,
             drop_columns=[
