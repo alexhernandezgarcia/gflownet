@@ -1,19 +1,19 @@
-import torch
-from gflownet.proxy.iam.scenario_scripts.Scenario_Models import initialize_fairy
-
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError, version
-from torchtyping import TensorType
-
 from typing import Dict, Iterable, List, Set, Tuple
 
+import torch
+from torchtyping import TensorType
+
 from gflownet.proxy.base import Proxy
+from gflownet.proxy.iam.scenario_scripts.Scenario_Models import \
+    initialize_fairy
 
 
 class FAIRY(Proxy):
     def __init__(
-            self,
-            **kwargs,
+        self,
+        **kwargs,
     ):
         """
         Wrapper class around the fairy proxy.
@@ -27,10 +27,16 @@ class FAIRY(Proxy):
             self.data = data
 
             # Convert subsidies_names to list if it's a pandas Index
-            self.subsidies_names = list(self.fairy.subsidies_names) if hasattr(self.fairy.subsidies_names,
-                                                                               '__iter__') else self.fairy.subsidies_names
-            self.variables_names = list(self.fairy.variables_names) if hasattr(self.fairy.variables_names,
-                                                                               '__iter__') else self.fairy.variables_names
+            self.subsidies_names = (
+                list(self.fairy.subsidies_names)
+                if hasattr(self.fairy.subsidies_names, "__iter__")
+                else self.fairy.subsidies_names
+            )
+            self.variables_names = (
+                list(self.fairy.variables_names)
+                if hasattr(self.fairy.variables_names, "__iter__")
+                else self.fairy.variables_names
+            )
 
             # Get device from the model once
             self.device = next(self.fairy.parameters()).device
@@ -42,7 +48,9 @@ class FAIRY(Proxy):
             print("  💥 `fairy` cannot be initialized.")
 
     @torch.no_grad()
-    def __call__(self, states: List[List[Dict]], contexts=None, keys_context=None, budgets=None) -> TensorType["batch"]:
+    def __call__(
+        self, states: List[List[Dict]], contexts=None, keys_context=None, budgets=None
+    ) -> TensorType["batch"]:
         """
         Forward pass of the proxy.
 
@@ -86,14 +94,21 @@ class FAIRY(Proxy):
             assert all([len(c) == self.fairy.variables_dim for c in contexts])
         elif keys_context is not None:
             assert len(states) == len(keys_context)
-            contexts = [self.data.variables_df[self.data.index_map.get((key['gdx'], key['year'], key['region']))] for
-                        key in keys_context]
+            contexts = [
+                self.data.variables_df[
+                    self.data.index_map.get((key["gdx"], key["year"], key["region"]))
+                ]
+                for key in keys_context
+            ]
             if budgets is None:
                 raise ValueError("Implement budget reading from keys")
             elif isinstance(budgets, float):
                 budgets = [budgets] * len(states)
         else:
-            contexts = [torch.rand(self.fairy.variables_dim, device=self.device) for _ in range(len(states))]
+            contexts = [
+                torch.rand(self.fairy.variables_dim, device=self.device)
+                for _ in range(len(states))
+            ]
 
         # Stack contexts properly - convert all to tensors first
         contexts_list = []
@@ -101,7 +116,9 @@ class FAIRY(Proxy):
             if isinstance(ctx, torch.Tensor):
                 contexts_list.append(ctx.to(self.device))
             else:
-                contexts_list.append(torch.tensor(ctx, dtype=torch.float32, device=self.device))
+                contexts_list.append(
+                    torch.tensor(ctx, dtype=torch.float32, device=self.device)
+                )
         contexts = torch.stack(contexts_list)
 
         # Handle budgets: convert to 1D tensor matching batch size
@@ -118,17 +135,24 @@ class FAIRY(Proxy):
         if budgets.dim() == 0:
             budgets = budgets.unsqueeze(0).expand(len(states))
 
-        plan = torch.zeros(len(states), self.fairy.subsidies_dim, dtype=torch.float32, device=self.device)
+        plan = torch.zeros(
+            len(states),
+            self.fairy.subsidies_dim,
+            dtype=torch.float32,
+            device=self.device,
+        )
 
         for i, s in enumerate(states):
             for inv in s:
-                amount = self.get_invested_amount(inv['AMOUNT'])
-                tech = self.subsidies_names.index(inv['TECH'])
+                amount = self.get_invested_amount(inv["AMOUNT"])
+                tech = self.subsidies_names.index(inv["TECH"])
                 plan[i, tech] = amount
 
         developments = self.fairy(contexts, plan)
 
-        y = developments[:, self.variables_names.index("CONSUMPTION")]  # CONSUMPTION, or GDP, or something else
+        y = developments[
+            :, self.variables_names.index("CONSUMPTION")
+        ]  # CONSUMPTION, or GDP, or something else
 
         # Apply budget constraint: zero out consumption where emissions exceed budget
         emissions = developments[:, self.variables_names.index("EMI_total_CO2")]
@@ -137,13 +161,13 @@ class FAIRY(Proxy):
         return y
 
     def get_invested_amount(self, amount: str) -> float:
-        if amount == 'NONE':
+        if amount == "NONE":
             return 0.0
-        if amount == 'LOW':
+        if amount == "LOW":
             return 0.1
-        if amount == 'MEDIUM':
+        if amount == "MEDIUM":
             return 0.5
-        if amount == 'HIGH':
+        if amount == "HIGH":
             return 1.0
         else:
             raise ValueError("Invalid amount")
