@@ -9,10 +9,11 @@ from typing import Dict, Iterable, List, Set, Tuple
 
 from gflownet.proxy.base import Proxy
 
+
 class FAIRY(Proxy):
     def __init__(
-        self,
-        **kwargs,
+            self,
+            **kwargs,
     ):
         """
         Wrapper class around the fairy proxy.
@@ -24,11 +25,24 @@ class FAIRY(Proxy):
             fairy, data = initialize_fairy()
             self.fairy = fairy
             self.data = data
+
+            # Convert subsidies_names to list if it's a pandas Index
+            self.subsidies_names = list(self.fairy.subsidies_names) if hasattr(self.fairy.subsidies_names,
+                                                                               '__iter__') else self.fairy.subsidies_names
+            self.variables_names = list(self.fairy.variables_names) if hasattr(self.fairy.variables_names,
+                                                                               '__iter__') else self.fairy.variables_names
+
+            # Get device from the model once
+            self.device = next(self.fairy.parameters()).device
+
+            # Set model to eval mode (required for BatchNorm with batch_size=1)
+            self.fairy.eval()
+
         except PackageNotFoundError:
             print("  💥 `fairy` cannot be initialized.")
 
     @torch.no_grad()
-    def __call__(self, states: List[List[Dict]], contexts = None, keys_context = None, budgets = None) -> TensorType["batch"]:
+    def __call__(self, states: List[List[Dict]], contexts=None, keys_context=None, budgets=None) -> TensorType["batch"]:
         """
         Forward pass of the proxy.
 
@@ -68,70 +82,59 @@ class FAIRY(Proxy):
         """
         if contexts is not None:
             assert len(states) == len(contexts)
-            #assert all contexts are proper length
+            # assert all contexts are proper length
             assert all([len(c) == self.fairy.variables_dim for c in contexts])
         elif keys_context is not None:
             assert len(states) == len(keys_context)
-            contexts = [self.data.variables_df[self.data.index_map.get((key['gdx'], key['year'], key['region']))] for key in keys_context]
+            contexts = [self.data.variables_df[self.data.index_map.get((key['gdx'], key['year'], key['region']))] for
+                        key in keys_context]
             if budgets is None:
                 raise ValueError("Implement budget reading from keys")
             elif isinstance(budgets, float):
                 budgets = [budgets] * len(states)
         else:
-            contexts = [torch.rand(self.fairy.variables_dim) for _ in range(len(states))]
+            contexts = [torch.rand(self.fairy.variables_dim, device=self.device) for _ in range(len(states))]
 
-        contexts = torch.tensor(contexts)
-        budgets = torch.tensor(budgets)
+        # Stack contexts properly - convert all to tensors first
+        contexts_list = []
+        for ctx in contexts:
+            if isinstance(ctx, torch.Tensor):
+                contexts_list.append(ctx.to(self.device))
+            else:
+                contexts_list.append(torch.tensor(ctx, dtype=torch.float32, device=self.device))
+        contexts = torch.stack(contexts_list)
 
-        plan = torch.zeros(len(states),self.fairy.subsidies_dim).float()
+        # Handle budgets: convert to 1D tensor matching batch size
+        if isinstance(budgets, (int, float)):
+            budgets = torch.tensor([float(budgets)] * len(states), device=self.device)
+        elif isinstance(budgets, torch.Tensor):
+            budgets = budgets.to(self.device)
+        elif isinstance(budgets, list):
+            budgets = torch.tensor(budgets, device=self.device)
+        else:
+            budgets = torch.tensor(budgets, device=self.device)
+
+        # Ensure budgets is 1D
+        if budgets.dim() == 0:
+            budgets = budgets.unsqueeze(0).expand(len(states))
+
+        plan = torch.zeros(len(states), self.fairy.subsidies_dim, dtype=torch.float32, device=self.device)
 
         for i, s in enumerate(states):
             for inv in s:
                 amount = self.get_invested_amount(inv['AMOUNT'])
-                tech = self.fairy.subsidies_names.index(inv['TECH'])
+                tech = self.subsidies_names.index(inv['TECH'])
                 plan[i, tech] = amount
 
         developments = self.fairy(contexts, plan)
 
-        y = developments[:,self.fairy.variables_names.index("CONSUMPTION")]# CONSUMPTION, or GDP, or something else
+        y = developments[:, self.variables_names.index("CONSUMPTION")]  # CONSUMPTION, or GDP, or something else
 
-        y[developments[:,self.fairy.variables_names.index("EMI_total_CO2")]>budgets] = 0
+        # Apply budget constraint: zero out consumption where emissions exceed budget
+        emissions = developments[:, self.variables_names.index("EMI_total_CO2")]
+        y[emissions > budgets] = 0
 
         return y
-
-    # TODO: review whether rescaling is done as expected
-    @torch.no_grad()
-    def infer_on_train_set(self):
-        """
-        Infer on the training set and return the ground-truth and proxy values.
-
-        Returns
-        -------
-        tuple[torch.Tensor, torch.Tensor]
-            ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
-                proxy inference on the proxy's training set as 1D tensors.
-        """
-        energy = []
-        proxy = []
-
-        for b in self.proxy_loaders["train"]:
-            x, e = b
-            for k, t in enumerate(x):
-                if t.ndim == 1:
-                    x[k] = t[:, None]
-                if t.ndim > 2:
-                    x[k] = t.squeeze()
-                assert (
-                    x[k].ndim == 2
-                ), f"t.ndim = {x[k].ndim} != 2 (t.shape: {x[k].shape})"
-            p = self.proxy(torch.cat(x, dim=-1), scale_input=True)
-            energy.append(e)
-            proxy.append(p)
-
-        energy = torch.cat(energy).cpu()
-        proxy = torch.cat(proxy).cpu()
-
-        return energy, proxy
 
     def get_invested_amount(self, amount: str) -> float:
         if amount == 'NONE':
@@ -142,3 +145,5 @@ class FAIRY(Proxy):
             return 0.5
         if amount == 'HIGH':
             return 1.0
+        else:
+            raise ValueError("Invalid amount")
