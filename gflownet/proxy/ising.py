@@ -1,8 +1,10 @@
-from typing import Union, Optional
+import itertools
+from typing import Optional, Union
+
 import torch
 from torchtyping import TensorType
+
 from gflownet.proxy.base import Proxy
-import itertools
 
 
 def nn_adjacency(
