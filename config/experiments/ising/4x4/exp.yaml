@@ -2,6 +2,8 @@
 
 defaults:
   - override /env: ising
+  - override /gflownet: trajectorybalance  
+  - override /loss: trajectorybalance
   - override /proxy: ising
   - override /logger: wandb
 
@@ -25,17 +27,38 @@ proxy:
     beta: -1.0
     alpha: 1.0
 
+
+# Buffer
+buffer:
+  test:
+    path : "/home/dounia/git/gflownet/gflownet/data/ising/4x4/ising_testset_L4_n30.pkl"
+    type : "pkl"
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True      
 # Evaluator
 evaluator:
-  first_it: False
-  period: -1
+  first_it: True
+  period: 500
   checkpoints_period: 500
-  n_trajs_logprobs: 100
-  logprobs_batch_size: 10
-  n: 10
-  n_top_k: 5000
-  top_k: 100
-  top_k_period: -1
+  n_trajs_logprobs: 10
+  n: 1000
 
 # WandB
 logger:
@@ -44,10 +67,8 @@ logger:
   run_name: "4x4"
   tags:
     - gflownet
-    - crystals
-    - stack
-    - matbench
-    - formationenergy
+    - ising
+    - exp
   do:
     online: true
 
