@@ -258,10 +258,12 @@ class InvestmentDiscrete(GFlowNetEnv):
         """
         Constructs list with all possible actions, including eos.
 
-        An action is represented by a two-element tuple indicating the in its first position the index
-         of the element of the dictionary (state) to be changed, and the value used to uodate the state.
+        An action is represented by a two-element tuple: the first element is the index
+        of the element of the dictionary (state) to be changed; the second element is
+        the value used to update the state.
 
-         e.g. (3,2): Assign to 3rd attribute (technology) its 2nd value (Coal power with CCS)
+        For example, action (3, 2) sets for choice 3 (technology) the value at index 2
+        (coal power with CCS), starting from index 1.
         """
         all_actions = (
             [
@@ -309,9 +311,8 @@ class InvestmentDiscrete(GFlowNetEnv):
         if done:
             return [True for _ in range(self.action_space_dim)]
 
-        mask = [
-            True for _ in range(self.action_space_dim)
-        ]  # start with all actions masked
+        # Initialize mask to all invalid
+        mask = [True for _ in range(self.action_space_dim)]
 
         assigned = self.get_assigned_attributes(state)
         if self.well_defined_investment(state):  # if you have full investment
