@@ -9,8 +9,20 @@ def env():
     return InvestmentDiscrete()
 
 
-def test__environment_initializes_properly():
-    env = InvestmentDiscrete()
+@pytest.fixture
+def env_techs_available():
+    return InvestmentDiscrete(techs_available=([1, 17, 28]))
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        "env",
+        "env_techs_available",
+    ],
+)
+def test__environment_initializes_properly(env, request):
+    env = request.getfixturevalue(env)
     assert True
 
 
@@ -490,6 +502,20 @@ class TestClimateInvestmentCommon(common.BaseTestsDiscrete):
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 100,
+            "test__get_parents__all_parents_are_reached_with_different_actions": 100,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 100,
+        }
+        self.n_states = {}  # TODO: Populate if needed
+
+
+class TestClimateInvestmentTechsAvailableCommon(common.BaseTestsDiscrete):
+    """Common tests for InvestmentDiscrete."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_techs_available):
+        self.env = env_techs_available
         self.repeats = {
             "test__reset__state_is_source": 100,
             "test__get_parents__all_parents_are_reached_with_different_actions": 100,
