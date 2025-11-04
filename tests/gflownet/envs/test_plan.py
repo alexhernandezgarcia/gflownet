@@ -171,6 +171,13 @@ def test__get_techs_set__returns_expected(env, state, techs_expected):
     assert env._get_techs_set(state) == techs_expected
 
 
+@pytest.mark.repeat(10)
+def test__trajectory_random__does_not_crash_from_source(env):
+    env.reset()
+    env.trajectory_random()
+    assert True
+
+
 class TestPlan(common.BaseTestsDiscrete):
     """Common tests for the Plan environment."""
 
