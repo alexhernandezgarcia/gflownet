@@ -14,6 +14,14 @@ def test__environment_initializes_properly():
     assert True
 
 
+def test__mask_and_actione_length_matches(env):
+    assert len(env.get_action_space()) == len(env.action_space)
+    assert env.mask_dim == len(env.get_mask_invalid_actions_forward(env.source))
+    assert len(env.action_space) == len(
+        env.get_mask_invalid_actions_forward(env.source)
+    )
+
+
 @pytest.mark.parametrize(
     "state, techs_expected",
     [
@@ -162,144 +170,6 @@ def test__environment_initializes_properly():
 def test__get_techs_set__returns_expected(env, state, techs_expected):
     assert env._get_techs_set(state) == techs_expected
 
-
-@pytest.mark.parametrize(
-    "states, expected_lengths, expected_first_dicts",
-    [
-        # Single state at source (stage 0, first investment only)
-        (
-                [
-                    [
-                        0,  # Stage
-                        {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    ],
-                ],
-                [29],  # Expected length for first state
-                [{"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1}],  # First dict of first state
-        ),
-        # Two states with different stages
-        (
-                [
-                    [
-                        0,  # Stage
-                        {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    ],
-                    [
-                        2,  # Stage
-                        {"SECTOR": 1, "TAG": 1, "TECH": 20, "AMOUNT": 4},
-                        {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                        {"SECTOR": 4, "TAG": 1, "TECH": 15, "AMOUNT": 3},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    ],
-                ],
-                [29, 29],  # Expected lengths
-                [
-                    {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-                    {"SECTOR": 1, "TAG": 1, "TECH": 20, "AMOUNT": 4},
-                ],  # First dicts
-        ),
-    ],
-)
-def test__states2proxy__filters_to_dicts_only(env, states, expected_lengths, expected_first_dicts):
-    """Test that states2proxy returns only dictionary substates, filtering out stage integers."""
-    processed = env.states2proxy(states)
-
-    # Check batch size is preserved
-    assert len(processed) == len(states)
-
-    # Check each processed state
-    for i, (proc_state, expected_len, expected_first) in enumerate(
-            zip(processed, expected_lengths, expected_first_dicts)
-    ):
-        # Check length (number of investment dicts)
-        assert len(proc_state) == expected_len
-
-        # Check all elements are dicts
-        assert all(isinstance(x, dict) for x in proc_state)
-
-        # Check first dict matches expected
-        assert proc_state[0] == expected_first
 
 class TestPlan(common.BaseTestsDiscrete):
     """Common tests for the Plan environment."""

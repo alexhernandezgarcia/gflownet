@@ -6,25 +6,38 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
-from gflownet.proxy.iam.scenario_scripts.Scenario_Models import \
-    initialize_fairy
+from gflownet.proxy.iam.scenario_scripts.Scenario_Models import initialize_fairy
 
 
 class FAIRY(Proxy):
     def __init__(
         self,
+        key_gdx,
+        key_year,
+        key_region,
+        budget,
+        SCC,
         **kwargs,
     ):
         """
         Wrapper class around the fairy proxy.
         """
         super().__init__(**kwargs)
+        self.key_gdx = key_gdx
+        self.key_year = key_year
+        self.key_region = key_region
+        self.budget = torch.tensor(budget)
+
+        self.SCC = SCC
 
         print("Initializing fairy proxy:")
         try:
             fairy, data = initialize_fairy()
             self.fairy = fairy
-            self.data = data
+            context = data.variables_df[
+                data.index_map.get((self.key_gdx, self.key_year, self.key_region))
+            ]
+            self.context = context.unsqueeze(dim=0)
 
             # Convert subsidies_names to list if it's a pandas Index
             self.subsidies_names = (
@@ -48,9 +61,7 @@ class FAIRY(Proxy):
             print("  💥 `fairy` cannot be initialized.")
 
     @torch.no_grad()
-    def __call__(
-        self, states: List[List[Dict]], contexts=None, keys_context=None, budgets=None
-    ) -> TensorType["batch"]:
+    def __call__(self, states: List[List[Dict]]) -> TensorType["batch"]:
         """
         Forward pass of the proxy.
 
@@ -70,70 +81,14 @@ class FAIRY(Proxy):
         states : List of List[Dict]
             Each List[Dict] represents a single state. Each Dict is an investment configuration, a list defines a plan.
             List of plans is a batch.
-        contexts: Either List of vectors or none. MAX-SCALED
-            If not none, needs to have the same number of elements as batch.
-            Contains the context associated with each state. The starting situation for which the investment plan is designed.
-        keys_context: List of dictionaries, if present, else none
-            if context is present, it is ignored.
-            If not none, and context is not present, needs to have the same number of elements as batch.
-            Contains the keys associated with each investment plan's context, extracted from scenario data
-        budgets: either None, single signed integer or list of signed integers. MAX-SCALED [to-do pass original scale budget]
-            If not none, needs to have the same number of elements as batch, or be a single signed integer..
-            Contains the emission budget associated with each investment plan.
-            if is none, and context is passed via keys, targets actual emission reduction. else random number
-
-
         Returns
         -------
         torch.Tensor
             Proxy energies. Shape: ``(batch,)``.
         """
-        if contexts is not None:
-            assert len(states) == len(contexts)
-            # assert all contexts are proper length
-            assert all([len(c) == self.fairy.variables_dim for c in contexts])
-        elif keys_context is not None:
-            assert len(states) == len(keys_context)
-            contexts = [
-                self.data.variables_df[
-                    self.data.index_map.get((key["gdx"], key["year"], key["region"]))
-                ]
-                for key in keys_context
-            ]
-            if budgets is None:
-                raise ValueError("Implement budget reading from keys")
-            elif isinstance(budgets, float):
-                budgets = [budgets] * len(states)
-        else:
-            contexts = [
-                torch.rand(self.fairy.variables_dim, device=self.device)
-                for _ in range(len(states))
-            ]
 
-        # Stack contexts properly - convert all to tensors first
-        contexts_list = []
-        for ctx in contexts:
-            if isinstance(ctx, torch.Tensor):
-                contexts_list.append(ctx.to(self.device))
-            else:
-                contexts_list.append(
-                    torch.tensor(ctx, dtype=torch.float32, device=self.device)
-                )
-        contexts = torch.stack(contexts_list)
-
-        # Handle budgets: convert to 1D tensor matching batch size
-        if isinstance(budgets, (int, float)):
-            budgets = torch.tensor([float(budgets)] * len(states), device=self.device)
-        elif isinstance(budgets, torch.Tensor):
-            budgets = budgets.to(self.device)
-        elif isinstance(budgets, list):
-            budgets = torch.tensor(budgets, device=self.device)
-        else:
-            budgets = torch.tensor(budgets, device=self.device)
-
-        # Ensure budgets is 1D
-        if budgets.dim() == 0:
-            budgets = budgets.unsqueeze(0).expand(len(states))
+        contexts = self.context.repeat(len(states), 1)
+        budgets = self.budget.unsqueeze(0).expand(len(states))
 
         plan = torch.zeros(
             len(states),
@@ -156,7 +111,7 @@ class FAIRY(Proxy):
 
         # Apply budget constraint: zero out consumption where emissions exceed budget
         emissions = developments[:, self.variables_names.index("EMI_total_CO2")]
-        y[emissions > budgets] = 0
+        y = y - self.SCC + emissions
 
         return y
 
