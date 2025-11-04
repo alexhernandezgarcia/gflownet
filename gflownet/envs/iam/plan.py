@@ -53,6 +53,8 @@ class Plan(Stack):
             InvestmentDiscrete(sectors=sectors, tags=tags, techs=techs, amounts=amounts)
             for _ in range(self.n_techs)
         ]
+        self.idx2token_techs = copy.deepcopy(subenvs[0].idx2token_techs)
+        self.idx2token_amounts = copy.deepcopy(subenvs[0].idx2token_amounts)
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
 
@@ -166,6 +168,6 @@ class Plan(Stack):
 
     def decode_investment_for_proxy(self, state: Dict) -> Dict:
         to_pass = copy.deepcopy(state)
-        to_pass["TECH"] = "SUBS_" + self.subenvs[0].idx2token_techs[state["TECH"]]
-        to_pass["AMOUNT"] = self.subenvs[0].idx2token_amounts[state["AMOUNT"]]
+        to_pass["TECH"] = "SUBS_" + self.idx2token_techs[state["TECH"]]
+        to_pass["AMOUNT"] = self.idx2token_amounts[state["AMOUNT"]]
         return to_pass
