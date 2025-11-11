@@ -359,11 +359,26 @@ class InvestmentDiscrete(GFlowNetEnv):
                 ]
                 for a in allowed_sectors:
                     allowed_techs_sector = self.network_structure["sector2tech"][a]
-                    allowed_techs_tag = self.network_structure["tag2tech"][self.idx2token_tags[state["TAG"]]]
-                    allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
-                    available_techs = [t for t in allowed_techs if self.token2idx_techs[t] in self.techs_available]
+                    allowed_techs_tag = self.network_structure["tag2tech"][
+                        self.idx2token_tags[state["TAG"]]
+                    ]
+                    allowed_techs = list(
+                        set(allowed_techs_sector) & set(allowed_techs_tag)
+                    )
+                    available_techs = [
+                        t
+                        for t in allowed_techs
+                        if self.token2idx_techs[t] in self.techs_available
+                    ]
                     if available_techs:
-                        mask[self.action2index((self.token2idx_choices["SECTOR"], self.token2idx_sectors[a]))] = False
+                        mask[
+                            self.action2index(
+                                (
+                                    self.token2idx_choices["SECTOR"],
+                                    self.token2idx_sectors[a],
+                                )
+                            )
+                        ] = False
             else:
                 for b in range(self.n_sectors):
                     mask[
@@ -377,11 +392,23 @@ class InvestmentDiscrete(GFlowNetEnv):
                 ]
                 for a in allowed_tags:
                     allowed_techs_tag = self.network_structure["tag2tech"][a]
-                    allowed_techs_sector = self.network_structure["sector2tech"][self.idx2token_sectors[state["SECTOR"]]]
-                    allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
-                    available_techs = [t for t in allowed_techs if self.token2idx_techs[t] in self.techs_available]
+                    allowed_techs_sector = self.network_structure["sector2tech"][
+                        self.idx2token_sectors[state["SECTOR"]]
+                    ]
+                    allowed_techs = list(
+                        set(allowed_techs_sector) & set(allowed_techs_tag)
+                    )
+                    available_techs = [
+                        t
+                        for t in allowed_techs
+                        if self.token2idx_techs[t] in self.techs_available
+                    ]
                     if available_techs:
-                        mask[self.action2index((self.token2idx_choices["TAG"], self.token2idx_tags[a]))] = False
+                        mask[
+                            self.action2index(
+                                (self.token2idx_choices["TAG"], self.token2idx_tags[a])
+                            )
+                        ] = False
             else:
                 for b in range(self.n_tags):
                     mask[self.action2index((self.token2idx_choices["TAG"], b + 1))] = (

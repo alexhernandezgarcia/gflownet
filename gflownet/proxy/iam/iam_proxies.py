@@ -6,18 +6,18 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
-from gflownet.proxy.iam.scenario_scripts.Scenario_Models import initialize_fairy
+from gflownet.proxy.iam.scenario_scripts.Scenario_Models import \
+    initialize_fairy
 
 
 class FAIRY(Proxy):
     def __init__(
         self,
-        key_gdx = None,
-        key_year = None,
-        key_region = None,
-        budget = None,
-        SCC = None,
-        device='cpu',
+        key_gdx=None,
+        key_year=None,
+        key_region=None,
+        SCC=None,
+        device="cpu",
         **kwargs,
     ):
         """
@@ -31,16 +31,13 @@ class FAIRY(Proxy):
             Year for context selection
         key_region : optional
             Region name for context selection
-        budget : float, optional
-            Emission budget
         SCC : float, optional
-            Social cost of carbon
+            Social cost of carbon #Trillion USD over GtCO2
         device : str or torch.device, optional
             Device to run on ('cpu', 'cuda', 'cuda:0', etc.)
-            If None, uses the device of the loaded model
+            If None, uses the device of the loaded model (likely cuda)
         """
         super().__init__(**kwargs)
-
 
         print("Initializing fairy proxy:")
         try:
@@ -76,32 +73,40 @@ class FAIRY(Proxy):
             print(f"Using device: {self.device}")
 
             if key_gdx is None:
-                self.key_gdx = data.keys_df.iloc[0,2]
+                self.key_gdx = data.keys_df.iloc[0, 2]
             else:
                 self.key_gdx = key_gdx
             if key_year is None:
-                self.key_year = int(data.keys_df.iloc[0,3])
+                self.key_year = int(data.keys_df.iloc[0, 3])
             else:
                 self.key_year = int(key_year)
-                #consistency: convert year index to calendar year
+                # consistency: eventually convert year index to calendar year
                 if self.key_year < 2000:
-                    self.key_year = 2010 + 5*self.key_year
+                    self.key_year = 2010 + 5 * self.key_year
 
             if key_region is None:
-                self.key_region = data.keys_df.iloc[0,1]
+                self.key_region = data.keys_df.iloc[0, 1]
             else:
-                assert key_region in ['europe', 'mexico', 'laca', 'brazil', 'southafrica', 'ssa', 'seasia', 'oceania', 'te', 'jpnkor', 'india', 'mena', 'usa', 'indonesia', 'canada', 'china', 'sasia']
+                assert key_region in [
+                    "europe",
+                    "mexico",
+                    "laca",
+                    "brazil",
+                    "southafrica",
+                    "ssa",
+                    "seasia",
+                    "oceania",
+                    "te",
+                    "jpnkor",
+                    "india",
+                    "mena",
+                    "usa",
+                    "indonesia",
+                    "canada",
+                    "china",
+                    "sasia",
+                ]
                 self.key_region = key_region
-            if budget is None:
-                emission_t0 = data.variables_df[0,self.variables_names.index("EMI_total_CO2")]
-                index_t1 = data.index_map.get((self.key_gdx, self.key_year+5, self.key_region))
-                emission_t1 = data.variables_df[index_t1, self.variables_names.index("EMI_total_CO2")]
-                budget = emission_t1 - emission_t0
-
-            if isinstance(budget, torch.Tensor):
-                self.budget = budget.clone().detach().to(self.device)
-            else:
-                self.budget = torch.tensor(budget, dtype=torch.float32, device=self.device)
 
             if SCC is None:
                 if self.key_year > 2050:
@@ -110,20 +115,33 @@ class FAIRY(Proxy):
                     late_year = 2100
 
                 index = data.index_map.get((self.key_gdx, late_year, self.key_region))
-                SCC_guess = data.variables_df[index, self.variables_names.index("SHADOWPRICE_carbon")]
-                self.SCC = SCC_guess*(self.precomputed_scaling_params["SHADOWPRICE_carbon"]['max'] - self.precomputed_scaling_params["SHADOWPRICE_carbon"]['min']) + self.precomputed_scaling_params["SHADOWPRICE_carbon"]['min']
+                SCC_guess = data.variables_df[
+                    index, self.variables_names.index("SHADOWPRICE_carbon")
+                ]
+                self.SCC = (
+                    SCC_guess
+                    * (
+                        self.precomputed_scaling_params["SHADOWPRICE_carbon"]["max"]
+                        - self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
+                    )
+                    + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
+                )
             else:
                 self.SCC = SCC
 
             self.SCC = self.SCC.to(self.device)
 
-            context_index = data.index_map.get((self.key_gdx, self.key_year, self.key_region))
+            context_index = data.index_map.get(
+                (self.key_gdx, self.key_year, self.key_region)
+            )
             try:
                 assert context_index is not None
             except AssertionError:
-                print(f"Context index {context_index} not found for {self.key_gdx, self.key_year, self.key_region}")
+                print(
+                    f"Context index {context_index} not found for (gdx, year, region): {self.key_gdx, self.key_year, self.key_region}"
+                )
                 exit(1)
-            context = data.variables_df[context_index,:]
+            context = data.variables_df[context_index, :]
             context = context.squeeze()
 
             context = context.to(self.device)
@@ -144,7 +162,7 @@ class FAIRY(Proxy):
         Parameters
         ----------
         device : str or torch.device
-            Target device ('cpu', 'cuda')
+            Target device ('cpu', 'cuda', ...)
 
         Returns
         -------
@@ -157,7 +175,6 @@ class FAIRY(Proxy):
         self.device = device
         self.fairy = self.fairy.to(device)
         self.context = self.context.to(device)
-        self.budget = self.budget.to(device)
         self.SCC = self.SCC.to(device)
 
         return self
@@ -171,12 +188,9 @@ class FAIRY(Proxy):
             -initializes an empty vector of subsidies
             -scan the investment dictionaries one by one
             -read the associated tech and amounts, and fill in the subsidies vector
-
-            -catch a context, if none is selected get a random one
             -compute the projection
-
-            -read the emission budget, if none is selected get the context dependant one
-            -compute the reward
+            -read projected consumption and emissions
+            -compute the reward as consumption - emissions*SCC, in Trillion USD
 
         Parameters
         ----------
@@ -186,7 +200,7 @@ class FAIRY(Proxy):
         Returns
         -------
         torch.Tensor
-            Proxy energies. Shape: ``(batch,)``.
+            Proxy energies
         """
 
         contexts = self.context.repeat(len(states), 1)
@@ -209,17 +223,31 @@ class FAIRY(Proxy):
         y = developments[
             :, self.variables_names.index("CONSUMPTION")
         ]  # CONSUMPTION, or GDP, or something else
-        y = y*(self.precomputed_scaling_params["CONSUMPTION"]['max'] - self.precomputed_scaling_params["CONSUMPTION"]['min']) + self.precomputed_scaling_params["CONSUMPTION"]['min']
+        y = (
+            y
+            * (
+                self.precomputed_scaling_params["CONSUMPTION"]["max"]
+                - self.precomputed_scaling_params["CONSUMPTION"]["min"]
+            )
+            + self.precomputed_scaling_params["CONSUMPTION"]["min"]
+        )
 
         # Apply budget constraint: zero out consumption where emissions exceed budget
         emissions = developments[:, self.variables_names.index("EMI_total_CO2")]
-        emissions = emissions*(self.precomputed_scaling_params["EMI_total_CO2"]['max'] - self.precomputed_scaling_params["EMI_total_CO2"]['min']) + self.precomputed_scaling_params["EMI_total_CO2"]['min']
+        emissions = (
+            emissions
+            * (
+                self.precomputed_scaling_params["EMI_total_CO2"]["max"]
+                - self.precomputed_scaling_params["EMI_total_CO2"]["min"]
+            )
+            + self.precomputed_scaling_params["EMI_total_CO2"]["min"]
+        )
         y = y - self.SCC * emissions
 
         return y
 
     def get_invested_amount(self, amount: str) -> float:
-        #todo - update based on scaling parameters
+        # todo - update based on scaling parameters
         if amount == "NONE":
             return 0.0
         if amount == "LOW":
