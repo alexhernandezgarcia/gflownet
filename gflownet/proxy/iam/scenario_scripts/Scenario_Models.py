@@ -20,7 +20,7 @@ def save_datasets(full_dataset, filename="datasets.pkl"):
 
 
 class residual_block(nn.Module):
-    def __init__(self, width, dim_block, activation, normalization, dropout=0):
+    def __init__(self, width, dim_block, activation, normalization, dropout=0.0):
         super(residual_block, self).__init__()
         layers = []
         for i in range(dim_block - 1):
@@ -95,7 +95,7 @@ class fairy_model(nn.Module):
         self.probabilistic = probabilistic
 
         self.scaling = scaling
-        if scaling not in ["original", "normalization", "maxscale", 'maxmin']:
+        if scaling not in ["original", "normalization", "maxscale", "maxmin"]:
             raise ValueError(
                 "Scaling type must be either original, normalization, or maxscale\n Unknown scaling type: {}".format(
                     scaling
@@ -124,7 +124,7 @@ class fairy_model(nn.Module):
         temp_variables_layers.append(nn.Linear(self.width_block, self.variables_dim))
         if self.scaling in ["original", "maxscale"]:
             temp_variables_layers.append(nn.ReLU())
-        if self.scaling == 'maxscale':
+        if self.scaling == "maxscale":
             temp_variables_layers.append(nn.LeakyReLU())
         self.variables_layer = nn.Sequential(*temp_variables_layers)
         if self.probabilistic:

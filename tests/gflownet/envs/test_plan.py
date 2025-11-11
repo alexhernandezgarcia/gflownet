@@ -13,6 +13,7 @@ def test__environment_initializes_properly():
     env = Plan()
     assert True
 
+
 @pytest.mark.parametrize(
     "state, techs_expected",
     [
