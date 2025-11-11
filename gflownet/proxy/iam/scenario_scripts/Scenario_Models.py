@@ -95,7 +95,7 @@ class fairy_model(nn.Module):
         self.probabilistic = probabilistic
 
         self.scaling = scaling
-        if scaling not in ["original", "normalization", "maxscale"]:
+        if scaling not in ["original", "normalization", "maxscale", 'maxmin']:
             raise ValueError(
                 "Scaling type must be either original, normalization, or maxscale\n Unknown scaling type: {}".format(
                     scaling
@@ -124,6 +124,8 @@ class fairy_model(nn.Module):
         temp_variables_layers.append(nn.Linear(self.width_block, self.variables_dim))
         if self.scaling in ["original", "maxscale"]:
             temp_variables_layers.append(nn.ReLU())
+        if self.scaling == 'maxscale':
+            temp_variables_layers.append(nn.LeakyReLU())
         self.variables_layer = nn.Sequential(*temp_variables_layers)
         if self.probabilistic:
             self.confidence_layer = nn.Linear(self.width_block, self.variables_dim)
@@ -144,10 +146,10 @@ class fairy_model(nn.Module):
 def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
     model_filename = "gflownet/proxy/iam/scenario_data/fairy_state_dict.pth"
     dataset_filename = (
-        "gflownet/proxy/iam/scenario_data/witch_scenario_maxscale_dataset.pkl"
+        "gflownet/proxy/iam/scenario_data/witch_scenario_maxmin_dataset.pkl"
     )
 
-    scaling_type = "maxscale"  #
+    scaling_type = "maxmin"  #
 
     if os.path.exists(dataset_filename):
         scen_data = load_datasets(dataset_filename)

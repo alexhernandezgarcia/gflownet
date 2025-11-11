@@ -1,0 +1,7 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.iam.iam_proxies.FAIRY
+
+# Reward function: default
+reward_function: identity
