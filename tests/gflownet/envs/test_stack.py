@@ -1072,38 +1072,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             ],
             True,
         ),
-        # Tetris action from Grid stage
-        #         (
-        #             "env_grid2d_tetrismini",
-        #             [
-        #                 # fmt: off
-        #                 0,
-        #                 [2, 0],
-        #                 torch.tensor([
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                 ], dtype=torch.int16, device="cpu"),
-        #                 # fmt: on
-        #             ],
-        #             (1, 1, 0, 0),
-        #             [
-        #                 # fmt: off
-        #                 0,
-        #                 [2, 0],
-        #                 torch.tensor([
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                     [000, 000, 000, 000],
-        #                 ], dtype=torch.int16, device="cpu"),
-        #                 # fmt: on
-        #             ],
-        #             False,
-        #         ),
         (
             "env_grid2d_tetrismini",
             [
@@ -1166,38 +1134,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             ],
             True,
         ),
-        # Grid action from Tetris stage
-        #         (
-        #             "env_grid2d_tetrismini",
-        #             [
-        #                 # fmt: off
-        #                 1,
-        #                 [2, 0],
-        #                 torch.tensor([
-        #                     [000, 000, 000, 000],
-        #                     [100, 000, 000, 000],
-        #                     [100, 000, 000, 000],
-        #                     [100, 000, 400, 400],
-        #                     [100, 000, 400, 400],
-        #                 ], dtype=torch.int16, device="cpu"),
-        #                 # fmt: on
-        #             ],
-        #             (0, 0, 0, 0),
-        #             [
-        #                 # fmt: off
-        #                 1,
-        #                 [2, 0],
-        #                 torch.tensor([
-        #                     [000, 000, 000, 000],
-        #                     [100, 000, 000, 000],
-        #                     [100, 000, 000, 000],
-        #                     [100, 000, 400, 400],
-        #                     [100, 000, 400, 400],
-        #                 ], dtype=torch.int16, device="cpu"),
-        #                 # fmt: on
-        #             ],
-        #             False,
-        #         ),
         # EOS from last stage
         (
             "env_grid2d_tetrismini",
