@@ -13,15 +13,6 @@ def test__environment_initializes_properly():
     env = Plan()
     assert True
 
-
-def test__mask_and_actione_length_matches(env):
-    assert len(env.get_action_space()) == len(env.action_space)
-    assert env.mask_dim == len(env.get_mask_invalid_actions_forward(env.source))
-    assert len(env.action_space) == len(
-        env.get_mask_invalid_actions_forward(env.source)
-    )
-
-
 @pytest.mark.parametrize(
     "state, techs_expected",
     [

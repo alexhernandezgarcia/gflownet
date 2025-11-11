@@ -358,14 +358,12 @@ class InvestmentDiscrete(GFlowNetEnv):
                     self.idx2token_tags[state["TAG"]]
                 ]
                 for a in allowed_sectors:
-                    mask[
-                        self.action2index(
-                            (
-                                self.token2idx_choices["SECTOR"],
-                                self.token2idx_sectors[a],
-                            )
-                        )
-                    ] = False
+                    allowed_techs_sector = self.network_structure["sector2tech"][a]
+                    allowed_techs_tag = self.network_structure["tag2tech"][self.idx2token_tags[state["TAG"]]]
+                    allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
+                    available_techs = [t for t in allowed_techs if self.token2idx_techs[t] in self.techs_available]
+                    if available_techs:
+                        mask[self.action2index((self.token2idx_choices["SECTOR"], self.token2idx_sectors[a]))] = False
             else:
                 for b in range(self.n_sectors):
                     mask[
@@ -378,11 +376,12 @@ class InvestmentDiscrete(GFlowNetEnv):
                     self.idx2token_sectors[state["SECTOR"]]
                 ]
                 for a in allowed_tags:
-                    mask[
-                        self.action2index(
-                            (self.token2idx_choices["TAG"], self.token2idx_tags[a])
-                        )
-                    ] = False
+                    allowed_techs_tag = self.network_structure["tag2tech"][a]
+                    allowed_techs_sector = self.network_structure["sector2tech"][self.idx2token_sectors[state["SECTOR"]]]
+                    allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
+                    available_techs = [t for t in allowed_techs if self.token2idx_techs[t] in self.techs_available]
+                    if available_techs:
+                        mask[self.action2index((self.token2idx_choices["TAG"], self.token2idx_tags[a]))] = False
             else:
                 for b in range(self.n_tags):
                     mask[self.action2index((self.token2idx_choices["TAG"], b + 1))] = (
@@ -453,19 +452,19 @@ class InvestmentDiscrete(GFlowNetEnv):
             unavailable_sectors_idx = []
             for s in self.sectors:
                 sector_technologies = self.network_structure["sector2tech"][s]
-                available_sector_techs = list(
+                available_sector = bool(
                     set(sector_technologies) & set(techs_available_tokens)
                 )
-                if len(available_sector_techs) == 0:
+                if not available_sector:
                     unavailable_sectors_idx.append(self.token2idx_sectors[s])
 
             unavailable_tags_idx = []
             for t in self.tags:
                 tag_technologies = self.network_structure["tag2tech"][t]
-                available_tag_techs = list(
+                available_tag = bool(
                     set(tag_technologies) & set(techs_available_tokens)
                 )
-                if len(available_tag_techs) == 0:
+                if not available_tag:
                     unavailable_tags_idx.append(self.token2idx_tags[t])
 
             for t in unavailable_techs_idx:
@@ -752,8 +751,8 @@ class InvestmentDiscrete(GFlowNetEnv):
         states = []
 
         for _ in range(n_states):
-            tech_token = random.choice(self.techs)
-            tech_idx = self.token2idx_techs[tech_token]
+            tech_idx = random.choice(self.techs_available)
+            tech_token = self.idx2token_techs[tech_idx]
 
             amount_token = random.choice(self.amounts)
             amount_idx = self.token2idx_amounts[amount_token]
