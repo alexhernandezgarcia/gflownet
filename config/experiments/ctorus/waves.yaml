@@ -1,0 +1,75 @@
+# @package _global_
+
+defaults:
+   - override /env: ctorus
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: torus
+   - override /logger: wandb
+
+device: cpu
+
+# Environment
+env:
+  n_dim: 2
+  length_traj: 5
+  n_comp: 10
+  vonmises_min_concentration: 4
+  policy_encoding_dim_per_angle: 10
+
+# Buffer
+buffer:
+  train: null
+  test:
+    type: grid
+    n: 900
+
+# Proxy
+proxy:
+  normalize: False
+  alpha: 3.0
+  beta: 2.0
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: 500
+  n: 1000
+  checkpoints_period: 1000
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "ctorus"
+  run_name: "Waves 3x2"
+  tags: 
+    - gflownet
+    - continuous
+    - ctorus
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/debug/ctorus/${now:%Y-%m-%d_%H-%M-%S_%f}
