@@ -10,7 +10,6 @@ import urllib.request
 from math import floor
 
 import gpytorch
-
 # import tqdm
 import torch
 from botorch.test_functions import Hartmann
@@ -215,9 +214,7 @@ class myGPModel(SingleTaskGP):
 
 
 from botorch.acquisition.max_value_entropy_search import (
-    qLowerBoundMaxValueEntropy,
-    qMaxValueEntropy,
-)
+    qLowerBoundMaxValueEntropy, qMaxValueEntropy)
 
 proxy = myGPModel(model, train_x, train_y.unsqueeze(-1))
 qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set=train_x, use_gumbel=True)

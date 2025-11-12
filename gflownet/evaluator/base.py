@@ -278,7 +278,7 @@ class BaseEvaluator(AbstractEvaluator):
 
             if "corr_prob_traj_rewards" in metrics:
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
-                    np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+                    np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt.cpu().numpy()
                 )[0, 1]
 
             if "var_logrewards_logp" in metrics:
