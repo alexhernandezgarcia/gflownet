@@ -13,7 +13,7 @@ device: cpu
 env:
   n_dim: 2
   length_traj: 5
-  n_comp: 3
+  n_comp: 10
   vonmises_min_concentration: 4
   policy_encoding_dim_per_angle: 10
 
@@ -39,8 +39,8 @@ gflownet:
 policy:
   forward:
     type: mlp
-    n_hid: 128
-    n_layers: 2
+    n_hid: 256
+    n_layers: 3
   backward:
     shared_weights: True
 
