@@ -1,0 +1,67 @@
+# @package _global_
+# 4x4 Ising model with uniform reward
+
+defaults:
+   - override /env: ising
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: uniform
+   - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 2
+  length: 4
+
+# Buffer
+buffer:
+  test:
+    type: random
+    seed: 0
+    n: 1000
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "ising"
+  run_name: "4x4 Unif"
+  tags: 
+    - gflownet
+    - ising
+    - uniform
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+  n_trajs_logprobs: 10
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
