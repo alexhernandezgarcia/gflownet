@@ -56,6 +56,8 @@ class Plan(Stack):
             InvestmentDiscrete(sectors=sectors, tags=tags, techs=techs, amounts=amounts)
             for _ in range(self.n_techs)
         ]
+
+
         self.idx2token_techs = copy.deepcopy(subenvs[0].idx2token_techs)
         self.idx2token_amounts = copy.deepcopy(subenvs[0].idx2token_amounts)
 
@@ -76,6 +78,9 @@ class Plan(Stack):
         self.base_row_one_hot[[0, self.n_sector_choices, self.n_tags_choices + self.n_sector_choices, self.n_techs_choices + self.n_tags_choices + self.n_sector_choices]] = 1
         #for complete states, first element encodes "no amount set"
         self.base_row_one_hot[[self.n_partial_state_encoding + x*self.n_amounts_choices for x in range(self.n_techs)]] = 1
+
+        #for i, s in enumerate(subenvs):
+        #    subenvs[i].set_available_techs([i+1])
 
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
@@ -131,15 +136,27 @@ class Plan(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        if action is not None and self._depad_action(action) == self.subenvs[0].eos:
-            stage_to_constrain = self._get_stage(state) + 1
-        elif action is None and sum(dones) > 0 and sum(dones) < self.n_techs:
-            stage_to_constrain = dones.index(False)
-        else:
-            return
+        #if action is not None and self._depad_action(action) == self.subenvs[0].eos:
+        #    stage_to_constrain = self._get_stage(state) + 1
+        #elif action is None and sum(dones) > 0 and sum(dones) < self.n_techs:
+        #    stage_to_constrain = dones.index(False)
+        #else:
+        #    return
+#
+        #techs_available = self.techs - self._get_techs_set(state)
+        #self.subenvs[stage_to_constrain].set_available_techs(techs_available)
 
-        techs_available = self.techs - self._get_techs_set(state)
-        self.subenvs[stage_to_constrain].set_available_techs(techs_available)
+        current_state = state if state is not None else self.state
+
+        assigned_techs = set()
+        for stage_idx, subenv in self.subenvs.items():
+            tech_in_stage = current_state[stage_idx + 1]["TECH"]
+            if tech_in_stage != 0:
+                assigned_techs.add(tech_in_stage)
+
+            # Compute available techs for this stage
+            techs_available = self.techs - assigned_techs
+            subenv.set_available_techs(techs_available)
 
     def _get_techs_set(self, state: Optional[List]) -> Set[int]:
         """

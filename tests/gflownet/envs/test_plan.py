@@ -330,6 +330,87 @@ def test__states2policy__batch_order_invariance():
         "Encodings for identical states should be identical"
     )
 
+def test_backward_steps_restore_constraints(env):
+    """
+    Verify that after each backward step, constraints are correctly restored
+    and forward actions remain valid.
+    """
+    # Get a terminating state with multiple investments
+    states = env.get_random_terminating_states(n_states=1)
+    state = states[0]
+
+    # Set environment to terminating state
+    env.reset()
+    env.set_state(state, done=True)
+
+    # Perform backward steps until source
+    while not env.is_source():
+        prev_state = env.state.copy()
+        state_next, action, valid = env.step_random(backward=True)
+        assert valid, "Backward step produced invalid action"
+
+        # Check forward mask after backward step
+        mask_fw = env.get_mask_invalid_actions_forward()
+        assert not all(mask_fw), (
+            f"All forward actions masked after backward step.\n"
+            f"Previous state: {prev_state}\nCurrent state: {state_next}"
+        )
+
+        # Check tech availability consistency
+        current_stage = env._get_stage()
+        techs_set = env._get_techs_set(env.state)
+        available_techs = env.subenvs[current_stage].techs_available
+        assert all(t not in techs_set for t in available_techs), (
+            f"Available techs include already assigned techs.\n"
+            f"Assigned: {techs_set}, Available: {available_techs}"
+        )
+
+def test_debug_backward_constraints_and_masks(env):
+    """
+    Debug test: Print tech availability, forward mask, and log-probs after each backward step.
+    """
+    # Get a terminating state with multiple investments
+    states = env.get_random_terminating_states(n_states=1)
+    state = states[0]
+
+    # Set environment to terminating state
+    env.reset()
+    env.set_state(state, done=True)
+
+    print("\nInitial terminating state:", state)
+
+    # Perform backward steps until source
+    while not env.is_source():
+        prev_state = env.state.copy()
+        state_next, action, valid = env.step_random(backward=True)
+        print("\nBackward step:")
+        print("Action:", action)
+        print("Previous state:", prev_state)
+        print("Current state:", state_next)
+        print("Current stage:", env._get_stage())
+
+        # Print tech availability for all subenvs
+        for idx, subenv in env.subenvs.items():
+            print(f"Stage {idx} techs_available:", subenv.techs_available)
+
+        # Check forward mask after backward step
+        mask_fw = env.get_mask_invalid_actions_forward()
+        print("Forward mask (invalid actions):", mask_fw)
+        print("Number of valid actions:", sum(not m for m in mask_fw))
+
+        # Compute forward log-probs for the last backward action
+        policy_random = torch.unsqueeze(env.random_policy_output, 0)
+        masks = torch.unsqueeze(torch.tensor(mask_fw, dtype=torch.bool), 0)
+        actions_torch = torch.unsqueeze(torch.tensor(action, dtype=torch.float), 0)
+        logprobs_fw = env.get_logprobs(
+            policy_outputs=policy_random,
+            actions=actions_torch,
+            mask=masks,
+            states_from=[env.state],
+            is_backward=False,
+        )
+        print("Forward log-probs for last action:", logprobs_fw)
+
 class TestPlan(common.BaseTestsDiscrete):
     """Common tests for the Plan environment."""
 
@@ -348,7 +429,7 @@ class TestPlan(common.BaseTestsDiscrete):
             "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
             "test__get_parents_step_get_mask__are_compatible": 10,
             "test__sample_backwards_reaches_source": 10,
-            #"test__state2readable__is_reversible": 20,
+            "test__state2readable__is_reversible": 20,
             "test__gflownet_minimal_runs": 1,
         }
         self.n_states = {
