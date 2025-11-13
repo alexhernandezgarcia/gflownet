@@ -11,6 +11,9 @@ not been set yet.
 import copy
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+import torch
+from torchtyping import TensorType
+
 from gflownet.envs.iam.investment import TECHS, InvestmentDiscrete
 from gflownet.envs.stack import Stack
 
@@ -55,6 +58,25 @@ class Plan(Stack):
         ]
         self.idx2token_techs = copy.deepcopy(subenvs[0].idx2token_techs)
         self.idx2token_amounts = copy.deepcopy(subenvs[0].idx2token_amounts)
+
+        self.empy_investment = copy.deepcopy(subenvs[0].source)
+
+        self.n_sector_choices = copy.deepcopy(subenvs[0].n_sectors + 1)
+        self.n_tags_choices = copy.deepcopy(subenvs[0].n_tags + 1)
+        self.n_techs_choices = self.n_techs + 1
+        self.n_amounts_choices = copy.deepcopy(subenvs[0].n_amounts + 1)
+
+        self.n_partial_state_encoding = self.n_sector_choices + self.n_tags_choices + self.n_techs_choices + self.n_amounts_choices
+
+        self.width_one_hot = self.n_partial_state_encoding + self.n_techs*self.n_amounts_choices
+
+        self.base_row_one_hot = torch.zeros(self.width_one_hot)
+        #initialize for source state
+        #for partial states, first element encodes "not chosen"
+        self.base_row_one_hot[[0, self.n_sector_choices, self.n_tags_choices + self.n_sector_choices, self.n_techs_choices + self.n_tags_choices + self.n_sector_choices]] = 1
+        #for complete states, first element encodes "no amount set"
+        self.base_row_one_hot[[self.n_partial_state_encoding + x*self.n_amounts_choices for x in range(self.n_techs)]] = 1
+
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
 
@@ -139,6 +161,8 @@ class Plan(Stack):
             tech = self._get_substate(state, stage)["TECH"]
             if tech != 0:
                 techs.append(tech)
+            else:
+                break
         return set(techs)
 
     def states2proxy(self, states: List[List]) -> List[List[Dict]]:
@@ -171,3 +195,51 @@ class Plan(Stack):
         to_pass["TECH"] = "SUBS_" + self.idx2token_techs[state["TECH"]]
         to_pass["AMOUNT"] = self.idx2token_amounts[state["AMOUNT"]]
         return to_pass
+
+    def states2policy(
+        self, states: List[List]
+    ) -> torch.Tensor:# TensorType["batch", "state_policy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: states
+        are one-hot encoded.
+
+        Permutation invariance of states:
+        initial one hot encoding of eventually partially defined states, followed by ordered one hot encoding of tech-amount pairs
+
+        Parameters
+        ----------
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            list of tensors.
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+
+        temp = torch.zeros(len(states), self.width_one_hot)
+        for batch_idx, s_ in enumerate(states):
+            n_complete_investments = s_[0]
+            batch_row = copy.deepcopy(self.base_row_one_hot)
+            for idx in range(n_complete_investments):
+                i = s_[idx+1]
+                idx_tech = i['TECH']
+                tech_position = idx_tech - 1 #starts with 1, 0 is not assigned
+                idx_amount = i['AMOUNT'] #starts with 1, 0 is not assigned
+                #remove base coding: tech is assigned
+                batch_row[self.n_partial_state_encoding + tech_position*self.n_amounts_choices] = 0
+                #assign actual amount
+                batch_row[self.n_partial_state_encoding + tech_position * self.n_amounts_choices + idx_amount] = 1
+            if n_complete_investments<len(s_) - 1:
+                partial = s_[n_complete_investments+1]
+                #remove base encoding
+                batch_row[[0, self.n_sector_choices, self.n_tags_choices + self.n_sector_choices,
+                                       self.n_techs_choices + self.n_tags_choices + self.n_sector_choices]] = 0
+                #assign value: 0 is not assigned, consistent with 1hot
+                batch_row[[partial['SECTOR'],
+                           self.n_sector_choices + partial['TAG'],
+                           self.n_sector_choices + self.n_tags_choices + partial['TECH'],
+                           self.n_sector_choices + self.n_tags_choices + self.n_techs_choices + partial['AMOUNT']]] = 1
+            temp[batch_idx, :] = batch_row
+        return temp
+
+
