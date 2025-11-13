@@ -36,7 +36,7 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam"
+  project_name: "iam-slim"
   run_name: "Plan Unif. TB"
   tags: 
     - gflownet

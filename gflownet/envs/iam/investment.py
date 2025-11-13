@@ -659,16 +659,16 @@ class InvestmentDiscrete(GFlowNetEnv):
         # One-hot encode each
         onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(
             self.float
-        )  # 0 is admissible
+        )
         onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(
             self.float
-        )  # 0 is admissible
+        )
         onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(
             self.float
-        )  # 0 is not admissible
+        )
         onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(
             self.float
-        )  # 0 is not admissible
+        )
 
         # Concatenate along the last dimension
         batch_tensor = torch.cat(
