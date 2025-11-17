@@ -359,6 +359,13 @@ class Proxy(ABC):
                     )(x)
                 ),
             )
+        elif reward_function == "spacegroup_test":
+            return (lambda x: Proxy.spacegroup_test(x),
+                    lambda x: torch.log(Proxy.spacegroup_test(x)))
+        
+        elif reward_function == "spacegroup_test_crystal":
+            return (lambda x: Proxy.spacegroup_test_crystal(x,kwargs),
+                    lambda x: torch.log(Proxy.spacegroup_test_crystal(x,kwargs)))
 
         else:
             raise ValueError(
@@ -366,7 +373,23 @@ class Proxy(ABC):
                 f"exp(onential), shift, prod(uct), rbf_exp(onential). "
                 f"Received {reward_function} instead."
             )
-
+        
+    @staticmethod
+    def spacegroup_test(x):
+        spg_map = {221: 2.0, 136: 1.0}
+        rewards = torch.zeros_like(x).to(torch.float32)
+        for k,v in spg_map.items():
+            rewards[x==k] = v
+        return rewards
+    
+    @staticmethod
+    def spacegroup_test_crystal(x,kwargs):
+        spg_map = kwargs["spg_map"] # {221: 2.0, 136: 1.0}
+        rewards = torch.zeros_like(x).to(torch.float32)
+        for k,v in spg_map.items():
+            rewards[x==k] = v
+        return rewards
+    
     @staticmethod
     def _power(beta: float = 1.0) -> Callable:
         r"""
