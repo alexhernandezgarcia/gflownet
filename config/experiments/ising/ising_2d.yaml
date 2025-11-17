@@ -44,10 +44,7 @@ logger:
   run_name: "4x4"
   tags:
     - gflownet
-    - crystals
-    - stack
-    - matbench
-    - formationenergy
+    - ising
   do:
     online: true
 
