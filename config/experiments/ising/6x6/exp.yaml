@@ -64,7 +64,7 @@ evaluator:
 logger:
   lightweight: True
   project_name: "ising-gfn"
-  run_name: "4x4"
+  run_name: "6x6"
   tags:
     - gflownet
     - ising
