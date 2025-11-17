@@ -282,7 +282,7 @@ class Crystal(Stack):
             if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
                 space_group = self.space_group.space_group
                 self.composition.set_space_group(space_group)
-            if self.do_sg_to_lp_constraints:
+            if self.do_sg_to_lp_constraints and self.do_lattice_parameters:
                 lattice_system = self.space_group.lattice_system
                 self.lattice_parameters.set_lattice_system(lattice_system)
 
@@ -307,7 +307,7 @@ class Crystal(Stack):
             and not self.space_group.done
             and (action is None or self._depad_action(action) == self.space_group.eos)
         ):
-            if self.do_sg_to_lp_constraints:
+            if self.do_sg_to_lp_constraints and self.do_lattice_parameters:
                 self.lattice_parameters.set_lattice_system(TRICLINIC)
 
     def states2proxy(
@@ -334,8 +334,9 @@ class Crystal(Stack):
         stages_composition_first = [
             self.stage_composition,
             self.stage_spacegroup,
-            self.stage_latticeparameters,
         ]
+        if self.do_lattice_parameters:
+            stages_composition_first += [self.stage_latticeparameters]
         return torch.cat(
             [
                 self.subenvs[stage].states2proxy([state[stage + 1] for state in states])
