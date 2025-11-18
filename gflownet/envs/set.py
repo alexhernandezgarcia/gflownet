@@ -1484,7 +1484,7 @@ class SetFix(BaseSet):
     sub-environments. That is, all trajectories will perform actions from all the
     sub-environments defined at the initialization of the environment.
 
-    A practical use case of the Set environment is the creation of an environment
+    A practical use case of the SetFix environment is the creation of an environment
     comprising a set of an arbitrary number N of Cube environments, representing for
     example points in an Euclidean space. The actions of the different Cubes can be
     sampled in any order by first sampling the action that selects the corresponding
