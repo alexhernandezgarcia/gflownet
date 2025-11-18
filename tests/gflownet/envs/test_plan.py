@@ -269,6 +269,8 @@ def test__states2policy__order_invariance(state1, state2, should_be_equal):
     encoding1 = env.states2policy([state1])
     encoding2 = env.states2policy([state2])
 
+    assert encoding1.sum() == (4 + 29)
+
     # Check if encodings are equal
     are_equal = torch.allclose(encoding1, encoding2)
 
@@ -329,41 +331,6 @@ def test__states2policy__batch_order_invariance():
     assert torch.allclose(encodings1[1], encodings2[1]), (
         "Encodings for identical states should be identical"
     )
-
-def test_backward_steps_restore_constraints(env):
-    """
-    Verify that after each backward step, constraints are correctly restored
-    and forward actions remain valid.
-    """
-    # Get a terminating state with multiple investments
-    states = env.get_random_terminating_states(n_states=1)
-    state = states[0]
-
-    # Set environment to terminating state
-    env.reset()
-    env.set_state(state, done=True)
-
-    # Perform backward steps until source
-    while not env.is_source():
-        prev_state = env.state.copy()
-        state_next, action, valid = env.step_random(backward=True)
-        assert valid, "Backward step produced invalid action"
-
-        # Check forward mask after backward step
-        mask_fw = env.get_mask_invalid_actions_forward()
-        assert not all(mask_fw), (
-            f"All forward actions masked after backward step.\n"
-            f"Previous state: {prev_state}\nCurrent state: {state_next}"
-        )
-
-        # Check tech availability consistency
-        current_stage = env._get_stage()
-        techs_set = env._get_techs_set(env.state)
-        available_techs = env.subenvs[current_stage].techs_available
-        assert all(t not in techs_set for t in available_techs), (
-            f"Available techs include already assigned techs.\n"
-            f"Assigned: {techs_set}, Available: {available_techs}"
-        )
 
 def test_debug_backward_constraints_and_masks(env):
     """
