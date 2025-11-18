@@ -150,13 +150,15 @@ class Plan(Stack):
 
         assigned_techs = set()
         for stage_idx, subenv in self.subenvs.items():
-            tech_in_stage = current_state[stage_idx + 1]["TECH"]
-            if tech_in_stage != 0:
-                assigned_techs.add(tech_in_stage)
 
             # Compute available techs for this stage
             techs_available = self.techs - assigned_techs
             subenv.set_available_techs(techs_available)
+
+            tech_in_stage = current_state[stage_idx + 1]["TECH"]
+            if tech_in_stage != 0:
+                assigned_techs.add(tech_in_stage)
+
 
     def _get_techs_set(self, state: Optional[List]) -> Set[int]:
         """
@@ -256,6 +258,7 @@ class Plan(Stack):
                            self.n_sector_choices + partial['TAG'],
                            self.n_sector_choices + self.n_tags_choices + partial['TECH'],
                            self.n_sector_choices + self.n_tags_choices + self.n_techs_choices + partial['AMOUNT']]] = 1
+            assert batch_row.sum() == (4+self.n_techs)
             temp[batch_idx, :] = batch_row
         return temp
 
