@@ -17,7 +17,7 @@ gflownet:
   optimizer:
     batch_size:
       forward: 20
-    lr: 0.001
+    lr: 0.002
     z_dim: 8
     lr_z_mult: 100
     n_train_steps: 5000
@@ -27,7 +27,7 @@ policy:
   forward:
     type: mlp
     n_hid: 1024
-    n_layers: 3
+    n_layers: 2
   backward:
     shared_weights: True
 

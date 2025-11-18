@@ -57,7 +57,6 @@ class Plan(Stack):
             for _ in range(self.n_techs)
         ]
 
-
         self.idx2token_techs = copy.deepcopy(subenvs[0].idx2token_techs)
         self.idx2token_amounts = copy.deepcopy(subenvs[0].idx2token_amounts)
 
@@ -68,18 +67,37 @@ class Plan(Stack):
         self.n_techs_choices = self.n_techs + 1
         self.n_amounts_choices = copy.deepcopy(subenvs[0].n_amounts + 1)
 
-        self.n_partial_state_encoding = self.n_sector_choices + self.n_tags_choices + self.n_techs_choices + self.n_amounts_choices
+        self.n_partial_state_encoding = (
+            self.n_sector_choices
+            + self.n_tags_choices
+            + self.n_techs_choices
+            + self.n_amounts_choices
+        )
 
-        self.width_one_hot = self.n_partial_state_encoding + self.n_techs*self.n_amounts_choices
+        self.width_one_hot = (
+            self.n_partial_state_encoding + self.n_techs * self.n_amounts_choices
+        )
 
         self.base_row_one_hot = torch.zeros(self.width_one_hot)
-        #initialize for source state
-        #for partial states, first element encodes "not chosen"
-        self.base_row_one_hot[[0, self.n_sector_choices, self.n_tags_choices + self.n_sector_choices, self.n_techs_choices + self.n_tags_choices + self.n_sector_choices]] = 1
-        #for complete states, first element encodes "no amount set"
-        self.base_row_one_hot[[self.n_partial_state_encoding + x*self.n_amounts_choices for x in range(self.n_techs)]] = 1
+        # initialize for source state
+        # for partial states, first element encodes "not chosen"
+        self.base_row_one_hot[
+            [
+                0,
+                self.n_sector_choices,
+                self.n_tags_choices + self.n_sector_choices,
+                self.n_techs_choices + self.n_tags_choices + self.n_sector_choices,
+            ]
+        ] = 1
+        # for complete states, first element encodes "no amount set"
+        self.base_row_one_hot[
+            [
+                self.n_partial_state_encoding + x * self.n_amounts_choices
+                for x in range(self.n_techs)
+            ]
+        ] = 1
 
-        #for i, s in enumerate(subenvs):
+        # for i, s in enumerate(subenvs):
         #    subenvs[i].set_available_techs([i+1])
 
         # Initialize base Stack environment
@@ -136,15 +154,15 @@ class Plan(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        #if action is not None and self._depad_action(action) == self.subenvs[0].eos:
+        # if action is not None and self._depad_action(action) == self.subenvs[0].eos:
         #    stage_to_constrain = self._get_stage(state) + 1
-        #elif action is None and sum(dones) > 0 and sum(dones) < self.n_techs:
+        # elif action is None and sum(dones) > 0 and sum(dones) < self.n_techs:
         #    stage_to_constrain = dones.index(False)
-        #else:
+        # else:
         #    return
-#
-        #techs_available = self.techs - self._get_techs_set(state)
-        #self.subenvs[stage_to_constrain].set_available_techs(techs_available)
+        #
+        # techs_available = self.techs - self._get_techs_set(state)
+        # self.subenvs[stage_to_constrain].set_available_techs(techs_available)
 
         current_state = state if state is not None else self.state
 
@@ -158,7 +176,6 @@ class Plan(Stack):
             tech_in_stage = current_state[stage_idx + 1]["TECH"]
             if tech_in_stage != 0:
                 assigned_techs.add(tech_in_stage)
-
 
     def _get_techs_set(self, state: Optional[List]) -> Set[int]:
         """
@@ -217,7 +234,7 @@ class Plan(Stack):
 
     def states2policy(
         self, states: List[List]
-    ) -> torch.Tensor:# TensorType["batch", "state_policy_dim"]:
+    ) -> torch.Tensor:  # TensorType["batch", "state_policy_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
@@ -240,26 +257,46 @@ class Plan(Stack):
             n_complete_investments = s_[0]
             batch_row = copy.deepcopy(self.base_row_one_hot)
             for idx in range(n_complete_investments):
-                i = s_[idx+1]
-                idx_tech = i['TECH']
-                tech_position = idx_tech - 1 #starts with 1, 0 is not assigned
-                idx_amount = i['AMOUNT'] #starts with 1, 0 is not assigned
-                #remove base coding: tech is assigned
-                batch_row[self.n_partial_state_encoding + tech_position*self.n_amounts_choices] = 0
-                #assign actual amount
-                batch_row[self.n_partial_state_encoding + tech_position * self.n_amounts_choices + idx_amount] = 1
-            if n_complete_investments<len(s_) - 1:
-                partial = s_[n_complete_investments+1]
-                #remove base encoding
-                batch_row[[0, self.n_sector_choices, self.n_tags_choices + self.n_sector_choices,
-                                       self.n_techs_choices + self.n_tags_choices + self.n_sector_choices]] = 0
-                #assign value: 0 is not assigned, consistent with 1hot
-                batch_row[[partial['SECTOR'],
-                           self.n_sector_choices + partial['TAG'],
-                           self.n_sector_choices + self.n_tags_choices + partial['TECH'],
-                           self.n_sector_choices + self.n_tags_choices + self.n_techs_choices + partial['AMOUNT']]] = 1
-            assert batch_row.sum() == (4+self.n_techs)
+                i = s_[idx + 1]
+                idx_tech = i["TECH"]
+                tech_position = idx_tech - 1  # starts with 1, 0 is not assigned
+                idx_amount = i["AMOUNT"]  # starts with 1, 0 is not assigned
+                # remove base coding: tech is assigned
+                batch_row[
+                    self.n_partial_state_encoding
+                    + tech_position * self.n_amounts_choices
+                ] = 0
+                # assign actual amount
+                batch_row[
+                    self.n_partial_state_encoding
+                    + tech_position * self.n_amounts_choices
+                    + idx_amount
+                ] = 1
+            if n_complete_investments < len(s_) - 1:
+                partial = s_[n_complete_investments + 1]
+                # remove base encoding
+                batch_row[
+                    [
+                        0,
+                        self.n_sector_choices,
+                        self.n_tags_choices + self.n_sector_choices,
+                        self.n_techs_choices
+                        + self.n_tags_choices
+                        + self.n_sector_choices,
+                    ]
+                ] = 0
+                # assign value: 0 is not assigned, consistent with 1hot
+                batch_row[
+                    [
+                        partial["SECTOR"],
+                        self.n_sector_choices + partial["TAG"],
+                        self.n_sector_choices + self.n_tags_choices + partial["TECH"],
+                        self.n_sector_choices
+                        + self.n_tags_choices
+                        + self.n_techs_choices
+                        + partial["AMOUNT"],
+                    ]
+                ] = 1
+            assert batch_row.sum() == (4 + self.n_techs)
             temp[batch_idx, :] = batch_row
         return temp
-
-

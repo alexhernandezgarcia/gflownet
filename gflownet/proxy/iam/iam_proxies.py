@@ -85,7 +85,7 @@ class FAIRY(Proxy):
                     self.key_year = 2010 + 5 * self.key_year
 
             if key_region is None:
-                self.key_region = data.keys_df.iloc[0, 1]
+                self.key_region = "europe"#data.keys_df.iloc[0, 1]
             else:
                 assert key_region in [
                     "europe",
@@ -112,7 +112,7 @@ class FAIRY(Proxy):
                 if self.key_year > 2050:
                     late_year = self.key_year
                 else:
-                    late_year = 2100
+                    late_year = 2075
 
                 index = data.index_map.get((self.key_gdx, late_year, self.key_region))
                 SCC_guess = data.variables_df[
@@ -127,9 +127,10 @@ class FAIRY(Proxy):
                     + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
                 )
             else:
-                self.SCC = SCC
+                self.SCC = torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
 
             self.SCC = self.SCC.to(self.device)
+            self.SCC = torch.clamp(self.SCC, 1e-3, 1)
 
             context_index = data.index_map.get(
                 (self.key_gdx, self.key_year, self.key_region)
@@ -253,8 +254,8 @@ class FAIRY(Proxy):
         if amount == "LOW":
             return 0.1
         if amount == "MEDIUM":
-            return 0.5
+            return 0.3
         if amount == "HIGH":
-            return 1.0
+            return 0.75
         else:
             raise ValueError("Invalid amount")

@@ -176,85 +176,100 @@ def test__trajectory_random__does_not_crash_from_source(env):
     [
         # Same investments, different order - should be equal
         (
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 4, "TAG": 1, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                [
-                    2,
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 4, "TAG": 1, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                True,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 4, "TAG": 1, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            [
+                2,
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 4, "TAG": 1, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            True,
         ),
         # Three complete investments in different orders - should be equal
         (
-                [
-                    3,
-                    {"SECTOR": 1, "TAG": 2, "TECH": 5, "AMOUNT": 2},
-                    {"SECTOR": 2, "TAG": 1, "TECH": 10, "AMOUNT": 3},
-                    {"SECTOR": 3, "TAG": 3, "TECH": 15, "AMOUNT": 1},
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 25,
-                [
-                    3,
-                    {"SECTOR": 3, "TAG": 3, "TECH": 15, "AMOUNT": 1},
-                    {"SECTOR": 1, "TAG": 2, "TECH": 5, "AMOUNT": 2},
-                    {"SECTOR": 2, "TAG": 1, "TECH": 10, "AMOUNT": 3},
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 25,
-                True,
+            [
+                3,
+                {"SECTOR": 1, "TAG": 2, "TECH": 5, "AMOUNT": 2},
+                {"SECTOR": 2, "TAG": 1, "TECH": 10, "AMOUNT": 3},
+                {"SECTOR": 3, "TAG": 3, "TECH": 15, "AMOUNT": 1},
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 25,
+            [
+                3,
+                {"SECTOR": 3, "TAG": 3, "TECH": 15, "AMOUNT": 1},
+                {"SECTOR": 1, "TAG": 2, "TECH": 5, "AMOUNT": 2},
+                {"SECTOR": 2, "TAG": 1, "TECH": 10, "AMOUNT": 3},
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 25,
+            True,
         ),
         # Different investments - should NOT be equal
         (
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 3, "TAG": 1, "TECH": 15, "AMOUNT": 1},  # Different TECH
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                False,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 3, "TAG": 1, "TECH": 15, "AMOUNT": 1},  # Different TECH
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            False,
         ),
         # Different amounts for same tech - should NOT be equal
         (
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 2},  # Different AMOUNT
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                False,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 2},  # Different AMOUNT
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            False,
         ),
         # Same investments in reverse order with partial state - should be equal
         (
-                [
-                    2,
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 4, "TAG": 2, "TECH": 15, "AMOUNT": 0},  # Partial investment
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                [
-                    2,
-                    {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
-                    {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
-                    {"SECTOR": 4, "TAG": 2, "TECH": 15, "AMOUNT": 0},  # Same partial investment
-                ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
-                True,
+            [
+                2,
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 4, "TAG": 2, "TECH": 15, "AMOUNT": 0},  # Partial investment
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            [
+                2,
+                {"SECTOR": 3, "TAG": 1, "TECH": 28, "AMOUNT": 1},
+                {"SECTOR": 5, "TAG": 3, "TECH": 20, "AMOUNT": 4},
+                {
+                    "SECTOR": 4,
+                    "TAG": 2,
+                    "TECH": 15,
+                    "AMOUNT": 0,
+                },  # Same partial investment
+            ]
+            + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+            True,
         ),
     ],
 )
@@ -297,12 +312,14 @@ def test__states2policy__batch_order_invariance():
             {"SECTOR": 1, "TAG": 1, "TECH": 5, "AMOUNT": 2},
             {"SECTOR": 2, "TAG": 2, "TECH": 10, "AMOUNT": 3},
             {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-        ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+        ]
+        + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
         [
             1,
             {"SECTOR": 3, "TAG": 1, "TECH": 15, "AMOUNT": 1},
             {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-        ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 27,
+        ]
+        + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 27,
     ]
 
     states_batch2 = [
@@ -311,26 +328,29 @@ def test__states2policy__batch_order_invariance():
             {"SECTOR": 2, "TAG": 2, "TECH": 10, "AMOUNT": 3},
             {"SECTOR": 1, "TAG": 1, "TECH": 5, "AMOUNT": 2},
             {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-        ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
+        ]
+        + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 26,
         [
             1,
             {"SECTOR": 3, "TAG": 1, "TECH": 15, "AMOUNT": 1},
             {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-        ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 27,
+        ]
+        + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 27,
     ]
 
     encodings1 = env.states2policy(states_batch1)
     encodings2 = env.states2policy(states_batch2)
 
     # First state pair should have same encoding (different order)
-    assert torch.allclose(encodings1[0], encodings2[0]), (
-        "Encodings for reordered states should be identical"
-    )
+    assert torch.allclose(
+        encodings1[0], encodings2[0]
+    ), "Encodings for reordered states should be identical"
 
     # Second state pair should have same encoding (identical states)
-    assert torch.allclose(encodings1[1], encodings2[1]), (
-        "Encodings for identical states should be identical"
-    )
+    assert torch.allclose(
+        encodings1[1], encodings2[1]
+    ), "Encodings for identical states should be identical"
+
 
 def test_debug_backward_constraints_and_masks(env):
     """
@@ -377,6 +397,7 @@ def test_debug_backward_constraints_and_masks(env):
             is_backward=False,
         )
         print("Forward log-probs for last action:", logprobs_fw)
+
 
 class TestPlan(common.BaseTestsDiscrete):
     """Common tests for the Plan environment."""
