@@ -262,6 +262,8 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         self.eos = (-1, -1)
 
+        self.filled_on_set = torch.zeros(self.n_techs - 1, 3)
+
         # Base class init
         super().__init__(**kwargs)
 
@@ -462,8 +464,6 @@ class InvestmentDiscrete(GFlowNetEnv):
                     False
                 )
 
-        # mask now reflects the situation of all technologies being available
-        # turn off options based on self.techs_available
         if (
             "TECH" not in assigned and len(self.techs_available) != self.n_techs
         ):  # no need to double check if TECH has alredy been assigned or all techs are available
@@ -500,6 +500,70 @@ class InvestmentDiscrete(GFlowNetEnv):
                 mask[self.action2index((self.token2idx_choices["SECTOR"], s))] = True
             for t in unavailable_tags_idx:
                 mask[self.action2index((self.token2idx_choices["TAG"], t))] = True
+
+        if "TECH" not in assigned:
+            # 1st level: check all sectors and tags are not full
+            for sect_token in self.sectors:
+                sect_idx = self.token2idx_sectors[sect_token]
+                n_sect_technologies = len(
+                    self.network_structure["sector2tech"][sect_token]
+                )
+                if sum(self.filled_on_set[:, 0] == sect_idx) == n_sect_technologies:
+                    mask[
+                        self.action2index((self.token2idx_choices["SECTOR"], sect_idx))
+                    ] = True
+            for tag_token in self.tags:
+                tag_idx = self.token2idx_tags[tag_token]
+                n_tag_technologies = len(self.network_structure["tag2tech"][tag_token])
+                if sum(self.filled_on_set[:, 1] == tag_idx) == n_tag_technologies:
+                    mask[
+                        self.action2index((self.token2idx_choices["TAG"], tag_idx))
+                    ] = True
+            # 2nd level: check available combination for sector-tag, it applies only if one of the two is filled
+            if "SECTOR" in assigned:
+                for tag_token in self.tags:
+                    tag_idx = self.token2idx_tags[tag_token]
+                    tag_technologies = self.network_structure["tag2tech"][tag_token]
+                    sect_token = self.idx2token_sectors[state["SECTOR"]]
+                    sector_technologies = self.network_structure["sector2tech"][
+                        sect_token
+                    ]
+                    n_combo_technologies = len(
+                        list(set(tag_technologies) & set(sector_technologies))
+                    )
+                    assigned_combos = sum(
+                        (self.filled_on_set[:, 0] == state["SECTOR"])
+                        & (self.filled_on_set[:, 1] == tag_idx)
+                    )
+                    if n_combo_technologies == 0 or (
+                        assigned_combos == n_combo_technologies
+                    ):
+                        mask[
+                            self.action2index((self.token2idx_choices["TAG"], tag_idx))
+                        ] = True
+            elif "TAG" in assigned:
+                for sect_token in self.sectors:
+                    sect_idx = self.token2idx_sectors[sect_token]
+                    sector_technologies = self.network_structure["sector2tech"][
+                        sect_token
+                    ]
+                    tag_token = self.idx2token_tags[state["TAG"]]
+                    tag_technologies = self.network_structure["tag2tech"][tag_token]
+                    n_combo_technologies = len(
+                        list(set(tag_technologies) & set(sector_technologies))
+                    )
+                    assigned_combos = sum(
+                        (self.filled_on_set[:, 0] == sect_idx)
+                        & (self.filled_on_set[:, 1] == state["TAG"])
+                    )
+                    if n_combo_technologies == 0 or (
+                        assigned_combos == n_combo_technologies
+                    ):
+                        mask[
+                            self.action2index(
+                                (self.token2idx_choices["SECTOR"], sect_idx)
+                            )
+                        ] = True
 
         return mask
 
@@ -660,12 +724,8 @@ class InvestmentDiscrete(GFlowNetEnv):
         onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(
             self.float
         )
-        onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(
-            self.float
-        )
-        onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(
-            self.float
-        )
+        onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(self.float)
+        onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(self.float)
         onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(
             self.float
         )
@@ -833,3 +893,21 @@ class InvestmentDiscrete(GFlowNetEnv):
             A set of technology indices.
         """
         self.techs_available = tuple(techs)
+
+    def constrain_on_all(self, filled: TensorType):
+        """
+        Defines the constraints based on other elements of the set of investments.
+
+        Receives as input an Mx3 tensor, with M being the other elements of the Set, *excluding* the environment itself.
+        First Columns contains all assigned sector indices, second columns contains all tag indices, third columns contains all technology indices.
+        """
+        # Extract assigned techs from column 2 (TECH column)
+        tech_column = filled[:, 2]
+
+        # Get non-zero tech indices
+        assigned_mask = tech_column != 0
+        assigned_techs = set(tech_column[assigned_mask].tolist())
+        techs_available = set(range(1, self.n_techs + 1)) - assigned_techs
+        print(techs_available)
+        self.set_available_techs(techs_available)
+        self.filled_on_set = filled
