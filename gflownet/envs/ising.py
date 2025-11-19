@@ -352,12 +352,7 @@ class Ising(GFlowNetEnv):
         """
         readable = readable.replace("\n", "").replace("[", "").replace("]", "")
         readable = readable.replace("  ", " ")
-        try:
-            state = [int(el) for el in readable.strip().split(" ")]
-        except:
-            import ipdb
-
-            ipdb.set_trace()
+        state = [int(el) for el in readable.strip().split(" ")]
         return np.array(state).reshape((self.length,) * self.n_dim)
 
     def state2readable(self, state: Optional[List] = None, alphabet={}):
