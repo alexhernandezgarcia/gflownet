@@ -276,3 +276,31 @@ class Options(GFlowNetEnv):
         if self.is_source(state):
             return self.source_readable
         return self.options[state[0] - 1]
+
+    def get_all_terminating_states(self) -> List[List[int]]:
+        """
+        Returns a list with all the terminating states in environment format.
+
+        Returns
+        -------
+        list
+            The list of all terminating states.
+        """
+        return [[idx] for idx in self.options_available]
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List[int]]:
+        """
+        Constructs a batch of n states uniformly sampled in the sample space of the
+        environment.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of states to sample.
+        seed : int
+            Random seed.
+        """
+        random.seed(seed)
+        return random.choices(self.get_all_terminating_states(), k=n_states)
