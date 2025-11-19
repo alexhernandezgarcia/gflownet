@@ -1,0 +1,12 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.options.Options
+
+id: options
+# String representations of the options
+# If None, indices starting from 1 are used.
+options: null
+# Number of options (ignored if a list of options is passed)
+n_options: 3
+source_readable: "<source>"
