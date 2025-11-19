@@ -33,6 +33,9 @@ class Options(GFlowNetEnv):
         for the source state.
     n_options : int
         The number of options.
+    options_available : tuple
+        A tuple of option indices (starting from 1) corresponding to the subset of
+        options that is available for the environment instance.
     source_readable : str
         The string to be used to represent the source state as a human-readable string.
     """
@@ -42,6 +45,7 @@ class Options(GFlowNetEnv):
         options: Iterable = None,
         n_options: int = 3,
         source_readable: str = "<source>",
+        options_available: Iterable = None,
         **kwargs,
     ):
         """
@@ -57,6 +61,10 @@ class Options(GFlowNetEnv):
         source_readable : str
             The string to be used to represent the source state as a human-readable
             string. By default: <source>
+        options_available : iterable (optional)
+            A subset of the options to restrict the available options for the
+            environment instance. The elements of the iterable are integers
+            referring to the option indices.
         """
         self.source_readable = source_readable
         if options is None:
@@ -66,6 +74,11 @@ class Options(GFlowNetEnv):
             assert self.source_readable not in options
         self.options = options
         self.n_options = len(self.options)
+        # Available options
+        if options_available is None:
+            self.options_available = tuple(range(1, self.n_options + 1))
+        else:
+            self.options_available = tuple(options_available)
         # Source state: [0]
         self.source = [0]
         # End-of-sequence action
@@ -113,9 +126,14 @@ class Options(GFlowNetEnv):
         if done:
             return [True] * self.action_space_dim
 
-        # If the state is the source state, all actions are valid except EOS
+        # If the state is the source state, all actions of available options are valid
+        # except EOS
         if self.is_source(state):
-            return [False] * self.n_options + [True]
+            mask = [
+                False if idx in self.options_available else True
+                for idx in range(1, self.n_options + 1)
+            ] + [True]
+            return mask
         # Otherwise, only EOS is valid
         else:
             return [True] * self.n_options + [False]

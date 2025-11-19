@@ -21,16 +21,51 @@ def env_with_10_options():
     return Options(n_options=10)
 
 
+@pytest.fixture
+def env_with_10_options_5avail():
+    return Options(n_options=10, options_available=[1, 3, 5, 7, 9])
+
+
 @pytest.mark.parametrize(
     "env",
     [
         "env",
         "env_with_options",
         "env_with_10_options",
+        "env_with_10_options_5avail",
     ],
 )
 def test__environment__initializes_properly(env, request):
     env = request.getfixturevalue(env)
+    assert True
+
+
+@pytest.mark.parametrize(
+    "environment, options, n_options, options_available",
+    [
+        ("env", ["1", "2", "3"], 3, (1, 2, 3)),
+        ("env_with_options", ["A", "B", "C", "D", "E"], 5, (1, 2, 3, 4, 5)),
+        (
+            "env_with_10_options",
+            ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+            10,
+            (1, 2, 3, 4, 5, 6, 7, 8, 9, 10),
+        ),
+        (
+            "env_with_10_options_5avail",
+            ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+            10,
+            (1, 3, 5, 7, 9),
+        ),
+    ],
+)
+def test__environment__attributes_as_expected(
+    environment, options, n_options, options_available, request
+):
+    env = request.getfixturevalue(environment)
+    assert env.options == options
+    assert env.n_options == n_options
+    assert env.options_available == options_available
     assert True
 
 
@@ -127,6 +162,40 @@ def test__get_mask_invalid_actions_forward__returns_expected(env, state, mask_ex
 
 
 @pytest.mark.parametrize(
+    "state, mask_expected",
+    [
+        # Source state
+        (
+            [0],
+            [False, True, False, True, False, True, False, True, False, True, True],
+        ),
+        # Option selected
+        (
+            [1],
+            [True, True, True, True, True, True, True, True, True, True, False],
+        ),
+        (
+            [2],
+            [True, True, True, True, True, True, True, True, True, True, False],
+        ),
+        (
+            [3],
+            [True, True, True, True, True, True, True, True, True, True, False],
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_forward__options_available__returns_expected(
+    env_with_10_options_5avail, state, mask_expected
+):
+    env = env_with_10_options_5avail
+    mask = env.get_mask_invalid_actions_forward(state, done=False)
+    assert mask == mask_expected
+    env.set_state(state)
+    mask = env.get_mask_invalid_actions_forward()
+    assert mask == mask_expected
+
+
+@pytest.mark.parametrize(
     "state, parents_expected, a_parents_expected",
     [
         # Source state
@@ -205,6 +274,34 @@ class TestOptionsDefault(common.BaseTestsDiscrete):
         self.n_states = {
             "test__get_logprobs__all_finite_in_random_forward_transitions": 3,
             "test__get_logprobs__all_finite_in_random_backward_transitions": 3,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+        }
+
+
+class TestOptions5AvailableDefault(common.BaseTestsDiscrete):
+    """Common tests for Options environment 10 options but only 5 available"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_10_options_5avail):
+        self.env = env_with_10_options_5avail
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__state2readable__is_reversible": 10,
+        }
+        self.n_states = {
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 5,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 5,
         }
         self.batch_size = {
             "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
