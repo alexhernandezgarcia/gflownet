@@ -316,6 +316,8 @@ class Tetris(GFlowNetEnv):
         state = self._get_state(state)
         if isinstance(state, tuple):
             readable = str(np.stack(state))
+        elif isinstance(state, list):
+            readable = str(np.array(state))
         else:
             readable = str(state.cpu().numpy())
         readable = readable.replace("[[", "[").replace("]]", "]").replace("\n ", "\n")
