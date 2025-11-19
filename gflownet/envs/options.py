@@ -106,7 +106,7 @@ class Options(GFlowNetEnv):
         done: Optional[bool] = None,
     ) -> List[bool]:
         """
-        Returns hich actions are invalid (True) and which are not invalid (False).
+        Returns which actions are invalid (True) and which are not invalid (False).
 
         Parameters
         ----------
@@ -174,7 +174,7 @@ class Options(GFlowNetEnv):
 
         if done:
             return [state], [self.eos]
-        elif self.equal(state, self.source):
+        elif self.is_source(state):
             return [], []
         else:
             return [self.source], [(state[0],)]
