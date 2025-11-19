@@ -1443,6 +1443,7 @@ class Batch:
     def get_terminating_proxy_values(
         self,
         sort_by: str = "insertion",
+        log: bool = False,
         force_recompute: Optional[bool] = False,
     ) -> TensorType["n_trajectories"]:
         """

@@ -1,9 +1,9 @@
 """
 MLE loss or objective for training GFlowNets.
 
-The MLE loss or objective was defined by Malkin et al. (2022):
+The MLE loss or objective was defined by Zhang et al. (2023):
 
-    .. _a link: https://arxiv.org/abs/2201.13259
+    .. _a link: https://arxiv.org/pdf/2209.02606
 """
 
 from torchtyping import TensorType
@@ -22,9 +22,9 @@ class MLE(BaseLoss):
         name : str
             The name of the loss or objective function: MLE
         acronym : str
-            The acronym of the loss or objective function: TB
+            The acronym of the loss or objective function: mle
         id : str
-            The identifier of the loss or objective function: trajectorybalance
+            The identifier of the loss or objective function: mleloss
         """
         super().__init__(**kwargs)
 
@@ -32,11 +32,11 @@ class MLE(BaseLoss):
         assert self.backward_policy is not None
 
         # Attribute to indicate that logZ is required in the computation of the loss
-        self._requires_log_z = True
+        self._requires_log_z = False
 
         self.name = "MLE"
         self.acronym = "mle"
-        self.id = "mlelosa"
+        self.id = "mleloss"
 
     def requires_backward_policy(self) -> bool:
         """
@@ -78,12 +78,12 @@ class MLE(BaseLoss):
         """
         return True
 
-    def compute_losses_of_batch(self, batch: Batch, batch_cons: Batch = None, use_consistency_loss: bool = False, alpha: float = 0.1) -> TensorType["batch_size"]:
+    def compute_losses_of_batch(self, batch: Batch, batch_cons: Batch = None, use_consistency_loss: bool = False, alpha: float = 1) -> TensorType["batch_size"]:
         """
         Computes the MLE loss for each trajectory of the input batch.
 
-        The MLE (mle) loss or objective is computed in this method as is
-        defined in
+        The MLE loss or objective is computed in this method as is
+        defined in algorithm 
 
         
 
@@ -107,7 +107,8 @@ class MLE(BaseLoss):
         
 
         # MLE loss to train P_F
-        mle_loss =  - ( logprobs_f - logprobs_b.detach() ) if logprobs_b.requires_grad else - ( logprobs_f - logprobs_b)
+        #mle_loss =  - ( logprobs_f - logprobs_b.detach() ) if logprobs_b.requires_grad else - ( logprobs_f - logprobs_b)
+        mle_loss =  - ( logprobs_f - logprobs_b)
 
         
         # Optional: consistency loss to train P_B
@@ -120,12 +121,13 @@ class MLE(BaseLoss):
                 batch_cons, backward_policy=self.backward_policy, backward=True
             )
             if logprobs_f.requires_grad: 
-                consistency_loss = torch.pow( ( logprobs_f.detach() - logprobs_b ) - ( logprobs_f.detach() - logprobs_b ), 2 )
+                consistency_loss = torch.pow( ( logprobs_f.detach() - logprobs_b ) - ( logprobs_f_cons.detach() - logprobs_b_cons ), 2 )
             else: 
-                consistency_loss = torch.pow( ( logprobs_f - logprobs_b ) - ( logprobs_f - logprobs_b ), 2 )
+                consistency_loss = torch.pow( ( logprobs_f - logprobs_b ) - ( logprobs_f_cons - logprobs_b_cons ), 2 )
         else: 
             consistency_loss = 0 
         
+        #import ipdb; ipdb.set_trace()
         return mle_loss + alpha * consistency_loss 
 
 
