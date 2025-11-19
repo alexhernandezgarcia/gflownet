@@ -1,5 +1,5 @@
 """
-This is very simple environment that implements the selection of one option from a set.
+A very simple environment to sample one option from a given set of options.
 
 Given a set of options, the environment proceeds to select one of the options from the
 source state and then only the end-of-sequence action is valid.
