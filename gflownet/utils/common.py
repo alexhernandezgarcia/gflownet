@@ -563,6 +563,8 @@ def tint(x, device, int_type):
         return torch.stack(x).to(device=device, dtype=int_type)
     if torch.is_tensor(x):
         return x.to(device=device, dtype=int_type)
+    if isinstance(x, np.ndarray):
+        return torch.tensor(x.tolist(), dtype=int_type, device=device)
     else:
         return torch.tensor(x, dtype=int_type, device=device)
 

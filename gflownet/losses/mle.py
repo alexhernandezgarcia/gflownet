@@ -78,14 +78,20 @@ class MLE(BaseLoss):
         """
         return True
 
-    def compute_losses_of_batch(self, batch: Batch, batch_cons: Batch = None, use_consistency_loss: bool = False, alpha: float = 1) -> TensorType["batch_size"]:
+    def compute_losses_of_batch(
+        self,
+        batch: Batch,
+        batch_cons: Batch = None,
+        use_consistency_loss: bool = False,
+        alpha: float = 1,
+    ) -> TensorType["batch_size"]:
         """
         Computes the MLE loss for each trajectory of the input batch.
 
         The MLE loss or objective is computed in this method as is
-        defined in algorithm 
+        defined in algorithm
 
-        
+
 
         Parameters
         ----------
@@ -104,36 +110,42 @@ class MLE(BaseLoss):
         logprobs_b = compute_logprobs_trajectories(
             batch, backward_policy=self.backward_policy, backward=True
         )
-        
 
         # MLE loss to train P_F
-        #mle_loss =  - ( logprobs_f - logprobs_b.detach() ) if logprobs_b.requires_grad else - ( logprobs_f - logprobs_b)
-        mle_loss =  - ( logprobs_f - logprobs_b)
+        mle_loss = (
+            -(logprobs_f - logprobs_b.detach())
+            if logprobs_b.requires_grad
+            else -(logprobs_f - logprobs_b)
+        )
+        # mle_loss =  - ( logprobs_f - logprobs_b)
 
-        
         # Optional: consistency loss to train P_B
-        if use_consistency_loss: 
-            assert batch_cons is not None, "Error: no consistency batch provided for consistency loss!"
+        if use_consistency_loss:
+            assert (
+                batch_cons is not None
+            ), "Error: no consistency batch provided for consistency loss!"
             logprobs_f_cons = compute_logprobs_trajectories(
-            batch_cons, forward_policy=self.forward_policy, backward=False
+                batch_cons, forward_policy=self.forward_policy, backward=False
             )
             logprobs_f_cons = compute_logprobs_trajectories(
                 batch_cons, backward_policy=self.backward_policy, backward=True
             )
-            if logprobs_f.requires_grad: 
-                consistency_loss = torch.pow( ( logprobs_f.detach() - logprobs_b ) - ( logprobs_f_cons.detach() - logprobs_b_cons ), 2 )
-            else: 
-                consistency_loss = torch.pow( ( logprobs_f - logprobs_b ) - ( logprobs_f_cons - logprobs_b_cons ), 2 )
-        else: 
-            consistency_loss = 0 
-        
-        #import ipdb; ipdb.set_trace()
-        return mle_loss + alpha * consistency_loss 
+            if logprobs_f.requires_grad:
+                consistency_loss = torch.pow(
+                    (logprobs_f.detach() - logprobs_b)
+                    - (logprobs_f_cons.detach() - logprobs_b_cons),
+                    2,
+                )
+            else:
+                consistency_loss = torch.pow(
+                    (logprobs_f - logprobs_b) - (logprobs_f_cons - logprobs_b_cons), 2
+                )
+        else:
+            consistency_loss = 0
 
+        # import ipdb; ipdb.set_trace()
+        return mle_loss + alpha * consistency_loss
 
-
-    
-    
     def aggregate_losses_of_batch(
         self, losses: TensorType["batch_size"], batch: Batch
     ) -> dict[str, float]:

@@ -16,6 +16,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import set_device, tint
+import copy
 
 PIECES = {
     "I": [1, [[1], [1], [1], [1]]],
@@ -311,13 +312,14 @@ class Tetris(GFlowNetEnv):
 
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
-        Converts a state (board) into a human-friendly string.
-        """
+               Converts a state (board) into a human-friendly string.
+        gflownet/envs"""
         state = self._get_state(state)
-        if isinstance(state, tuple):
+        if isinstance(state, tuple) or isinstance(state, list):
             readable = str(np.stack(state))
         else:
             readable = str(state.cpu().numpy())
+
         readable = readable.replace("[[", "[").replace("]]", "]").replace("\n ", "\n")
         return readable
 
@@ -584,7 +586,8 @@ class Tetris(GFlowNetEnv):
         linewidth : int
             The width of the separation between cells, in pixels.
         """
-        board = board.clone().numpy()
+        # board = board.clone().numpy()
+        board = copy.deepcopy(board)
         height = board.shape[0] * cellsize
         width = board.shape[1] * cellsize
         board_img = 128 * np.ones(
