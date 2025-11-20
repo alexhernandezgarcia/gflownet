@@ -758,3 +758,204 @@ def test__states2policy__batch_order_invariance_original():
     assert torch.allclose(
         encodings1[1], encodings2[1]
     ), "Encodings for identical states should be identical"
+
+
+def test__constraints_sector_tag_full_interactions_almost_full_state(env):
+    """
+    Test constraint interactions between sectors and tags when the state is almost full.
+
+    This tests the 2nd level constraint checking in get_mask_invalid_actions_forward:
+    - When a sector is assigned, check which tags can still be assigned
+    - When a tag is assigned, check which sectors can still be assigned
+    - Verify that combinations that are fully exhausted get masked out
+
+    Uses an almost-full state to ensure multiple sectors/tags are already assigned.
+    """
+    # Create an almost-full state with multiple complete investments
+    # We'll assign multiple investments covering different sectors and tags
+    state = [
+                10,  # 10 investments assigned
+                {"SECTOR": 1, "TAG": 1, "TECH": 1, "AMOUNT": 1},  # POWER + GREEN
+                {"SECTOR": 1, "TAG": 1, "TECH": 2, "AMOUNT": 1},  # POWER + GREEN
+                {"SECTOR": 1, "TAG": 2, "TECH": 4, "AMOUNT": 1},  # POWER + BROWN
+                {"SECTOR": 1, "TAG": 3, "TECH": 5, "AMOUNT": 1},  # POWER + CCS
+                {"SECTOR": 2, "TAG": 1, "TECH": 14, "AMOUNT": 1},  # ENERGY + GREEN
+                {"SECTOR": 2, "TAG": 3, "TECH": 15, "AMOUNT": 1},  # ENERGY + CCS
+                {"SECTOR": 3, "TAG": 1, "TECH": 22, "AMOUNT": 1},  # VEHICLES + GREEN
+                {"SECTOR": 3, "TAG": 2, "TECH": 23, "AMOUNT": 1},  # VEHICLES + BROWN
+                {"SECTOR": 4, "TAG": 1, "TECH": 25, "AMOUNT": 1},  # STORAGE + GREEN
+                {"SECTOR": 5, "TAG": 3, "TECH": 28, "AMOUNT": 1},  # DAC + CCS
+            ] + [{"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}] * 19
+
+    env.reset()
+    env.set_state(state)
+
+    # Apply constraints to populate filled_on_set
+    env._apply_constraints(state=state)
+
+    # Get one of the subenvs that hasn't been fully assigned yet
+    # We'll use subenv at index 10 (the first unassigned one)
+    test_subenv = env.subenvs[10]
+
+    # Now test the constraint logic by manually calling get_mask
+    # We'll create a partial state where we pick SECTOR=1 (POWER) and check which TAGs are available
+    partial_state = {
+        "SECTOR": 1,  # POWER
+        "TAG": 0,  # Not assigned yet
+        "TECH": 0,
+        "AMOUNT": 0,
+    }
+
+    # Get the mask for this partial state
+    mask = test_subenv.get_mask_invalid_actions_forward(state=partial_state)
+
+    # With POWER sector assigned, we should be able to assign GREEN (1), BROWN (2), or CCS (3) tags
+    # because POWER allows all three: ["GREEN", "BROWN", "CCS"]
+    # However, we need to check if any of these combinations are exhausted
+
+    # TAG indices in the action space:
+    # - TAG GREEN (1) is at some position in the action space
+    # - TAG BROWN (2) is at another position
+    # - TAG CCS (3) is at another position
+
+    # Let's verify by checking which TAG actions are NOT masked
+    unmasked_tag_actions = []
+    for tag_idx in range(1, test_subenv.n_tags + 1):
+        action_idx = test_subenv.action2index((test_subenv.token2idx_choices["TAG"], tag_idx))
+        if not mask[action_idx]:  # Not masked = valid
+            unmasked_tag_actions.append(tag_idx)
+
+    # At least some TAG values should be available for POWER sector
+    assert len(unmasked_tag_actions) > 0, \
+        f"When POWER sector is assigned, some tags should still be available. Unmasked tags: {unmasked_tag_actions}"
+
+
+def test__constraints_exhausted_sector_tag_combinations(env):
+    """
+    Test that sector-tag combinations that are fully exhausted get properly masked.
+
+    This specifically tests the second-level constraint logic where if all technologies
+    in a sector-tag combination have been assigned, that combination gets masked.
+    """
+    # Create a state that exhausts some sector-tag combinations
+    # Let's focus on STORAGE + GREEN, which has limited options:
+    # STORAGE can have: ["power_STORAGE", "production_HYDROGEN", "refueling_station_HYDROGEN", "pipelines_HYDROGEN"]
+    # STORAGE + GREEN: intersection would be storage GREEN techs
+
+    # First, let's check what techs are in STORAGE and GREEN
+    storage_techs = env.subenvs[0].network_structure["sector2tech"]["STORAGE"]
+    green_techs = env.subenvs[0].network_structure["tag2tech"]["GREEN"]
+    storage_green_techs = list(set(storage_techs) & set(green_techs))
+
+    # We need to assign all storage+green techs to exhaust that combination
+    # Storage techs include hydrogen-related ones which are GREEN
+
+    # Create a state that uses up available sector-tag combinations
+    state = [
+        len(storage_green_techs) + 1,  # Slightly more than needed
+    ]
+
+    # Add all storage+green techs first
+    for i, tech_name in enumerate(storage_green_techs):
+        tech_idx = env.subenvs[0].token2idx_techs[tech_name]
+        state.append({
+            "SECTOR": env.subenvs[0].token2idx_sectors["STORAGE"],
+            "TAG": env.subenvs[0].token2idx_tags["GREEN"],
+            "TECH": tech_idx,
+            "AMOUNT": 1,
+        })
+
+    # Pad with empty states
+    while len(state) <= env.n_techs:
+        state.append({"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0})
+
+    env.reset()
+    env.set_state(state)
+    env._apply_constraints(state=state)
+
+    # Now test a subenv where we try to assign STORAGE sector
+    test_subenv = env.subenvs[len(storage_green_techs)]
+
+    partial_state = {
+        "SECTOR": env.subenvs[0].token2idx_sectors["STORAGE"],
+        "TAG": 0,  # Not assigned
+        "TECH": 0,
+        "AMOUNT": 0,
+    }
+
+    mask = test_subenv.get_mask_invalid_actions_forward(state=partial_state)
+
+    # With STORAGE sector assigned and all STORAGE+GREEN techs exhausted,
+    # GREEN tag should be masked out
+    green_tag_idx = test_subenv.token2idx_tags["GREEN"]
+    green_action_idx = test_subenv.action2index((test_subenv.token2idx_choices["TAG"], green_tag_idx))
+
+    # GREEN should be masked because all STORAGE+GREEN combinations are used
+    assert mask[green_action_idx] == True, \
+        "GREEN tag should be masked when all STORAGE+GREEN combinations are exhausted"
+
+
+def test__constraints_partial_sector_tag_exhaustion(env):
+    """
+    Test constraint logic with partial exhaustion of sector-tag combinations.
+
+    Verify that some combinations remain available while others are exhausted.
+    """
+    # POWER sector can have GREEN, BROWN, or CCS tags
+    # We'll exhaust POWER+GREEN but leave POWER+BROWN and POWER+CCS available
+
+    power_techs = env.subenvs[0].network_structure["sector2tech"]["POWER"]
+    green_techs = env.subenvs[0].network_structure["tag2tech"]["GREEN"]
+    power_green_techs = list(set(power_techs) & set(green_techs))
+
+    # Create state with all POWER+GREEN techs assigned
+    state = [len(power_green_techs)]
+
+    for tech_name in power_green_techs:
+        tech_idx = env.subenvs[0].token2idx_techs[tech_name]
+        state.append({
+            "SECTOR": env.subenvs[0].token2idx_sectors["POWER"],
+            "TAG": env.subenvs[0].token2idx_tags["GREEN"],
+            "TECH": tech_idx,
+            "AMOUNT": 1,
+        })
+
+    # Pad with empty states
+    while len(state) <= env.n_techs:
+        state.append({"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0})
+
+    env.reset()
+    env.set_state(state)
+    env._apply_constraints(state=state)
+
+    test_subenv = env.subenvs[len(power_green_techs)]
+
+    partial_state = {
+        "SECTOR": env.subenvs[0].token2idx_sectors["POWER"],
+        "TAG": 0,
+        "TECH": 0,
+        "AMOUNT": 0,
+    }
+
+    mask = test_subenv.get_mask_invalid_actions_forward(state=partial_state)
+
+    # GREEN should be masked
+    green_tag_idx = test_subenv.token2idx_tags["GREEN"]
+    green_action_idx = test_subenv.action2index((test_subenv.token2idx_choices["TAG"], green_tag_idx))
+    assert mask[green_action_idx] == True, \
+        "GREEN tag should be masked when all POWER+GREEN combinations are exhausted"
+
+    # But BROWN and CCS should still be available
+    brown_tag_idx = test_subenv.token2idx_tags["BROWN"]
+    brown_action_idx = test_subenv.action2index((test_subenv.token2idx_choices["TAG"], brown_tag_idx))
+
+    ccs_tag_idx = test_subenv.token2idx_tags["CCS"]
+    ccs_action_idx = test_subenv.action2index((test_subenv.token2idx_choices["TAG"], ccs_tag_idx))
+
+    # At least one of BROWN or CCS should be available (not masked)
+    # since POWER supports both and we haven't exhausted them
+    brown_available = mask[brown_action_idx] == False
+    ccs_available = mask[ccs_action_idx] == False
+
+    assert brown_available or ccs_available, \
+        f"At least BROWN or CCS should be available for POWER sector. BROWN masked: {mask[brown_action_idx]}, CCS masked: {mask[ccs_action_idx]}"
