@@ -32,3 +32,15 @@ class SpacegroupProxy(Proxy):
             return states[:,-1].to(torch.float32)
         else:
             return states[:,-7].to(torch.float32)
+        
+
+class FakeCrystalProxy(Proxy):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._optimum = torch.tensor(1.0, device=self.device, dtype=self.float)
+
+    def __call__(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch"]:
+        spacegroup = [int(states[i][0].item()) for i in range(len(states))]
+        return torch.tensor([136 if x == -1 else 221 for x in spacegroup]).to(torch.float32)

@@ -1,0 +1,59 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.fake_crystal.FakeCrystal
+
+# # Space group config
+# space_group_kwargs:
+#   space_groups_subset: null
+# # Composition config
+# id: crystal
+# composition_kwargs:
+#   elements: 94
+#   max_diff_elem: 5
+#   min_diff_elem: 2
+#   min_atoms: 2
+#   max_atoms: 20
+#   min_atom_i: 1
+#   max_atom_i: 16
+# # Lattice parameters config
+# lattice_parameters_kwargs:
+#   min_length: 1.0
+#   max_length: 350.0
+#   min_angle: 50.0
+#   max_angle: 150.0
+#   kappa: 1e-3
+#   min_incr: 0.1
+#   n_comp: 2
+#   epsilon: 1e-6
+#   beta_params_min: 0.1
+#   beta_params_max: 100.0
+#   fixed_distr_params:
+#     beta_weights: 1.0
+#     beta_alpha: 10.0
+#     beta_beta: 10.0
+#     bernoulli_bts_prob: 0.1
+#     bernoulli_eos_prob: 0.1
+#   random_distr_params:
+#     beta_weights: 1.0
+#     beta_alpha: 10.0
+#     beta_beta: 10.0
+#     bernoulli_bts_prob: 0.1
+#     bernoulli_eos_prob: 0.1
+
+# # Space group or Composition first
+# do_sg_before_composition: True
+
+# # Include space group
+# do_spacegroup: True
+    
+# # Include Lattice parameters
+# do_lattice_parameters: True
+
+# # Use projected lattice parameters
+# do_projected_lattice_parameters: False
+
+# # Stoichiometry <-> space group check
+# do_composition_to_sg_constraints: True
+# do_sg_to_composition_constraints: True
+# do_sg_to_lp_constraints: True
