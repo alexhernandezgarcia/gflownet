@@ -7,17 +7,17 @@ defaults:
   - override /proxy: ising
   - override /logger: wandb
 
-device: gpu
+device: cpu
 
 # Environment
 env:
   #Dimensions of hypergrid 
   n_dim: 2
   # Number of cells per dimension
-  length: 4
+  length: 6
 proxy:
   n_dim: 2 # number of dimensions
-  length: 4 # number of sites per dimension
+  length: 6 # number of sites per dimension
   J_nn: 1.0 #nearest-neighbor coupling
   periodic: True
   h: 0 # external field
@@ -31,7 +31,7 @@ proxy:
 # Buffer
 buffer:
   test:
-    path : "${user.data.root}/ising/6x6/ising_testset_length6_n30.pkl"
+    path : "/home/dounia/git/gflownet/${user.data.root}/ising/6x6/ising_testset_length6_n10.pkl"
     type : "pkl"
 # GFlowNet hyperparameters
 gflownet:

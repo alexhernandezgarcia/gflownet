@@ -31,7 +31,7 @@ proxy:
 # Buffer
 buffer:
   test:
-    path : ${user.data.root}/ising/4x4/ising_testset_length4_n30.pkl
+    path : /home/dounia/git/gflownet/${user.data.root}/ising/4x4/ising_testset_length4_n10.pkl
     type : "pkl"
 # GFlowNet hyperparameters
 gflownet:
@@ -42,7 +42,7 @@ gflownet:
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 10000
+    n_train_steps: 5000
 
 # Policy
 policy:
