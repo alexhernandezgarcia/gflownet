@@ -1,0 +1,78 @@
+# @package _global_
+
+defaults:
+  - override /env: ising
+  - override /gflownet: trajectorybalance  
+  - override /loss: trajectorybalance
+  - override /proxy: ising
+  - override /logger: wandb
+
+device: gpu
+
+# Environment
+env:
+  #Dimensions of hypergrid 
+  n_dim: 2
+  # Number of cells per dimension
+  length: 4
+proxy:
+  n_dim: 2 # number of dimensions
+  length: 4 # number of sites per dimension
+  J_nn: 1.0 #nearest-neighbor coupling
+  periodic: True
+  h: 0 # external field
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -1.0
+    alpha: 1.0
+
+
+# Buffer
+buffer:
+  test:
+    path : /home/dounia/git/gflownet/${user.data.root}/ising/4x4/ising_testset_length4_n10.pkl
+    type : "pkl"
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True      
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  checkpoints_period: 500
+  n_trajs_logprobs: 10
+  n: 1000
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "ising-gfn"
+  run_name: "4x4"
+  tags:
+    - gflownet
+    - ising
+    - exp
+  do:
+    online: true
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/isinggfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
