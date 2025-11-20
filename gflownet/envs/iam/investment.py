@@ -908,6 +908,5 @@ class InvestmentDiscrete(GFlowNetEnv):
         assigned_mask = tech_column != 0
         assigned_techs = set(tech_column[assigned_mask].tolist())
         techs_available = set(range(1, self.n_techs + 1)) - assigned_techs
-        print(techs_available)
         self.set_available_techs(techs_available)
         self.filled_on_set = filled
