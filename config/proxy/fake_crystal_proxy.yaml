@@ -1,0 +1,4 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.uniform.FakeCrystalProxy
