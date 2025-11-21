@@ -257,15 +257,14 @@ class Crystal(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        if not self.has_constraints:
-            return
         # Apply constraints composition -> space group
         # Apply constraint only if action is None or if it is the composition EOS
         if (
-            self.composition.done
-            and self.do_composition_to_sg_constraints
+            self.do_composition_to_sg_constraints
             and not self.do_sg_before_composition
-            and (action is None or self._depad_action(action) == self.composition.eos)
+            and self._do_constraints_for_stage(
+                self.stage_composition, action, is_backward=False
+            )
         ):
             n_atoms_per_element = self.subenvs[
                 self.stage_composition
@@ -276,8 +275,8 @@ class Crystal(Stack):
         # - space group -> composition
         # - space group -> lattice parameters
         # Apply constraint only if action is None or if it is the space group EOS
-        if self.space_group.done and (
-            action is None or self._depad_action(action) == self.space_group.eos
+        if self._do_constraints_for_stage(
+            self.stage_spacegroup, action, is_backward=False
         ):
             if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
                 space_group = self.space_group.space_group
@@ -296,19 +295,17 @@ class Crystal(Stack):
         action : tuple
             An action from the Crystal environment.
         """
-        if not self.has_constraints:
-            return
-
         # Revert the constraint space group -> lattice parameters
         # Lattice system of LP subenv is set back to TRICLINIC
         # Apply after (backward) EOS of SpaceGroup subenv
         if (
             self.do_spacegroup
-            and not self.space_group.done
-            and (action is None or self._depad_action(action) == self.space_group.eos)
+            and self.do_sg_to_lp_constraints
+            and self._do_constraints_for_stage(
+                self.stage_spacegroup, action, is_backward=True
+            )
         ):
-            if self.do_sg_to_lp_constraints:
-                self.lattice_parameters.set_lattice_system(TRICLINIC)
+            self.lattice_parameters.set_lattice_system(TRICLINIC)
 
     def states2proxy(
         self, states: List[List]
