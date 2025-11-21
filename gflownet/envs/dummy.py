@@ -37,6 +37,7 @@ class Dummy(Constant):
             state = [0]
         super().__init__(state, **kwargs)
 
+    # TODO: consider replacing this by overriding set_state (which would change source)
     def is_source(self, state: Any = None) -> bool:
         """
         Returns True if the environment's state or the state passed as parameter (if
