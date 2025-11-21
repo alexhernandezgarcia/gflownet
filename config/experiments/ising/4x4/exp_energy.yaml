@@ -1,0 +1,54 @@
+# @package _global_
+
+defaults:
+  - override /env: ising
+  - override /proxy: ising
+  - override /logger: wandb
+
+device: gpu
+
+# Environment
+env:
+  #Dimensions of hypergrid 
+  n_dim: 2
+  # Number of cells per dimension
+  length: 4
+proxy:
+  n_dim: 2 # number of dimensions
+  length: 4 # number of sites per dimension
+  J_nn: 1.0 #nearest-neighbor coupling
+  periodic: True
+  h: 0 # external field
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -1.0
+    alpha: 1.0
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: -1
+  checkpoints_period: 500
+  n_trajs_logprobs: 100
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "ising-gfn"
+  run_name: "4x4"
+  tags:
+    - gflownet
+    - ising
+  do:
+    online: true
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/isinggfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
