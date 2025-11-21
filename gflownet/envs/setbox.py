@@ -194,8 +194,8 @@ class SetBox(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        if self.conditioning_grid.done and (
-            action is None or self._depad_action(action) == self.conditioning_grid.eos
+        if self._do_constraints_for_stage(
+            self.stage_conditioning_grid, action, is_backward=False
         ):
             n_cubes = self.conditioning_grid.state[IDX_CUBE]
             n_grids = self.conditioning_grid.state[IDX_GRID]
@@ -226,7 +226,9 @@ class SetBox(Stack):
         action : tuple
             An action from the SetBox environment.
         """
-        if action is None or self._depad_action(action) == self.conditioning_grid.eos:
+        if self._do_constraints_for_stage(
+            self.stage_conditioning_grid, action, is_backward=True
+        ):
             # Reset source of Set and update global Stack state
             self.set.state = copy(self.set.source)
             self._set_substate(self.stage_set, self.set.state)
