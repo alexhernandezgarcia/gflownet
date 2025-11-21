@@ -1,5 +1,5 @@
 """
-Base class to stack multiple environments.
+Composite base class to stack multiple environments.
 """
 
 import json
@@ -24,7 +24,10 @@ class Stack(GFlowNetEnv):
     sub-environment in the stack reaches the final ("done") state.
 
     This class enables the incorporation of constraints across sub-environments via the
-    apply_constraints() method, which must be implemented by the children classes.
+    :py:meth:`~gflownet.envs.stack.Stack._apply_constraints` method. In order to
+    implement the application of constraints, Stack environments must override:.
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
 
     For example, a new environment can be created by stacking the (continuous) Cube and
     the Tetris.
@@ -112,7 +115,7 @@ class Stack(GFlowNetEnv):
         By default, the Stack has no constraints (False)
 
         This method should be overriden in environments that incorporate constraints
-        across sub-environmnents via _apply_constraints().
+        across sub-environmnents via ``_apply_constraints()``.
 
         Returns
         -------
@@ -647,7 +650,7 @@ class Stack(GFlowNetEnv):
                 self.done = True
             else:
                 stage += 1
-                self._apply_constraints(action=action)
+                self._apply_constraints(action=action, is_backward=False)
 
         # Update gloabl state and return
         self.state = self._update_state(stage)
@@ -727,31 +730,173 @@ class Stack(GFlowNetEnv):
         action: Tuple = None,
         state: Union[List, torch.Tensor] = None,
         dones: List[bool] = None,
-        is_backward: bool = False,
+        is_backward: bool = None,
     ):
         """
-        Applies constraints across sub-environments. No constraints are applied by
-        default, but this method may be overriden by children classes to incorporate
-        specific constraints.
+        Applies constraints across sub-environments.
 
-        This method is used in step() and set_state().
+        This method is called from the methods that can modify the state, namely:
+            - :py:meth:`~gflownet.envs.base.GFlowNetEnv.step()`
+            - :py:meth:`~gflownet.envs.base.GFlowNetEnv.step_backwards()`
+            - :py:meth:`~gflownet.envs.base.GFlowNetEnv.set_state()`
+            - :py:meth:`~gflownet.envs.base.GFlowNetEnv.reset()`
+
+        This method simply calls
+        :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward` and/or
+        :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`.
+
+        This method should in general not be overriden. Instead, classes inheriting the
+        Stack class may override:
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
 
         Parameters
         ----------
         action : tuple (optional)
             An action, which can be used to determine whether which constraints should
             be applied and which should not, since the computations may be intensive.
+            If the call of the method is initiated by ``set_state()`` or ``reset()``,
+            then the action will be None.
         state : list or tensor (optional)
             A state that can optionally be passed to set in the environment after
-            applying the constraints. This may typically be used by set_state().
+            applying the constraints. This may typically be used by ``set_state()``.
         dones : list
             List of boolean values indicating the sub-environments that are done. This
             may be optionally used to set the state together with done after applying
-            the constraints. This may typically be used by set_state().
+            the constraints. This may typically be used by ``set_state()``.
         is_backward : bool
-            Boolean flag to indicate whether the action is in the backward direction.
+            Boolean flag to indicate whether the constraint should be applied in the
+            backward direction (True), meaning 'undoing' the constraint (this is the
+            value when the call method is initiated by ``step_backwards()`` or
+            ``reset()``); or in the forward direction, meaning 'applying' the
+            constraint (if initiated by ``step()``). If the call of the method is
+            initiated by ``set_state()``, then the value is None, since the constraints
+            may be applied in any direction, depending on the current state.
+        """
+        if not self.has_constraints:
+            return
+
+        # Forward constraints are applied if the call method is initiated by
+        # set_state() (action is None and is_backward is not True) or by step() (action
+        # is not None and is_backward is False)
+        if (action is None and is_backward is not True) or (
+            action is not None and is_backward is False
+        ):
+            self._apply_constraints_forward(action, state, dones)
+        # Backward constraints are applied if the call method is initiated by
+        # set_state() or reset() (action is None and is_backward is not False) or by
+        # step_backward() (action is not None and is_backward is True)
+        if (action is None and is_backward is not False) or (
+            action is not None and is_backward is True
+        ):
+            self._apply_constraints_backward(action)
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Union[List, torch.Tensor] = None,
+        dones: List[bool] = None,
+    ):
+        """
+        Applies constraints across sub-environments in the forward direction.
+
+        This method is called when ``step()`` and ``set_state()`` are called.
+
+        Environments inheriting the Stack may override this method if constraints
+        across sub-environments must be applied. The method
+        :py:meth:`~gflownet.envs.stack.Stack._do_constraints_for_stage` may be used as
+        a helper to determine whether the constraints imposed by a sub-environment
+        should be applied depending on the action.
+
+        Parameters
+        ----------
+        action : tuple (optional)
+            An action from the Stack environment. If the call of this method is
+            initiated by ``set_state()``, then ``action`` is None.
+        state : list or tensor (optional)
+            A state from the Stack environment.
+        dones : list
+            A list indicating the sub-environments that are done.
         """
         pass
+
+    def _apply_constraints_backward(self, action: Tuple = None):
+        """
+        Applies constraints across sub-environments in the backward direction.
+
+        In the backward direction, in this case, means that the constraints between two
+        sub-environments are undone and reset as in the source state.
+
+        This method is called when ``step_backwards()``, ``set_state()`` and
+        ``reset()`` are called.
+
+        Environments inheriting the Stack may override this method if constraints
+        across sub-environments must be applied. The method
+        :py:meth:`~gflownet.envs.stack.Stack._do_constraints_for_stage` may be used as
+        a helper to determine whether the constraints imposed by a sub-environment
+        should be applied depending on the action.
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the Stack environment.
+        """
+        pass
+
+    def _do_constraints_for_stage(
+        self, stage: int, action: Tuple, is_backward: bool = False
+    ) -> bool:
+        """
+        Returns True if constraints chould be applied given the stage, action and
+        direction.
+
+        This environment is meant to be be used by environments inheriting the Stack
+        to determine whether the constraints imposed by a particular sub-environment
+        should be applied. This depends on whether the environment is done or not,
+        whether the constraints are to be done or undone, and whether they would be
+        triggered by a transition or by ``set_state()`` or ``reset()``. This method is
+        meant to be called from:
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
+
+        Additionally, Stack environments may include other speciic checks before
+        setting inter-environment constraints, besides the output of this method.
+
+        Forward constraints could be applied if:
+            - The condition environment is done, and
+            - The action is either None or EOS
+        Backward constraints could be applied if:
+            - The condition environment is not done, and
+            - The action is either None or EOS
+
+        Parameters
+        ----------
+        stage : int
+            Index of the sub-environment that would trigger constraints.
+        action : tuple (optional)
+            The action involved in the transition, or None if there is no transition,
+            for example if the application of constraints is initiated by
+            ``set_state()`` or ``reset()``.
+        is_backward : bool
+            Boolean flag to indicate whether the potential constraint is in the
+            backward direction (True) or in the forward direction (False).
+        """
+        # Get relevant sub-environment from the stage and depad the action
+        subenv = self.subenvs[stage]
+        if action is not None:
+            action = self._depad_action(action)
+
+        # For constraints to be applied, either the action is None (meaning the call of
+        # this method was initiated by set_state() or reset(), or the action is EOS
+        if action is not None and action != subenv.eos:
+            return False
+
+        # Backward constraints could only be applied if the sub-environment is not done
+        if is_backward:
+            return not subenv.done
+        # Forward constraints could only be applied if the sub-environment is done
+        else:
+            return subenv.done
 
     def set_state(self, state: List, done: Optional[bool] = False):
         """
@@ -768,7 +913,7 @@ class Stack(GFlowNetEnv):
             subenv.set_state(self._get_substate(self.state, stage), done_subenv)
 
         # Apply constraints
-        self._apply_constraints(state=state, dones=dones)
+        self._apply_constraints(state=state, dones=dones, is_backward=None)
 
         return self
 
