@@ -436,6 +436,33 @@ class InvestmentDiscrete(GFlowNetEnv):
                     False
                 )
 
+        #mask now reflects the situation of all technologies being available
+        #turn off options based on self.techs_available
+        if "TECH" not in assigned and len(self.techs_available) != self.n_techs: #no need to double check if TECH has alredy been assigned or all techs are available
+            techs_available_tokens = [self.idx2token_techs[t] for t in self.techs_available]
+
+            unavailable_techs_idx = [self.token2idx_techs[t] for t in self.techs if t not in techs_available_tokens]
+            unavailable_sectors_idx = []
+            for s in self.sectors:
+                sector_technologies = self.network_structure['sector2tech'][s]
+                available_sector_techs = list(set(sector_technologies) & set(techs_available_tokens))
+                if len(available_sector_techs) == 0:
+                    unavailable_sectors_idx.append(self.token2idx_sectors[s])
+
+            unavailable_tags_idx = []
+            for t in self.tags:
+                tag_technologies = self.network_structure['tag2tech'][t]
+                available_tag_techs = list(set(tag_technologies) & set(techs_available_tokens))
+                if len(available_tag_techs) == 0:
+                    unavailable_tags_idx.append(self.token2idx_tags[t])
+
+            for t in unavailable_techs_idx:
+                mask[self.action2index((self.token2idx_choices['TECH'], t))] = True
+            for s in unavailable_sectors_idx:
+                mask[self.action2index((self.token2idx_choices['SECTOR'], s))] = True
+            for t in unavailable_tags_idx:
+                mask[self.action2index((self.token2idx_choices['TAG'], t))] = True
+
         return mask
 
     def get_parents(
