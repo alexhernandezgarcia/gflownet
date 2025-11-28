@@ -111,32 +111,6 @@ class Plan(Stack):
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
 
-    def _apply_constraints(
-        self,
-        action: Tuple = None,
-        state: List = None,
-        dones: List[bool] = None,
-        is_backward: bool = False,
-    ):
-        """
-        Applies constraints across sub-environments, when applicable.
-
-        This method is used in step() and set_state().
-
-        Parameters
-        ----------
-        action : tuple
-            An action from the Plan environment.
-        state : list
-            A state from the Plan environment.
-        is_backward : bool
-            Boolean flag to indicate whether the action is in the backward direction.
-        dones : list
-            A list indicating the sub-environments that are done.
-        """
-        if not is_backward:
-            self._apply_constraints_forward(action, state, dones)
-
     def _apply_constraints_forward(
         self,
         action: Tuple = None,

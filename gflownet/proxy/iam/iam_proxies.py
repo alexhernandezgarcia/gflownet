@@ -258,4 +258,5 @@ class FAIRY(Proxy):
         if amount == "HIGH":
             return 0.75
         else:
+            print("Invalid amount `{}`".format(amount))
             raise ValueError("Invalid amount")

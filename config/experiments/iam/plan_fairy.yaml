@@ -9,7 +9,9 @@ defaults:
 
 # Buffer
 buffer:
-  test: null
+  test:
+    type: pkl
+    path: data/iam/test_set_v0.pkl
 
 # GFlowNet hyperparameters
 gflownet:
@@ -46,9 +48,9 @@ logger:
 # Evaluator
 evaluator:
   first_it: True
-  period: 1000
-  n: 100
-  checkpoints_period: 500
+  period: 10
+  n: 50
+  checkpoints_period: 1000
 
 # Hydra
 hydra:

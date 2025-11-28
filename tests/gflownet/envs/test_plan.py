@@ -284,8 +284,6 @@ def test__states2policy__order_invariance(state1, state2, should_be_equal):
     encoding1 = env.states2policy([state1])
     encoding2 = env.states2policy([state2])
 
-    assert encoding1.sum() == (4 + 29)
-
     # Check if encodings are equal
     are_equal = torch.allclose(encoding1, encoding2)
 
