@@ -8,11 +8,7 @@ removed for simplicity. Check commit 9f3477d8e46c4624f9162d755663993b83196546 to
 these changes or the history previous to that commit to consult previous
 implementations.
 """
-<<<<<<< HEAD
 import copy
-=======
-
->>>>>>> 23cf42f537d42a65c78e166a2aa81a5f84e988bb
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -21,10 +17,7 @@ from torchtyping import TensorType
 from tqdm import tqdm
 
 from gflownet.envs.grid import Grid
-<<<<<<< HEAD
 from gflownet.envs.options import Options
-=======
->>>>>>> 23cf42f537d42a65c78e166a2aa81a5f84e988bb
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy
