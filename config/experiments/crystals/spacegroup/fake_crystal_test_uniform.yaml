@@ -8,14 +8,9 @@ defaults:
    - override /proxy: uniform
    - override /logger: wandb
 
-<<<<<<< HEAD
 # # Environment
 # env:
 #   do_lattice_parameters: False
-=======
-# Environment
-
->>>>>>> 23cf42f537d42a65c78e166a2aa81a5f84e988bb
 
 # GFlowNet hyperparameters
 gflownet:
