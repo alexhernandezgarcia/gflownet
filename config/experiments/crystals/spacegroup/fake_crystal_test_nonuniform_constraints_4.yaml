@@ -8,9 +8,11 @@ defaults:
    - override /proxy: uniform
    - override /logger: wandb
 
-# # Environment
-# env:
-#   do_lattice_parameters: False
+# Environment
+env:
+  use_constraints: True
+  cube_dim: 3
+  constraints_dict: {1: [False, True], 2: [True, False]}
 
 # GFlowNet hyperparameters
 gflownet:
@@ -43,6 +45,7 @@ logger:
     - gflownet
     - spacegroup
     - uniform
+  should_log_batch_info: True
 
 # Evaluator
 evaluator:
@@ -52,7 +55,9 @@ evaluator:
   checkpoints_period: 500
 
 # proxy:
-#   reward_function: spacegroup_test
+#   reward_function: spacegroup_test_crystal
+#   reward_function_kwargs:
+#     spg_map: {221: 2.0, 136: 1.0}
 
 # Hydra
 hydra:

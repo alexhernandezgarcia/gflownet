@@ -8,7 +8,7 @@ removed for simplicity. Check commit 9f3477d8e46c4624f9162d755663993b83196546 to
 these changes or the history previous to that commit to consult previous
 implementations.
 """
-
+import copy
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -17,6 +17,7 @@ from torchtyping import TensorType
 from tqdm import tqdm
 
 from gflownet.envs.grid import Grid
+from gflownet.envs.options import Options
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy
@@ -35,8 +36,17 @@ class FakeCrystal(Stack):
 
     def __init__(
         self,
+        do_space_group: bool = True,
+        do_lattice_parameters: bool = True,
+        use_constraints: bool = False,
+        constraints_dict: dict = {},
+        cube_dim: int = 2,
         **kwargs,
     ):
+        self.do_space_group = do_space_group
+        self.do_lattice_parameters = do_lattice_parameters
+        self.use_constraints = use_constraints
+        self.constraints_dict = constraints_dict
         # self.composition_kwargs = dict( # setup the kwargs later
         #     composition_kwargs or {},
         #     do_spacegroup_check=self.do_sg_to_composition_constraints,
@@ -47,11 +57,16 @@ class FakeCrystal(Stack):
         # Initialize list of subenvs:
         subenvs = []
 
-        space_group = Grid(n_dim=1,length=2)
-        subenvs.append(space_group)
+        if not self.do_space_group and not self.do_lattice_parameters:
+            raise NotImplementedError(f"One of {self.do_space_group=} and {self.do_lattice_parameters=} needs to be True")
 
-        lattice_params = ContinuousCube(ndim=2)
-        subenvs.append(lattice_params)
+        if self.do_space_group:
+            self.space_group = Options(options=["Option-136","Option-221"],n_options=2)# Grid(n_dim=1,length=2)
+            subenvs.append(self.space_group)
+
+        if self.do_lattice_parameters:
+            self.lattice_params = ContinuousCube(ndim=cube_dim)
+            subenvs.append(self.lattice_params)
         
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
@@ -117,35 +132,16 @@ class FakeCrystal(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        # breakpoint()
-        # if not self.has_constraints:
-        #     return
-        # # Apply constraints composition -> space group
-        # # Apply constraint only if action is None or if it is the composition EOS
-        # if (
-        #     self.composition.done
-        #     and self.do_composition_to_sg_constraints
-        #     and not self.do_sg_before_composition
-        #     and (action is None or self._depad_action(action) == self.composition.eos)
-        # ):
-        #     n_atoms_per_element = self.subenvs[
-        #         self.stage_composition
-        #     ].get_n_atoms_per_element(self.composition.state)
-        #     self.space_group.set_n_atoms_compatibility_dict(n_atoms_per_element)
-
-        # # Apply constraints:
-        # # - space group -> composition
-        # # - space group -> lattice parameters
-        # # Apply constraint only if action is None or if it is the space group EOS
-        # if self.space_group.done and (
-        #     action is None or self._depad_action(action) == self.space_group.eos
-        # ):
-        #     if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
-        #         space_group = self.space_group.space_group
-        #         self.composition.set_space_group(space_group)
-        #     if self.do_sg_to_lp_constraints and self.do_lattice_parameters:
-        #         lattice_system = self.space_group.lattice_system
-        #         self.lattice_parameters.set_lattice_system(lattice_system)
+        if not self.has_constraints:
+            return
+        
+        if self.use_constraints and \
+            self.do_space_group and self.do_lattice_parameters \
+            and self.space_group.done and (
+            action is None or self._depad_action(action) == self.space_group.eos
+        ):  
+            ignored_dims = self.constraints_dict[self.space_group.state[0]]
+            self.lattice_params.ignored_dims = [d for d in ignored_dims] # this is fast but assigning directly is slow
 
     def _apply_constraints_backward(self, action: Tuple = None):
         """
@@ -157,20 +153,15 @@ class FakeCrystal(Stack):
         action : tuple
             An action from the Crystal environment.
         """
-        pass
-        # if not self.has_constraints:
-        #     return
+        if not self.has_constraints:
+            return
 
-        # # Revert the constraint space group -> lattice parameters
-        # # Lattice system of LP subenv is set back to TRICLINIC
-        # # Apply after (backward) EOS of SpaceGroup subenv
-        # if (
-        #     self.do_spacegroup
-        #     and not self.space_group.done
-        #     and (action is None or self._depad_action(action) == self.space_group.eos)
-        # ):
-        #     if self.do_sg_to_lp_constraints and self.do_lattice_parameters:
-        #         self.lattice_parameters.set_lattice_system(TRICLINIC)
+        if (self.use_constraints and \
+            self.do_space_group and self.do_lattice_parameters 
+            and not self.space_group.done
+            and (action is None or self._depad_action(action) == self.space_group.eos)
+        ):
+            self.lattice_params.ignored_dims = [False, False]
 
     def states2proxy(
         self, states: List[List]
@@ -202,3 +193,17 @@ class FakeCrystal(Stack):
         for stage, subenv in self.subenvs.items():
             print(f"Stage {stage}")
             print(self._get_substate(state, stage))
+
+
+    def _check_has_constraints(self) -> bool:
+        """
+        Checks whether Crystal implements any constraints across sub-environments.
+
+        It returns True if any of the possible constraints is implemented.
+
+        Returns
+        -------
+        bool
+            True if the Crystal has constraints, False otherwise
+        """
+        return True

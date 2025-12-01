@@ -43,4 +43,5 @@ class FakeCrystalProxy(Proxy):
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch"]:
         spacegroup = [int(states[i][0].item()) for i in range(len(states))]
-        return torch.tensor([136 if x == -1 else 221 for x in spacegroup]).to(torch.float32)
+        res = torch.tensor([136 if x == 1 else 221 for x in spacegroup]).to(torch.float32)
+        return res

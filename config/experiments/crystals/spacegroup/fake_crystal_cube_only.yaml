@@ -9,8 +9,8 @@ defaults:
    - override /logger: wandb
 
 # # Environment
-# env:
-#   do_lattice_parameters: False
+env:
+  do_space_group: False
 
 # GFlowNet hyperparameters
 gflownet:

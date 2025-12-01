@@ -1145,6 +1145,13 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
+            if self.logger.should_log_batch_info:
+                self.logger.log_batch_info(
+                    batch,
+                    step=self.it,
+                    use_context=self.use_context,
+                )
+
             # Log replay buffer rewards
             if self.buffer.replay_updated:
                 rewards_replay = self.buffer.replay.rewards

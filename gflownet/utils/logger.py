@@ -57,11 +57,13 @@ class Logger:
         entity: str = None,
         progressbar: dict = {"skip": False, "n_iters_mean": 100},
         is_resumed: bool = False,
+        should_log_batch_info: bool = False
     ):
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
+        self.should_log_batch_info = should_log_batch_info
 
         # Determine run name
         if run_name is None:
@@ -243,6 +245,33 @@ class Logger:
                 }
             )
 
+        self.log_metrics(metrics, step=step, use_context=use_context)
+
+    def log_batch_info(
+        self,
+        batch,        
+        step: int,
+        use_context: bool = True
+        ):
+
+        states = batch.get_terminating_states()
+        options_1 = [s[1][0] for s in states if s[1][0] == 1]
+        options_2 = [s[1][0] for s in states if s[1][0] == 2]
+        lp_1_opt_1 = [s[2][0] for s in states if s[1][0] == 1] # first lattice parameter
+        lp_1_opt_2 = [s[2][0] for s in states if s[1][0] == 2]
+        lp_2_opt_1 = [s[2][1] for s in states if s[1][0] == 1] # 2nd lattice parameter
+        lp_2_opt_2 = [s[2][1] for s in states if s[1][0] == 2]
+
+        metrics = {"Proportion of Option 1": len(options_1)/len(states),
+                   "Proportion of Option 2": len(options_2)/len(states),
+                   "Mean LP 1, option 1": np.mean(lp_1_opt_1),
+                   "Mean LP 1, option 2": np.mean(lp_1_opt_2),
+                   "St. Dev. of LP 1, option 1": np.std(lp_1_opt_1),
+                   "St. Dev. of LP 1, option 2": np.std(lp_1_opt_2),
+                   "Mean LP 2, option 1": np.mean(lp_2_opt_1),
+                   "Mean LP 2, option 2": np.mean(lp_2_opt_2),
+                   "St. Dev. of LP 2, option 1": np.std(lp_2_opt_1),
+                   "St. Dev. of LP 2, option 2": np.std(lp_2_opt_2)}
         self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_metrics(
