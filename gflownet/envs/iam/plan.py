@@ -12,6 +12,7 @@ import copy
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import torch
+import numpy as np
 from torchtyping import TensorType
 
 from gflownet.envs.iam.investment import TECHS, InvestmentDiscrete
@@ -141,9 +142,10 @@ class Plan(Stack):
 
         current_state = state if state is not None else self.state
 
-        filled = self._states2tensor(
+        filled = self._states2array(
             current_state=current_state, fill_in_from_tech=True, with_amounts=False
         )
+        filled = torch.tensor(filled).float()
 
         for idx, subenv in self.subenvs.items():
             select = list(range(self.n_techs))
@@ -204,26 +206,22 @@ class Plan(Stack):
         to_pass["AMOUNT"] = self.idx2token_amounts[state["AMOUNT"]]
         return to_pass
 
-    def _states2tensor(
+    def _states2array(
         self, current_state=None, fill_in_from_tech=False, with_amounts=False
-    ) -> torch.Tensor:
+    ) -> np.ndarray:
         """
         Read all state subenvironments and convert them into tensors.
         Three columns: [SECTOR, TAG, TECH]
         if with_amount: Four Columns [SECTOR, TAG, TECH, AMOUNT]
         """
         current_state = current_state if current_state is not None else self.state
-        if with_amounts:
-            filled = torch.zeros(self.n_techs, 4)
-        else:
-            filled = torch.zeros(self.n_techs, 3)
+        state_to_list = [list(inv.values()) for inv in current_state[1:]]
+        filled = np.array(state_to_list)
+        if not with_amounts:
+            filled = filled[:,0:2]
 
-        for idx in range(self.n_techs):
-            filled[idx, 0] = current_state[idx + 1]["SECTOR"]
-            filled[idx, 1] = current_state[idx + 1]["TAG"]
-            filled[idx, 2] = current_state[idx + 1]["TECH"]
-
-            if fill_in_from_tech:
+        if fill_in_from_tech:
+            for idx in range(self.n_techs):
                 if filled[idx, 2] and not filled[idx, 0]:
                     filled[idx, 0] = self.token2idx_sectors[
                         self.network_structure["tech2sector"][
@@ -237,8 +235,6 @@ class Plan(Stack):
                         ]
                     ]
 
-            if with_amounts:
-                filled[idx, 3] = current_state[idx + 1]["AMOUNT"]
         return filled
 
     def states2policy(
@@ -261,71 +257,29 @@ class Plan(Stack):
         A tensor containing all the states in the batch.
         """
 
-        temp = torch.zeros(len(states), self.width_one_hot)
-        for batch_idx, s_ in enumerate(states):
-            state_as_tensor = self._states2tensor(
+        batch_one_hot = [self._one_hot_plan_matrix(self._states2array(
                 current_state=s_, fill_in_from_tech=False, with_amounts=True
-            )
-            # to make it permutation invariant, apply consecutive sorting
-            _, indices_amount = torch.sort(
-                state_as_tensor[:, 3], descending=False, stable=True
-            )
-            state_as_tensor = state_as_tensor[indices_amount]
-            _, indices_tech = torch.sort(
-                state_as_tensor[:, 2], descending=False, stable=True
-            )
-            state_as_tensor = state_as_tensor[indices_tech]
-            _, indices_tag = torch.sort(
-                state_as_tensor[:, 1], descending=False, stable=True
-            )
-            state_as_tensor = state_as_tensor[indices_tag]
-            _, indices_sect = torch.sort(
-                state_as_tensor[:, 0], descending=False, stable=True
-            )
-            state_as_tensor = state_as_tensor[indices_sect]
+            )) for s_ in states]
 
-            batch_row = copy.deepcopy(self.base_row_one_hot)
+        batch_one_hot = np.array(batch_one_hot)
+        batch_one_hot = torch.tensor(batch_one_hot).float().to(self.device)
 
-            for inv in range(self.n_techs):
-                if any(state_as_tensor[inv, :]):
-                    inv_sect = int(state_as_tensor[inv, 0])
-                    inv_tag = int(state_as_tensor[inv, 1])
-                    inv_tech = int(state_as_tensor[inv, 2])
-                    inv_amo = int(state_as_tensor[inv, 3])
+        return batch_one_hot
 
-                    # remove base encoding
-                    batch_row[
-                        [
-                            inv * self.n_partial_state_encoding,
-                            inv * self.n_partial_state_encoding + self.n_sector_choices,
-                            inv * self.n_partial_state_encoding
-                            + self.n_sector_choices
-                            + self.n_tags_choices,
-                            inv * self.n_partial_state_encoding
-                            + self.n_sector_choices
-                            + self.n_tags_choices
-                            + self.n_techs_choices,
-                        ]
-                    ] = 0
-                    # assign value: 0 is not assigned, consistent with 1hot
-                    batch_row[
-                        [
-                            inv_sect + inv * self.n_partial_state_encoding,
-                            inv_tag
-                            + inv * self.n_partial_state_encoding
-                            + self.n_sector_choices,
-                            inv_tech
-                            + inv * self.n_partial_state_encoding
-                            + self.n_sector_choices
-                            + self.n_tags_choices,
-                            inv_amo
-                            + inv * self.n_partial_state_encoding
-                            + self.n_sector_choices
-                            + self.n_tags_choices
-                            + self.n_techs_choices,
-                        ]
-                    ] = 1
+    def _one_hot_plan_matrix(self, state_matrix):
+        """
+        Returns a one-hot encoded plan.
+        """
+        state_matrix = state_matrix[np.lexsort(state_matrix[:, ::-1].T)]
 
-            assert batch_row.sum() == (4 * self.n_techs)
-            temp[batch_idx, :] = batch_row
-        return temp
+        output = []
+        depths = [self.n_sector_choices, self.n_tags_choices, self.n_techs_choices, self.n_amounts_choices]
+        for j in range(4):
+            col = state_matrix[:, j]
+            depth = depths[j]
+            one_hot = np.zeros((self.n_techs, depth), dtype=int)
+            one_hot[np.arange(self.n_techs), col] = 1
+            output.append(one_hot)
+
+        output = np.concatenate([oh.flatten() for oh in output])
+        return output
