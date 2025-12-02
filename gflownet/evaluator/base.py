@@ -610,10 +610,23 @@ class BaseEvaluator(AbstractEvaluator):
                 self.config.top_k,
                 **plot_kwargs,
             )
+        
+        # Plot logprobs vs logrews for test set 
+        logprobs = kwargs.get("logprobs", None)
+        logrews = kwargs.get("logrews", None)
 
+        if logprobs is not None and logrews is not None:
+            import matplotlib.pyplot as plt
+            fig_logprobs_logrews, ax = plt.subplots()
+            fig_logprobs_logrews.set_dpi(150)
+            ax.scatter(logprobs, logrews)
+            ax.set_xlabel(f"logprobs")
+            ax.set_ylabel(f"logrews")
+        
         return {
             "True reward and GFlowNet samples": fig_reward_samples,
             "GFlowNet KDE Policy": fig_kde_pred,
             "Reward KDE": fig_kde_true,
             "Samples TopK": fig_samples_topk,
+            "Log-prob vs Log-reward": fig_logprobs_logrews,
         }
