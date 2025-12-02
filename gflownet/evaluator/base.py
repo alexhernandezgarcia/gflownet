@@ -571,7 +571,9 @@ class BaseEvaluator(AbstractEvaluator):
             values are the figures.
         """
 
-        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = None
+        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = (
+            fig_logprobs_logrews
+        ) = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
             (
@@ -610,19 +612,20 @@ class BaseEvaluator(AbstractEvaluator):
                 self.config.top_k,
                 **plot_kwargs,
             )
-        
-        # Plot logprobs vs logrews for test set 
+
+        # Plot logprobs vs logrews for test set
         logprobs = kwargs.get("logprobs", None)
         logrews = kwargs.get("logrews", None)
 
         if logprobs is not None and logrews is not None:
             import matplotlib.pyplot as plt
+
             fig_logprobs_logrews, ax = plt.subplots()
             fig_logprobs_logrews.set_dpi(150)
             ax.scatter(logprobs, logrews)
             ax.set_xlabel(f"logprobs")
             ax.set_ylabel(f"logrews")
-        
+
         return {
             "True reward and GFlowNet samples": fig_reward_samples,
             "GFlowNet KDE Policy": fig_kde_pred,
