@@ -136,6 +136,8 @@ class Plan(Stack):
         dones : list
             A list indicating the sub-environments that are done.
         """
+        if action is not None and action[1] != -1:
+            return
 
         current_state = state if state is not None else self.state
 
