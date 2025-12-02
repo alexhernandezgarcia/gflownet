@@ -266,6 +266,7 @@ class BaseEvaluator(AbstractEvaluator):
         )
 
         lp_metrics = {}
+        lp_data = {}
 
         if "mean_logprobs_std" in metrics:
             lp_metrics["mean_logprobs_std"] = logprobs_std.mean().item()
@@ -275,6 +276,16 @@ class BaseEvaluator(AbstractEvaluator):
 
         if "reward_batch" in reqs:
             rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
+
+            log_rewards_x_tt = torch.log(
+                tfloat(
+                    rewards_x_tt,
+                    float_type=self.gfn.float,
+                    device=self.gfn.device,
+                )
+            )
+
+            lp_data["logrews"] = log_rewards_x_tt
 
             if "corr_prob_traj_rewards" in metrics:
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
@@ -300,8 +311,10 @@ class BaseEvaluator(AbstractEvaluator):
                 -logprobs_std.mean() / logprobs_x_tt.mean()
             ).item()
 
+        lp_data["logprobs"] = logprobs_x_tt
         return {
             "metrics": lp_metrics,
+            "data": lp_data,
         }
 
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
@@ -597,9 +610,21 @@ class BaseEvaluator(AbstractEvaluator):
                 **plot_kwargs,
             )
 
+        logprobs = kwargs.get("logprobs", None)
+        logrews = kwargs.get("logrews", None)
+
+        if logprobs is not None and logrews is not None:
+            import matplotlib.pyplot as plt
+            fig_logprobs_logrews, ax = plt.subplots()
+            fig_logprobs_logrews.set_dpi(150)
+            ax.scatter(logprobs, logrews)
+            ax.set_xlabel(f"logprobs")
+            ax.set_ylabel(f"logrews")
+
         return {
             "True reward and GFlowNet samples": fig_reward_samples,
             "GFlowNet KDE Policy": fig_kde_pred,
             "Reward KDE": fig_kde_true,
             "Samples TopK": fig_samples_topk,
+            "Log-prob vs Log-reward": fig_logprobs_logrews,
         }

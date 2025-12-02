@@ -244,6 +244,7 @@ class FAIRY(Proxy):
             + self.precomputed_scaling_params["EMI_total_CO2"]["min"]
         )
         y = y - self.SCC * emissions
+        #y = torch.clamp(y, min = 0)
 
         return y
 
