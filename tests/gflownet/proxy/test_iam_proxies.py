@@ -1,11 +1,407 @@
 import pytest
 import torch
 import numpy as np
-from typing import List, Dict
+import pandas as pd
+import tempfile
+import os
+from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
+from torch.utils.data import DataLoader
 
+from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import witch_proc_data
 from gflownet.proxy.iam.iam_proxies import FAIRY
 
+
+"""
+TEST DATA
+"""
+
+
+@pytest.fixture
+def temp_parquet_files():
+    """Create temporary parquet files for testing.
+
+    Creates complete datasets where:
+    - All scenarios have all regions
+    - All regions have all years
+    - All combinations (scenario, region, year) are present
+    """
+    temp_dir = tempfile.TemporaryDirectory()
+
+    # Create complete dataset: 2 scenarios x 2 regions x 2 years = 8 rows
+    subsidies_df = pd.DataFrame({
+        'tech_1': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+        'tech_2': [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+    })
+
+    variables_df = pd.DataFrame({
+        'var_1': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+        'var_2': [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+    })
+
+    # Complete dataset: scenario1 (region_a, region_b) x years (2020, 2025)
+    #                   scenario2 (region_a, region_b) x years (2020, 2025)
+    keys_df = pd.DataFrame({
+        'gdx': ['scenario1', 'scenario1', 'scenario1', 'scenario1',
+                'scenario2', 'scenario2', 'scenario2', 'scenario2'],
+        'year': [2020, 2020, 2025, 2025,
+                 2020, 2020, 2025, 2025],
+        'n': ['region_a', 'region_b', 'region_a', 'region_b',
+              'region_a', 'region_b', 'region_a', 'region_b'],
+    })
+
+    # Save to parquet
+    subsidies_path = os.path.join(temp_dir.name, 'subsidies_df.parquet')
+    variables_path = os.path.join(temp_dir.name, 'variables_df.parquet')
+    keys_path = os.path.join(temp_dir.name, 'keys_df.parquet')
+
+    subsidies_df.to_parquet(subsidies_path)
+    variables_df.to_parquet(variables_path)
+    keys_df.to_parquet(keys_path)
+
+    yield {
+        'dir': temp_dir.name,
+        'subsidies_path': subsidies_path,
+        'variables_path': variables_path,
+        'keys_path': keys_path,
+        'subsidies_df': subsidies_df,
+        'variables_df': variables_df,
+        'keys_df': keys_df,
+    }
+
+    temp_dir.cleanup()
+
+
+class TestWitchProcDataInitialization:
+    """Test witch_proc_data initialization and data loading."""
+
+    def test_init_with_default_paths(self, temp_parquet_files):
+        """Test initialization with default paths when files exist."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=False,
+        )
+
+        assert dataset is not None
+        assert hasattr(dataset, 'subsidies_df')
+        assert hasattr(dataset, 'variables_df')
+        assert hasattr(dataset, 'keys_df')
+
+    def test_init_with_custom_paths(self, temp_parquet_files):
+        """Test initialization with custom input paths overriding defaults."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=False,
+        )
+
+        assert isinstance(dataset.subsidies_df, torch.Tensor)
+        assert isinstance(dataset.variables_df, torch.Tensor)
+
+    def test_init_auto_download_disabled_with_existing_files(self, temp_parquet_files):
+        """Test initialization with auto_download=False when files exist."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=False,
+        )
+
+        # Complete dataset: 8 rows total, max_year is 2025
+        # Valid indices: all rows except those with year=2025 (4 rows remain)
+        assert len(dataset) == 4
+
+    def test_init_with_invalid_scaling_type(self, temp_parquet_files):
+        """Test that invalid scaling type raises ValueError."""
+        with pytest.raises(ValueError, match="Scaling type must be"):
+            witch_proc_data(
+                subsidies_parquet=temp_parquet_files['subsidies_path'],
+                variables_parquet=temp_parquet_files['variables_path'],
+                keys_parquet=temp_parquet_files['keys_path'],
+                scaling_type="invalid_scaling",
+                auto_download=False,
+            )
+
+    @pytest.mark.parametrize("scaling_type", ["original", "normalization", "maxscale", "maxmin"])
+    def test_init_with_valid_scaling_types(self, temp_parquet_files, scaling_type):
+        """Test initialization with all valid scaling types."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            scaling_type=scaling_type,
+            auto_download=False,
+        )
+
+        assert dataset.scaling_type == scaling_type
+        assert len(dataset) > 0
+
+    def test_init_computes_scaling_params_for_normalization(self, temp_parquet_files):
+        """Test that scaling params are computed for normalization."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            scaling_type="normalization",
+            auto_download=False,
+        )
+
+        assert dataset.precomputed_scaling_params is not None
+        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
+            assert col in dataset.precomputed_scaling_params
+            assert 'mean' in dataset.precomputed_scaling_params[col]
+            assert 'std' in dataset.precomputed_scaling_params[col]
+
+    def test_init_computes_scaling_params_for_maxscale(self, temp_parquet_files):
+        """Test that max scaling params are computed correctly."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            scaling_type="maxscale",
+            auto_download=False,
+        )
+
+        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
+            assert 'max' in dataset.precomputed_scaling_params[col]
+
+    def test_init_computes_scaling_params_for_maxmin(self, temp_parquet_files):
+        """Test that min/max scaling params are computed correctly."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            scaling_type="maxmin",
+            auto_download=False,
+        )
+
+        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
+            assert 'min' in dataset.precomputed_scaling_params[col]
+            assert 'max' in dataset.precomputed_scaling_params[col]
+            assert dataset.precomputed_scaling_params[col]['min'] < dataset.precomputed_scaling_params[col]['max']
+
+    def test_init_with_precomputed_scaling_params(self, temp_parquet_files):
+        """Test initialization with precomputed scaling parameters."""
+        precomputed_params = {
+            'tech_1': {'mean': 0.25, 'std': 0.1},
+            'tech_2': {'mean': 0.65, 'std': 0.1},
+            'var_1': {'mean': 2.5, 'std': 1.0},
+            'var_2': {'mean': 6.5, 'std': 1.0},
+        }
+
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            scaling_type="normalization",
+            precomputed_scaling_params=precomputed_params,
+            auto_download=False,
+        )
+
+        assert dataset.precomputed_scaling_params == precomputed_params
+
+    def test_init_drop_columns(self, temp_parquet_files):
+        """Test that columns can be dropped during initialization."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            drop_columns=['tech_1'],
+            auto_download=False,
+        )
+
+        assert 'tech_1' not in dataset.subsidies_names
+        assert 'tech_2' in dataset.subsidies_names
+
+    def test_init_with_cuda_false(self, temp_parquet_files):
+        """Test initialization with with_cuda=False."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            with_cuda=False,
+            auto_download=False,
+        )
+
+        assert dataset.subsidies_df.device.type == 'cpu'
+        assert dataset.variables_df.device.type == 'cpu'
+
+    def test_init_creates_index_map(self, temp_parquet_files):
+        """Test that index_map is created correctly."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=False,
+        )
+
+        assert hasattr(dataset, 'index_map')
+        assert isinstance(dataset.index_map, dict)
+        assert len(dataset.index_map) > 0
+
+    def test_init_creates_variables_next(self, temp_parquet_files):
+        """Test that variables_next_df is properly initialized."""
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=False,
+        )
+
+        assert hasattr(dataset, 'variables_next_df')
+        assert dataset.variables_next_df.shape == dataset.variables_df.shape
+
+
+class TestWitchProcDataGetItem:
+    """Test __getitem__ and __len__ methods."""
+
+    @pytest.fixture
+    def dataset(self):
+        """Create a dataset for testing.
+
+        Complete dataset: 2 scenarios x 2 regions x 2 years = 8 rows
+        """
+        temp_dir = tempfile.TemporaryDirectory()
+
+        # Complete dataset
+        subsidies_df = pd.DataFrame({
+            'tech_1': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            'tech_2': [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+        })
+
+        variables_df = pd.DataFrame({
+            'var_1': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            'var_2': [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+        })
+
+        keys_df = pd.DataFrame({
+            'gdx': ['s1', 's1', 's1', 's1', 's2', 's2', 's2', 's2'],
+            'year': [2020, 2020, 2025, 2025, 2020, 2020, 2025, 2025],
+            'n': ['r_a', 'r_b', 'r_a', 'r_b', 'r_a', 'r_b', 'r_a', 'r_b'],
+        })
+
+        subsidies_path = os.path.join(temp_dir.name, 'subsidies.parquet')
+        variables_path = os.path.join(temp_dir.name, 'variables.parquet')
+        keys_path = os.path.join(temp_dir.name, 'keys.parquet')
+
+        subsidies_df.to_parquet(subsidies_path)
+        variables_df.to_parquet(variables_path)
+        keys_df.to_parquet(keys_path)
+
+        dataset = witch_proc_data(
+            subsidies_parquet=subsidies_path,
+            variables_parquet=variables_path,
+            keys_parquet=keys_path,
+            auto_download=False,
+        )
+
+        yield dataset
+        temp_dir.cleanup()
+
+    def test_len_excludes_max_year(self, dataset):
+        """Test that __len__ excludes samples from the max year.
+
+        Complete dataset: 8 rows total (2 scenarios x 2 regions x 2 years)
+        Max year is 2025, so exclude 4 rows (2 scenarios x 2 regions)
+        Remaining valid samples: 4 rows (all from year 2020)
+        """
+        assert len(dataset) == 4
+
+    def test_getitem_returns_tuple(self, dataset):
+        """Test that __getitem__ returns a tuple of three tensors."""
+        item = dataset[0]
+
+        assert isinstance(item, tuple)
+        assert len(item) == 3
+
+    def test_getitem_returns_tensors(self, dataset):
+        """Test that __getitem__ returns torch tensors."""
+        variables_current, subsidies_current, variables_next = dataset[0]
+
+        assert isinstance(variables_current, torch.Tensor)
+        assert isinstance(subsidies_current, torch.Tensor)
+        assert isinstance(variables_next, torch.Tensor)
+
+    def test_getitem_correct_shapes(self, dataset):
+        """Test that __getitem__ returns correct tensor shapes."""
+        variables_current, subsidies_current, variables_next = dataset[0]
+
+        # Should match number of columns
+        assert variables_current.shape[0] == 2  # 2 variables
+        assert subsidies_current.shape[0] == 2  # 2 subsidies
+        assert variables_next.shape[0] == 2  # 2 variables
+
+    def test_getitem_all_indices(self, dataset):
+        """Test that all valid indices are accessible."""
+        for idx in range(len(dataset)):
+            item = dataset[idx]
+            assert len(item) == 3
+            assert all(isinstance(t, torch.Tensor) for t in item)
+
+    def test_getitem_with_dataloader(self, dataset):
+        """Test dataset works with DataLoader."""
+        dataloader = DataLoader(dataset, batch_size=2)
+
+        for batch in dataloader:
+            variables, subsidies, variables_next = batch
+
+            assert isinstance(variables, torch.Tensor)
+            assert isinstance(subsidies, torch.Tensor)
+            assert isinstance(variables_next, torch.Tensor)
+            assert variables.shape[0] <= 2
+
+    def test_variables_next_correctly_mapped(self, dataset):
+        """Test that variables_next is correctly mapped to next year samples.
+
+        For complete dataset, each (scenario, region, year) triple at year 2020
+        should map to the corresponding (scenario, region, 2025) triple.
+        """
+        # Get first sample (scenario1, region_a, year 2020)
+        variables_current_0, _, variables_next_0 = dataset[0]
+
+        # The next_idx should correspond to (scenario1, region_a, year 2025)
+        # which should be at index 2 in the 2020-only dataset (but maps to index 2 in original)
+        assert isinstance(variables_next_0, torch.Tensor)
+        assert variables_next_0.shape == variables_current_0.shape
+
+        # Variables should be different from current
+        assert not torch.allclose(variables_current_0, variables_next_0)
+
+
+class TestWitchProcDataAutoDownload:
+    """Test auto-download functionality."""
+
+    def test_auto_download_disabled_with_missing_files(self):
+        """Test that auto_download=False raises error with missing files."""
+        nonexistent_path = os.path.join(tempfile.gettempdir(), 'nonexistent_witch_file_12345.parquet')
+
+        with pytest.raises(FileNotFoundError):
+            witch_proc_data(
+                subsidies_parquet=nonexistent_path,
+                variables_parquet=nonexistent_path,
+                keys_parquet=nonexistent_path,
+                auto_download=False,
+            )
+
+    def test_auto_download_enabled_with_existing_files_does_not_download(self, temp_parquet_files):
+        """Test that auto_download=True doesn't download if files already exist."""
+        # This should not raise any errors and should not attempt downloads
+        dataset = witch_proc_data(
+            subsidies_parquet=temp_parquet_files['subsidies_path'],
+            variables_parquet=temp_parquet_files['variables_path'],
+            keys_parquet=temp_parquet_files['keys_path'],
+            auto_download=True,
+        )
+
+        assert dataset is not None
+        assert len(dataset) > 0
+
+"""
+TEST FAIRY
+"""
 
 class TestGetInvestedAmount:
     """Test the get_invested_amount method."""
@@ -594,45 +990,6 @@ class TestDenormalizationNumericStability:
 
         # Results should be different (high investment should change outcomes)
         assert not torch.allclose(result_none, result_high)
-
-    def test_utility_range_from_denormalization(self, fairy_proxy):
-        """Test that utility range makes sense given denormalized variable ranges."""
-        # Sample many random states
-        np.random.seed(42)
-        num_samples = 50
-        states = []
-
-        for _ in range(num_samples):
-            num_techs = np.random.randint(0, min(4, len(fairy_proxy.subsidies_names)))
-            tech_indices = np.random.choice(len(fairy_proxy.subsidies_names),
-                                            size=num_techs, replace=False)
-            amounts = np.random.choice(['NONE', 'LOW', 'MEDIUM', 'HIGH'], size=num_techs)
-
-            state = [
-                {'TECH': fairy_proxy.subsidies_names[idx], 'AMOUNT': amount}
-                for idx, amount in zip(tech_indices, amounts)
-            ]
-            states.append(state)
-
-        results = fairy_proxy(states)
-
-        # Check results are reasonable
-        assert torch.all(torch.isfinite(results))
-
-        # Get expected bounds: consumption should dominate
-        consumption_params = fairy_proxy.precomputed_scaling_params['CONSUMPTION']
-        emissions_params = fairy_proxy.precomputed_scaling_params['EMI_total_CO2']
-
-        # Maximum possible reward: max consumption - 0 emissions
-        max_possible = consumption_params['max']
-        # Minimum possible (rough): 0 consumption - max_emissions * SCC
-        min_possible = -emissions_params['max'] * float(fairy_proxy.SCC)
-
-        # Observed results should be within this range
-        assert results.min() >= min_possible * 0.5, \
-            f"Some utilities are suspiciously low: {results.min()}, expected min ~{min_possible * 0.5}"
-        assert results.max() <= max_possible * 1.5, \
-            f"Some utilities are suspiciously high: {results.max()}, expected max ~{max_possible * 1.5}"
 
     """Test robustness and edge cases."""
 

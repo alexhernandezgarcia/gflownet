@@ -160,7 +160,7 @@ def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
             variables_parquet="gflownet/proxy/iam/scenario_data/variables_df.parquet",
             keys_parquet="gflownet/proxy/iam/scenario_data/keys_df.parquet",
             scaling_type=scaling_type,
-            with_cuda=True,
+            with_cuda=False,
             drop_columns=[
                 "COST_enduse_BIOMASS",
                 "COST_enduse_COAL",

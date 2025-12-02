@@ -1,9 +1,72 @@
 from copy import deepcopy as cdc
-
+import os
+import gdown
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+DATA_CONFIG = {
+    "subsidies_df": {
+        "gdrive_id": "1d_xJc1xaG3fYkwXa5rzGTdfpLwIgjAfd",
+        "local_path": "scenario_data/subsidies_df.parquet",
+    },
+    "variables_df": {
+        "gdrive_id": "1mvFLaJ6ig89jQaiPqgV4mnVZg1CxOatR",
+        "local_path": "scenario_data/variables_df.parquet",
+    },
+    "keys_df": {
+        "gdrive_id": "1ADcM9cIek1fIoNO4ceOgWgzCDFPPKMWC",
+        "local_path": "scenario_data/keys_df.parquet",
+    },
+}
+
+
+def download_file_from_gdrive(file_id, output_path, filename):
+    """
+    Download a file from Google Drive using gdown.
+
+    Args:
+        file_id: Google Drive file ID
+        output_path: Directory to save the file
+        filename: Name of the file
+    """
+    os.makedirs(output_path, exist_ok=True)
+    file_full_path = os.path.join(output_path, filename)
+
+    print(f"Downloading {filename}...")
+    try:
+        gdown.download(
+            f"https://drive.google.com/uc?id={file_id}",
+            file_full_path,
+            quiet=False
+        )
+        print(f"✓ Successfully downloaded {filename}")
+        return file_full_path
+    except Exception as e:
+        print(f"✗ Failed to download {filename}: {e}")
+        raise
+
+
+def ensure_data_files_exist(data_config):
+    """
+    Check if data files exist locally. If not, download from Google Drive.
+
+    Args:
+        data_config: Dictionary with file metadata
+    """
+    for file_key, config in data_config.items():
+        local_path = config["local_path"]
+
+        if not os.path.exists(local_path):
+            print(f"{local_path} not found. Attempting to download...")
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            download_file_from_gdrive(
+                config["gdrive_id"],
+                os.path.dirname(local_path),
+                os.path.basename(local_path)
+            )
+        else:
+            print(f"✓ {local_path} found locally")
 
 class witch_proc_data(Dataset):
     def __init__(
@@ -15,7 +78,18 @@ class witch_proc_data(Dataset):
         scaling_type="original",
         precomputed_scaling_params=None,
         drop_columns=None,
+        auto_download=True,
+        data_config=None,
     ):
+        # Use provided data_config or fall back to default
+        if data_config is None:
+            data_config = DATA_CONFIG.copy()
+
+        # Override default paths with provided input paths
+        data_config["subsidies_df"]["local_path"] = subsidies_parquet
+        data_config["variables_df"]["local_path"] = variables_parquet
+        data_config["keys_df"]["local_path"] = keys_parquet
+
         self.subsidies_parquet = subsidies_parquet
         self.variables_parquet = variables_parquet
         self.keys_parquet = keys_parquet
