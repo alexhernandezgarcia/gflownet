@@ -158,7 +158,7 @@ def generate_dataset(
 
 
 if __name__ == "__main__":
-    n_samples = 10000
+    n_samples = 1000
     output_path = "data/iam/test_set_v0"
 
     # Set seed for reproducibility
