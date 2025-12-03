@@ -9,9 +9,9 @@ defaults:
 
 # Buffer
 buffer:
-  test:
-    type: pkl
-    path: data/iam/test_set_v0.pkl
+  test: null
+#    type: pkl
+#    path: data/iam/test_set_v0.pkl
 
 # GFlowNet hyperparameters
 gflownet:
