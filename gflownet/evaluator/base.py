@@ -570,7 +570,7 @@ class BaseEvaluator(AbstractEvaluator):
             values are the figures.
         """
 
-        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = None
+        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = fig_logprobs_logrews = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
             (
