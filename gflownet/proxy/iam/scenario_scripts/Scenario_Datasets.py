@@ -90,6 +90,9 @@ class witch_proc_data(Dataset):
         data_config["variables_df"]["local_path"] = variables_parquet
         data_config["keys_df"]["local_path"] = keys_parquet
 
+        if auto_download:
+            ensure_data_files_exist(data_config)
+
         self.subsidies_parquet = subsidies_parquet
         self.variables_parquet = variables_parquet
         self.keys_parquet = keys_parquet
