@@ -47,8 +47,8 @@ logger:
 
 # Evaluator
 evaluator:
-  first_it: True
-  period: 25
+  first_it: False
+  period: 500
   n: 100
   checkpoints_period: 1000
 
