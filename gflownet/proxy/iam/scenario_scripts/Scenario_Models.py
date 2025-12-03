@@ -196,7 +196,7 @@ def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
         dropouts=dropouts,
         probabilistic=False,
         scaling=scaling_type,
-    ).cuda()
+    )
 
     fairy.load_state_dict(torch.load(model_filename))
 
