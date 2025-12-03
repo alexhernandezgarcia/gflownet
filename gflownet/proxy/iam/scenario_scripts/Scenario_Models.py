@@ -198,6 +198,6 @@ def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
         scaling=scaling_type,
     )
 
-    fairy.load_state_dict(torch.load(model_filename))
+    fairy.load_state_dict(torch.load(model_filename, map_location="cpu"))
 
     return fairy, scen_data

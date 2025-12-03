@@ -563,6 +563,9 @@ class InvestmentDiscrete(GFlowNetEnv):
         return mask
 
     def _get_mask_invalid_actions_forward_unconstrained(self, state, assigned, mask):
+        """
+        ADD DOCUMENTATION
+        """
         if "SECTOR" not in assigned:
             if "TAG" in assigned:
                 allowed_sectors = self.network_structure["tag2sector"][
