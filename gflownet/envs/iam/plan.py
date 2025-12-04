@@ -11,8 +11,8 @@ not been set yet.
 import copy
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-import torch
 import numpy as np
+import torch
 from torchtyping import TensorType
 
 from gflownet.envs.iam.investment import TECHS, InvestmentDiscrete
@@ -70,44 +70,6 @@ class Plan(Stack):
         self.n_tags_choices = copy.deepcopy(subenvs[0].n_tags + 1)
         self.n_techs_choices = self.n_techs + 1
         self.n_amounts_choices = copy.deepcopy(subenvs[0].n_amounts + 1)
-
-        self.n_partial_state_encoding = (
-            self.n_sector_choices
-            + self.n_tags_choices
-            + self.n_techs_choices
-            + self.n_amounts_choices
-        )
-
-        self.width_one_hot = self.n_partial_state_encoding * self.n_techs
-
-        self.base_row_one_hot = torch.zeros(self.width_one_hot)
-        # initialize for source state
-        self.base_row_one_hot[
-            [x * self.n_partial_state_encoding for x in range(self.n_techs)]
-        ] = 1
-        self.base_row_one_hot[
-            [
-                x * self.n_partial_state_encoding + self.n_sector_choices
-                for x in range(self.n_techs)
-            ]
-        ] = 1
-        self.base_row_one_hot[
-            [
-                x * self.n_partial_state_encoding
-                + self.n_sector_choices
-                + self.n_tags_choices
-                for x in range(self.n_techs)
-            ]
-        ] = 1
-        self.base_row_one_hot[
-            [
-                x * self.n_partial_state_encoding
-                + self.n_sector_choices
-                + self.n_tags_choices
-                + self.n_techs_choices
-                for x in range(self.n_techs)
-            ]
-        ] = 1
 
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
@@ -191,17 +153,13 @@ class Plan(Stack):
         The same list of lists, but with only the dictionaries, processing is performed in the proxy model
         """
         processed_states = [
-            [
-                self.decode_investment_for_proxy(x)
-                for x in single_plan
-                if isinstance(x, dict)
-            ]
+            [self.decode_investment_for_proxy(x) for x in single_plan[1:]]
             for single_plan in states
         ]
         return processed_states
 
     def decode_investment_for_proxy(self, state: Dict) -> Dict:
-        to_pass = copy.deepcopy(state)
+        to_pass = state.copy()
         to_pass["TECH"] = "SUBS_" + self.idx2token_techs[state["TECH"]]
         to_pass["AMOUNT"] = self.idx2token_amounts[state["AMOUNT"]]
         return to_pass
@@ -218,7 +176,7 @@ class Plan(Stack):
         state_to_list = [list(inv.values()) for inv in current_state[1:]]
         filled = np.array(state_to_list)
         if not with_amounts:
-            filled = filled[:,0:2]
+            filled = filled[:, 0:2]
 
         if fill_in_from_tech:
             for idx in range(self.n_techs):
@@ -257,9 +215,14 @@ class Plan(Stack):
         A tensor containing all the states in the batch.
         """
 
-        batch_one_hot = [self._one_hot_plan_matrix(self._states2array(
-                current_state=s_, fill_in_from_tech=False, with_amounts=True
-            )) for s_ in states]
+        batch_one_hot = [
+            self._one_hot_plan_matrix(
+                self._states2array(
+                    current_state=s_, fill_in_from_tech=False, with_amounts=True
+                )
+            )
+            for s_ in states
+        ]
 
         batch_one_hot = np.array(batch_one_hot)
         batch_one_hot = torch.tensor(batch_one_hot).float().to(self.device)
@@ -273,7 +236,12 @@ class Plan(Stack):
         state_matrix = state_matrix[np.lexsort(state_matrix[:, ::-1].T)]
 
         output = []
-        depths = [self.n_sector_choices, self.n_tags_choices, self.n_techs_choices, self.n_amounts_choices]
+        depths = [
+            self.n_sector_choices,
+            self.n_tags_choices,
+            self.n_techs_choices,
+            self.n_amounts_choices,
+        ]
         for j in range(4):
             col = state_matrix[:, j]
             depth = depths[j]
