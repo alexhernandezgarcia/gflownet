@@ -1,4 +1,3 @@
-from copy import deepcopy
 from importlib.metadata import PackageNotFoundError, version
 from typing import Dict, Iterable, List, Set, Tuple
 
@@ -85,7 +84,7 @@ class FAIRY(Proxy):
                     self.key_year = 2010 + 5 * self.key_year
 
             if key_region is None:
-                self.key_region = "europe"#data.keys_df.iloc[0, 1]
+                self.key_region = "europe"  # data.keys_df.iloc[0, 1]
             else:
                 assert key_region in [
                     "europe",
@@ -127,7 +126,9 @@ class FAIRY(Proxy):
                     + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
                 )
             else:
-                self.SCC = torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
+                self.SCC = (
+                    torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
+                )
 
             self.SCC = self.SCC.to(self.device)
             self.SCC = torch.clamp(self.SCC, 1e-3, 1)
@@ -152,6 +153,18 @@ class FAIRY(Proxy):
 
             # Set model to eval mode (required for BatchNorm with batch_size=1)
             self.fairy.eval()
+
+            # precompute amounts for call
+            self.tech2idx = {name: i for i, name in enumerate(self.subsidies_names)}
+            self.var_CONS = self.variables_names.index("CONSUMPTION")
+            self.var_EMI = self.variables_names.index("EMI_total_CO2")
+
+            self.amount_map = {
+                "NONE": 0.0,
+                "LOW": 0.1,
+                "MEDIUM": 0.3,
+                "HIGH": 0.75,
+            }
 
         except PackageNotFoundError:
             print("  💥 `fairy` cannot be initialized.")
@@ -181,7 +194,7 @@ class FAIRY(Proxy):
         return self
 
     @torch.no_grad()
-    def __call__(self, states: List[List[Dict]]) -> TensorType["batch"]:
+    def __call__(self, states: List[List[Dict]]) -> TensorType:
         """
         Forward pass of the proxy.
 
@@ -203,11 +216,11 @@ class FAIRY(Proxy):
         torch.Tensor
             Proxy energies
         """
-
-        contexts = self.context.repeat(len(states), 1)
+        batch_size = len(states)
+        contexts = self.context.repeat(batch_size, 1)
 
         plan = torch.zeros(
-            len(states),
+            batch_size,
             self.fairy.subsidies_dim,
             dtype=torch.float32,
             device=self.device,
@@ -215,49 +228,26 @@ class FAIRY(Proxy):
 
         for i, s in enumerate(states):
             for inv in s:
-                amount = self.get_invested_amount(inv["AMOUNT"])
-                tech = self.subsidies_names.index(inv["TECH"])
-                plan[i, tech] = amount
+                plan[i, self.tech2idx[inv["TECH"]]] = self.amount_map[inv["AMOUNT"]]
 
         developments = self.fairy(contexts, plan)
 
-        y = developments[
-            :, self.variables_names.index("CONSUMPTION")
-        ]  # CONSUMPTION, or GDP, or something else
-        y = (
-            y
-            * (
-                self.precomputed_scaling_params["CONSUMPTION"]["max"]
-                - self.precomputed_scaling_params["CONSUMPTION"]["min"]
-            )
-            + self.precomputed_scaling_params["CONSUMPTION"]["min"]
-        )
+        # variable indices
+        c_idx = self.var_CONS
+        #e_idx = self.var_EMI
+
+        # scaling params
+        cons_min = self.precomputed_scaling_params["CONSUMPTION"]["min"]
+        cons_max = self.precomputed_scaling_params["CONSUMPTION"]["max"]
+        #emi_min = self.precomputed_scaling_params["EMI_total_CO2"]["min"]
+        #emi_max = self.precomputed_scaling_params["EMI_total_CO2"]["max"]
+
+        y = developments[:, c_idx]  # CONSUMPTION, or GDP, or something else
+        y = y * (cons_max - cons_min) + cons_min
 
         # Apply budget constraint: zero out consumption where emissions exceed budget
-        emissions = developments[:, self.variables_names.index("EMI_total_CO2")]
-        emissions = (
-            emissions
-            * (
-                self.precomputed_scaling_params["EMI_total_CO2"]["max"]
-                - self.precomputed_scaling_params["EMI_total_CO2"]["min"]
-            )
-            + self.precomputed_scaling_params["EMI_total_CO2"]["min"]
-        )
-        y = y - self.SCC * emissions
-        #y = torch.clamp(y, min = 0)
+        #emissions = developments[:, e_idx]
+        #emissions = emissions * (emi_max - emi_min) + emi_min
+        #y = y - self.SCC * emissions
 
         return y
-
-    def get_invested_amount(self, amount: str) -> float:
-        # todo - update based on scaling parameters
-        if amount == "NONE":
-            return 0.0
-        if amount == "LOW":
-            return 0.1
-        if amount == "MEDIUM":
-            return 0.3
-        if amount == "HIGH":
-            return 0.75
-        else:
-            print("Invalid amount `{}`".format(amount))
-            raise ValueError("Invalid amount")
