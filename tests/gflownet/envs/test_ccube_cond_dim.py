@@ -114,3 +114,36 @@ def test__env_with_fixed_condition_sets_ignored_dims_correctly(env_tr2_max3_cond
     env.reset()
     state_next, action, valid = env.step_random()
     assert sum(env.cube.ignored_dims) == (env.cube.n_dim - 2)
+
+
+@pytest.mark.repeat(5)
+@pytest.mark.parametrize(
+    "env",
+    [
+        "cube_cond_dim",
+        "env_tr2_max2",
+        "env_tr2_max3_cond2",
+    ],
+)
+def test__multiple_random_steps__do_not_crash_from_source(env, request):
+    env = request.getfixturevalue(env)
+    env.reset()
+    while not env.done:
+        state_next, action, valid = env.step_random()
+    assert env.done
+
+
+@pytest.mark.repeat(5)
+@pytest.mark.parametrize(
+    "env",
+    [
+        "cube_cond_dim",
+        "env_tr2_max2",
+        "env_tr2_max3_cond2",
+    ],
+)
+def test__trajectory_random__reaches_done(env, request):
+    env = request.getfixturevalue(env)
+    env.reset()
+    state, actions = env.trajectory_random()
+    assert env.done
