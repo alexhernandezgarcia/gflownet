@@ -1,8 +1,10 @@
 """
 Base class for dummy environments: identical to the Constant environment, except that
-the state is ignored to check whether the environment is at the source. This means that
-the state might be different to the state passed at initialization, which may be useful
-in certain scenarios, such as conditional environments.
+the state might be changed without breaking the expected functioning of the
+environment. To account for this, the source state is updated if the state changes, and
+its value is not considered to check whether a state is the source. This means that the
+state might be different to the state passed at initialization, which may be useful in
+certain scenarios, such as conditional environments.
 """
 
 from typing import Any, List, Optional, Tuple
@@ -11,6 +13,7 @@ import numpy.typing as npt
 from torchtyping import TensorType
 
 from gflownet.envs.constant import Constant
+from gflownet.utils.common import copy
 
 
 class Dummy(Constant):
@@ -37,7 +40,6 @@ class Dummy(Constant):
             state = [0]
         super().__init__(state, **kwargs)
 
-    # TODO: consider replacing this by overriding set_state (which would change source)
     def is_source(self, state: Any = None) -> bool:
         """
         Returns True if the environment's state or the state passed as parameter (if
@@ -57,3 +59,12 @@ class Dummy(Constant):
             Whether the environment is done (False) or not (True).
         """
         return not self.done
+
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done of an environment.
+
+        This method is overriden to update the source state whenever the state is set.
+        """
+        self.source = copy(state)
+        return super().set_state(state, done)
