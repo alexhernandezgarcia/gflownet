@@ -388,8 +388,15 @@ def test__source_is_expected(env, source, request):
                 # fmt: off
                 0,
                 [-1, -1],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             True,
         ),
@@ -399,8 +406,15 @@ def test__source_is_expected(env, source, request):
                 # fmt: off
                 1,
                 [-1, -1],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             False,
         ),
@@ -410,8 +424,15 @@ def test__source_is_expected(env, source, request):
                 # fmt: off
                 0,
                 [0.0, 0.0],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             False,
         ),
@@ -552,8 +573,15 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 # fmt: off
                 0,
                 [-1, -1],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             [False, False],
         ),
@@ -563,8 +591,15 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 # fmt: off
                 0,
                 [0.3, 0.7],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             [False, False],
         ),
@@ -574,8 +609,15 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 # fmt: off
                 1,
                 [0.3, 0.7],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             [True, False],
         ),
@@ -585,8 +627,15 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 # fmt: off
                 1,
                 [0.3, 0.7],
-                [[0, 0, [0, 0], [0, 0]], {0: [1, 0], 1: [0, 0]}],
                 # fmt: on
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 0],
+                    1: [0, 0],
+                },
             ],
             [True, False],
         ),
@@ -596,8 +645,15 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 # fmt: off
                 1,
                 [0.3, 0.7],
-                [[-1, 0, [1, 1], [0, 0]], {0: [1, 2], 1: [1, 1]}],
                 # fmt: on
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [1, 1],
+                },
             ],
             [True, True],
         ),
@@ -606,15 +662,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 0,
                 [-1, -1],
-                [
-                    # fmt: off
-                    [-1, 0, [0, 0], [0, 1]],
-                    {
-                        0: [0, [-1.0, -1.0], [0, 0]],
-                        1: [0, [0, 0], [-1.0, -1.0]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 1],
+                    0: [0, [-1.0, -1.0], [0, 0]],
+                    1: [0, [0, 0], [-1.0, -1.0]],
+                },
             ],
             [False, False],
         ),
@@ -623,15 +678,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 0,
                 [0.3, 0.7],
-                [
-                    # fmt: off
-                    [-1, 0, [0, 0], [0, 1]],
-                    {
-                        0: [0, [-1.0, -1.0], [0, 0]],
-                        1: [0, [0, 0], [-1.0, -1.0]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 1],
+                    0: [0, [-1.0, -1.0], [0, 0]],
+                    1: [0, [0, 0], [-1.0, -1.0]],
+                },
             ],
             [False, False],
         ),
@@ -640,15 +694,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 1,
                 [0.3, 0.7],
-                [
-                    # fmt: off
-                    [-1, 0, [0, 0], [0, 1]],
-                    {
-                        0: [0, [-1.0, -1.0], [0, 0]],
-                        1: [0, [0, 0], [-1.0, -1.0]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 1],
+                    0: [0, [-1.0, -1.0], [0, 0]],
+                    1: [0, [0, 0], [-1.0, -1.0]],
+                },
             ],
             [True, False],
         ),
@@ -657,15 +710,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 1,
                 [0.3, 0.7],
-                [
-                    # fmt: off
-                    [0, 0, [0, 0], [0, 1]],
-                    {
-                        0: [0, [0.1, 0.2], [0, 0]],
-                        1: [0, [0, 0], [-1.0, -1.0]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 1],
+                    0: [0, [0.1, 0.2], [0, 0]],
+                    1: [0, [0, 0], [-1.0, -1.0]],
+                },
             ],
             [True, False],
         ),
@@ -674,15 +726,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 1,
                 [0.3, 0.7],
-                [
-                    # fmt: off
-                    [-1, 0, [1, 0], [0, 1]],
-                    {
-                        0: [1, [0.1, 0.2], [2, 1]],
-                        1: [0, [0, 0], [-1.0, -1.0]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 1],
+                    0: [1, [0.1, 0.2], [2, 1]],
+                    1: [0, [0, 0], [-1.0, -1.0]],
+                },
             ],
             [True, False],
         ),
@@ -691,15 +742,14 @@ def test__is_source__returns_expected(env, state, is_source, request):
             [
                 1,
                 [0.3, 0.7],
-                [
-                    # fmt: off
-                    [-1, 0, [1, 1], [0, 1]],
-                    {
-                        0: [1, [0.1, 0.2], [2, 1]],
-                        1: [0, [1, 2], [0.3, 0.8]]
-                    },
-                    # fmt: on
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 1],
+                    0: [1, [0.1, 0.2], [2, 1]],
+                    1: [0, [1, 2], [0.3, 0.8]],
+                },
             ],
             [True, True],
         ),
