@@ -686,6 +686,22 @@ def copy(x: Union[List, TensorType["..."]]):
         return deepcopy(x)
 
 
+def mixsorteditems(x: dict):
+    """
+    Returns a sorted version of ``x.items()`` even if the keys are of mixed types.
+
+    Parameters
+    ----------
+    x : dict
+        An input dictionary.
+
+    Returns
+    -------
+    The dict_items object corresponding to ``x.items()`` after sorting.
+    """
+    return sorted(x.items(), key=lambda kv: (type(kv[0]).__name__, kv[0]))
+
+
 def bootstrap_samples(tensor, num_samples):
     """
     Bootstraps tensor along the last dimention

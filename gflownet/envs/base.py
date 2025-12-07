@@ -21,6 +21,7 @@ from torchtyping import TensorType
 
 from gflownet.utils.common import (
     copy,
+    mixsorteditems,
     set_device,
     set_float_precision,
     tbool,
@@ -1087,7 +1088,7 @@ class GFlowNetEnv:
                 [
                     key_x == key_y and GFlowNetEnv.equal(value_x, value_y)
                     for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
+                        mixsorteditems(state_x), mixsorteditems(state_y)
                     )
                 ]
             )
@@ -1130,7 +1131,7 @@ class GFlowNetEnv:
                 [
                     key_x == key_y and GFlowNetEnv.isclose(value_x, value_y)
                     for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
+                        mixsorteditems(state_x), mixsorteditems(state_y)
                     )
                 ]
             )
