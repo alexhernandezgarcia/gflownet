@@ -1,5 +1,5 @@
 """
-This is a meta-environment designed designed to serve as the base environment for
+This is a meta-environment designed to serve as the base environment for
 conditional environments.
 
 The Conditional environment is implemented as a Stack of a Dummy environment which
