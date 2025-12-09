@@ -28,7 +28,7 @@ class BaseCondition(Dummy):
 
     Attributes
     ----------
-    conditions_dataset : str
+    conditions_dataset : list, dict, tensor, array, dataframe
         A data set of conditions. If a path to a data set of conditions is not
         specified, then this attribute is set to None. This will be the case for
         continuous conditions, for example.
@@ -59,7 +59,6 @@ class BaseCondition(Dummy):
             self.conditions_dataset = conditions_dataset
         elif conditions_path is not None:
             self.conditions_dataset = load_conditions(conditions_path)
-            self.n_conditions = len(self.conditions_dataset)
         else:
             self.conditions_dataset = None
         # Set the condition as the state. If no condition has been passed as parameter,
