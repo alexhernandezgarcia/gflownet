@@ -4,8 +4,9 @@ import pickle
 from typing import List, Dict
 import sys
 import os
+
 # Get the absolute path of the project root
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, project_root)
 
 # Print to verify
@@ -46,7 +47,7 @@ def generate_random_plan(plan_env: Plan, seed: int = None) -> List:
     token2idx_amounts = {
         token: idx for idx, token in plan_env.idx2token_amounts.items()
     }
-    plan = [plan_env.n_techs-1]
+    plan = [plan_env.n_techs - 1]
 
     # Iterate through technologies in order
     for tech_idx in range(1, plan_env.n_techs + 1):
@@ -76,10 +77,10 @@ def generate_random_plan(plan_env: Plan, seed: int = None) -> List:
 
 
 def generate_dataset(
-        n_samples: int,
-        output_path_base: str = "random_plans",
-        device: str = "cpu",
-        seed: int = None,
+    n_samples: int,
+    output_path_base: str = "random_plans",
+    device: str = "cpu",
+    seed: int = None,
 ) -> Dict:
     """
     Generate a dataset of random investment plans and evaluate them with FAIRY proxy.
@@ -119,7 +120,9 @@ def generate_dataset(
             print(f"  Generated {i + 1}/{n_samples} plans...")
 
         # Generate random plan
-        plan = generate_random_plan(plan_env, seed=seed + i if seed is not None else None)
+        plan = generate_random_plan(
+            plan_env, seed=seed + i if seed is not None else None
+        )
         plans_list.append(plan)
 
         # Convert to readable format
@@ -134,14 +137,14 @@ def generate_dataset(
     # Create dictionary with samples and energies
     data_dict = {
         "samples": plans_list,
-        #"readable": readable_list,
-        #"energies": energies.tolist(),
+        # "readable": readable_list,
+        # "energies": energies.tolist(),
     }
 
     print(f"Saving dataset...")
     # Save as pickle dictionary
     pkl_path = f"{output_path_base}.pkl"
-    with open(pkl_path, 'wb') as f:
+    with open(pkl_path, "wb") as f:
         pickle.dump(data_dict, f)
     print(f"  Pickle file: {pkl_path}")
 
@@ -175,6 +178,6 @@ if __name__ == "__main__":
     # Display sample of results
     print("\nSample of generated dataset:")
     print(f"  Number of samples: {len(data['samples'])}")
-    if len(data['samples']) > 0:
+    if len(data["samples"]) > 0:
         print(f"  First sample readable:\n    {data['samples'][0][:150]}...")
 #        print(f"  First energy: {data['energies'][0]}")

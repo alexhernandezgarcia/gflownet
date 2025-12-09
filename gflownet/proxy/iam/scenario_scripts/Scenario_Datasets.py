@@ -36,9 +36,7 @@ def download_file_from_gdrive(file_id, output_path, filename):
     print(f"Downloading {filename}...")
     try:
         gdown.download(
-            f"https://drive.google.com/uc?id={file_id}",
-            file_full_path,
-            quiet=False
+            f"https://drive.google.com/uc?id={file_id}", file_full_path, quiet=False
         )
         print(f"✓ Successfully downloaded {filename}")
         return file_full_path
@@ -63,10 +61,11 @@ def ensure_data_files_exist(data_config):
             download_file_from_gdrive(
                 config["gdrive_id"],
                 os.path.dirname(local_path),
-                os.path.basename(local_path)
+                os.path.basename(local_path),
             )
         else:
             print(f"✓ {local_path} found locally")
+
 
 class witch_proc_data(Dataset):
     def __init__(

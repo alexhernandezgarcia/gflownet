@@ -29,44 +29,65 @@ def temp_parquet_files():
     temp_dir = tempfile.TemporaryDirectory()
 
     # Create complete dataset: 2 scenarios x 2 regions x 2 years = 8 rows
-    subsidies_df = pd.DataFrame({
-        'tech_1': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
-        'tech_2': [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
-    })
+    subsidies_df = pd.DataFrame(
+        {
+            "tech_1": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            "tech_2": [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+        }
+    )
 
-    variables_df = pd.DataFrame({
-        'var_1': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-        'var_2': [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
-    })
+    variables_df = pd.DataFrame(
+        {
+            "var_1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+            "var_2": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+        }
+    )
 
     # Complete dataset: scenario1 (region_a, region_b) x years (2020, 2025)
     #                   scenario2 (region_a, region_b) x years (2020, 2025)
-    keys_df = pd.DataFrame({
-        'gdx': ['scenario1', 'scenario1', 'scenario1', 'scenario1',
-                'scenario2', 'scenario2', 'scenario2', 'scenario2'],
-        'year': [2020, 2020, 2025, 2025,
-                 2020, 2020, 2025, 2025],
-        'n': ['region_a', 'region_b', 'region_a', 'region_b',
-              'region_a', 'region_b', 'region_a', 'region_b'],
-    })
+    keys_df = pd.DataFrame(
+        {
+            "gdx": [
+                "scenario1",
+                "scenario1",
+                "scenario1",
+                "scenario1",
+                "scenario2",
+                "scenario2",
+                "scenario2",
+                "scenario2",
+            ],
+            "year": [2020, 2020, 2025, 2025, 2020, 2020, 2025, 2025],
+            "n": [
+                "region_a",
+                "region_b",
+                "region_a",
+                "region_b",
+                "region_a",
+                "region_b",
+                "region_a",
+                "region_b",
+            ],
+        }
+    )
 
     # Save to parquet
-    subsidies_path = os.path.join(temp_dir.name, 'subsidies_df.parquet')
-    variables_path = os.path.join(temp_dir.name, 'variables_df.parquet')
-    keys_path = os.path.join(temp_dir.name, 'keys_df.parquet')
+    subsidies_path = os.path.join(temp_dir.name, "subsidies_df.parquet")
+    variables_path = os.path.join(temp_dir.name, "variables_df.parquet")
+    keys_path = os.path.join(temp_dir.name, "keys_df.parquet")
 
     subsidies_df.to_parquet(subsidies_path)
     variables_df.to_parquet(variables_path)
     keys_df.to_parquet(keys_path)
 
     yield {
-        'dir': temp_dir.name,
-        'subsidies_path': subsidies_path,
-        'variables_path': variables_path,
-        'keys_path': keys_path,
-        'subsidies_df': subsidies_df,
-        'variables_df': variables_df,
-        'keys_df': keys_df,
+        "dir": temp_dir.name,
+        "subsidies_path": subsidies_path,
+        "variables_path": variables_path,
+        "keys_path": keys_path,
+        "subsidies_df": subsidies_df,
+        "variables_df": variables_df,
+        "keys_df": keys_df,
     }
 
     temp_dir.cleanup()
@@ -78,23 +99,23 @@ class TestWitchProcDataInitialization:
     def test_init_with_default_paths(self, temp_parquet_files):
         """Test initialization with default paths when files exist."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=False,
         )
 
         assert dataset is not None
-        assert hasattr(dataset, 'subsidies_df')
-        assert hasattr(dataset, 'variables_df')
-        assert hasattr(dataset, 'keys_df')
+        assert hasattr(dataset, "subsidies_df")
+        assert hasattr(dataset, "variables_df")
+        assert hasattr(dataset, "keys_df")
 
     def test_init_with_custom_paths(self, temp_parquet_files):
         """Test initialization with custom input paths overriding defaults."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=False,
         )
 
@@ -104,9 +125,9 @@ class TestWitchProcDataInitialization:
     def test_init_auto_download_disabled_with_existing_files(self, temp_parquet_files):
         """Test initialization with auto_download=False when files exist."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=False,
         )
 
@@ -118,20 +139,22 @@ class TestWitchProcDataInitialization:
         """Test that invalid scaling type raises ValueError."""
         with pytest.raises(ValueError, match="Scaling type must be"):
             witch_proc_data(
-                subsidies_parquet=temp_parquet_files['subsidies_path'],
-                variables_parquet=temp_parquet_files['variables_path'],
-                keys_parquet=temp_parquet_files['keys_path'],
+                subsidies_parquet=temp_parquet_files["subsidies_path"],
+                variables_parquet=temp_parquet_files["variables_path"],
+                keys_parquet=temp_parquet_files["keys_path"],
                 scaling_type="invalid_scaling",
                 auto_download=False,
             )
 
-    @pytest.mark.parametrize("scaling_type", ["original", "normalization", "maxscale", "maxmin"])
+    @pytest.mark.parametrize(
+        "scaling_type", ["original", "normalization", "maxscale", "maxmin"]
+    )
     def test_init_with_valid_scaling_types(self, temp_parquet_files, scaling_type):
         """Test initialization with all valid scaling types."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             scaling_type=scaling_type,
             auto_download=False,
         )
@@ -142,60 +165,63 @@ class TestWitchProcDataInitialization:
     def test_init_computes_scaling_params_for_normalization(self, temp_parquet_files):
         """Test that scaling params are computed for normalization."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             scaling_type="normalization",
             auto_download=False,
         )
 
         assert dataset.precomputed_scaling_params is not None
-        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
+        for col in ["tech_1", "tech_2", "var_1", "var_2"]:
             assert col in dataset.precomputed_scaling_params
-            assert 'mean' in dataset.precomputed_scaling_params[col]
-            assert 'std' in dataset.precomputed_scaling_params[col]
+            assert "mean" in dataset.precomputed_scaling_params[col]
+            assert "std" in dataset.precomputed_scaling_params[col]
 
     def test_init_computes_scaling_params_for_maxscale(self, temp_parquet_files):
         """Test that max scaling params are computed correctly."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             scaling_type="maxscale",
             auto_download=False,
         )
 
-        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
-            assert 'max' in dataset.precomputed_scaling_params[col]
+        for col in ["tech_1", "tech_2", "var_1", "var_2"]:
+            assert "max" in dataset.precomputed_scaling_params[col]
 
     def test_init_computes_scaling_params_for_maxmin(self, temp_parquet_files):
         """Test that min/max scaling params are computed correctly."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             scaling_type="maxmin",
             auto_download=False,
         )
 
-        for col in ['tech_1', 'tech_2', 'var_1', 'var_2']:
-            assert 'min' in dataset.precomputed_scaling_params[col]
-            assert 'max' in dataset.precomputed_scaling_params[col]
-            assert dataset.precomputed_scaling_params[col]['min'] < dataset.precomputed_scaling_params[col]['max']
+        for col in ["tech_1", "tech_2", "var_1", "var_2"]:
+            assert "min" in dataset.precomputed_scaling_params[col]
+            assert "max" in dataset.precomputed_scaling_params[col]
+            assert (
+                dataset.precomputed_scaling_params[col]["min"]
+                < dataset.precomputed_scaling_params[col]["max"]
+            )
 
     def test_init_with_precomputed_scaling_params(self, temp_parquet_files):
         """Test initialization with precomputed scaling parameters."""
         precomputed_params = {
-            'tech_1': {'mean': 0.25, 'std': 0.1},
-            'tech_2': {'mean': 0.65, 'std': 0.1},
-            'var_1': {'mean': 2.5, 'std': 1.0},
-            'var_2': {'mean': 6.5, 'std': 1.0},
+            "tech_1": {"mean": 0.25, "std": 0.1},
+            "tech_2": {"mean": 0.65, "std": 0.1},
+            "var_1": {"mean": 2.5, "std": 1.0},
+            "var_2": {"mean": 6.5, "std": 1.0},
         }
 
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             scaling_type="normalization",
             precomputed_scaling_params=precomputed_params,
             auto_download=False,
@@ -206,52 +232,52 @@ class TestWitchProcDataInitialization:
     def test_init_drop_columns(self, temp_parquet_files):
         """Test that columns can be dropped during initialization."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
-            drop_columns=['tech_1'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
+            drop_columns=["tech_1"],
             auto_download=False,
         )
 
-        assert 'tech_1' not in dataset.subsidies_names
-        assert 'tech_2' in dataset.subsidies_names
+        assert "tech_1" not in dataset.subsidies_names
+        assert "tech_2" in dataset.subsidies_names
 
     def test_init_with_cuda_false(self, temp_parquet_files):
         """Test initialization with with_cuda=False."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             with_cuda=False,
             auto_download=False,
         )
 
-        assert dataset.subsidies_df.device.type == 'cpu'
-        assert dataset.variables_df.device.type == 'cpu'
+        assert dataset.subsidies_df.device.type == "cpu"
+        assert dataset.variables_df.device.type == "cpu"
 
     def test_init_creates_index_map(self, temp_parquet_files):
         """Test that index_map is created correctly."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=False,
         )
 
-        assert hasattr(dataset, 'index_map')
+        assert hasattr(dataset, "index_map")
         assert isinstance(dataset.index_map, dict)
         assert len(dataset.index_map) > 0
 
     def test_init_creates_variables_next(self, temp_parquet_files):
         """Test that variables_next_df is properly initialized."""
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=False,
         )
 
-        assert hasattr(dataset, 'variables_next_df')
+        assert hasattr(dataset, "variables_next_df")
         assert dataset.variables_next_df.shape == dataset.variables_df.shape
 
 
@@ -267,25 +293,31 @@ class TestWitchProcDataGetItem:
         temp_dir = tempfile.TemporaryDirectory()
 
         # Complete dataset
-        subsidies_df = pd.DataFrame({
-            'tech_1': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
-            'tech_2': [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
-        })
+        subsidies_df = pd.DataFrame(
+            {
+                "tech_1": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+                "tech_2": [0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6],
+            }
+        )
 
-        variables_df = pd.DataFrame({
-            'var_1': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-            'var_2': [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
-        })
+        variables_df = pd.DataFrame(
+            {
+                "var_1": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                "var_2": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0],
+            }
+        )
 
-        keys_df = pd.DataFrame({
-            'gdx': ['s1', 's1', 's1', 's1', 's2', 's2', 's2', 's2'],
-            'year': [2020, 2020, 2025, 2025, 2020, 2020, 2025, 2025],
-            'n': ['r_a', 'r_b', 'r_a', 'r_b', 'r_a', 'r_b', 'r_a', 'r_b'],
-        })
+        keys_df = pd.DataFrame(
+            {
+                "gdx": ["s1", "s1", "s1", "s1", "s2", "s2", "s2", "s2"],
+                "year": [2020, 2020, 2025, 2025, 2020, 2020, 2025, 2025],
+                "n": ["r_a", "r_b", "r_a", "r_b", "r_a", "r_b", "r_a", "r_b"],
+            }
+        )
 
-        subsidies_path = os.path.join(temp_dir.name, 'subsidies.parquet')
-        variables_path = os.path.join(temp_dir.name, 'variables.parquet')
-        keys_path = os.path.join(temp_dir.name, 'keys.parquet')
+        subsidies_path = os.path.join(temp_dir.name, "subsidies.parquet")
+        variables_path = os.path.join(temp_dir.name, "variables.parquet")
+        keys_path = os.path.join(temp_dir.name, "keys.parquet")
 
         subsidies_df.to_parquet(subsidies_path)
         variables_df.to_parquet(variables_path)
@@ -376,7 +408,9 @@ class TestWitchProcDataAutoDownload:
 
     def test_auto_download_disabled_with_missing_files(self):
         """Test that auto_download=False raises error with missing files."""
-        nonexistent_path = os.path.join(tempfile.gettempdir(), 'nonexistent_witch_file_12345.parquet')
+        nonexistent_path = os.path.join(
+            tempfile.gettempdir(), "nonexistent_witch_file_12345.parquet"
+        )
 
         with pytest.raises(FileNotFoundError):
             witch_proc_data(
@@ -386,22 +420,26 @@ class TestWitchProcDataAutoDownload:
                 auto_download=False,
             )
 
-    def test_auto_download_enabled_with_existing_files_does_not_download(self, temp_parquet_files):
+    def test_auto_download_enabled_with_existing_files_does_not_download(
+        self, temp_parquet_files
+    ):
         """Test that auto_download=True doesn't download if files already exist."""
         # This should not raise any errors and should not attempt downloads
         dataset = witch_proc_data(
-            subsidies_parquet=temp_parquet_files['subsidies_path'],
-            variables_parquet=temp_parquet_files['variables_path'],
-            keys_parquet=temp_parquet_files['keys_path'],
+            subsidies_parquet=temp_parquet_files["subsidies_path"],
+            variables_parquet=temp_parquet_files["variables_path"],
+            keys_parquet=temp_parquet_files["keys_path"],
             auto_download=True,
         )
 
         assert dataset is not None
         assert len(dataset) > 0
 
+
 """
 TEST FAIRY
 """
+
 
 class TestGetInvestedAmount:
     """Test the get_invested_amount method."""
@@ -413,35 +451,35 @@ class TestGetInvestedAmount:
 
     def test_get_invested_amount_none(self, fairy_proxy):
         """Test that 'NONE' returns 0.0"""
-        assert fairy_proxy.get_invested_amount('NONE') == 0.0
+        assert fairy_proxy.get_invested_amount("NONE") == 0.0
 
     def test_get_invested_amount_low(self, fairy_proxy):
         """Test that 'LOW' returns 0.1"""
-        assert fairy_proxy.get_invested_amount('LOW') == 0.1
+        assert fairy_proxy.get_invested_amount("LOW") == 0.1
 
     def test_get_invested_amount_medium(self, fairy_proxy):
         """Test that 'MEDIUM' returns 0.3"""
         # NOTE: Updated from 0.5 to match actual implementation (0.3)
-        assert fairy_proxy.get_invested_amount('MEDIUM') == 0.3
+        assert fairy_proxy.get_invested_amount("MEDIUM") == 0.3
 
     def test_get_invested_amount_high(self, fairy_proxy):
         """Test that 'HIGH' returns 0.75"""
         # NOTE: Updated from 1.0 to match actual implementation (0.75)
-        assert fairy_proxy.get_invested_amount('HIGH') == 0.75
+        assert fairy_proxy.get_invested_amount("HIGH") == 0.75
 
     def test_get_invested_amount_invalid(self, fairy_proxy):
         """Test that invalid amount raises ValueError"""
         with pytest.raises(ValueError, match="Invalid amount"):
-            fairy_proxy.get_invested_amount('INVALID')
+            fairy_proxy.get_invested_amount("INVALID")
 
     def test_get_invested_amount_case_sensitive(self, fairy_proxy):
         """Test that amount strings are case-sensitive"""
         with pytest.raises(ValueError, match="Invalid amount"):
-            fairy_proxy.get_invested_amount('none')  # lowercase should fail
+            fairy_proxy.get_invested_amount("none")  # lowercase should fail
 
     def test_get_invested_amount_returns_float(self, fairy_proxy):
         """Test that get_invested_amount always returns a float"""
-        for amount in ['NONE', 'LOW', 'MEDIUM', 'HIGH']:
+        for amount in ["NONE", "LOW", "MEDIUM", "HIGH"]:
             result = fairy_proxy.get_invested_amount(amount)
             assert isinstance(result, float)
 
@@ -457,23 +495,27 @@ class TestDenormalization:
     def test_consumption_denormalization(self, fairy_proxy):
         """Test that consumption is properly denormalized."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}],
         ]
 
         result = fairy_proxy(states)
 
         # Get scaling params
-        consumption_params = fairy_proxy.precomputed_scaling_params['CONSUMPTION']
+        consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
 
         # Result should be in original scale (not normalized)
         # Should be roughly between min and max (with some margin for model outputs)
-        assert consumption_params['min'] <= result[0].item() <= consumption_params['max'] * 1.5 or \
-               result[0].item() >= 0  # Allow for negative (penalized by emissions)
+        assert (
+            consumption_params["min"]
+            <= result[0].item()
+            <= consumption_params["max"] * 1.5
+            or result[0].item() >= 0
+        )  # Allow for negative (penalized by emissions)
 
     def test_emissions_denormalization(self, fairy_proxy):
         """Test that emissions are properly denormalized."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'HIGH'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "HIGH"}],
         ]
 
         # Mock the fairy model output to verify denormalization
@@ -484,27 +526,28 @@ class TestDenormalization:
 
     def test_scaling_params_exist(self, fairy_proxy):
         """Test that all required scaling parameters exist."""
-        required_keys = ['CONSUMPTION', 'EMI_total_CO2']
+        required_keys = ["CONSUMPTION", "EMI_total_CO2"]
         for key in required_keys:
             assert key in fairy_proxy.precomputed_scaling_params
-            assert 'min' in fairy_proxy.precomputed_scaling_params[key]
-            assert 'max' in fairy_proxy.precomputed_scaling_params[key]
+            assert "min" in fairy_proxy.precomputed_scaling_params[key]
+            assert "max" in fairy_proxy.precomputed_scaling_params[key]
 
     def test_scaling_params_valid_ranges(self, fairy_proxy):
         """Test that scaling parameter ranges are valid (min < max)."""
         for col, params in fairy_proxy.precomputed_scaling_params.items():
-            assert params['min'] < params['max'], \
-                f"Invalid range for {col}: min={params['min']}, max={params['max']}"
+            assert (
+                params["min"] < params["max"]
+            ), f"Invalid range for {col}: min={params['min']}, max={params['max']}"
 
     def test_denormalization_monotonicity(self, fairy_proxy):
         """Test that higher investments generally lead to higher rewards (before emissions penalty)."""
         # Create states with increasing investment levels
         tech = fairy_proxy.subsidies_names[0]
         states = [
-            [{'TECH': tech, 'AMOUNT': 'NONE'}],
-            [{'TECH': tech, 'AMOUNT': 'LOW'}],
-            [{'TECH': tech, 'AMOUNT': 'MEDIUM'}],
-            [{'TECH': tech, 'AMOUNT': 'HIGH'}],
+            [{"TECH": tech, "AMOUNT": "NONE"}],
+            [{"TECH": tech, "AMOUNT": "LOW"}],
+            [{"TECH": tech, "AMOUNT": "MEDIUM"}],
+            [{"TECH": tech, "AMOUNT": "HIGH"}],
         ]
 
         results = fairy_proxy(states)
@@ -524,9 +567,17 @@ class TestFAIRYCall:
     def test_call_basic(self, fairy_proxy):
         """Test basic __call__ with simple states."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}],
-            [{'TECH': fairy_proxy.subsidies_names[1] if len(fairy_proxy.subsidies_names) > 1 else
-            fairy_proxy.subsidies_names[0], 'AMOUNT': 'HIGH'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}],
+            [
+                {
+                    "TECH": (
+                        fairy_proxy.subsidies_names[1]
+                        if len(fairy_proxy.subsidies_names) > 1
+                        else fairy_proxy.subsidies_names[0]
+                    ),
+                    "AMOUNT": "HIGH",
+                }
+            ],
         ]
 
         result = fairy_proxy(states)
@@ -539,7 +590,7 @@ class TestFAIRYCall:
     def test_call_single_state(self, fairy_proxy):
         """Test __call__ with a single state."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'MEDIUM'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "MEDIUM"}],
         ]
 
         result = fairy_proxy(states)
@@ -563,9 +614,17 @@ class TestFAIRYCall:
     def test_call_none_amount(self, fairy_proxy):
         """Test __call__ with NONE investment amount."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'NONE'}],
-            [{'TECH': fairy_proxy.subsidies_names[1] if len(fairy_proxy.subsidies_names) > 1 else
-            fairy_proxy.subsidies_names[0], 'AMOUNT': 'MEDIUM'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "NONE"}],
+            [
+                {
+                    "TECH": (
+                        fairy_proxy.subsidies_names[1]
+                        if len(fairy_proxy.subsidies_names) > 1
+                        else fairy_proxy.subsidies_names[0]
+                    ),
+                    "AMOUNT": "MEDIUM",
+                }
+            ],
         ]
 
         result = fairy_proxy(states)
@@ -581,10 +640,7 @@ class TestFAIRYCall:
         num_available = min(num_investments, len(fairy_proxy.subsidies_names))
         available_techs = fairy_proxy.subsidies_names[:num_available]
 
-        investments = [
-            {'TECH': tech, 'AMOUNT': 'LOW'}
-            for tech in available_techs
-        ]
+        investments = [{"TECH": tech, "AMOUNT": "LOW"} for tech in available_techs]
         states = [investments]
 
         result = fairy_proxy(states)
@@ -602,15 +658,15 @@ class TestFAIRYCall:
 
         states = [
             [
-                {'TECH': available_techs[0], 'AMOUNT': 'LOW'},
-                {'TECH': available_techs[1], 'AMOUNT': 'MEDIUM'},
+                {"TECH": available_techs[0], "AMOUNT": "LOW"},
+                {"TECH": available_techs[1], "AMOUNT": "MEDIUM"},
             ],
             [
-                {'TECH': available_techs[1], 'AMOUNT': 'HIGH'},
-                {'TECH': available_techs[2], 'AMOUNT': 'LOW'},
+                {"TECH": available_techs[1], "AMOUNT": "HIGH"},
+                {"TECH": available_techs[2], "AMOUNT": "LOW"},
             ],
             [
-                {'TECH': available_techs[0], 'AMOUNT': 'HIGH'},
+                {"TECH": available_techs[0], "AMOUNT": "HIGH"},
             ],
         ]
 
@@ -625,10 +681,10 @@ class TestFAIRYCall:
         tech = fairy_proxy.subsidies_names[0]
 
         states = [
-            [{'TECH': tech, 'AMOUNT': 'NONE'}],
-            [{'TECH': tech, 'AMOUNT': 'LOW'}],
-            [{'TECH': tech, 'AMOUNT': 'MEDIUM'}],
-            [{'TECH': tech, 'AMOUNT': 'HIGH'}],
+            [{"TECH": tech, "AMOUNT": "NONE"}],
+            [{"TECH": tech, "AMOUNT": "LOW"}],
+            [{"TECH": tech, "AMOUNT": "MEDIUM"}],
+            [{"TECH": tech, "AMOUNT": "HIGH"}],
         ]
 
         result = fairy_proxy(states)
@@ -639,7 +695,7 @@ class TestFAIRYCall:
 
     def test_call_returns_tensor_type(self, fairy_proxy):
         """Test that __call__ always returns a torch.Tensor."""
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'HIGH'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "HIGH"}]]
 
         result = fairy_proxy(states)
 
@@ -650,7 +706,7 @@ class TestFAIRYCall:
         """Test that output batch size matches input batch size."""
         for batch_size in [1, 5, 10]:
             states = [
-                [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}]
+                [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}]
                 for _ in range(batch_size)
             ]
 
@@ -662,7 +718,12 @@ class TestFAIRYCall:
     def test_call_invalid_tech_raises_error(self, fairy_proxy):
         """Test that invalid tech name raises an error."""
         states = [
-            [{'TECH': 'INVALID_TECH_NAME_THAT_DEFINITELY_DOES_NOT_EXIST', 'AMOUNT': 'LOW'}],
+            [
+                {
+                    "TECH": "INVALID_TECH_NAME_THAT_DEFINITELY_DOES_NOT_EXIST",
+                    "AMOUNT": "LOW",
+                }
+            ],
         ]
 
         with pytest.raises(ValueError):
@@ -674,8 +735,11 @@ class TestFAIRYCall:
 
         states = [
             [
-                {'TECH': tech, 'AMOUNT': 'LOW'},
-                {'TECH': tech, 'AMOUNT': 'MEDIUM'},  # Same tech again - should overwrite
+                {"TECH": tech, "AMOUNT": "LOW"},
+                {
+                    "TECH": tech,
+                    "AMOUNT": "MEDIUM",
+                },  # Same tech again - should overwrite
             ],
         ]
 
@@ -687,7 +751,7 @@ class TestFAIRYCall:
 
     def test_call_no_grad(self, fairy_proxy):
         """Test that __call__ does not compute gradients."""
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}]]
 
         result = fairy_proxy(states)
 
@@ -696,7 +760,7 @@ class TestFAIRYCall:
 
     def test_call_deterministic(self, fairy_proxy):
         """Test that __call__ produces deterministic results."""
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'MEDIUM'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "MEDIUM"}]]
 
         result1 = fairy_proxy(states)
         result2 = fairy_proxy(states)
@@ -710,23 +774,23 @@ class TestFAIRYInit:
     def test_init_creates_required_attributes(self):
         """Test that initialization creates all required attributes."""
         proxy = FAIRY()
-        assert hasattr(proxy, 'fairy')
-        assert hasattr(proxy, 'precomputed_scaling_params')
-        assert hasattr(proxy, 'subsidies_names')
-        assert hasattr(proxy, 'variables_names')
-        assert hasattr(proxy, 'device')
-        assert hasattr(proxy, 'key_gdx')
-        assert hasattr(proxy, 'key_year')
-        assert hasattr(proxy, 'key_region')
-        assert hasattr(proxy, 'SCC')
-        assert hasattr(proxy, 'context')
+        assert hasattr(proxy, "fairy")
+        assert hasattr(proxy, "precomputed_scaling_params")
+        assert hasattr(proxy, "subsidies_names")
+        assert hasattr(proxy, "variables_names")
+        assert hasattr(proxy, "device")
+        assert hasattr(proxy, "key_gdx")
+        assert hasattr(proxy, "key_year")
+        assert hasattr(proxy, "key_region")
+        assert hasattr(proxy, "SCC")
+        assert hasattr(proxy, "context")
 
     def test_init_fairy_has_required_attributes(self):
         """Test that initialized fairy has required attributes."""
         proxy = FAIRY()
-        assert hasattr(proxy.fairy, 'subsidies_dim')
-        assert hasattr(proxy.fairy, 'variables_names')
-        assert hasattr(proxy.fairy, 'subsidies_names')
+        assert hasattr(proxy.fairy, "subsidies_dim")
+        assert hasattr(proxy.fairy, "variables_names")
+        assert hasattr(proxy.fairy, "subsidies_names")
 
     def test_init_subsidies_names_is_list(self):
         """Test that subsidies_names is converted to a list."""
@@ -761,7 +825,7 @@ class TestFAIRYInit:
         # Note: FAIRY class doesn't show budget parameter in __init__,
         # this may need adjustment based on actual implementation
         proxy = FAIRY()
-        assert hasattr(proxy, 'device')
+        assert hasattr(proxy, "device")
 
     def test_init_with_custom_scc(self):
         """Test initialization with custom SCC."""
@@ -806,7 +870,7 @@ class TestFAIRYDeviceHandling:
     def test_device_consistency(self, fairy_proxy):
         """Test that all tensors are on the same device."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}],
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}],
         ]
 
         result = fairy_proxy(states)
@@ -835,7 +899,7 @@ class TestFAIRYDeviceHandling:
 
     def test_call_output_on_correct_device(self, fairy_proxy):
         """Test that __call__ output is on the correct device."""
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}]]
         result = fairy_proxy(states)
         assert result.device == fairy_proxy.device
 
@@ -851,52 +915,63 @@ class TestDenormalizationNumericStability:
     def test_denormalization_no_nan_or_inf(self, fairy_proxy):
         """Test that denormalization never produces NaN or Inf values."""
         states = [
-                     [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': level}]
-                     for level in ['NONE', 'LOW', 'MEDIUM', 'HIGH']
-                 ] * 10  # Repeat multiple times
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": level}]
+            for level in ["NONE", "LOW", "MEDIUM", "HIGH"]
+        ] * 10  # Repeat multiple times
 
         result = fairy_proxy(states)
 
-        assert torch.all(torch.isfinite(result)), \
-            f"Found NaN/Inf values in results: {result[~torch.isfinite(result)]}"
+        assert torch.all(
+            torch.isfinite(result)
+        ), f"Found NaN/Inf values in results: {result[~torch.isfinite(result)]}"
 
     def test_denormalization_scaling_bounds(self, fairy_proxy):
         """Test that denormalized consumption stays within reasonable bounds."""
         # Create multiple random states
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[i % len(fairy_proxy.subsidies_names)],
-              'AMOUNT': level}]
+            [
+                {
+                    "TECH": fairy_proxy.subsidies_names[
+                        i % len(fairy_proxy.subsidies_names)
+                    ],
+                    "AMOUNT": level,
+                }
+            ]
             for i in range(20)
-            for level in ['LOW', 'MEDIUM']
+            for level in ["LOW", "MEDIUM"]
         ]
 
         result = fairy_proxy(states)
 
         # Get bounds from scaling parameters
-        consumption_params = fairy_proxy.precomputed_scaling_params['CONSUMPTION']
-        emissions_params = fairy_proxy.precomputed_scaling_params['EMI_total_CO2']
+        consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
+        emissions_params = fairy_proxy.precomputed_scaling_params["EMI_total_CO2"]
 
         # Results can go negative due to emissions penalty, but should be bounded reasonably
         # Rough heuristic: should not exceed 10x the max consumption
-        max_reasonable = consumption_params['max'] * 10
-        min_reasonable = -consumption_params['max'] * 10
+        max_reasonable = consumption_params["max"] * 10
+        min_reasonable = -consumption_params["max"] * 10
 
-        assert torch.all(result > min_reasonable), \
-            f"Found unreasonably low values: min={result.min()}, threshold={min_reasonable}"
-        assert torch.all(result < max_reasonable), \
-            f"Found unreasonably high values: max={result.max()}, threshold={max_reasonable}"
+        assert torch.all(
+            result > min_reasonable
+        ), f"Found unreasonably low values: min={result.min()}, threshold={min_reasonable}"
+        assert torch.all(
+            result < max_reasonable
+        ), f"Found unreasonably high values: max={result.max()}, threshold={max_reasonable}"
 
     def test_denormalization_formula_correctness(self, fairy_proxy):
         """Test that denormalization formula is applied correctly."""
         # Get a normalized value from the model
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'MEDIUM'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "MEDIUM"}]]
 
         # Manually extract and check the formula
         with torch.no_grad():
             contexts = fairy_proxy.context.repeat(1, 1)
-            plan = torch.zeros(1, fairy_proxy.fairy.subsidies_dim, device=fairy_proxy.device)
+            plan = torch.zeros(
+                1, fairy_proxy.fairy.subsidies_dim, device=fairy_proxy.device
+            )
 
-            amount = fairy_proxy.get_invested_amount('MEDIUM')
+            amount = fairy_proxy.get_invested_amount("MEDIUM")
             tech_idx = fairy_proxy.subsidies_names.index(fairy_proxy.subsidies_names[0])
             plan[0, tech_idx] = amount
 
@@ -904,24 +979,30 @@ class TestDenormalizationNumericStability:
             developments_normalized = fairy_proxy.fairy(contexts, plan)
 
             # Check consumption denormalization
-            consumption_norm = developments_normalized[0, fairy_proxy.variables_names.index('CONSUMPTION')]
-            consumption_params = fairy_proxy.precomputed_scaling_params['CONSUMPTION']
+            consumption_norm = developments_normalized[
+                0, fairy_proxy.variables_names.index("CONSUMPTION")
+            ]
+            consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
             consumption_denorm = (
-                    consumption_norm * (consumption_params['max'] - consumption_params['min'])
-                    + consumption_params['min']
+                consumption_norm
+                * (consumption_params["max"] - consumption_params["min"])
+                + consumption_params["min"]
             )
 
             # Verify it's in reasonable range
-            assert consumption_params['min'] <= consumption_denorm <= consumption_params['max'] * 1.5, \
-                f"Denormalization formula may be wrong: {consumption_denorm} not in expected range"
+            assert (
+                consumption_params["min"]
+                <= consumption_denorm
+                <= consumption_params["max"] * 1.5
+            ), f"Denormalization formula may be wrong: {consumption_denorm} not in expected range"
 
     def test_emissions_penalty_scaling(self, fairy_proxy):
         """Test that emissions penalty is applied with correct scaling."""
         states_high_investment = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'HIGH'}]
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "HIGH"}]
         ]
         states_low_investment = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'NONE'}]
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "NONE"}]
         ]
 
         result_high = fairy_proxy(states_high_investment)
@@ -934,52 +1015,67 @@ class TestDenormalizationNumericStability:
         # High investment should lead to consumption benefit (before emissions penalty)
         # but total utility depends on emissions, so we just check both are reasonable
         scc_value = fairy_proxy.SCC
-        assert 0 < scc_value < 1000, \
-            f"SCC value seems unreasonable: {scc_value}. Should be positive and in Trillion USD."
+        assert (
+            0 < scc_value < 1000
+        ), f"SCC value seems unreasonable: {scc_value}. Should be positive and in Trillion USD."
 
     def test_denormalization_inverse_operation(self, fairy_proxy):
         """Test that denormalization can be approximately inverted."""
-        consumption_params = fairy_proxy.precomputed_scaling_params['CONSUMPTION']
+        consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
 
         # Pick a random denormalized value within bounds
-        denorm_value = torch.tensor(consumption_params['min'] +
-                                    (consumption_params['max'] - consumption_params['min']) * 0.5)
+        denorm_value = torch.tensor(
+            consumption_params["min"]
+            + (consumption_params["max"] - consumption_params["min"]) * 0.5
+        )
 
         # Apply inverse normalization
-        norm_value = (
-                (denorm_value - consumption_params['min']) /
-                (consumption_params['max'] - consumption_params['min'])
+        norm_value = (denorm_value - consumption_params["min"]) / (
+            consumption_params["max"] - consumption_params["min"]
         )
 
         # Re-denormalize
         recovered = (
-                norm_value * (consumption_params['max'] - consumption_params['min'])
-                + consumption_params['min']
+            norm_value * (consumption_params["max"] - consumption_params["min"])
+            + consumption_params["min"]
         )
 
         # Should recover original value
-        assert torch.allclose(denorm_value, recovered, rtol=1e-5), \
-            f"Denormalization not invertible: {denorm_value} -> {recovered}"
+        assert torch.allclose(
+            denorm_value, recovered, rtol=1e-5
+        ), f"Denormalization not invertible: {denorm_value} -> {recovered}"
 
     def test_scaling_params_consistency(self, fairy_proxy):
         """Test that scaling parameters are consistent across multiple calls."""
         proxy1 = FAIRY()
         proxy2 = FAIRY()
 
-        for key in ['CONSUMPTION', 'EMI_total_CO2']:
-            assert proxy1.precomputed_scaling_params[key]['min'] == proxy2.precomputed_scaling_params[key]['min']
-            assert proxy1.precomputed_scaling_params[key]['max'] == proxy2.precomputed_scaling_params[key]['max']
+        for key in ["CONSUMPTION", "EMI_total_CO2"]:
+            assert (
+                proxy1.precomputed_scaling_params[key]["min"]
+                == proxy2.precomputed_scaling_params[key]["min"]
+            )
+            assert (
+                proxy1.precomputed_scaling_params[key]["max"]
+                == proxy2.precomputed_scaling_params[key]["max"]
+            )
 
     def test_extreme_investment_combinations(self, fairy_proxy):
         """Test numeric stability with extreme investment combinations."""
         # All NONE (minimal investment)
         states_none = [
-            [{'TECH': tech, 'AMOUNT': 'NONE'} for tech in fairy_proxy.subsidies_names[:3]]
+            [
+                {"TECH": tech, "AMOUNT": "NONE"}
+                for tech in fairy_proxy.subsidies_names[:3]
+            ]
         ]
 
         # All HIGH (maximal investment)
         states_high = [
-            [{'TECH': tech, 'AMOUNT': 'HIGH'} for tech in fairy_proxy.subsidies_names[:3]]
+            [
+                {"TECH": tech, "AMOUNT": "HIGH"}
+                for tech in fairy_proxy.subsidies_names[:3]
+            ]
         ]
 
         result_none = fairy_proxy(states_none)
@@ -1001,7 +1097,7 @@ class TestDenormalizationNumericStability:
     def test_call_with_missing_required_keys(self, fairy_proxy):
         """Test that __call__ raises error with missing TECH or AMOUNT."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0]}],  # Missing AMOUNT
+            [{"TECH": fairy_proxy.subsidies_names[0]}],  # Missing AMOUNT
         ]
 
         with pytest.raises(KeyError):
@@ -1010,7 +1106,13 @@ class TestDenormalizationNumericStability:
     def test_call_with_extra_keys(self, fairy_proxy):
         """Test that __call__ handles extra keys gracefully."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW', 'EXTRA': 'value'}],
+            [
+                {
+                    "TECH": fairy_proxy.subsidies_names[0],
+                    "AMOUNT": "LOW",
+                    "EXTRA": "value",
+                }
+            ],
         ]
 
         result = fairy_proxy(states)
@@ -1020,7 +1122,7 @@ class TestDenormalizationNumericStability:
     def test_large_batch_size(self, fairy_proxy):
         """Test __call__ with a large batch size."""
         states = [
-            [{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}]
+            [{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}]
             for _ in range(100)
         ]
 
@@ -1038,9 +1140,11 @@ class TestDenormalizationNumericStability:
         """Test that model is in eval mode (required for BatchNorm with batch_size=1)."""
         # The model MUST be in eval mode for inference with batch_size=1
         # because BatchNorm requires more than 1 sample in training mode
-        assert not fairy_proxy.fairy.training, "Model should be in eval mode for inference"
+        assert (
+            not fairy_proxy.fairy.training
+        ), "Model should be in eval mode for inference"
 
-        states = [[{'TECH': fairy_proxy.subsidies_names[0], 'AMOUNT': 'LOW'}]]
+        states = [[{"TECH": fairy_proxy.subsidies_names[0], "AMOUNT": "LOW"}]]
         result = fairy_proxy(states)
 
         assert torch.isfinite(result[0])

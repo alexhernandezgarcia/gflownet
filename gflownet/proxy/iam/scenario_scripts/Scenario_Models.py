@@ -5,8 +5,7 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import \
-    witch_proc_data
+from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import witch_proc_data
 
 
 def load_datasets(filename="datasets.pkl"):
