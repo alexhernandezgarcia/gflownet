@@ -659,36 +659,73 @@ class ContinuousTorus(GFlowNetEnv):
     def copy(self):
         return deepcopy(self)
 
-    def get_grid_terminating_states(self, n_states: int) -> List[List]:
-        """
-        Samples n terminating states by sub-sampling the state space as a grid, where n
-        / n_dim points are obtained for each dimension.
+    def get_grid_terminating_states(
+        self, n_states: int, n_dim: Optional[int] = None
+    ) -> List[List]:
+        r"""
+        Samples n terminating states by sub-sampling the state space as a grid, where
+        each dimension is sampled uniformly in $[0, 2 * pi]$. The number of points per
+        dimension is determined by the number of terminating states to sample, such
+        that the total number of points is at least n_states and at most $2 ** n_dim$.
 
         Parameters
         ----------
         n_states : int
             The number of terminating states to sample.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used. Passed to the function to allow for
+            conditional environments with different number of dimensions.
 
         Returns
         -------
         states : list
             A list of randomly sampled terminating states.
         """
-        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        if n_dim is None:
+            n_dim = self.n_dim
+        # Compute the number of points per dimension
+        n_per_dim = int(np.ceil(n_states ** (1 / n_dim)))
+        # linspace on a circle (accounting for 0 == 2pi)
         linspace = np.linspace(0, 2 * np.pi, n_per_dim + 1)[:-1]
-        angles = np.meshgrid(*[linspace] * self.n_dim)
-        angles = np.stack(angles).reshape((self.n_dim, -1)).T
+        angles = np.meshgrid(*[linspace] * n_dim)
+        angles = np.stack(angles).reshape((n_dim, -1)).T
         states = np.concatenate(
             (angles, self.length_traj * np.ones((angles.shape[0], 1))), axis=1
         ).tolist()
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None
+        self, n_states: int, seed: int = None, n_dim=None
     ) -> List[List]:
+        r"""
+        Samples ``n_states`` terminating states uniformly in the state space.  The
+        angles are sampled uniformly in $[0, 2 * pi]$. The number of steps is set to
+        the length of the trajectory.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+        seed : int
+            Random seed for the sampling.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used. Passed to the function to allow for
+            conditional environments with different number of dimensions.
+
+        Returns
+        -------
+        states : list
+            A list of sampled terminating states.
+        """
+        if n_dim is None:
+            n_dim = self.n_dim
         rng = np.random.default_rng(seed)
-        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, self.n_dim))
-        states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
+        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, n_dim))
+        states = np.concatenate(
+            (angles, self.length_traj * np.ones((n_states, 1))), axis=1
+        )
         return states.tolist()
 
     def fit_kde(
@@ -714,6 +751,7 @@ class ContinuousTorus(GFlowNetEnv):
         bandwidth : float
             The bandwidth of the kernel.
         """
+        # TODO: review if torch2np is needed
         samples = torch2np(samples)
         samples_aug = self.augment_samples(samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
@@ -764,6 +802,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
+        # TODO: review if torch2np is needed
         samples = torch2np(samples)
         rewards = torch2np(rewards)
         n_per_dim = int(np.sqrt(rewards.shape[0]))
@@ -835,6 +874,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
+        # TODO: review if torch2np is needed
         samples = torch2np(samples)
         # Create mesh grid from samples
         n_per_dim = int(np.sqrt(samples.shape[0]))
@@ -882,3 +922,12 @@ class ContinuousTorus(GFlowNetEnv):
             )
         samples_aug = np.concatenate(samples_aug, axis=0)
         return samples_aug
+
+    # TODO: extend docstrings
+    def process_data_set(self, samples):
+        """
+        Process dataset loaded from a file inside Buffer init.
+        """
+        if hasattr(samples, "tolist"):
+            return samples.tolist()
+        return samples
