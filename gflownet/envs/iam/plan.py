@@ -58,18 +58,18 @@ class Plan(Stack):
             for _ in range(self.n_techs)
         ]
 
-        self.idx2token_techs = copy.deepcopy(subenvs[0].idx2token_techs)
-        self.idx2token_amounts = copy.deepcopy(subenvs[0].idx2token_amounts)
-        self.token2idx_sectors = copy.deepcopy(subenvs[0].token2idx_sectors)
-        self.token2idx_tags = copy.deepcopy(subenvs[0].token2idx_tags)
-        self.network_structure = copy.deepcopy(subenvs[0].network_structure)
+        self.idx2token_techs = subenvs[0].idx2token_techs
+        self.idx2token_amounts = subenvs[0].idx2token_amounts
+        self.token2idx_sectors = subenvs[0].token2idx_sectors
+        self.token2idx_tags = subenvs[0].token2idx_tags
+        self.network_structure = subenvs[0].network_structure
 
-        self.empy_investment = copy.deepcopy(subenvs[0].source)
+        self.empy_investment = subenvs[0].source
 
-        self.n_sector_choices = copy.deepcopy(subenvs[0].n_sectors + 1)
-        self.n_tags_choices = copy.deepcopy(subenvs[0].n_tags + 1)
+        self.n_sector_choices = subenvs[0].n_sectors + 1
+        self.n_tags_choices = subenvs[0].n_tags + 1
         self.n_techs_choices = self.n_techs + 1
-        self.n_amounts_choices = copy.deepcopy(subenvs[0].n_amounts + 1)
+        self.n_amounts_choices = subenvs[0].n_amounts + 1
 
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)

@@ -346,11 +346,12 @@ class InvestmentDiscrete(GFlowNetEnv):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if done:
-            return [True for _ in range(self.action_space_dim)]
 
         # Initialize mask to all invalid
         mask = self.mask_buffer.copy()
+
+        if done:
+            return mask
 
         assigned = self.get_assigned_attributes(state)
         if self.well_defined_investment(state):  # if you have full investment
