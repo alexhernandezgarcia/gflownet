@@ -148,6 +148,17 @@ def env_stacks_diff():
     )
 
 
+@pytest.fixture
+def env_two_grids_cannot_alternate():
+    return SetFix(
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+        ),
+        can_alternate_subenvs=False,
+    )
+
+
 @pytest.mark.parametrize(
     "env",
     [
@@ -160,6 +171,7 @@ def env_stacks_diff():
         "env_two_cubes2d_one_cube3d",
         "env_stacks_equal",
         "env_stacks_diff",
+        "env_two_grids_cannot_alternate",
     ],
 )
 def test__environment__initializes_properly(env, request):
@@ -179,6 +191,7 @@ def test__environment__initializes_properly(env, request):
         ("env_two_cubes2d_one_cube3d", 2),
         ("env_stacks_equal", 1),
         ("env_stacks_diff", 2),
+        ("env_two_grids_cannot_alternate", 1),
     ],
 )
 def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
@@ -223,6 +236,8 @@ def test__environment__is_continuous(env, is_continuous, request):
         ("env_two_cubes2d_one_cube3d", 0, 0),
         ("env_two_cubes2d_one_cube3d", 1, 0),
         ("env_two_cubes2d_one_cube3d", 2, 1),
+        ("env_two_grids_cannot_alternate", 0, 0),
+        ("env_two_grids_cannot_alternate", 1, 0),
     ],
 )
 def test__get_unique_idx_of_subenv__returns_expected(
