@@ -77,7 +77,11 @@ class Ising(Proxy):
 
         if J is not None:
             # Use provided arbitrary coupling matrix
-            self.J = torch.as_tensor(J, device=self.device, dtype=self.float)
+            self.J = tfloat(
+                J,
+                float_type=self.float,
+                device=self.device,
+            )
         elif n_dim is not None and length is not None:
             # Construct nearest-neighbor adjacency matrix automatically
             self.J = nn_adjacency(n_dim, length, J_nn=J_nn, periodic=periodic).to(
