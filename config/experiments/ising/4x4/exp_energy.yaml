@@ -9,7 +9,7 @@ device: cpu
 
 # Environment
 env:
-  #Dimensions of hypergrid 
+  # Dimensions of hypergrid 
   n_dim: 2
   # Number of cells per dimension
   length: 4
