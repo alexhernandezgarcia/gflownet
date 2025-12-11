@@ -14,11 +14,15 @@ env:
   # Number of cells per dimension
   length: 4
 proxy:
-  n_dim: 2 # number of dimensions
-  length: 4 # number of sites per dimension
-  J_nn: 1.0 #nearest-neighbor coupling
+  # Number of dimensions
+  n_dim: 2 
+  # Number of sites per dimension
+  length: 4
+  # Nearest-neighbor coupling
+  J_nn: 1.0 
   periodic: True
-  h: 0 # external field
+  # External field
+  h: 0 
   reward_function: exponential
   # Parameters of the reward function
   reward_function_kwargs:
