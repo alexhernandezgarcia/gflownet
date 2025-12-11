@@ -5,7 +5,7 @@ defaults:
   - override /proxy: ising
   - override /logger: wandb
 
-device: gpu
+device: cpu
 
 # Environment
 env:
