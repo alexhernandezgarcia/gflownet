@@ -50,11 +50,28 @@ class Ising(Proxy):
         **kwargs,
     ):
         """
-        Args:
-            n_dim, length, J_nn, periodic: used to construct nearest-neighbor lattice if
-            J=None
-            J: optional arbitrary adjacency matrix (overrides nearest-neighbor)
-            h: external magnetic field (scalar or tensor)
+        Implements the Ising energy model.
+
+        The class represents an Ising Hamiltonian of the form
+
+            E(s) = -1/2 * sᵀ J s  -  h · s
+
+        where:
+            - `s` is a spin state
+            - `J` is either a user-provided coupling matrix or a nearest-neighbor
+            lattice automatically constructed from (n_dim, length, J_nn)
+            - `h` is an optional external magnetic field (scalar or per-site)
+
+        The factor 1/2 ensures each interaction pair (i, j) is counted once.
+
+        Args
+        ----
+            n_dim, length, J_nn, periodic:
+                Used to build a nearest-neighbor lattice if J is not provided.
+            J:
+                Optional full coupling matrix. Overrides lattice construction.
+            h:
+                External magnetic field (scalar or site-dependent tensor).
         """
         super().__init__(**kwargs)
 
@@ -76,6 +93,19 @@ class Ising(Proxy):
     def __call__(
         self, states: Union[list, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch"]:
+        """
+        Compute the Ising energy for a batch of spin configurations.
+
+            - Flattens input to shape (batch, state_dim).
+            - Computes the quadratic interaction term:
+                    -0.5 * sum( (s @ J) * s )
+            - Computes the field term:
+                    -h * sum(s)                (if h is scalar)
+              or  -sum(h * s)                  (if h is per-site)
+
+        Returns:
+            Tensor of shape (batch,) containing energies.
+        """
         if isinstance(states, list):
             states = torch.stack(states)
         states = states.view(states.size(0), -1)  # flatten all but batch dimension
