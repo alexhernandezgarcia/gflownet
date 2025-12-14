@@ -11,7 +11,8 @@ defaults:
 # Environment
 env:
   use_constraints: True
-  constraints_dict: {1: [False, False], 2: [False, False]}
+  cube_dim: 5
+  constraints_dict: {1: [False, True, True, True, True], 2: [False, False, False, False, False]}
 
 # GFlowNet hyperparameters
 gflownet:

@@ -3,15 +3,15 @@
 
 defaults:
    - override /env: crystals/fake_crystal
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: uniform
+   - override /gflownet: vargrad
+   - override /loss: vargrad
+   - override /proxy: fake_crystal_proxy
    - override /logger: wandb
 
 # Environment
 env:
   use_constraints: True
-  constraints_dict: {1: [True, False], 2: [False, False]}
+  constraints_dict: {1: [False, False], 2: [True, False]}
 
 # GFlowNet hyperparameters
 gflownet:
@@ -44,8 +44,6 @@ logger:
     - gflownet
     - spacegroup
     - uniform
-  should_log_batch_info: True
-  batch_log_type: fake_crystal
 
 # Evaluator
 evaluator:
@@ -54,10 +52,10 @@ evaluator:
   n: 1000
   checkpoints_period: 500
 
-# proxy:
-#   reward_function: spacegroup_test_crystal
-#   reward_function_kwargs:
-#     spg_map: {221: 2.0, 136: 1.0}
+proxy:
+  reward_function: spacegroup_test_crystal
+  reward_function_kwargs:
+    spg_map: {221: 2.0, 136: 1.0}
 
 # Hydra
 hydra:

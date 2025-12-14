@@ -57,13 +57,15 @@ class Logger:
         entity: str = None,
         progressbar: dict = {"skip": False, "n_iters_mean": 100},
         is_resumed: bool = False,
-        should_log_batch_info: bool = False
+        should_log_batch_info: bool = False,
+        should_log_crystal_batch_info: bool = False,
     ):
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
         self.should_log_batch_info = should_log_batch_info
+        self.should_log_crystal_batch_info = should_log_crystal_batch_info
 
         # Determine run name
         if run_name is None:
@@ -255,6 +257,7 @@ class Logger:
         ):
 
         states = batch.get_terminating_states()
+        options = np.array([s[1][0] for s in states])
         options_1 = [s[1][0] for s in states if s[1][0] == 1]
         options_2 = [s[1][0] for s in states if s[1][0] == 2]
         lp_1_opt_1 = [s[2][0] for s in states if s[1][0] == 1] # first lattice parameter
@@ -271,7 +274,38 @@ class Logger:
                    "Mean LP 2, option 1": np.mean(lp_2_opt_1),
                    "Mean LP 2, option 2": np.mean(lp_2_opt_2),
                    "St. Dev. of LP 2, option 1": np.std(lp_2_opt_1),
-                   "St. Dev. of LP 2, option 2": np.std(lp_2_opt_2)}
+                   "St. Dev. of LP 2, option 2": np.std(lp_2_opt_2),
+                   "Option 1 mean loss": batch.opt_1_loss,
+                   "Option 2 mean loss": batch.opt_2_loss,
+                   "Option 1 mean logprobs_f": batch.opt_1_logprobs_f,
+                   "Option 1 mean logprobs_b": batch.opt_1_logprobs_b,
+                   "Option 2 mean logprobs_f": batch.opt_2_logprobs_f,
+                   "Option 2 mean logprobs_b": batch.opt_2_logprobs_b,
+                   }
+        
+        # print("Loss for Option 1: ",np.mean(np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1]))))
+        # print("Loss for Option 2: ",np.mean(np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2]))))
+        # print("Loss for Option 1: ",np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1])))
+        # print("Loss for Option 2: ",np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2])))
+        self.log_metrics(metrics, step=step, use_context=use_context)
+
+    def log_crystal_batch_info(
+        self,
+        batch,        
+        step: int,
+        use_context: bool = True
+        ):
+        states = batch.get_terminating_states()
+        spg_136 = [s[1][2] for s in states if s[1][2] == 136]
+        spg_221 = [s[1][2] for s in states if s[1][2] == 221]
+        metrics = {"Proportion of SPG 136": len(spg_136)/len(states),
+                   "Proportion of SPG 221": len(spg_221)/len(states),
+                   "SPG 136 mean loss": batch.spg_136_loss,
+                   "SPG 221 mean loss": batch.spg_221_loss,
+                   "SPG 136 mean logprobs_f": batch.spg_136_logprobs_f,
+                   "SPG 136 mean logprobs_b": batch.spg_136_logprobs_b,
+                   "SPG 221 mean logprobs_f": batch.spg_221_logprobs_f,
+                   "SPG 221 mean logprobs_b": batch.spg_221_logprobs_b,}
         self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_metrics(

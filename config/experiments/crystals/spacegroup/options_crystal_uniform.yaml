@@ -2,16 +2,14 @@
 # A configuration that works well with a 10x10 Grid environment and the corners proxy.
 
 defaults:
-   - override /env: crystals/fake_crystal
+   - override /env: crystals/options_crystal
    - override /gflownet: trajectorybalance
    - override /loss: trajectorybalance
    - override /proxy: uniform
    - override /logger: wandb
 
 # Environment
-env:
-  use_constraints: True
-  constraints_dict: {1: [True, False], 2: [False, False]}
+
 
 # GFlowNet hyperparameters
 gflownet:
@@ -45,7 +43,7 @@ logger:
     - spacegroup
     - uniform
   should_log_batch_info: True
-  batch_log_type: fake_crystal
+  batch_log_type: options_crystal
 
 # Evaluator
 evaluator:
@@ -54,10 +52,6 @@ evaluator:
   n: 1000
   checkpoints_period: 500
 
-# proxy:
-#   reward_function: spacegroup_test_crystal
-#   reward_function_kwargs:
-#     spg_map: {221: 2.0, 136: 1.0}
 
 # Hydra
 hydra:

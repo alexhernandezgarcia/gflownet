@@ -1532,6 +1532,8 @@ class ContinuousCube(CubeBase):
         if not backward and action[-1] == 1 and self.state == self.source:
             state = [0.0 for _ in range(self.n_dim)]
         else:
+            if action[-1] != 0:
+                breakpoint()
             assert action[-1] == 0
             state = copy(self.state)
         # Increment dimensions

@@ -47,6 +47,7 @@ class FakeCrystal(Stack):
         self.do_lattice_parameters = do_lattice_parameters
         self.use_constraints = use_constraints
         self.constraints_dict = constraints_dict
+        self.cube_dim = cube_dim
         # self.composition_kwargs = dict( # setup the kwargs later
         #     composition_kwargs or {},
         #     do_spacegroup_check=self.do_sg_to_composition_constraints,
@@ -65,7 +66,7 @@ class FakeCrystal(Stack):
             subenvs.append(self.space_group)
 
         if self.do_lattice_parameters:
-            self.lattice_params = ContinuousCube(ndim=cube_dim)
+            self.lattice_params = ContinuousCube(n_dim=cube_dim)
             subenvs.append(self.lattice_params)
         
         # Initialize base Stack environment
@@ -161,7 +162,7 @@ class FakeCrystal(Stack):
             and not self.space_group.done
             and (action is None or self._depad_action(action) == self.space_group.eos)
         ):
-            self.lattice_params.ignored_dims = [False, False]
+            self.lattice_params.ignored_dims = [False] * self.cube_dim
 
     def states2proxy(
         self, states: List[List]
@@ -207,3 +208,15 @@ class FakeCrystal(Stack):
             True if the Crystal has constraints, False otherwise
         """
         return True
+    
+    # def plot_reward_samples(
+    #     self,
+    #     samples: TensorType["batch_size", "state_proxy_dim"],
+    #     samples_reward: TensorType["batch_size", "state_proxy_dim"],
+    #     rewards: TensorType["batch_size"],
+    #     alpha: float = 0.5,
+    #     dpi: int = 150,
+    #     max_samples: int = 500,
+    #     **kwargs,
+    # ):
+    #     breakpoint()

@@ -8,7 +8,7 @@ defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: spacegroup_proxy #crystals/dave
+  - override /proxy: uniform
   - override /logger: wandb
 
 # Environment
@@ -103,12 +103,6 @@ policy:
     shared_weights: False
     checkpoint: backward
 
-# Proxy (eform)
-proxy:
-  reward_function: spacegroup_test_crystal
-  reward_function_kwargs:
-    spg_map: {221: 2.0, 136: 1.0}
-
 # Evaluator
 evaluator:
   first_it: False
@@ -134,7 +128,7 @@ logger:
     - formationenergy
   do:
     online: true
-  # should_log_crystal_batch_info: True
+  should_log_crystal_batch_info: True
 
 # Hydra
 hydra:

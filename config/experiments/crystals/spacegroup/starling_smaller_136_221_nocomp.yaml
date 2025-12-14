@@ -5,10 +5,10 @@
 # Learning rate decay
 
 defaults:
-  - override /env: crystals/crystal
+  - override /env: crystals/no_comp_crystal
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: spacegroup_proxy #crystals/dave
+  - override /proxy: uniform
   - override /logger: wandb
 
 # Environment
@@ -26,16 +26,16 @@ env:
   space_group_kwargs:
     space_groups_subset: [136, 221] #[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 25, 26, 29, 30, 31, 33, 36, 38, 40, 41, 43, 44, 46, 47, 51, 52, 53, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 69, 70, 71, 72, 74, 82, 84, 85, 86, 87, 88, 92, 99, 102, 107, 113, 114, 121, 122, 123, 126, 129, 131, 136, 137, 138, 139, 140, 141, 146, 147, 148, 150, 155, 156, 160, 161, 162, 163, 164, 166, 167, 176, 181, 185, 186, 187, 189, 192, 194, 198, 199, 205, 206, 216, 217, 220, 221, 224, 225, 227, 229, 230]
 
-  # Composition config
-  composition_kwargs:
-    elements: [27, 28, 29, 34]
-    max_diff_elem: 5
-    min_diff_elem: 1
-    min_atoms: 1
-    max_atoms: 8
-    min_atom_i: 1
-    max_atom_i: 16
-    do_charge_check: True
+  # # Composition config
+  # composition_kwargs:
+  #   elements: [27, 28, 29, 34]
+  #   max_diff_elem: 5
+  #   min_diff_elem: 1
+  #   min_atoms: 1
+  #   max_atoms: 8
+  #   min_atom_i: 1
+  #   max_atom_i: 16
+  #   do_charge_check: True
 
   # Lattice parameters config
   lattice_parameters_kwargs:
@@ -83,7 +83,7 @@ gflownet:
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 100000
+    n_train_steps: 100000 # 100000
     lr_decay_period: 11000
     lr_decay_gamma: 0.5
   # replay_sampling: weighted
@@ -102,12 +102,6 @@ policy:
     n_layers: 3
     shared_weights: False
     checkpoint: backward
-
-# Proxy (eform)
-proxy:
-  reward_function: spacegroup_test_crystal
-  reward_function_kwargs:
-    spg_map: {221: 2.0, 136: 1.0}
 
 # Evaluator
 evaluator:
@@ -134,7 +128,7 @@ logger:
     - formationenergy
   do:
     online: true
-  # should_log_crystal_batch_info: True
+  should_log_crystal_batch_info: True
 
 # Hydra
 hydra:

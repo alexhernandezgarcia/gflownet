@@ -3,8 +3,8 @@
 
 defaults:
    - override /env: crystals/fake_crystal
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
+   - override /gflownet: vargrad
+   - override /loss: vargrad
    - override /proxy: uniform
    - override /logger: wandb
 
@@ -45,7 +45,6 @@ logger:
     - spacegroup
     - uniform
   should_log_batch_info: True
-  batch_log_type: fake_crystal
 
 # Evaluator
 evaluator:

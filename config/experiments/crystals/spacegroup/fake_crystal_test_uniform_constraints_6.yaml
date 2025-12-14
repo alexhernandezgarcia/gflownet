@@ -11,7 +11,8 @@ defaults:
 # Environment
 env:
   use_constraints: True
-  constraints_dict: {1: [True, False], 2: [False, False]}
+  cube_dim: 6
+  constraints_dict: {1: [False, True, False, True, True, True], 2: [False, True, True, True, True, True]}
 
 # GFlowNet hyperparameters
 gflownet:
@@ -45,7 +46,6 @@ logger:
     - spacegroup
     - uniform
   should_log_batch_info: True
-  batch_log_type: fake_crystal
 
 # Evaluator
 evaluator:

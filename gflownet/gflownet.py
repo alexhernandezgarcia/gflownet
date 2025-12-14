@@ -1145,8 +1145,14 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-            if self.logger.should_log_batch_info:
+            if self.logger.should_log_batch_info: # debug purposes, options+grid only
                 self.logger.log_batch_info(
+                    batch,
+                    step=self.it,
+                    use_context=self.use_context,
+                )
+            if self.logger.should_log_crystal_batch_info: # debug purposes, crystal only
+                self.logger.log_crystal_batch_info(
                     batch,
                     step=self.it,
                     use_context=self.use_context,

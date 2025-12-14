@@ -11,7 +11,7 @@ defaults:
 # Environment
 env:
   use_constraints: True
-  constraints_dict: {1: [False, True], 2: [False, False]}
+  constraints_dict: {1: [False, True], 2: [True, False]}
 
 # GFlowNet hyperparameters
 gflownet:
