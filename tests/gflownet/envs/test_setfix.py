@@ -1694,6 +1694,94 @@ def test__step__works_as_expected(
             },
             True,
         ),
+        # From active 0th grid: toggle (deactivate) 0th grid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            (-1, 0, 0),
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From active 1st grid: toggle (deactivate) 1st grid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            (-1, 1, 0),
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From active 0th grid: grid action that returns to source
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 0],
+                1: [0, 0],
+            },
+            (0, 1, 0),
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From intermediate state (inactive): toggle (activate) grid 0th
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            (-1, 0, 0),
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            True,
+        ),
     ],
 )
 def test__step_backwards__works_as_expected(
