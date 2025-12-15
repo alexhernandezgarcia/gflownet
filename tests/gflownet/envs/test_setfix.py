@@ -1234,6 +1234,72 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
             },
             True,
         ),
+        # From source: activate 1st grid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            (-1, 1, 0),
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From source -> activate 0th grid: grid action
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            (0, 1, 0),
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From intermediate 1st grid: grid EOS
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [1, 1],
+            },
+            (0, 0, 0),
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [1, 1],
+            },
+            True,
+        ),
     ],
 )
 def test__step__works_as_expected(

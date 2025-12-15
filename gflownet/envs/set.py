@@ -419,17 +419,26 @@ class BaseSet(CompositeBase):
         Executes forward step given an action.
 
         Actions may be either sub-environent actions, or set actions. If the former,
-        the action is performed by the corresponding sub-environment and then the
-        parent state is updated accordingly. If the latter, no sub-environment is
-        involved and the changes are in the Set variables (active subenv and toggle
-        flag)
+        the action is performed by the corresponding sub-environment and then the set
+        state is updated accordingly. If the latter, no sub-environment is involved and
+        the changes are in the meta-data of the state (active subenv and toggle flag)
 
         Because the same action may correspond to multiple sub-environments, the action
         will always be performed on the active sub-environment.
 
-        After a sub-environment action, the toggle flag of the state is set to 0.
-        After an action to toggle a sub-environment, the active sub-environment is
-        updated accordingly.
+        - Toggle actions:
+            - Activate the corresponding sub-environment if the no sub-environment is
+              currently active.
+                - If can_alternate_subenvs is True, the toggle flag is set to 1.
+                - If can_alternate_subenvs is False, the toggle flag remains 0.
+            - Reset the active sub-environment flag to -1 if a sub-environment is
+              currently active.
+                - The toggle flag is expected to be 0 and it remains 0.
+        - Environment actions:
+            - Updates the corresponding sub-environment as well as the set state.
+            - If can_alternate_subenvs is True, the toggle flag is set to 0.
+            - If can_alternate_subenvs is False, the toggle flag is set to 1, unless
+              the action is EOS, in which case the toggle flag is set to 0.
 
         Parameters
         ----------
@@ -492,16 +501,20 @@ class BaseSet(CompositeBase):
             toggled_subenv = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
                 self._set_active_subenv(toggled_subenv)
-                self._set_toggle_flag(1)
+                if self.can_alternate_subenvs:
+                    self._set_toggle_flag(1)
+                else:
+                    assert self._get_toggle_flag(self.state) == 0
             else:
                 assert self._get_active_subenv(self.state) == toggled_subenv
+                assert self._get_toggle_flag(self.state) == 0
                 self._set_active_subenv(-1)
-                self._set_toggle_flag(0)
             return self.state, action, True
 
         # Case B: the action is an action from a sub-environment
         # Get the sub-environment corresponding to the action and its sub-action
-        assert self._get_toggle_flag(self.state) == 1
+        if self.can_alternate_subenvs:
+            assert self._get_toggle_flag(self.state) == 1
 
         # Get active sub-environment and depad action
         active_subenv = self._get_active_subenv(self.state)
@@ -537,7 +550,10 @@ class BaseSet(CompositeBase):
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
-        self._set_toggle_flag(0)
+        if self.can_alternate_subenvs or subenv.done:
+            self._set_toggle_flag(0)
+        else:
+            self._set_toggle_flag(1)
         return self.state, action, valid
 
     def step_backwards(
