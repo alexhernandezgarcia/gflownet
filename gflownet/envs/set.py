@@ -122,7 +122,7 @@ class BaseSet(CompositeBase):
 
     def __init__(
         self,
-        can_alternate_subenvs=False,
+        can_alternate_subenvs=True,
         **kwargs,
     ):
         """
@@ -220,7 +220,7 @@ class BaseSet(CompositeBase):
             # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
             case_a = True
-        elif self.can_alternate_subenvs and toggle_flag == 0:
+        elif not self.can_alternate_subenvs and toggle_flag == 0:
             if dones[active_subenv] == 0:
                 # Case B: in the variant where sub-environments cannot alternate, the
                 # toggle flag is zero and the active sub-environment is not done: this
@@ -233,7 +233,7 @@ class BaseSet(CompositeBase):
                 # indicates the sub-environment is done and the only valid action is to
                 # toggle (deactivate) the active sub-environment.
                 case_c = True
-        elif not self.can_alternate_subenvs and toggle_flag == 0:
+        elif self.can_alternate_subenvs and toggle_flag == 0:
             # Case D: in the variant where sub-environments can alternate, the toggle
             # flag is zero: this indicates a sub-environment action has been performed
             # and the only valid action is to toggle (deactivate) the active
@@ -310,7 +310,7 @@ class BaseSet(CompositeBase):
             # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
             case_a = True
-        elif self.can_alternate_subenvs and toggle_flag == 0:
+        elif not self.can_alternate_subenvs and toggle_flag == 0:
             if dones[active_subenv] == 0:
                 # Case B: in the variant where sub-environments cannot alternate, the
                 # toggle flag is zero and the sub-environment is not done: this
@@ -323,17 +323,17 @@ class BaseSet(CompositeBase):
                 # the sub-environment has just been activated (in the backward sense)
                 # and the only valid is the EOS of the active sub-environment.
                 case_c = True
-        elif self.can_alternate_subenvs and toggle_flag == 1:
+        elif not self.can_alternate_subenvs and toggle_flag == 1:
             # Case D: in the variant where sub-environments cannot alternate, the toggle
             # flag is one: this indicates a sub-environment action (in the backward
             # sense) must be performed.
             case_d = True
-        elif not self.can_alternate_subenvs and toggle_flag == 0:
+        elif self.can_alternate_subenvs and toggle_flag == 0:
             # Case E: in the variant where sub-environments can alternate, the toggle
             # flag is zero: this indicates a sub-environment action (in the backward
             # sense) must be performed.
             case_e = True
-        elif not self.can_alternate_subenvs and toggle_flag == 1:
+        elif self.can_alternate_subenvs and toggle_flag == 1:
             # Case F: in the variant where sub-environments can alterante, a
             # sub-environment is active and the toggle flag is 1: this indicates a
             # sub-environment action (in the backward sense) has been performed and the
