@@ -1270,7 +1270,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
             (0, 1, 0),
             {
                 "_active": 0,
-                "_toggle": 1,
+                "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
                 0: [1, 0],
@@ -1283,7 +1283,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
             "env_two_grids_cannot_alternate",
             {
                 "_active": 1,
-                "_toggle": 1,
+                "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
                 0: [0, 0],
@@ -1743,7 +1743,7 @@ def test__step__works_as_expected(
             "env_two_grids_cannot_alternate",
             {
                 "_active": 0,
-                "_toggle": 1,
+                "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
                 0: [1, 0],

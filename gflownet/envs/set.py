@@ -16,7 +16,6 @@ from gflownet.envs.composite import CompositeBase
 from gflownet.utils.common import copy, tfloat, tlong
 
 
-# TODO: If can_alternate_subenvs is False, it may be possible to ignore the toggle flag
 class BaseSet(CompositeBase):
     """
     Base class for the SetFlex and the SetFix classes.
@@ -70,7 +69,9 @@ class BaseSet(CompositeBase):
     - The index of the active sub-environment or -1 to indicate that no sub-environment
       is active
     - A flag (toggle) to indicate whether a sub-environment action is expected, or
-      whether an action to toggle a sub-environment is expected.
+      whether an action to toggle a sub-environment is expected. This flag is only
+      necessary if ``can_alternate_subenvs`` is True. Therefore, the toggle flag is
+      ignored (always 0) if ``can_alternate_subenvs`` is False.
     - A list of flags indicating whether the sub-environments are done (1) or not (0).
     - A dictionary with the states of all the sub-environments
 
@@ -81,13 +82,13 @@ class BaseSet(CompositeBase):
 
     - s0:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 1
     - s1:  (active: 1, toggle: 0, dones: [0, 0]   | action: an action of subenv 1
-    - s2:  (active: 1, toggle: 1, dones: [0, 0]   | action: an action of subenv 1
-    - s3:  (active: 1, toggle: 1, dones: [0, 0]   | action: EOS action of subenv 1
+    - s2:  (active: 1, toggle: 0, dones: [0, 0]   | action: an action of subenv 1
+    - s3:  (active: 1, toggle: 0, dones: [0, 0]   | action: EOS action of subenv 1
     - s4:  (active: 1, toggle: 0, dones: [0, 1]   | action: toggle subenv 1
     - s5:  (active: -1, toggle: 0, dones: [0, 1]) | action: toggle subenv 0
     - s6:  (active: 0, toggle: 0, dones: [0, 1])  | action: an action of subenv 0
-    - s7:  (active: 0, toggle: 1, dones: [0, 1])  | action: an action of subenv 0
-    - s8:  (active: 0, toggle: 1, dones: [0, 1]   | action: EOS action of subenv 0
+    - s7:  (active: 0, toggle: 0, dones: [0, 1])  | action: an action of subenv 0
+    - s8:  (active: 0, toggle: 0, dones: [0, 1]   | action: EOS action of subenv 0
     - s9:  (active: 0, toggle: 0, dones: [1, 1])  | action: toggle subenv 0
     - s10: (active: -1, toggle: 0, dones: [1, 1]) | action: global EOS
 
@@ -215,38 +216,31 @@ class BaseSet(CompositeBase):
 
         # Establish the case based on the active sub-environment, the toggle flag and
         # the done flags
-        case_a = case_b = case_c = case_d = case_e = False
+        case_a = case_b = case_c = case_d = False
         if active_subenv == -1:
             # - Case A: no sub-environment is active: the only valid actions are to
             # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
             case_a = True
-        elif not self.can_alternate_subenvs and toggle_flag == 0:
-            if dones[active_subenv] == 0:
-                # Case B: in the variant where sub-environments cannot alternate, the
-                # toggle flag is zero and the active sub-environment is not done: this
-                # indicates the sub-environment has just been activated and the only
-                # valid actions are those of the active sub-environment.
-                case_b = True
-            else:
-                # Case C: in the variant where sub-environments cannot alternate, the
-                # toggle flag is zero and the active sub-environment is done: this
-                # indicates the sub-environment is done and the only valid action is to
-                # toggle (deactivate) the active sub-environment.
-                case_c = True
+        elif not self.can_alternate_subenvs and dones[active_subenv] == 1:
+            # Case B: in the variant where sub-environments cannot alternate, the
+            # active sub-environment is done: this indicates that since the
+            # sub-environment is done, the only valid action is to toggle (deactivate)
+            # the active sub-environment.
+            case_b = True
         elif self.can_alternate_subenvs and toggle_flag == 0:
-            # Case D: in the variant where sub-environments can alternate, the toggle
+            # Case C: in the variant where sub-environments can alternate, the toggle
             # flag is zero: this indicates a sub-environment action has been performed
             # and the only valid action is to toggle (deactivate) the active
             # sub-environment.
-            case_d = True
-        elif toggle_flag == 1:
-            # Case E: a sub-environment is active and the toggle flag is 1: this
-            # indicates that a sub-environment action is to be performed.
-            assert not dones[active_subenv]
-            case_e = True
+            case_c = True
         else:
-            raise RuntimeError("No forward case could be established")
+            # Case D: a sub-environment is active and, if sub-environments cannot
+            # alternate, the toggle flag is 1: this indicates that a sub-environment
+            # action is to be performed.
+            assert not self.can_alternate_subenvs or toggle_flag == 1
+            assert not dones[active_subenv]
+            case_d = True
 
         # Build the mask based on the case
         if case_a:
@@ -256,15 +250,7 @@ class BaseSet(CompositeBase):
             # unless all sub-environments are done.
             mask = [bool(done) for done in dones]
             mask += [not all(mask)]
-        elif case_b or case_e:
-            # The main mask is the mask of the active sub-environment
-            # Get subenv from unique environments. This way computing the mask does not
-            # depend on self.subenvs and can be computed without setting the subenvs if
-            # the state is passed.
-            subenv = self._get_unique_env_of_subenv(active_subenv, state)
-            state_subenv = self._get_substate(state, active_subenv)
-            mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
-        elif case_c or case_d:
+        elif case_b or case_c:
             # The main mask is the mask of the meta-actions to toggle a
             # sub-environment, but the only valid action is to toggle the active
             # sub-environment. The global EOS is invalid (True).
@@ -274,6 +260,14 @@ class BaseSet(CompositeBase):
             mask[active_subenv] = False
             mask += [True]
             active_subenv = -1
+        elif case_d:
+            # The main mask is the mask of the active sub-environment
+            # Get subenv from unique environments. This way computing the mask does not
+            # depend on self.subenvs and can be computed without setting the subenvs if
+            # the state is passed.
+            subenv = self._get_unique_env_of_subenv(active_subenv, state)
+            state_subenv = self._get_substate(state, active_subenv)
+            mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
         else:
             raise RuntimeError("None of the possible forward cases is True")
 
@@ -302,6 +296,8 @@ class BaseSet(CompositeBase):
         active_subenv = self._get_active_subenv(state)
         toggle_flag = self._get_toggle_flag(state)
         dones = self._get_dones(state)
+        subenv = None
+        state_subenv = None
 
         # Establish the case based on the active sub-environment, the toggle flag and
         # the done flags
@@ -311,37 +307,39 @@ class BaseSet(CompositeBase):
             # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
             case_a = True
-        elif not self.can_alternate_subenvs and toggle_flag == 0:
-            if dones[active_subenv] == 0:
-                # Case B: in the variant where sub-environments cannot alternate, the
-                # toggle flag is zero and the sub-environment is not done: this
-                # indicates the sub-environment is in the source state and the only
-                # valid action is to toggle it.
+        elif self.can_alternate_subenvs:
+            if toggle_flag == 0:
+                # Case B: in the variant where sub-environments can alternate, the
+                # toggle flag is zero: this indicates a sub-environment action (in the
+                # backward sense) must be performed.
                 case_b = True
             else:
-                # Case C: in the variant where sub-environments cannot alternate, the
+                # Case C: in the variant where sub-environments can alterante, a
+                # sub-environment is active and the toggle flag is 1: this indicates a
+                # sub-environment action (in the backward sense) has been performed and
+                # the only valid action is to toggle (deactivate) the sub-environment.
+                case_c = True
+        else:
+            if dones[active_subenv] == 1:
+                # Case D: in the variant where sub-environments cannot alternate, the
                 # toggle flag is zero and the sub-environment is done: this indicates
                 # the sub-environment has just been activated (in the backward sense)
                 # and the only valid is the EOS of the active sub-environment.
-                case_c = True
-        elif not self.can_alternate_subenvs and toggle_flag == 1:
-            # Case D: in the variant where sub-environments cannot alternate, the toggle
-            # flag is one: this indicates a sub-environment action (in the backward
-            # sense) must be performed.
-            case_d = True
-        elif self.can_alternate_subenvs and toggle_flag == 0:
-            # Case E: in the variant where sub-environments can alternate, the toggle
-            # flag is zero: this indicates a sub-environment action (in the backward
-            # sense) must be performed.
-            case_e = True
-        elif self.can_alternate_subenvs and toggle_flag == 1:
-            # Case F: in the variant where sub-environments can alterante, a
-            # sub-environment is active and the toggle flag is 1: this indicates a
-            # sub-environment action (in the backward sense) has been performed and the
-            # only valid action is to toggle (deactivate) the sub-environment.
-            case_f = True
-        else:
-            raise RuntimeError("No backward case could be established")
+                case_d = True
+            else:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
+                if subenv.is_source(state_subenv):
+                    # Case E: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is in the source state: the only valid action
+                    # is to toggle it.
+                    case_e = True
+                else:
+                    # Case F: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is not in the source state and is not done:
+                    # this indicates a sub-environment action (in the backward sense)
+                    # must be performed.
+                    case_f = True
 
         # Build the mask based on the case
         if case_a:
@@ -366,7 +364,7 @@ class BaseSet(CompositeBase):
                     else:
                         mask[idx] = False
                 mask += [True]
-        elif case_b or case_f:
+        elif case_c or case_e:
             # The main mask is the mask of the meta-actions to toggle a
             # sub-environment, but the only valid action is to toggle the active
             # sub-environment. The global EOS is invalid.
@@ -376,7 +374,7 @@ class BaseSet(CompositeBase):
             mask[active_subenv] = False
             mask += [True]
             active_subenv = -1
-        elif case_c or case_d or case_e:
+        elif case_b or case_d or case_f:
             # The main mask is the mask of the active sub-environment
             # Get subenv from unique environments. This way computing the mask does not
             # depend on self.subenvs and can be computed without setting the subenvs if
@@ -431,15 +429,12 @@ class BaseSet(CompositeBase):
             - Activate the corresponding sub-environment if no sub-environment is
               currently active.
                 - If can_alternate_subenvs is True, the toggle flag is set to 1.
-                - If can_alternate_subenvs is False, the toggle flag remains 0.
             - Reset the active sub-environment flag to -1 if a sub-environment is
               currently active.
                 - The toggle flag is expected to be 0 and it remains 0.
         - Environment actions:
             - Updates the corresponding sub-environment as well as the set state.
             - If can_alternate_subenvs is True, the toggle flag is set to 0.
-            - If can_alternate_subenvs is False, the toggle flag is set to 1, unless
-              the action is EOS, in which case the toggle flag is set to 0.
 
         Parameters
         ----------
@@ -504,8 +499,6 @@ class BaseSet(CompositeBase):
                 self._set_active_subenv(toggled_subenv)
                 if self.can_alternate_subenvs:
                     self._set_toggle_flag(1)
-                else:
-                    assert self._get_toggle_flag(self.state) == 0
             else:
                 assert self._get_active_subenv(self.state) == toggled_subenv
                 assert self._get_toggle_flag(self.state) == 0
@@ -553,8 +546,6 @@ class BaseSet(CompositeBase):
         self._set_active_subenv(active_subenv)
         if self.can_alternate_subenvs or subenv.done:
             self._set_toggle_flag(0)
-        else:
-            self._set_toggle_flag(1)
         return self.state, action, valid
 
     def step_backwards(
@@ -579,11 +570,7 @@ class BaseSet(CompositeBase):
             - Set the toggle flag to 0.
         - Environment actions:
             - Updates the corresponding sub-environment as well as the set state.
-            - Set the toggle flag is set to 1, unless:
-                - can_alternate_subenvs is False, and
-                - the state of the active sub-environment (after the update) is the
-                  source state.
-                - In this case, the toggle flag is set to 0.
+            - If can_alternate_subenvs is True, set the toggle flag is set to 1.
 
         Parameters
         ----------
@@ -652,13 +639,14 @@ class BaseSet(CompositeBase):
             toggled_subenv = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
                 self._set_active_subenv(toggled_subenv)
-                self._set_toggle_flag(0)
+                if self.can_alternate_subenvs:
+                    self._set_toggle_flag(0)
             else:
                 assert self._get_active_subenv(self.state) == toggled_subenv
                 if self.can_alternate_subenvs:
                     assert self._get_toggle_flag(self.state) == 1
+                    self._set_toggle_flag(0)
                 self._set_active_subenv(-1)
-                self._set_toggle_flag(0)
             return self.state, action, True
 
         # Case B: the action is an action from a sub-environment
@@ -702,9 +690,7 @@ class BaseSet(CompositeBase):
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
-        if not self.can_alternate_subenvs and subenv.is_source():
-            self._set_toggle_flag(0)
-        else:
+        if self.can_alternate_subenvs:
             self._set_toggle_flag(1)
         return self.state, action, valid
 
