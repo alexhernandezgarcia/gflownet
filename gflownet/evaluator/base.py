@@ -71,8 +71,12 @@ class BaseEvaluator(AbstractEvaluator):
                 "display_name": "Jensen Shannon Div.",
                 "requirements": ["density"],
             },
-            "corr_prob_traj_rewards": {
+            "corr_probs_rewards": {
                 "display_name": "Corr. (test probs., rewards)",
+                "requirements": ["log_probs", "reward_batch"],
+            },
+            "corr_logprobs_logrewards": {
+                "display_name": "Corr. (test logprobs., logrewards)",
                 "requirements": ["log_probs", "reward_batch"],
             },
             "var_logrewards_logp": {
@@ -233,13 +237,21 @@ class BaseEvaluator(AbstractEvaluator):
 
         - ``mean_logprobs_std``: Mean of the standard deviation of the log-probabilities.
         - ``mean_probs_std``: Mean of the standard deviation of the probabilities.
-        - ``corr_prob_traj_rewards``: Correlation between the probabilities and the
+        - ``corr_probs_rewards``: Correlation between the probabilities and the
             rewards.
+        - ``corr_logprobs_logrewards``: Correlation between the log-probabilities and
+            the log-rewards.
         - ``var_logrewards_logp``: Variance of the log-rewards minus the log-probabilities.
         - ``nll_tt``: Negative log-likelihood of the test data.
         - ``logprobs_std_nll_ratio``: Ratio of the mean of the standard deviation of the
             log-probabilities over the negative log-likelihood of the test data.
 
+        Returned data in the ``"data"`` sub-dict:
+
+        - ``probs``: Probabilities of the test data.
+        - ``rewards``: Rewards for the test data.
+        - ``logprobs``: Log-probabilities of the test data.
+        - ``logrewards``: Log-rewards of the test data.
 
         Parameters
         ----------
@@ -252,7 +264,8 @@ class BaseEvaluator(AbstractEvaluator):
         Returns
         -------
         dict
-            Computed dict of metrics and data as ``{"metrics": {str: float}}``.
+            Computed dict of metrics and data as
+            ``{"metrics": {str: float}, "data": {str: object}}``.
         """
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
@@ -266,7 +279,7 @@ class BaseEvaluator(AbstractEvaluator):
         )
 
         lp_metrics = {}
-
+        lp_data = {}
         if "mean_logprobs_std" in metrics:
             lp_metrics["mean_logprobs_std"] = logprobs_std.mean().item()
 
@@ -275,11 +288,20 @@ class BaseEvaluator(AbstractEvaluator):
 
         if "reward_batch" in reqs:
             rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
+            logrewards_x_tt = torch.log(rewards_x_tt)
+            lp_data["rewards"] = rewards_x_tt
+            lp_data["logrewards"] = logrewards_x_tt
 
-            if "corr_prob_traj_rewards" in metrics:
-                lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
-                    np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+            if "corr_probs_rewards" in metrics:
+                probs_x_tt = np.exp(logprobs_x_tt.cpu().numpy())
+                lp_metrics["corr_probs_rewards"] = np.corrcoef(
+                    probs_x_tt, rewards_x_tt
                 )[0, 1]
+                lp_metrics["corr_logprobs_logrewards"] = np.corrcoef(
+                    logprobs_x_tt, logrewards_x_tt
+                )[0, 1]
+                lp_data["probs"] = probs_x_tt
+                lp_data["logprobs"] = logprobs_x_tt
 
             if "var_logrewards_logp" in metrics:
                 lp_metrics["var_logrewards_logp"] = torch.var(
@@ -302,6 +324,7 @@ class BaseEvaluator(AbstractEvaluator):
 
         return {
             "metrics": lp_metrics,
+            "data": lp_data,
         }
 
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
@@ -556,8 +579,14 @@ class BaseEvaluator(AbstractEvaluator):
             Dictionary of figures to be logged. The keys are the figure names and the
             values are the figures.
         """
+        probs = kwargs.get("probs", None)
+        rewards = kwargs.get("rewards", None)
+        logprobs = kwargs.get("logprobs", None)
+        logrewards = kwargs.get("logrewards", None)
 
-        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = None
+        fig_kde_pred = fig_kde_true = fig_reward_samples = fig_samples_topk = (
+            fig_scatter_rewards_probs
+        ) = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
             (
@@ -589,7 +618,8 @@ class BaseEvaluator(AbstractEvaluator):
                     n_forward=self.config.n_top_k, train=False
                 )
                 x_sampled = batch.get_terminating_states()
-            rewards = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_sampled))
+            if rewards is None:
+                rewards = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_sampled))
             fig_samples_topk = self.gfn.env.plot_samples_topk(
                 x_sampled,
                 rewards,
@@ -597,9 +627,30 @@ class BaseEvaluator(AbstractEvaluator):
                 **plot_kwargs,
             )
 
+        # Plot (log)rewards vs (log)probs for test set
+        if (
+            probs is not None
+            and rewards is not None
+            and logprobs is not None
+            and logrewards is not None
+        ):
+            import matplotlib.pyplot as plt
+
+            fig_scatter_rewards_probs, ax = plt.subplots(
+                nrows=1, ncols=2, figsize=(8, 4), dpi=150
+            )
+            ax[0].scatter(rewards, probs)
+            ax[0].set_xlabel(f"Rewards")
+            ax[0].set_ylabel(f"Probs")
+            ax[1].scatter(logrewards, logprobs)
+            ax[1].set_xlabel(f"Log-rewards")
+            ax[1].set_ylabel(f"Log-probs")
+            fig_scatter_rewards_probs.tight_layout()
+
         return {
             "True reward and GFlowNet samples": fig_reward_samples,
             "GFlowNet KDE Policy": fig_kde_pred,
             "Reward KDE": fig_kde_true,
             "Samples TopK": fig_samples_topk,
+            "Scatterplot Rewards vs. Probs": fig_scatter_rewards_probs,
         }
