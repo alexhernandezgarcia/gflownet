@@ -314,17 +314,17 @@ class BaseSet(CompositeBase):
                 # backward sense) must be performed.
                 case_b = True
             else:
-                # Case C: in the variant where sub-environments can alterante, a
+                # Case C: in the variant where sub-environments can alternate, a
                 # sub-environment is active and the toggle flag is 1: this indicates a
                 # sub-environment action (in the backward sense) has been performed and
                 # the only valid action is to toggle (deactivate) the sub-environment.
                 case_c = True
         else:
             if dones[active_subenv] == 1:
-                # Case D: in the variant where sub-environments cannot alternate, the
-                # toggle flag is zero and the sub-environment is done: this indicates
-                # the sub-environment has just been activated (in the backward sense)
-                # and the only valid is the EOS of the active sub-environment.
+                # Case D: in the variant where sub-environments cannot alternate the
+                # sub-environment is done: this indicates the sub-environment has just
+                # been activated (in the backward sense) and the only valid is the EOS
+                # of the active sub-environment.
                 case_d = True
             else:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
@@ -379,8 +379,9 @@ class BaseSet(CompositeBase):
             # Get subenv from unique environments. This way computing the mask does not
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
-            subenv = self._get_unique_env_of_subenv(active_subenv, state)
-            state_subenv = self._get_substate(state, active_subenv)
+            if subenv is None or state_subenv is None:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
             done_subenv = dones[active_subenv]
             mask = subenv.get_mask_invalid_actions_backward(state_subenv, done_subenv)
         else:
@@ -733,8 +734,51 @@ class BaseSet(CompositeBase):
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
         toggle_flag = self._get_toggle_flag(state)
+        dones = self._get_dones(state)
+        subenv = None
+        state_subenv = None
 
+        # Establish the case based on the active sub-environment, the toggle flag and
+        # the done flags
+        case_a = case_b = case_c = case_d = case_e = case_f = False
         if active_subenv == -1:
+            # - Case A: no sub-environment is active
+            assert toggle_flag == 0
+            case_a = True
+        elif self.can_alternate_subenvs:
+            if toggle_flag == 0:
+                # Case B: in the variant where sub-environments can alternate, the
+                # toggle flag is zero: this indicates sub-environment actions (in the
+                # backward sense) are valid.
+                case_b = True
+            else:
+                # Case C: in the variant where sub-environments can alternate, a
+                # sub-environment is active and the toggle flag is 1: this indicates
+                # the corresponding toggle action (deactivate) is valid.
+                case_c = True
+        else:
+            if dones[active_subenv] == 1:
+                # Case D: in the variant where sub-environments cannot alternate the
+                # sub-environment is done: this indicates the sub-environment has just
+                # been activated (in the backward sense) and the only valid is the EOS
+                # of the active sub-environment.
+                case_d = True
+            else:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
+                if subenv.is_source(state_subenv):
+                    # Case E: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is in the source state: the only valid action
+                    # is to toggle it.
+                    case_e = True
+                else:
+                    # Case F: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is not in the source state and is not done:
+                    # this indicates sub-environment actions (in the backward sense)
+                    # are valid.
+                    case_f = True
+
+        if case_a:
             # Case A: no sub-environment is active: the parents of the state correspond
             # to states with the same sub-environment states but with one active
             # sub-environment, unless the sub-environment is at the source state and is
@@ -746,31 +790,32 @@ class BaseSet(CompositeBase):
                     parent = copy(state)
                     parents.append(self._set_active_subenv(idx, parent))
                     actions.append(self._pad_action((idx,), -1))
-        elif toggle_flag == 1:
-            # Case B: a sub-environment is active but the toggle flag is 1, indicating
-            # that a sub-environment has just been activated. In this case, the only
-            # parent is the same state with inactive sub-environments and toggle flag
-            # 0.
+        elif case_c or case_e:
+            # Case B: a sub-environment is active but only the corresponding toggle
+            # action is valid: the only parent is the same state with inactive
+            # sub-environments and toggle flag 0.
             parent = copy(state)
             parent = self._set_active_subenv(-1, parent)
-            parent = self._set_toggle_flag(0, parent)
+            if self.can_alternate_subenvs:
+                parent = self._set_toggle_flag(0, parent)
             parents.append(parent)
             actions.append(self._pad_action((active_subenv,), -1))
-        else:
-            # Case C: a sub-environment is active and the toggle flag is 0, indicating
-            # that a sub-environment action has just been performed (in the forward
-            # sense): The parents are determined by the parents of the active
+        elif case_b or case_d or case_f:
+            # Case C: a sub-environment is active and sub-environment actions are
+            # valid: the parents are determined by the parents of the active
             # sub-environment.
             assert toggle_flag == 0
-            subenv = self.subenvs[active_subenv]
-            state_subenv = self._get_substate(state, active_subenv)
+            if subenv is None or state_subenv is None:
+                subenv = self.subenvs[active_subenv]
+                state_subenv = self._get_substate(state, active_subenv)
             done_subenv = bool(self._get_dones(state)[active_subenv])
             parents_subenv, parent_actions_subenv = subenv.get_parents(
                 state_subenv, done_subenv
             )
             for p, p_a in zip(parents_subenv, parent_actions_subenv):
                 parent = copy(state)
-                parent = self._set_toggle_flag(1, parent)
+                if self.can_alternate_subenvs:
+                    parent = self._set_toggle_flag(1, parent)
                 parent = self._set_substate(active_subenv, p, parent)
                 if p_a == subenv.eos:
                     parent = self._set_subdone(active_subenv, False, parent)
