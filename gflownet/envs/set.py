@@ -199,7 +199,7 @@ class BaseSet(CompositeBase):
 
         The mask of the Set environment is the concatenation of the following:
         - A one-hot encoding of the index of the subenv (True at the index of the
-          active environment). All False if no sub-environment is active.
+          active environment). All False if only valid actions are meta-actions.
         - Actual (main) mask of invalid actions:
             - The mask of the actions to activate a sub-environment, OR
             - The mask of the active sub-environment.
@@ -254,8 +254,8 @@ class BaseSet(CompositeBase):
             # The main mask is the mask of the meta-actions to toggle a
             # sub-environment, but the only valid action is to toggle the active
             # sub-environment. The global EOS is invalid (True).
-            # active_subenv is set to -1, in order to force the prefix reflect that the
-            # state is effectively inactive.
+            # active_subenv is set to -1, in order to make the mask formatting reflect
+            # that the valid actions are set meta-actions.
             mask = [True] * self.max_elements
             mask[active_subenv] = False
             mask += [True]
@@ -1118,6 +1118,7 @@ class BaseSet(CompositeBase):
         representative = self._pad_action(representative_subenv, idx_unique)
         return representative
 
+    # TODO: consider moving to Composite
     def _format_mask(self, mask: List[bool], active_subenv: int):
         r"""
         Applies formatting to the mask of a sub-environment.
@@ -1125,6 +1126,9 @@ class BaseSet(CompositeBase):
         The output format is the mask of the input sub-environment, preceded by a
         one-hot encoding of the index of the active sub-environment and padded with
         False up to :py:const:`self.mask_dim`.
+
+        If no sub-environment is active (``active_subenv`` is -1), the prefix is all
+        False.
 
         Parameters
         ----------

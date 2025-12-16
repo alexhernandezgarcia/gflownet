@@ -690,6 +690,7 @@ def test__get_action_space__returns_expected(env, action_space, request):
         ("env_three_cubes", max([5, 5, 5, 3 + 1]) + 3),
         ("env_cube2d_cube3d", max([5, 6, 2 + 1]) + 2),
         ("env_two_cubes2d_one_cube3d", max([5, 5, 6, 3 + 1]) + 3),
+        ("env_two_grids_cannot_alternate", max([3, 3, 2 + 1]) + 2),
     ],
 )
 def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
@@ -2111,6 +2112,114 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             ]
             # fmt: on
         ),
+        # Source
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                False, False, True, # MASK SET (EOS invalid)
+            ]
+            # fmt: on
+        ),
+        # Source -> activate grid 0
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                True, False, # ACTIVE SUBENV
+                False, False, False, # MASK GRID
+            ]
+            # fmt: on
+        ),
+        # Intermediate grid 0
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                True, False, # ACTIVE SUBENV
+                True, False, False, # MASK GRID
+            ]
+            # fmt: on
+        ),
+        # Intermediate grid 1
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, True, # ACTIVE SUBENV
+                False, False, False, # MASK GRID
+            ]
+            # fmt: on
+        ),
+        # Intermediate done grid 1
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                True, False, True, # MASK SET (toggle subenv 1 only valid action)
+            ]
+            # fmt: on
+        ),
+        # All done, only EOS valid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                True, True, False, # MASK SET (EOS only valid action)
+            ]
+            # fmt: on
+        ),
     ],
 )
 def test__get_mask_invalid_actions_forward__returns_expected(
@@ -2345,6 +2454,78 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 True, False, # ACTIVE SUBENV
                 False, False, True, # MASK
                 False, False, False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # All done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                False, False, True, # MASK SET 
+            ]
+            # fmt: on
+        ),
+        # Grid 1 active but done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, True, # ACTIVE SUBENV
+                True, True, False, # MASK SET 
+            ]
+            # fmt: on
+        ),
+        # Grid 1 active but source
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                True, False, True, # MASK SET 
+            ]
+            # fmt: on
+        ),
+        # No environment is active, only grid 0 done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE SUBENV
+                False, True, True, # MASK SET 
             ]
             # fmt: on
         ),
@@ -2852,7 +3033,7 @@ def test__step_random__does_not_crash_from_source(env, request):
             },
             [
                 {
-                    "_active": -1,
+                    "_active": 0,
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
@@ -2970,6 +3151,129 @@ def test__step_random__does_not_crash_from_source(env, request):
             ],
             [(0, 1, 0, 0), (0, 0, 1, 0)],
         ),
+        # Source -> activate grid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+            ],
+            [(-1, 0, 0)],
+        ),
+        # No active environment, only grid 0 is done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [0, 0],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [0, 0],
+                },
+            ],
+            [(-1, 0, 0)],
+        ),
+        # No active environment, only grid 1 is done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [1, 1],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [1, 1],
+                },
+            ],
+            [(-1, 1, 0)],
+        ),
+        # Grid 1 is active but done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [1, 1],
+                },
+            ],
+            [(0, 0, 0)],
+        ),
+        # Grid 0 is active
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 1],
+                    1: [1, 1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, 0],
+                    0: [0, 2],
+                    1: [1, 1],
+                },
+            ],
+            [(0, 0, 1), (0, 1, 0)],
+        ),
     ],
 )
 def test__get_parents__returns_expected(
@@ -2982,12 +3286,22 @@ def test__get_parents__returns_expected(
     # Create dictionaries of parent_action: parent for comparison
     parents_actions_exp_dict = {}
     for parent, action in zip(parents_exp, parent_actions_exp):
-        parents_actions_exp_dict[action] = tuple(parent.copy())
+        parents_actions_exp_dict[action] = tuple(
+            [(k, v) for k, v in parent.copy().items()]
+        )
     parents_actions_dict = {}
     for parent, action in zip(parents, parent_actions):
-        parents_actions_dict[action] = tuple(parent.copy())
+        parents_actions_dict[action] = tuple([(k, v) for k, v in parent.copy().items()])
 
-    assert sorted(parents_actions_exp_dict) == sorted(parents_actions_dict)
+    assert all(
+        [
+            env.equal(a, b)
+            for a, b in zip(
+                sorted(parents_actions_exp_dict),
+                sorted(parents_actions_dict),
+            )
+        ]
+    )
 
 
 @pytest.mark.parametrize(

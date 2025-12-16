@@ -71,7 +71,7 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        state : dicct
+        state : dict
             A state of the composite environment.
         idx_subenv : int
             Index of the sub-environment of which the corresponding part of the
