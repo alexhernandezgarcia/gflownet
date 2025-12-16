@@ -1642,12 +1642,22 @@ def test__get_parents__returns_expected(
     # Create dictionaries of parent_action: parent for comparison
     parents_actions_exp_dict = {}
     for parent, action in zip(parents_exp, parent_actions_exp):
+        # TODO: update if state becomes dictionary
         parents_actions_exp_dict[action] = tuple(parent.copy())
     parents_actions_dict = {}
     for parent, action in zip(parents, parent_actions):
+        # TODO: update if state becomes dictionary
         parents_actions_dict[action] = tuple(parent.copy())
 
-    assert sorted(parents_actions_exp_dict) == sorted(parents_actions_dict)
+    assert all(
+        [
+            env.equal(a, b)
+            for a, b in zip(
+                sorted(parents_actions_exp_dict),
+                sorted(parents_actions_dict),
+            )
+        ]
+    )
 
 
 class TestStackGrid2DTetrisMini(common.BaseTestsDiscrete):
