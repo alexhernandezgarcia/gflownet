@@ -94,8 +94,8 @@ class Batch:
         self.actions = []
         self.logprobs_forward = []
         self.logprobs_backward = []
-        self.logprobs_forward_valid = []
-        self.logprobs_backward_valid = []
+        self.logprobs_forward_avail = []
+        self.logprobs_backward_avail = []
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
@@ -121,7 +121,6 @@ class Batch:
         self._logrewards_parents_available = False
         self._logrewards_source_available = False
         self._proxy_values_available = False
-        self._logprobs_available = False
 
     def __len__(self):
         return self.size
@@ -320,30 +319,11 @@ class Batch:
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
-            # Add states, parents, actions, logprobs, done and masks
+            # Add action
             self.actions.append(action)
+            # Handle backward transition
             if backward:
-                # Add logpb for current action
-                self.logprobs_backward.append(logp)
-                self.logprobs_backward_valid.append(True if logp is not None else False)
-                # Add logpf for previous action
-                if not env.is_source(env.state):
-                    # Store a None placeholder for the current logpf which will be
-                    # replaced at the next step
-                    self.logprobs_forward.append(None)
-                else:
-                    # If the state is the source state, store a zero placeholder for
-                    # logpf which will never be added to the batch sampled backward.
-                    # This should be computed and replaced separately outside the batch
-                    self.logprobs_forward.append(
-                        tfloat(0.0, device=self.device, float_type=self.float)
-                    )
-                self.logprobs_forward_valid.append(False)
-                if idx_prev is not None:
-                    # Replace the None placeholder with the actual value for previous
-                    # logpf
-                    self.logprobs_forward[idx_prev] = logp_rev
-                    self.logprobs_forward_valid[idx_prev] = True
+                # Add state, parent and done
                 self.parents.append(copy(env.state))
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -351,28 +331,22 @@ class Batch:
                 else:
                     self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
                     self.done.append(env.done)
+                # Add backward logp for current action
+                self.logprobs_backward.append(logp)
+                self.logprobs_backward_avail.append(True if logp is not None else False)
+                # Add a placeholder (2.0) forward logp for transition into current state
+                self.logprobs_forward.append(
+                    tfloat(2.0, device=self.device, float_type=self.float)
+                )
+                self.logprobs_forward_avail.append(False)
+                # If the index and logp for a previous transition are available, set
+                # the reverse (forward) logp at the index
+                if idx_prev is not None and logp_rev is not None:
+                    self.logprobs_forward[idx_prev] = logp_rev
+                    self.logprobs_forward_avail[idx_prev] = True
+            # Handle forward transition
             else:
-                # Add logpf for current action
-                self.logprobs_forward.append(logp)
-                self.logprobs_forward_valid.append(True if logp is not None else False)
-                # Add logpb for previous action
-                if not env.done:
-                    # Store a None placeholder for the current logpb which will be
-                    # replaced at the next step
-                    self.logprobs_backward.append(None)
-                    self.logprobs_backward_valid.append(False)
-                else:
-                    # Terminating transition always has backward logprob = 0, so it can
-                    # be added right away
-                    self.logprobs_backward.append(
-                        tfloat(0.0, device=self.device, float_type=self.float)
-                    )
-                    self.logprobs_backward_valid.append(True)
-                if idx_prev is not None:
-                    # Replace the None placeholder with the actual value for previous
-                    # logpb
-                    self.logprobs_backward[idx_prev] = logp_rev
-                    self.logprobs_backward_valid[idx_prev] = True
+                # Add state, parent and done
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
@@ -381,6 +355,27 @@ class Batch:
                     self.parents.append(
                         copy(self.states[self.trajectories[env.id][-2]])
                     )
+                # Add forward logp for current action
+                self.logprobs_forward.append(logp)
+                self.logprobs_forward_avail.append(True if logp is not None else False)
+                # Add backward logp for transition into current action
+                if env.done:
+                    # If the trajectory is done, the backward logp is always 0.0
+                    self.logprobs_backward.append(
+                        tfloat(0.0, device=self.device, float_type=self.float)
+                    )
+                    self.logprobs_backward_avail.append(True)
+                else:
+                    # Otherwise, add a placeholder (2.0) backward logp state
+                    self.logprobs_backward.append(
+                        tfloat(2.0, device=self.device, float_type=self.float)
+                    )
+                    self.logprobs_backward_avail.append(False)
+                # If the index and logp for a previous transition are available, set
+                # the reverse (backward) logp at the index
+                if idx_prev is not None and logp_rev is not None:
+                    self.logprobs_backward[idx_prev] = logp_rev
+                    self.logprobs_backward_avail[idx_prev] = True
             # Collect masks if needed
             if self.collect_forwards_masks:
                 self.masks_invalid_actions_forward.append(
@@ -686,72 +681,14 @@ class Batch:
             valid. The flag is False if the corresponding logprob value is a zero / None
             placefolder.
         """
-        if not self._logprobs_available:
-            self._compute_logprobs()
-
         if backward:
-            return self.logprobs_backward, self.logprobs_backward_valid
+            return tfloat(
+                self.logprobs_backward, device=self.device, float_type=self.float
+            ), tbool(self.logprobs_backward_avail, device=self.device)
         else:
-            return self.logprobs_forward, self.logprobs_forward_valid
-
-    def _compute_logprobs(self):
-        """
-        Convert all logprobs and their validity flags to tensors and update validity flags
-        """
-        self.logprobs_forward, self.logprobs_forward_valid = (
-            self._logprobs_to_clean_tensor(
-                self.logprobs_forward, self.logprobs_forward_valid
-            )
-        )
-        self.logprobs_backward, self.logprobs_backward_valid = (
-            self._logprobs_to_clean_tensor(
-                self.logprobs_backward, self.logprobs_backward_valid
-            )
-        )
-        self._logprobs_available = True
-
-    def _logprobs_to_clean_tensor(self, logprobs: List, logprobs_valid: List[bool]):
-        """
-        Convert logprobs and logprobs_valid to tensors and update validity flags
-
-        Parameters
-        ----------
-        logprobs: list
-            A list of logprobs collected over a sequence of add_to_batch calls. The
-            elements could be None or a single-number torch.tensor attached or detached
-            from a computations graph collected to the loss
-        logprobs_valid: list of bools
-            A list of validity flags collected over a sequence of add_to_batch calls which
-            indicate whether the corresponding element in the logprobs list is a valid
-            logprob (True) or not (False). When the flag is False, the corresponding logprob
-            is either None or torch.tensor(0.0) detached from the computational graph.
-
-        Returns
-        -------
-        logprobs_clean : tensor
-            A 1-d float tensor with logprobs, where all valid logprobs remain connected
-            to their computational graphs and all non-valid logprobs are zeros.
-        logprobs_valid : tensor
-            A 1-d boolean tesor with flags indicating whether the corresponding element
-            in the logprobs is a valid logprob (True) or not (False).
-        """
-        if any(x is None for x in logprobs):
-            logprobs_clean = []
-            for idx, lp in enumerate(logprobs):
-                if lp is None:
-                    logprobs_valid[idx] = False
-                    logprobs_clean.append(
-                        tfloat(0.0, device=self.device, float_type=self.float)
-                    )
-                else:
-                    logprobs_clean.append(lp)
-        else:
-            logprobs_clean = logprobs
-        logprobs_clean = tfloat(
-            logprobs_clean, float_type=self.float, device=self.device
-        )
-        logprobs_valid = tbool(logprobs_valid, device=self.device)
-        return logprobs_clean, logprobs_valid
+            return tfloat(
+                self.logprobs_forward, device=self.device, float_type=self.float
+            ), tbool(self.logprobs_forward_avail, device=self.device)
 
     def get_done(self) -> TensorType["n_states"]:
         """
@@ -1601,8 +1538,8 @@ class Batch:
             self.actions.extend(batch.actions)
             self.logprobs_forward.extend(batch.logprobs_forward)
             self.logprobs_backward.extend(batch.logprobs_backward)
-            self.logprobs_forward_valid.extend(batch.logprobs_forward_valid)
-            self.logprobs_backward_valid.extend(batch.logprobs_backward_valid)
+            self.logprobs_forward_avail.extend(batch.logprobs_forward_avail)
+            self.logprobs_backward_avail.extend(batch.logprobs_backward_avail)
             self.done.extend(batch.done)
             self.masks_invalid_actions_forward = extend(
                 self.masks_invalid_actions_forward,
@@ -1990,52 +1927,49 @@ def compute_logprobs_trajectories(
     else:
         assert forward_policy is not None
 
-    # Take logprobs from the batch if they are available.
-    logprobs_states, logprobs_valid = batch.get_logprobs(backward)
-    logprobs_nonvalid = ~logprobs_valid
-
     # Make indices of batch consecutive since they are used for indexing here
     traj_indices = batch.get_trajectory_indices(consecutive=True)
 
-    # Otherwise, compute the log probs from the states and actions in the batch
-    if torch.any(logprobs_nonvalid):
-        if torch.all(logprobs_nonvalid):
-            # setting indecies to None to select everything
-            indices_nonvalid = None
-        else:
-            indices_nonvalid = torch.where(logprobs_nonvalid)[0]
+    # Take logprobs from the batch if they are available.
+    logprobs_states, logprobs_avail = batch.get_logprobs(backward)
+
+    # Compute the unavailable log probs from the states and actions in the batch
+    indices_select = torch.where(~logprobs_avail)[0]
+    if len(indices_select) > 0:
+        if len(indices_select) == len(logprobs_avail):
+            # Set select indices to None to select everything
+            indices_select = None
 
         # Get necessary tensors from batch
+        states = batch.get_states(policy=False, indices=indices_select)
+        actions = batch.get_actions(indices=indices_select)
+        parents = batch.get_parents(policy=False, indices=indices_select)
+        states_policy = batch.get_states(policy=True, indices=indices_select)
+        parents_policy = batch.get_parents(policy=True, indices=indices_select)
 
-        states = batch.get_states(policy=False, indices=indices_nonvalid)
-        actions = batch.get_actions(indices=indices_nonvalid)
-
-        parents = batch.get_parents(policy=False, indices=indices_nonvalid)
-
-        states_policy = batch.get_states(policy=True, indices=indices_nonvalid)
-        parents_policy = batch.get_parents(policy=True, indices=indices_nonvalid)
         if backward:
             # Backward trajectories
-            masks_b = batch.get_masks_backward(indices=indices_nonvalid)
+            masks_b = batch.get_masks_backward(indices=indices_select)
             policy_output_b = backward_policy(states_policy)
             logprobs_states_val = env.get_logprobs(
                 policy_output_b, actions, masks_b, states, backward
             )
-            if indices_nonvalid is None:
+            if indices_select is None:
                 logprobs_states = logprobs_states_val
             else:
-                logprobs_states[indices_nonvalid] = logprobs_states_val
+                logprobs_states[indices_select] = logprobs_states_val
         else:
             # Forward trajectories
-            masks_f = batch.get_masks_forward(of_parents=True, indices=indices_nonvalid)
+            masks_f = batch.get_masks_forward(of_parents=True, indices=indices_select)
             policy_output_f = forward_policy(parents_policy)
             logprobs_states_val = env.get_logprobs(
                 policy_output_f, actions, masks_f, parents, backward
             )
-            if indices_nonvalid is None:
+            if indices_select is None:
                 logprobs_states = logprobs_states_val
             else:
-                logprobs_states[indices_nonvalid] = logprobs_states_val
+                logprobs_states[indices_select] = logprobs_states_val
+
     # Sum log probabilities of all transitions in each trajectory
     logprobs = torch.zeros(
         batch.get_n_trajectories(),
