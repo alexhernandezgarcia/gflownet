@@ -121,10 +121,8 @@ class fairy_model(nn.Module):
 
         temp_variables_layers = []
         temp_variables_layers.append(nn.Linear(self.width_block, self.variables_dim))
-        if self.scaling in ["original", "maxscale"]:
+        if self.scaling in ["original", "maxscale", "maxmin"]:
             temp_variables_layers.append(nn.ReLU())
-        if self.scaling == "maxscale":
-            temp_variables_layers.append(nn.LeakyReLU())
         self.variables_layer = nn.Sequential(*temp_variables_layers)
         if self.probabilistic:
             self.confidence_layer = nn.Linear(self.width_block, self.variables_dim)
