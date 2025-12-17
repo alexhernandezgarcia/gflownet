@@ -74,6 +74,21 @@ class Plan(Stack):
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
 
+        # Pre-compute tech to sector/tag index mappings for faster lookup
+        self._tech_idx_to_sector_idx = {
+            tech_idx: self.token2idx_sectors[
+                self.network_structure["tech2sector"][self.idx2token_techs[tech_idx]]
+            ]
+            for tech_idx in range(1, self.n_techs + 1)
+        }
+
+        self._tech_idx_to_tag_idx = {
+            tech_idx: self.token2idx_tags[
+                self.network_structure["tech2tag"][self.idx2token_techs[tech_idx]]
+            ]
+            for tech_idx in range(1, self.n_techs + 1)
+        }
+
     def _apply_constraints_forward(
         self,
         action: Tuple = None,
@@ -174,24 +189,30 @@ class Plan(Stack):
         """
         current_state = current_state if current_state is not None else self.state
         state_to_list = [list(inv.values()) for inv in current_state[1:]]
-        filled = np.array(state_to_list)
+        filled = np.array(state_to_list, dtype=np.int32)
         if not with_amounts:
-            filled = filled[:, 0:2]
+            filled = filled[:, :0:2]
 
         if fill_in_from_tech:
-            for idx in range(self.n_techs):
-                if filled[idx, 2] and not filled[idx, 0]:
-                    filled[idx, 0] = self.token2idx_sectors[
-                        self.network_structure["tech2sector"][
-                            self.idx2token_techs[int(filled[idx, 2])]
-                        ]
-                    ]
-                if filled[idx, 2] and not filled[idx, 1]:
-                    filled[idx, 1] = self.token2idx_tags[
-                        self.network_structure["tech2tag"][
-                            self.idx2token_techs[int(filled[idx, 2])]
-                        ]
-                    ]
+            # Vectorized approach: find all rows where tech is set but sector/tag are not
+            tech_col = filled[:, 2]
+            sector_col = filled[:, 0]
+            tag_col = filled[:, 1]
+
+            # Boolean masks for rows that need filling
+            has_tech = tech_col != 0
+            needs_sector = has_tech & (sector_col == 0)
+            needs_tag = has_tech & (tag_col == 0)
+
+            # Fill sectors using vectorized lookup
+            if np.any(needs_sector):
+                tech_indices = tech_col[needs_sector].astype(int)
+                filled[needs_sector, 0] = [self._tech_idx_to_sector_idx[idx] for idx in tech_indices]
+
+            # Fill tags using vectorized lookup
+            if np.any(needs_tag):
+                tech_indices = tech_col[needs_tag].astype(int)
+                filled[needs_tag, 1] = [self._tech_idx_to_tag_idx[idx] for idx in tech_indices]
 
         return filled
 
@@ -235,19 +256,18 @@ class Plan(Stack):
         """
         state_matrix = state_matrix[np.lexsort(state_matrix[:, ::-1].T)]
 
-        output = []
-        depths = [
-            self.n_sector_choices,
-            self.n_tags_choices,
-            self.n_techs_choices,
-            self.n_amounts_choices,
-        ]
-        for j in range(4):
-            col = state_matrix[:, j]
-            depth = depths[j]
-            one_hot = np.zeros((self.n_techs, depth), dtype=int)
-            one_hot[np.arange(self.n_techs), col] = 1
-            output.append(one_hot)
+        depths = [self.n_sector_choices, self.n_tags_choices,
+                  self.n_techs_choices, self.n_amounts_choices]
+        total_size = sum(self.n_techs * d for d in depths)
 
-        output = np.concatenate([oh.flatten() for oh in output])
+        # Pre-allocate entire output array
+        output = np.zeros(total_size, dtype=np.float32)
+
+        offset = 0
+        for j, depth in enumerate(depths):
+            size = self.n_techs * depth
+            view = output[offset:offset + size].reshape(self.n_techs, depth)
+            view[np.arange(self.n_techs), state_matrix[:, j]] = 1
+            offset += size
+
         return output

@@ -292,6 +292,7 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         self.mask_buffer = [True] * len(self.get_action_space())
 
+
     def get_action_space(self) -> List[Tuple]:
         """
         Constructs list with all possible actions, including eos.
@@ -325,9 +326,9 @@ class InvestmentDiscrete(GFlowNetEnv):
         return all_actions
 
     def get_mask_invalid_actions_forward(
-        self,
-        state: Optional[Dict] = None,
-        done: Optional[bool] = None,
+            self,
+            state: Optional[Dict] = None,
+            done: Optional[bool] = None,
     ) -> List[bool]:
         """
         Returns a list of length the action space with values:
@@ -354,11 +355,18 @@ class InvestmentDiscrete(GFlowNetEnv):
             return mask
 
         assigned = self.get_assigned_attributes(state)
+
+        # Pre-compute logical checks
+        has_sector = "SECTOR" in assigned
+        has_tag = "TAG" in assigned
+        has_tech = "TECH" in assigned
+        has_amount = "AMOUNT" in assigned
+
         if self.well_defined_investment(state):  # if you have full investment
             mask[self.action2index(self.eos)] = False
             return mask
 
-        if "TECH" in assigned and not "SECTOR" in assigned:
+        if has_tech and not has_sector:
             forced_sector_idx = self.tech2sector_idx[state["TECH"]]
             forced_action = (
                 self.token2idx_choices["SECTOR"],
@@ -367,7 +375,7 @@ class InvestmentDiscrete(GFlowNetEnv):
             mask[self.action2index(forced_action)] = False
             return mask
 
-        if "TECH" in assigned and not "TAG" in assigned:
+        if has_tech and not has_tag:
             forced_tag_idx = self.tech2tag_idx[state["TECH"]]
             forced_action = (
                 self.token2idx_choices["TAG"],
@@ -378,21 +386,20 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         techs_available_tokens = [self.idx2token_techs[t] for t in self.techs_available]
 
-        if "SECTOR" not in assigned:
-            if "TAG" in assigned:
+        if not has_sector:
+            if has_tag:
                 allowed_sectors = self.network_structure["tag2sector"][
                     self.idx2token_tags[state["TAG"]]
                 ]
+                allowed_techs_tag_set = set(self.network_structure["tag2tech"][
+                                                self.idx2token_tags[state["TAG"]]
+                                            ])
+                techs_available_set = set(techs_available_tokens)
+
                 for a in allowed_sectors:
-                    allowed_techs_sector = self.network_structure["sector2tech"][a]
-                    allowed_techs_tag = self.network_structure["tag2tech"][
-                        self.idx2token_tags[state["TAG"]]
-                    ]
-                    available_techs = list(
-                        set(allowed_techs_sector)
-                        & set(allowed_techs_tag)
-                        & set(techs_available_tokens)
-                    )
+                    allowed_techs_sector_set = set(self.network_structure["sector2tech"][a])
+                    # Use set operations
+                    available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
                     if available_techs:
                         mask[
                             self.action2index(
@@ -408,21 +415,20 @@ class InvestmentDiscrete(GFlowNetEnv):
                         self.action2index((self.token2idx_choices["SECTOR"], b + 1))
                     ] = False
 
-        if "TAG" not in assigned:
-            if "SECTOR" in assigned:
+        if not has_tag:
+            if has_sector:
                 allowed_tags = self.network_structure["sector2tag"][
                     self.idx2token_sectors[state["SECTOR"]]
                 ]
+                allowed_techs_sector_set = set(self.network_structure["sector2tech"][
+                                                   self.idx2token_sectors[state["SECTOR"]]
+                                               ])
+                techs_available_set = set(techs_available_tokens)
+
                 for a in allowed_tags:
-                    allowed_techs_tag = self.network_structure["tag2tech"][a]
-                    allowed_techs_sector = self.network_structure["sector2tech"][
-                        self.idx2token_sectors[state["SECTOR"]]
-                    ]
-                    available_techs = list(
-                        set(allowed_techs_sector)
-                        & set(allowed_techs_tag)
-                        & set(techs_available_tokens)
-                    )
+                    allowed_techs_tag_set = set(self.network_structure["tag2tech"][a])
+                    # Use set operations
+                    available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
                     if available_techs:
                         mask[
                             self.action2index(
@@ -435,20 +441,19 @@ class InvestmentDiscrete(GFlowNetEnv):
                         False
                     )
 
-        if "TECH" not in assigned:
-            if "SECTOR" in assigned and "TAG" in assigned:
+        if not has_tech:
+            if has_sector and has_tag:
                 allowed_techs_sector = self.sector2tech_idx[state["SECTOR"]]
                 allowed_techs_tag = self.tag2tech_idx[state["TAG"]]
-                allowed_techs_idx = list(
-                    set(allowed_techs_sector) & set(allowed_techs_tag)
-                )
+                # Use set operations directly
+                allowed_techs_idx = allowed_techs_sector & allowed_techs_tag
                 for a in allowed_techs_idx:
                     mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
-            elif "SECTOR" in assigned and "TAG" not in assigned:
+            elif has_sector and not has_tag:
                 allowed_techs_idx = self.sector2tech_idx[state["SECTOR"]]
                 for a in allowed_techs_idx:
                     mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
-            elif "SECTOR" not in assigned and "TAG" in assigned:
+            elif not has_sector and has_tag:
                 allowed_techs_idx = self.tag2tech_idx[state["TAG"]]
                 for a in allowed_techs_idx:
                     mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
@@ -458,37 +463,34 @@ class InvestmentDiscrete(GFlowNetEnv):
                         False
                     )
 
-        if "AMOUNT" not in assigned:
+        if not has_amount:
             for b in range(self.n_amounts):
                 mask[self.action2index((self.token2idx_choices["AMOUNT"], b + 1))] = (
                     False
                 )
 
-        if (
-            "TECH" not in assigned and len(self.techs_available) != self.n_techs
-        ):  # no need to double check if TECH has alredy been assigned or all techs are available
+        if not has_tech and len(self.techs_available) != self.n_techs:
+            # no need to double check if TECH has alredy been assigned or all techs are available
+            # Compute sets once
+            techs_available_set = set(techs_available_tokens)
+            all_techs_set = set(self.techs)
+            unavailable_techs = all_techs_set - techs_available_set
 
             unavailable_techs_idx = [
-                self.token2idx_techs[t]
-                for t in self.techs
-                if t not in techs_available_tokens
+                self.token2idx_techs[t] for t in unavailable_techs
             ]
             unavailable_sectors_idx = []
             for s in self.sectors:
-                sector_technologies = self.network_structure["sector2tech"][s]
-                available_sector = bool(
-                    set(sector_technologies) & set(techs_available_tokens)
-                )
-                if not available_sector:
+                sector_technologies_set = set(self.network_structure["sector2tech"][s])
+                # Use set operations
+                if not (sector_technologies_set & techs_available_set):
                     unavailable_sectors_idx.append(self.token2idx_sectors[s])
 
             unavailable_tags_idx = []
             for t in self.tags:
-                tag_technologies = self.network_structure["tag2tech"][t]
-                available_tag = bool(
-                    set(tag_technologies) & set(techs_available_tokens)
-                )
-                if not available_tag:
+                tag_technologies_set = set(self.network_structure["tag2tech"][t])
+                # Use set operations
+                if not (tag_technologies_set & techs_available_set):
                     unavailable_tags_idx.append(self.token2idx_tags[t])
 
             for t in unavailable_techs_idx:
