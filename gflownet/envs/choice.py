@@ -1,5 +1,5 @@
 """
-A very simple environment to sample one option from a given set of options.
+A very simple environment to sample one element from a given set of options.
 
 Given a set of options, the environment proceeds to select one of the options from the
 source state and then only the end-of-sequence action is valid.
@@ -14,16 +14,16 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import tfloat, tlong
 
 
-class Options(GFlowNetEnv):
+class Choice(GFlowNetEnv):
     """
-    Options environment.
+    Choice environment.
 
     States are represented by a single-element list, indicating the index of the
-    selected option (starting from 1), or 0 if no option has been selected yet (source
+    selected element (starting from 1), or 0 if no option has been selected yet (source
     state).
 
     The actions of the environment are single-element tuples indicating the index of
-    the option to be selected, or -1 for the EOS.
+    the element to be selected, or -1 for the EOS.
 
     Attributes
     ----------
@@ -49,7 +49,7 @@ class Options(GFlowNetEnv):
         **kwargs,
     ):
         """
-        Initializes an Options environment.
+        Initializes a Choice environment.
 
         Parameters
         ----------
