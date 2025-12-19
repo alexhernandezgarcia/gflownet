@@ -514,7 +514,7 @@ class CompositeBase(GFlowNetEnv):
             subenv.set_state(self._get_substate(self.state, idx), done_subenv)
 
         # Apply constraints across sub-environments, in case they apply.
-        self._apply_constraints(state=state, dones=dones, is_backward=None)
+        self._apply_constraints(state=state, is_backward=None)
 
         return self
 
@@ -522,7 +522,7 @@ class CompositeBase(GFlowNetEnv):
         """
         Resets the environment by resetting the sub-environments.
         """
-        for subenv in self.subenvs.values():
+        for subenv in self.subenvs:
             subenv.reset()
         super().reset(env_id=env_id)
 
