@@ -61,6 +61,8 @@ class CompositeBase(GFlowNetEnv):
         """
         Initializes the CompositeBase environment.
         """
+        # Constraints
+        self._has_constraints = self._check_has_constraints()
         # Base class init
         super().__init__(**kwargs)
 
@@ -96,7 +98,7 @@ class CompositeBase(GFlowNetEnv):
         Parameters
         ----------
         state : list
-            A state of the parent Set environment.
+            A state of the global composite environment.
 
         Returns
         -------
@@ -327,7 +329,7 @@ class CompositeBase(GFlowNetEnv):
         return self.envs_unique[idx_unique]
 
     def _get_unique_idx_of_subenv(
-        self, idx_subenv: int, state: Optional[List] = None
+        self, idx_subenv: int, state: Optional[Dict] = None
     ) -> int:
         """
         Returns the index of the unique environment corresponding to the subenv at
@@ -346,7 +348,7 @@ class CompositeBase(GFlowNetEnv):
             Index of a sub-environment (from 0 to ``self.max_elements``). Note that
             this is the index of a subenv, not of the unique environments.
         state : list
-            A state of the parent composite environment.
+            A state of the global composite environment.
         """
         assert idx_subenv in range(self.max_elements)
         if state is None:
@@ -354,7 +356,7 @@ class CompositeBase(GFlowNetEnv):
         return self._get_unique_indices(state)[idx_subenv]
 
     def _get_unique_env_of_subenv(
-        self, idx_subenv: int, state: Optional[List] = None
+        self, idx_subenv: int, state: Optional[Dict] = None
     ) -> GFlowNetEnv:
         """
         Returns the unique environment corresponding to the sub-environment at index
@@ -366,12 +368,12 @@ class CompositeBase(GFlowNetEnv):
             Index of a sub-environment (from 0 to ``self.max_elements``). Note that
             this is the index of a subenv, not of the unique environments.
         state : list
-            A state of the parent composite environment.
+            A state of the gloabl composite environment.
         """
         return self._get_env_unique(self._get_unique_idx_of_subenv(idx_subenv, state))
 
     def _get_unique_indices(
-        self, state: Optional[List] = None, exclude_nonpresent: bool = True
+        self, state: Optional[Dict] = None, exclude_nonpresent: bool = True
     ) -> int:
         """
         Returns the part of the state containing the unique indices.
@@ -382,7 +384,7 @@ class CompositeBase(GFlowNetEnv):
         Parameters
         ----------
         state : list
-            A state of the parent composite environment.
+            A state of the global composite environment.
         exclude_nonpresent : bool
             If True, return only the indices of sub-environments that are present in
             the state, that is exclude indices with -1.
@@ -487,3 +489,251 @@ class CompositeBase(GFlowNetEnv):
         if idx_unique != -1:
             return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
         return (action[1],)
+
+    def set_state(self, state: Dict, done: Optional[bool] = False):
+        """
+        Sets a state and done.
+
+        The correct state and done of each sub-environment are set too.
+
+        Parameters
+        ----------
+        state : list
+            A state of the global composite environment.
+        done : bool
+            Whether the trajectory of the environment is done or not.
+        """
+        # If done is True, then the done flags in the set should all be 1
+        dones = [bool(el) for el in self._get_dones(state)]
+        if done:
+            assert all(dones)
+
+        super().set_state(state, done)
+        # Set state and done of each sub-environment
+        for idx, (subenv, done_subenv) in enumerate(zip(self.subenvs, dones)):
+            subenv.set_state(self._get_substate(self.state, idx), done_subenv)
+
+        # Apply constraints across sub-environments, in case they apply.
+        self._apply_constraints(state=state, dones=dones, is_backward=None)
+
+        return self
+
+    def reset(self, env_id: Union[int, str] = None):
+        """
+        Resets the environment by resetting the sub-environments.
+        """
+        for subenv in self.subenvs.values():
+            subenv.reset()
+        super().reset(env_id=env_id)
+
+        # Apply constraints across sub-environments, in case they apply.
+        self._apply_constraints(state=self.state, is_backward=True)
+        return self
+
+    @property
+    def has_constraints(self):
+        """
+        Whether the composite environment has constraints across sub-environments.
+
+        Returns
+        -------
+        True if the composite environment has constraints across sub-environments.
+        """
+        return self._has_constraints
+
+    def _check_has_constraints(self) -> bool:
+        """
+        Checks whether the composite environment has constraints across
+        sub-environments.
+
+        By default, composite environments do not have constraints (False).
+
+        This method should be overriden in environments that incorporate constraints
+        across sub-environmnents via ``_apply_constraints()``.
+
+        Returns
+        -------
+        bool
+            True if the composite environment has constraints, False otherwise
+        """
+        return False
+
+    def _apply_constraints(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+        is_backward: bool = None,
+    ):
+        """
+        Applies constraints across sub-environments.
+
+        This method is called from the methods that can modify the state, namely:
+            - :py:meth:`~gflownet.envs.composite.CompositeBase.step()`
+            - :py:meth:`~gflownet.envs.composite.CompositeBase.step_backwards()`
+            - :py:meth:`~gflownet.envs.composite.CompositeBase.set_state()`
+            - :py:meth:`~gflownet.envs.composite.CompositeBase.reset()`
+
+        This method simply calls
+        :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_forward`
+        and/or
+        :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_backward`.
+
+        This method should in general not be overriden. Instead, environments
+        inheriting composite classes may override:
+            - `_apply_constraints_forward`
+            - `_apply_constraints_backward`
+
+        Parameters
+        ----------
+        action : tuple (optional)
+            An action, which can be used to determine whether which constraints should
+            be applied and which should not, since the computations may be intensive.
+            If the call of the method is initiated by ``set_state()`` or ``reset()``,
+            then the action will be None.
+        state : dict (optional)
+            A state that can optionally be passed to set in the environment after
+            applying the constraints. This may typically be used by ``set_state()``.
+        is_backward : bool
+            Boolean flag to indicate whether the constraint should be applied in the
+            backward direction (True), meaning 'undoing' the constraint (this is the
+            value when the call method is initiated by ``step_backwards()`` or
+            ``reset()``); or in the forward direction, meaning 'applying' the
+            constraint (if initiated by ``step()``). If the call of the method is
+            initiated by ``set_state()``, then the value is None, since the constraints
+            may be applied in any direction, depending on the current state.
+        """
+        if not self.has_constraints:
+            return
+
+        # Forward constraints are applied if the call method is initiated by
+        # set_state() (action is None and is_backward is not True) or by step() (action
+        # is not None and is_backward is False)
+        if (action is None and is_backward is not True) or (
+            action is not None and is_backward is False
+        ):
+            self._apply_constraints_forward(action, state, dones)
+        # Backward constraints are applied if the call method is initiated by
+        # set_state() or reset() (action is None and is_backward is not False) or by
+        # step_backward() (action is not None and is_backward is True)
+        if (action is None and is_backward is not False) or (
+            action is not None and is_backward is True
+        ):
+            self._apply_constraints_backward(action)
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ):
+        """
+        Applies constraints across sub-environments in the forward direction.
+
+        This method is called when ``step()`` and ``set_state()`` are called.
+
+        Environments inheriting composite classes may override this method if
+        constraints across sub-environments must be applied. The method
+        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_stage` may
+        be used as a helper to determine whether the constraints imposed by a
+        sub-environment should be applied depending on the action.
+
+        Parameters
+        ----------
+        action : tuple (optional)
+            An action from the global composite environment. If the call of this method
+            is initiated by ``set_state()``, then ``action`` is None.
+        state : dict (optional)
+            A state of the global composite environment.
+        """
+        pass
+
+    def _apply_constraints_backward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ):
+        """
+        Applies constraints across sub-environments in the backward direction.
+
+        In the backward direction, in this case, means that the constraints between two
+        sub-environments are undone and reset as in the source state.
+
+        This method is called when ``step_backwards()``, ``set_state()`` and
+        ``reset()`` are called.
+
+        Environments inheriting composite classes may override this method if
+        constraints across sub-environments must be applied. The method
+        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_stage` may
+        be used as a helper to determine whether the constraints imposed by a
+        sub-environment should be applied depending on the action.
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the global composite environment.
+        state : dict (optional)
+            A state of the global composite environment.
+        """
+        pass
+
+    def _do_constraints_for_subenv(
+        self,
+        state: Union[Dict],
+        idx_subenv: int,
+        action: Tuple = None,
+        is_backward: bool = False,
+    ) -> bool:
+        """
+        Returns True if constraints chould be applied given the state, relevant
+        sub-environment, action and direction.
+
+        This method is meant to be used by environments inheriting composite classes
+        to determine whether the constraints imposed by a particular sub-environment
+        should be applied. This depends on whether the environment is done or not,
+        whether the constraints are to be done or undone, and whether they would be
+        triggered by a transition or by ``set_state()`` or ``reset()``. This method is
+        meant to be called from:
+            - :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_backward`
+
+        Additionally, composite environments may include other speciic checks before
+        setting inter-environment constraints, besides the output of this method.
+
+        Forward constraints could be applied if:
+            - The condition environment is done, and
+            - The action is either None or EOS
+        Backward constraints could be applied if:
+            - The condition environment is not done, and
+            - The action is either None or EOS
+
+        Parameters
+        ----------
+        state : dict
+            A state of the global composite environment.
+        idx_subenv : int
+            Index of the sub-environment that would trigger constraints.
+        action : tuple (optional)
+            The action involved in the transition, or None if there is no transition,
+            for example if the application of constraints is initiated by
+            ``set_state()`` or ``reset()``.
+        is_backward : bool
+            Boolean flag to indicate whether the potential constraint is in the
+            backward direction (True) or in the forward direction (False).
+        """
+        # If the action is not None, get the unique environment and depad the action
+        if action is not None:
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+            env_unique = self._get_env_unique(idx_unique)
+            action = self._depad_action(action, idx_unique)
+
+        # For constraints to be applied, either the action is None (meaning the call of
+        # this method was initiated by set_state() or reset(), or the action is EOS
+        if action is not None and action != env_unique.eos:
+            return False
+
+        subenv_is_done = self._get_dones(state)[idx_subenv]
+        # Backward constraints could only be applied if the sub-environment is not done
+        if is_backward:
+            return not subenv_is_done
+        # Forward constraints could only be applied if the sub-environment is done
+        else:
+            return subenv_is_done
