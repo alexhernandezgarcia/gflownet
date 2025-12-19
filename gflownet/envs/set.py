@@ -485,10 +485,13 @@ class BaseSet(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
 
-            # If action is EOS, set done to True and return
+            # If action is EOS, set done to True, apply constraints and return
             if action == self.eos:
                 assert all([env.done for env in self.subenvs])
                 self.done = True
+                self._apply_constraints(
+                    state=self.state, action=action, is_backward=False
+                )
                 return self.state, action, True
 
             # Otherwise, it is an action to toggle a sub-environment:
@@ -626,11 +629,14 @@ class BaseSet(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
 
-            # If action is EOS, set done to False and return
+            # If action is EOS, set done to False, apply constraints and return
             if action == self.eos:
                 assert self.done
                 assert all([env.done for env in self.subenvs])
                 self.done = False
+                self._apply_constraints(
+                    state=self.state, action=action, is_backward=True
+                )
                 return self.state, action, True
 
             # Otherwise, it is an action to toggle a sub-environment:
@@ -1420,41 +1426,6 @@ class SetFix(BaseSet):
         action.
         """
         return sum([subenv.max_traj_length for subenv in self.subenvs]) * 3 + 1
-
-    def reset(self, env_id: Union[int, str] = None):
-        """
-        Resets the environment by resetting the sub-environments.
-        """
-        for subenv in self.subenvs:
-            subenv.reset()
-        super().reset(env_id=env_id)
-        return self
-
-    def set_state(self, state: List, done: Optional[bool] = False):
-        """
-        Sets a state and done.
-
-        The correct state and done of each sub-environment are set too.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment.
-
-        done : bool
-            Whether the trajectory of the environment is done or not.
-        """
-        # If done is True, then the done flags in the set should all be 1
-        dones = [bool(el) for el in self._get_dones(state)]
-        if done:
-            assert all(dones)
-
-        super().set_state(state, done)
-        # Set state and done of each sub-environment
-        for idx, (subenv, done_subenv) in enumerate(zip(self.subenvs, dones)):
-            subenv.set_state(self._get_substate(self.state, idx), done_subenv)
-
-        return self
 
     # TODO: The current representation is not permutation invariant. In order to
     # properly let a GFlowNet on a Set environment, the representation should be
