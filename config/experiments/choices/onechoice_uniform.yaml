@@ -1,8 +1,8 @@
 # @package _global_
-# 10x10 Ising model with uniform reward
+# Choice (single) with uniform reward
 
 defaults:
-   - override /env: options
+   - override /env: choice
    - override /gflownet: trajectorybalance
    - override /loss: trajectorybalance
    - override /proxy: uniform
@@ -42,11 +42,11 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "options"
-  run_name: "100"
+  project_name: "choices"
+  run_name: "OneChoice of 100"
   tags: 
     - gflownet
-    - options
+    - choices
     - uniform
 
 # Evaluator
