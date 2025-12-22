@@ -618,7 +618,7 @@ class CompositeBase(GFlowNetEnv):
         if (action is None and is_backward is not False) or (
             action is not None and is_backward is True
         ):
-            self._apply_constraints_backward(action)
+            self._apply_constraints_backward(action, state)
 
     def _apply_constraints_forward(
         self,
@@ -719,6 +719,11 @@ class CompositeBase(GFlowNetEnv):
             Boolean flag to indicate whether the potential constraint is in the
             backward direction (True) or in the forward direction (False).
         """
+        # If the index of the sub-environment is -1, then no sub-environment is
+        # currently relevant and constraints should not be applied.
+        if idx_subenv == -1:
+            return False
+
         # If the action is not None, get the unique environment and depad the action
         if action is not None:
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
