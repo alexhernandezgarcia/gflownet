@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.options.Options
+_target_: gflownet.envs.choice.Choice
 
 id: options
 # String representations of the options
