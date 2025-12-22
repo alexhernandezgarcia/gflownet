@@ -627,14 +627,11 @@ class BaseSet(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
 
-            # If action is EOS, set done to False, apply constraints and return
+            # If action is EOS, set done to False and return
             if action == self.eos:
                 assert self.done
                 assert all([env.done for env in self.subenvs])
                 self.done = False
-                self._apply_constraints(
-                    state=self.state, action=action, is_backward=True
-                )
                 return self.state, action, True
 
             # Otherwise, it is an action to toggle a sub-environment:
@@ -691,12 +688,13 @@ class BaseSet(CompositeBase):
             return self.state, action, False
         self.n_actions += 1
 
-        # Update (global) Set state and return
+        # Update (global) Set state, apply constraints and return
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
         if self.can_alternate_subenvs:
             self._set_toggle_flag(1)
+        self._apply_constraints(state=self.state, action=action, is_backward=True)
         return self.state, action, valid
 
     # TODO: Think about the connection with permutation invariance
