@@ -74,9 +74,10 @@ class Choice(GFlowNetEnv):
             assert self.source_readable not in options
         self.options = options
         self.n_options = len(self.options)
+        self.options_indices = set(range(1, self.n_options + 1))
         # Available options
         if options_available is None:
-            self.options_available = tuple(range(1, self.n_options + 1))
+            self.options_available = tuple(self.options_indices)
         else:
             self.options_available = tuple(options_available)
         # Source state: [0]
@@ -98,7 +99,7 @@ class Choice(GFlowNetEnv):
         list
             A list of tuples representing the actions.
         """
-        return [(el,) for el in range(1, self.n_options + 1)] + [self.eos]
+        return [(el,) for el in self.options_indices] + [self.eos]
 
     def get_mask_invalid_actions_forward(
         self,
@@ -131,7 +132,7 @@ class Choice(GFlowNetEnv):
         if self.is_source(state):
             mask = [
                 False if idx in self.options_available else True
-                for idx in range(1, self.n_options + 1)
+                for idx in self.options_indices
             ] + [True]
             return mask
         # Otherwise, only EOS is valid
