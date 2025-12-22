@@ -97,7 +97,7 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state of the global composite environment.
 
         Returns
@@ -347,7 +347,7 @@ class CompositeBase(GFlowNetEnv):
         idx_subenv : int
             Index of a sub-environment (from 0 to ``self.max_elements``). Note that
             this is the index of a subenv, not of the unique environments.
-        state : list
+        state : dict
             A state of the global composite environment.
         """
         assert idx_subenv in range(self.max_elements)
@@ -367,8 +367,8 @@ class CompositeBase(GFlowNetEnv):
         idx_subenv : int
             Index of a sub-environment (from 0 to ``self.max_elements``). Note that
             this is the index of a subenv, not of the unique environments.
-        state : list
-            A state of the gloabl composite environment.
+        state : dict
+            A state of the global composite environment.
         """
         return self._get_env_unique(self._get_unique_idx_of_subenv(idx_subenv, state))
 
@@ -383,7 +383,7 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state of the global composite environment.
         exclude_nonpresent : bool
             If True, return only the indices of sub-environments that are present in
@@ -498,7 +498,7 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state of the global composite environment.
         done : bool
             Whether the trajectory of the environment is done or not.
@@ -611,7 +611,7 @@ class CompositeBase(GFlowNetEnv):
         if (action is None and is_backward is not True) or (
             action is not None and is_backward is False
         ):
-            self._apply_constraints_forward(action, state, dones)
+            self._apply_constraints_forward(action, state)
         # Backward constraints are applied if the call method is initiated by
         # set_state() or reset() (action is None and is_backward is not False) or by
         # step_backward() (action is not None and is_backward is True)
