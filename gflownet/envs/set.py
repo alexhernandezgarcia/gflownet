@@ -485,13 +485,10 @@ class BaseSet(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
 
-            # If action is EOS, set done to True, apply constraints and return
+            # If action is EOS, set done to True and return
             if action == self.eos:
                 assert all([env.done for env in self.subenvs])
                 self.done = True
-                self._apply_constraints(
-                    state=self.state, action=action, is_backward=False
-                )
                 return self.state, action, True
 
             # Otherwise, it is an action to toggle a sub-environment:
@@ -543,13 +540,14 @@ class BaseSet(CompositeBase):
             return self.state, action, False
         self.n_actions += 1
 
-        # Update (global) Set state and return
+        # Update (global) Set state, apply constraints and return
         # Note that the unique indices are not change by performing an action
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
         if self.can_alternate_subenvs or subenv.done:
             self._set_toggle_flag(0)
+        self._apply_constraints(state=self.state, action=action, is_backward=False)
         return self.state, action, valid
 
     def step_backwards(
