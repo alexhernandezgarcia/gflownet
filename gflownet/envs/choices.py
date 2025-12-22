@@ -204,7 +204,7 @@ class ChoicesBase:
         """
         return not self.with_replacement
 
-    def get_options(self, state: Dict = None) -> Set[int]:
+    def get_options(self, state: Dict = None) -> Tuple[int]:
         """
         Returns all the options that have already been chosen from the state.
 
@@ -215,12 +215,12 @@ class ChoicesBase:
 
         Returns
         -------
-        The set of options, as a set of integers.
+        The set of options, as a tuple of integers.
         """
         if state is None:
             state = self.state
         states = self._get_substates(state)
-        return {state[0] for state in states}.difference({0})
+        return tuple([state[0] for state in states if state[0] != 0])
 
     def _apply_constraints_forward(
         self,
@@ -247,7 +247,7 @@ class ChoicesBase:
         """
         idx_subenv = self._get_active_subenv(state)
         if self._do_constraints_for_subenv(state, idx_subenv, action, False):
-            options = self.get_options(state)
+            options = set(self.get_options(state))
             options_available = set(self.choice_env.options_indices).difference(options)
             self.choice_env.set_available_options(options_available)
 
@@ -281,7 +281,7 @@ class ChoicesBase:
         """
         idx_subenv = self._get_active_subenv(state)
         if self._do_constraints_for_subenv(state, idx_subenv, action, True):
-            options = self.get_options(state)
+            options = set(self.get_options(state))
             options_available = set(self.choice_env.options_indices).difference(options)
             # Add option of currently active sub-environment since its option is
             # currently part of the state and thus not available in the forward sense
