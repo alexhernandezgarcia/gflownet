@@ -224,6 +224,13 @@ class Choice(GFlowNetEnv):
 
         return self.state, action, valid
 
+    def set_available_options(self, options: Iterable):
+        """
+        Updates the attribute
+        :py:meth:`~gflownet.envs.choice.Choice.options_available`.
+        """
+        self.options_available = options
+
     def _get_max_trajectory_length(self) -> int:
         """
         Returns the maximum trajectory length of the environment.
