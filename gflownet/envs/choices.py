@@ -13,6 +13,8 @@ selected are made unavailable in the remaining environments.
 
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+import numpy as np
+import torch
 import torch.nn.functional as F
 from torchtyping import TensorType
 
@@ -291,6 +293,65 @@ class ChoicesBase:
             if option_of_active_subenv != 0:
                 options_available.add(option_of_active_subenv)
             self.choice_env.set_available_options(options_available)
+
+    def states2policy(
+        self, states: List[Dict]
+    ) -> TensorType["batch", "state_policy_dim"]:
+        """
+        Prepares a batch of states in environment format for the policy model.
+
+        The policy representation is the concatenation of the following elements:
+        - A flag indicating whether no environment is active (-1), an environment is
+          active and not done (0), or an environment is active but done (1).
+        - A vector of length ``self.n_options`` with the count of each selected option.
+
+        Parameters
+        ----------
+        states : list
+            A batch of states in environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        n_states = len(states)
+
+        # Extract relevant data
+        active, dones, substates = zip(
+            *[
+                [state["_active"], state["_dones"], self._get_substates(state)]
+                for state in states
+            ]
+        )
+        active = np.array(active)
+        dones = np.array(dones)
+        substates = tlong(substates, device=self.device).reshape(
+            n_states, self.max_selection
+        )
+
+        # Build flags vector
+        flags = active
+        flags_active = flags != -1
+        flags[flags_active] = dones[flags_active][
+            np.arange(sum(flags_active)), active[flags_active]
+        ]
+
+        # Build counts vector
+        n_options = self.choice_env.n_options
+        counts_all = torch.zeros(
+            (n_states, n_options + 1), device=self.device, dtype=torch.long
+        )
+        row_indices = torch.arange(n_states).unsqueeze(1).expand_as(substates)
+        counts_all.scatter_add_(1, substates, torch.ones_like(substates))
+
+        # Build output tensor
+        return torch.cat(
+            [
+                tfloat(flags, device=self.device, float_type=self.float).unsqueeze(1),
+                tfloat(counts_all[:, 1:], device=self.device, float_type=self.float),
+            ],
+            dim=1,
+        )
 
 
 class ChoicesSetFix(ChoicesBase, SetFix):
