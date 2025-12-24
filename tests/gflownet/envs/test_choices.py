@@ -99,6 +99,312 @@ def test__trajectory_backwards_random__does_not_crash_and_reaches_source(env, re
     assert env.is_source()
 
 
+@pytest.mark.parametrize(
+    "env, states, states_policy_exp",
+    [
+        (
+            "env_default",
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0],
+                    1: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0],
+                    1: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [2],
+                    1: [1],
+                },
+            ],
+            torch.stack(
+                [
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            -1.0, # FLAG
+                            # OPTIONS
+                            0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            1.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            -1.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            1.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            1.0, # FLAG
+                            # OPTIONS
+                            1.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            -1.0, # FLAG
+                            # OPTIONS
+                            1.0, 1.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                ],
+                dim=0,
+            ),
+        ),
+        (
+            "env_with_replacement",
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 0],
+                    0: [0],
+                    1: [0],
+                    2: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 0],
+                    0: [0],
+                    1: [0],
+                    2: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 0],
+                    0: [2],
+                    1: [0],
+                    2: [0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 0],
+                    0: [2],
+                    1: [0],
+                    2: [0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    0: [2],
+                    1: [2],
+                    2: [5],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 0],
+                    "_envs_unique": [0, 0, 0],
+                    0: [2],
+                    1: [2],
+                    2: [0],
+                },
+            ],
+            torch.stack(
+                [
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            -1.0, # FLAG
+                            # OPTIONS
+                            0.0, 0.0, 0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 0.0, 0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            1.0, # FLAG
+                            # OPTIONS
+                            0.0, 1.0, 0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            -1.0, # FLAG
+                            # OPTIONS
+                            0.0, 2.0, 0.0, 0.0, 1.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                    torch.tensor(
+                        [
+                            # fmt: off
+                            0.0, # FLAG
+                            # OPTIONS
+                            0.0, 2.0, 0.0, 0.0, 0.0,
+                            # fmt: on
+                        ],
+                        dtype=torch.float,
+                    ),
+                ],
+                dim=0,
+            ),
+        ),
+    ],
+)
+def test__states2policy__returns_expected(env, states, states_policy_exp, request):
+    env = request.getfixturevalue(env)
+    assert torch.equal(states_policy_exp, env.states2policy(states))
+
+
 class TestChoicesDefault(common.BaseTestsDiscrete):
     """Common tests for default Choices environment"""
 
