@@ -382,10 +382,8 @@ class GFlowNetEnv:
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [(self.eos,)]
         parents = []
@@ -1006,8 +1004,7 @@ class GFlowNetEnv:
         """
         Converts a state into human-readable representation.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return str(state)
 
     def readable2state(self, readable):
