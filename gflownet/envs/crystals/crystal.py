@@ -452,8 +452,7 @@ class Crystal(Stack):
         """
         Prints a state in more human-readable format, for debugging purposes.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         for stage, subenv in self.subenvs.items():
             print(f"Stage {stage}")
             print(self._get_substate(state, stage))
