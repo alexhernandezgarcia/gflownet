@@ -342,8 +342,7 @@ class Tree(GFlowNetEnv):
         Returns the stage of the current environment from self.state[-1, 0] or from the
         state passed as an argument.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[-1, 0]
 
     def _set_stage(
@@ -353,8 +352,7 @@ class Tree(GFlowNetEnv):
         Sets the stage of the current environment (self.state) or of the state passed
         as an argument by updating state[-1, 0].
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[-1, 0] = stage
         return state
 
@@ -871,8 +869,8 @@ class Tree(GFlowNetEnv):
         """
         Converts a state into human-readable representation.
         """
-        if state is None:
-            state = self.state.clone().detach()
+        # TODO: call to _get_state(state) might need do_copy=True
+        state = self._get_state(state)
         state = state.cpu().numpy()
         readable = ""
         for idx in range(self.n_nodes):
@@ -1004,10 +1002,8 @@ class Tree(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         if done:
             return [True] * self.policy_output_dim
@@ -1085,10 +1081,8 @@ class Tree(GFlowNetEnv):
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         if done:
             return [state], [self.eos]
