@@ -960,8 +960,7 @@ class BaseSet(GFlowNetEnv):
             A state of the parent Set environment, which is a list whose first element
             is the index of the active sub-environment.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[0][0]
 
     def _set_active_subenv(self, idx_subenv: int, state: Optional[List] = None) -> List:
@@ -982,8 +981,7 @@ class BaseSet(GFlowNetEnv):
             The Set state.
         """
         assert idx_subenv in range(self.max_elements) or idx_subenv == -1
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[0][0] = idx_subenv
         return state
 
@@ -998,8 +996,7 @@ class BaseSet(GFlowNetEnv):
             A state of the parent Set environment, which is a list whose first element
             is the index of the active sub-environment.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[0][1]
 
     def _set_toggle_flag(self, toggle_flag: int, state: Optional[List] = None) -> List:
@@ -1019,8 +1016,7 @@ class BaseSet(GFlowNetEnv):
             The Set state.
         """
         assert toggle_flag in [0, 1]
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[0][1] = toggle_flag
         return state
 
@@ -1035,8 +1031,7 @@ class BaseSet(GFlowNetEnv):
             A state of the parent Set environment, which is a list whose first element
             is the index of the active sub-environment.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[0][2]
 
     def _set_subdone(
@@ -1063,8 +1058,7 @@ class BaseSet(GFlowNetEnv):
             The Set state.
         """
         assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[0][2][idx_subenv] = int(done)
         return state
 
@@ -1084,8 +1078,7 @@ class BaseSet(GFlowNetEnv):
             If True, return only the indices of sub-environments that are present in
             the state, that is exclude indices with -1.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if exclude_nonpresent:
             return [idx for idx in state[0][3] if idx != -1]
         return state[0][3]
@@ -1109,8 +1102,7 @@ class BaseSet(GFlowNetEnv):
         """
         assert idx_subenv in range(self.max_elements)
         assert idx_unique in range(self.n_unique_envs)
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[0][3][idx_subenv] = idx_unique
         return state
 
@@ -1182,8 +1174,7 @@ class BaseSet(GFlowNetEnv):
             The Set state.
         """
         assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[1][idx_subenv] = state_subenv
         return state
 
@@ -1220,8 +1211,7 @@ class BaseSet(GFlowNetEnv):
             is the index of the active sub-environment.
         """
         assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return self._get_unique_indices(state)[idx_subenv]
 
     def _get_unique_env_of_subenv(
@@ -1725,8 +1715,7 @@ class SetFix(BaseSet):
             else:
                 return ""
 
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         dones = self._get_dones(state)
         readable = (
             f"Active subenv {self._get_active_subenv(state)}; "
@@ -2277,8 +2266,7 @@ class SetFlex(BaseSet):
             else:
                 return ""
 
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         indices_unique = self._get_unique_indices(state)
         dones = self._get_dones(state)
         substates = self._get_substates(state)
