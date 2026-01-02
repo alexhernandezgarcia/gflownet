@@ -232,8 +232,7 @@ class Stack(GFlowNetEnv):
         Returns the stage of the current environment from self.state[0] or from the
         state passed as an argument.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[0]
 
     def _set_stage(self, stage: int, state: Optional[List] = None) -> List:
@@ -254,8 +253,7 @@ class Stack(GFlowNetEnv):
             The Stack state.
         """
         assert stage in self.subenvs.keys()
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[0] = stage
         return state
 
@@ -303,8 +301,7 @@ class Stack(GFlowNetEnv):
             The Set state.
         """
         assert stage in self.subenvs.keys()
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[stage + 1] = state_subenv
         return state
 
@@ -1079,8 +1076,7 @@ class Stack(GFlowNetEnv):
         readable representations of each sub-environment, separated by "; " and
         preceded by "Stage {stage}; ".
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         readable = f"Stage {self._get_stage(state)}; " + "".join(
             [
                 subenv.state2readable(self._get_substate(state, stage)) + "; "
