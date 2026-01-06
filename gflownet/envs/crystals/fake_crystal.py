@@ -41,6 +41,7 @@ class FakeCrystal(Stack):
         use_constraints: bool = False,
         constraints_dict: dict = {},
         cube_dim: int = 2,
+        fake_lattice_parameters_kwargs = None,
         **kwargs,
     ):
         self.do_space_group = do_space_group
@@ -66,7 +67,10 @@ class FakeCrystal(Stack):
             subenvs.append(self.space_group)
 
         if self.do_lattice_parameters:
-            self.lattice_params = ContinuousCube(n_dim=cube_dim)
+            if fake_lattice_parameters_kwargs is not None:
+                self.lattice_params = ContinuousCube(**fake_lattice_parameters_kwargs,n_dim=cube_dim,)
+            else:
+                self.lattice_params = ContinuousCube(n_dim=cube_dim)
             subenvs.append(self.lattice_params)
         
         # Initialize base Stack environment

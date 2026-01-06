@@ -817,12 +817,19 @@ class Stack(GFlowNetEnv):
                 random_action_prob,
                 temperature_logits,
             )
+            # if stage == 0 and actions_dict[stage][0][0] != -1: # DEBUG
+            #     print("Policy: ",self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage))
+            #     print("Mask: ", mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim])
+            #     print(f"{random_action_prob=}")
+            #     print(f"{temperature_logits=}")
+            #     print(f"{actions_dict[stage]=}")
 
         # Stitch all actions in the right order, with the right padding
         actions = []
-        return [
+        res = [
             self._pad_action(actions_dict[stage].pop(0), stage) for stage in stages_int
         ]
+        return res
 
     def get_logprobs(
         self,

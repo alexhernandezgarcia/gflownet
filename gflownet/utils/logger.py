@@ -59,6 +59,7 @@ class Logger:
         is_resumed: bool = False,
         should_log_batch_info: bool = False,
         should_log_crystal_batch_info: bool = False,
+        batch_log_type: str = ""
     ):
         self.config = config
         self.do = do
@@ -66,6 +67,7 @@ class Logger:
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
         self.should_log_batch_info = should_log_batch_info
         self.should_log_crystal_batch_info = should_log_crystal_batch_info
+        self.batch_log_type = batch_log_type
 
         # Determine run name
         if run_name is None:

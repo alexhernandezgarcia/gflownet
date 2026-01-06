@@ -107,7 +107,7 @@ class TrajectoryBalance(BaseLoss):
         )
         # print("Logprobs backward: ",logprobs_b.tolist())
         term_states = batch.get_terminating_states(sort_by="trajectory")
-        options = np.array([s[1][0] for s in term_states])
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
         logprobs_f_np = np.array(logprobs_f.tolist())
         logprobs_b_np = np.array(logprobs_b.tolist())
         if len(term_states[0][1]) >= 3: # we are selecting spacegroups not options
@@ -121,19 +121,19 @@ class TrajectoryBalance(BaseLoss):
             batch.spg_136_logprobs_b = np.mean(logprobs_b_np[spacegroups == 136])
             batch.spg_221_logprobs_f = np.mean(logprobs_f_np[spacegroups == 221])
             batch.spg_221_logprobs_b = np.mean(logprobs_b_np[spacegroups == 221])
+        else: # select options
+            options = np.array([s[1][0] for s in term_states])
+            loss_opt_1 = np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1]))
+            loss_opt_2 = np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2]))
 
-        loss_opt_1 = np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1]))
-        loss_opt_2 = np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2]))
-
-        # Get rewards from batch
-        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
-        # Trajectory balance loss
-        batch.opt_1_loss = np.mean(loss_opt_1)
-        batch.opt_2_loss = np.mean(loss_opt_2)
-        batch.opt_1_logprobs_f = np.mean(logprobs_f_np[options == 1])
-        batch.opt_1_logprobs_b = np.mean(logprobs_b_np[options == 1])
-        batch.opt_2_logprobs_f = np.mean(logprobs_f_np[options == 2])
-        batch.opt_2_logprobs_b = np.mean(logprobs_b_np[options == 2])
+            # Get rewards from batch
+            # Trajectory balance loss
+            batch.opt_1_loss = np.mean(loss_opt_1)
+            batch.opt_2_loss = np.mean(loss_opt_2)
+            batch.opt_1_logprobs_f = np.mean(logprobs_f_np[options == 1])
+            batch.opt_1_logprobs_b = np.mean(logprobs_b_np[options == 1])
+            batch.opt_2_logprobs_f = np.mean(logprobs_f_np[options == 2])
+            batch.opt_2_logprobs_b = np.mean(logprobs_b_np[options == 2])
         return (self.logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2)
 
     # TODO: extend with loss over the different types of trajectories (forward, replay

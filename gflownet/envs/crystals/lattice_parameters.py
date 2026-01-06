@@ -240,6 +240,8 @@ class LatticeParameters(ContinuousCube):
         after a call to the Cube's _step().
         """
         state, action, valid = super()._step(action, backward)
+        # self.state = copy(state)
+        # return state, action, valid
         for idx, (param, is_ignored) in enumerate(
             zip(PARAMETER_NAMES, self.ignored_dims)
         ):

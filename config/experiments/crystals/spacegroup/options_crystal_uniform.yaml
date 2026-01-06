@@ -9,27 +9,54 @@ defaults:
    - override /logger: wandb
 
 # Environment
-
+env:
+  # Lattice parameters config
+  lattice_parameters_kwargs:
+    min_length: 0.9
+    max_length: 100.0
+    min_angle: 50.0
+    max_angle: 150.0
+    n_comp: 5
+    beta_params_min: 0.1
+    beta_params_max: 100.0
+    min_incr: 0.1
+    fixed_distr_params:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_eos_prob: 0.1
+      bernoulli_bts_prob: 0.1
+    random_distr_params:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_eos_prob: 0.1
+      bernoulli_bts_prob: 0.1
 
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 100
+      forward: 10
     lr: 0.0001 # 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 10000
+    n_train_steps: 100000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
 
 # Policy
 policy:
   forward:
     type: mlp
-    n_hid: 64
-    n_layers: 2
+    n_hid: 256
+    n_layers: 10
   backward:
-    shared_weights: True
+    type: mlp
+    n_hid: 256
+    n_layers: 10
+    shared_weights: False
 
 # WandB
 logger:
