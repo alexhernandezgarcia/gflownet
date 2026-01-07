@@ -124,6 +124,84 @@ def test__get_action_space__returns_expected(env, action_space, request):
     assert set(action_space) == set(env.action_space)
 
 
+@pytest.mark.parametrize(
+    "env, state, actions_valid_exp",
+    [
+        (
+            "env_extended_action_space_2d",
+            [0, 0],
+            {(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (0, 2), (2, 1), (1, 2), (2, 2)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [2, 2],
+            {(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (0, 2), (2, 1), (1, 2), (2, 2)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [2, 3],
+            {(0, 0), (1, 0), (0, 1), (1, 1), (2, 0), (2, 1)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [4, 1],
+            {(0, 0), (0, 1), (0, 2)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [4, 3],
+            {(0, 0), (0, 1)},
+        ),
+        (
+            "env_extended_action_space_3d",
+            [0, 0, 0],
+            {
+                (0, 0, 0),
+                (1, 0, 0),
+                (0, 1, 0),
+                (0, 0, 1),
+                (1, 1, 0),
+                (1, 0, 1),
+                (0, 1, 1),
+                (2, 0, 0),
+                (0, 2, 0),
+                (0, 0, 2),
+                (2, 1, 0),
+                (2, 0, 1),
+                (1, 2, 0),
+                (1, 0, 2),
+                (0, 2, 1),
+                (0, 1, 2),
+                (2, 2, 0),
+                (2, 0, 2),
+                (0, 2, 2),
+            },
+        ),
+        (
+            "env_extended_action_space_3d",
+            [4, 3, 2],
+            {
+                (0, 0, 0),
+                (0, 1, 0),
+                (0, 0, 1),
+                (0, 1, 1),
+                (0, 0, 2),
+                (0, 1, 2),
+            },
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_forward__masks_expected_actions(
+    env, state, actions_valid_exp, request
+):
+    env = request.getfixturevalue(env)
+    assert set(actions_valid_exp) == set(env.get_valid_actions(state=state))
+    env.set_state(state)
+    assert set(actions_valid_exp) == set(env.get_valid_actions())
+    env.done = True
+    assert set(env.get_valid_actions()) == set()
+
+
 class TestGridBasic(common.BaseTestsDiscrete):
     """Common tests for 5x5 Grid with standard action space."""
 
