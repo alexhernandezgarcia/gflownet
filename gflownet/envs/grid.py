@@ -82,20 +82,23 @@ class Grid(GFlowNetEnv):
         super().__init__(**kwargs)
 
     def get_action_space(self):
+        r"""
+        Constructs list with all possible actions, including eos.
+
+        An action is represented by a tuple of length ``self.n_dim`` where each index
+        $$d$$ indicates the increment to apply to dimension $$d$$ of the hyper-grid.
+
+        This method creates the attribute ``self.actions_np`` to enable quicker reuse
+        by other methods.
         """
-        Constructs list with all possible actions, including eos. An action is
-        represented by a vector of length n_dim where each index d indicates the
-        increment to apply to dimension d of the hyper-grid.
-        """
-        increments = [el for el in range(self.max_increment + 1)]
+        increments = np.indices([self.max_increment + 1] * self.n_dim).reshape(
+            self.n_dim, -1
+        )
+        mask = np.sum(increments > 0, axis=0) <= self.max_dim_per_action
+        self.actions_np = np.transpose(increments[:, mask])
         actions = []
-        for action in itertools.product(increments, repeat=self.n_dim):
-            if (
-                sum(action) != 0
-                and len([el for el in action if el > 0]) <= self.max_dim_per_action
-            ):
-                actions.append(tuple(action))
-        actions.append(self.eos)
+        for action in self.actions_np:
+            actions.append(tuple(action))
         return actions
 
     def get_mask_invalid_actions_forward(
