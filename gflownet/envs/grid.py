@@ -107,21 +107,31 @@ class Grid(GFlowNetEnv):
         done: Optional[bool] = None,
     ) -> List:
         """
-        Returns a list of length the action space with values:
-            - True if the forward action is invalid from the current state.
-            - False otherwise.
+        Returns which actions are invalid (True) and which are not invalid (False).
+
+        This method makes use of ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`, and operates with numpy
+        arrays in order to improve the efficiency of the operations.
+
+        Parameters
+        ----------
+        state : list
+            Input state. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values.
         """
         state = self._get_state(state)
         done = self._get_done(done)
         if done:
-            return [True for _ in range(self.policy_output_dim)]
-        mask = [False for _ in range(self.policy_output_dim)]
-        for idx, action in enumerate(self.action_space[:-1]):
-            child = state.copy()
-            for dim, incr in enumerate(action):
-                child[dim] += incr
-            if any(el >= self.length for el in child):
-                mask[idx] = True
+            return [True] * self.mask_dim
+        dist_to_edge = (self.length - 1) * np.ones(self.n_dim, dtype=int) - np.array(
+            state
+        )
+        mask = np.any(dist_to_edge < self.actions_np, axis=1).tolist()
         return mask
 
     def states2proxy(
