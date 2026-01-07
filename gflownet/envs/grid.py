@@ -134,6 +134,84 @@ class Grid(GFlowNetEnv):
         mask = np.any(dist_to_edge < self.actions_np, axis=1).tolist()
         return mask
 
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
+        """
+        Returns which backward actions are invalid (True) and which are not (False).
+
+        Although this method does not need to be overwritten in discrete environments,
+        it is overwritten here to improve the efficiency and because it is used by
+        :py:meth:`~gflownet.envs.grid.Grid.get_parents`.
+
+        This method makes use of ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`, and operates with numpy
+        arrays in order to improve the efficiency of the operations.
+
+        Parameters
+        ----------
+        state : list
+            Input state. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        # If the trajectory is done, only EOS is valid.
+        if done:
+            mask = [True] * self.mask_dim
+            mask[self.action2index(self.eos)] = False
+            return mask
+        mask = np.any(self.actions_np > np.array(state), axis=1).tolist()
+        # Make EOS invalid, since the trajectory is not done
+        mask[self.action2index(self.eos)] = True
+        return mask
+
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        """
+        Determines all parents and actions that lead to a state.
+
+        Parameters
+        ----------
+        state : list
+            Input state in environment format. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+        action : None
+            Ignored
+
+        Returns
+        -------
+        parents : list
+            List of parents in environment format.
+        actions : list
+            List of actions that lead to the state for each parent in ``parents``.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if done:
+            state = self._get_state(state)
+            return [state], [self.eos]
+        actions_valid = self.get_valid_actions(state=state, done=done, backward=True)
+        parents = []
+        actions = []
+        for action in actions_valid:
+            parent = list(np.array(state, dtype=int) - np.array(action))
+            parents.append(parent)
+            actions.append(action)
+        return parents, actions
+
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
@@ -211,54 +289,6 @@ class Grid(GFlowNetEnv):
         """
         state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
-
-    def get_parents(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
-    ) -> Tuple[List, List]:
-        """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state, as a list of length length where each element is
-            the position at each dimension.
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : None
-            Ignored
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
-        """
-        state = self._get_state(state)
-        done = self._get_done(done)
-        if done:
-            return [state], [self.eos]
-        else:
-            parents = []
-            actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                parent = state.copy()
-                for dim, incr in enumerate(action):
-                    if parent[dim] - incr >= 0:
-                        parent[dim] -= incr
-                    else:
-                        break
-                else:
-                    parents.append(parent)
-                    actions.append(action)
-        return parents, actions
 
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
