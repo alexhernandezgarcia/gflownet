@@ -221,7 +221,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.corr_prob_traj_rewards = 0.0
+        self.corr_probs_rewards = 0.0
+        self.corr_logprobs_logrewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
         self.mean_logprobs_std = -1.0
@@ -974,7 +975,6 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
-                    batch.zero_logprobs()
 
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models

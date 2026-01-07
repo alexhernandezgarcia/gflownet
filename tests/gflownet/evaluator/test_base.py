@@ -135,8 +135,12 @@ def test__make_requirements__list(dummy_evaluator, all_reqs):
     sub = list(all_reqs)[:2]
     assert dummy_evaluator.make_requirements(sub) == set(sub)
 
-    dummy_evaluator.make_requirements(metrics=["l1", "corr_prob_traj_rewards"]) == set(
-        r for r in all_reqs if r in ["l1", "corr_prob_traj_rewards"]
+    dummy_evaluator.make_requirements(
+        metrics=["l1", "corr_probs_rewards", "corr_logprobs_logrewards"]
+    ) == set(
+        r
+        for r in all_reqs
+        if r in ["l1", "corr_probs_rewards", "corr_logprobs_logrewards"]
     )
 
 
@@ -144,7 +148,10 @@ def test__make_requirements__dict(dummy_evaluator, all_reqs):
     assert all(
         r in all_reqs
         for r in dummy_evaluator.make_requirements(
-            metrics={k: METRICS[k] for k in ["l1", "corr_prob_traj_rewards"]}
+            metrics={
+                k: METRICS[k]
+                for k in ["l1", "corr_probs_rewards", "corr_logprobs_logrewards"]
+            }
         )
     )
     with pytest.raises(ValueError, match="Unknown metric name.*"):
