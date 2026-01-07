@@ -35,7 +35,7 @@ def env_extended_action_space_3d():
         n_dim=3,
         length=5,
         max_increment=2,
-        max_dim_per_action=3,
+        max_dim_per_action=2,
         cell_min=-1.0,
         cell_max=1.0,
     )
@@ -114,15 +114,41 @@ def test__states2policy__creates_helper_indices_on_env_device(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "action_space",
+    "env, action_space",
     [
-        [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        (
+            "env_extended_action_space_2d",
+            [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        ),
+        (
+            "env_extended_action_space_3d",
+            [
+                (0, 0, 0),
+                (1, 0, 0),
+                (0, 1, 0),
+                (0, 0, 1),
+                (1, 1, 0),
+                (1, 0, 1),
+                (0, 1, 1),
+                (2, 0, 0),
+                (0, 2, 0),
+                (0, 0, 2),
+                (2, 1, 0),
+                (2, 0, 1),
+                (1, 2, 0),
+                (1, 0, 2),
+                (0, 2, 1),
+                (0, 1, 2),
+                (2, 2, 0),
+                (2, 0, 2),
+                (0, 2, 2),
+            ],
+        ),
     ],
 )
-def test__get_action_space__returns_expected(
-    env_extended_action_space_2d, action_space
-):
-    assert set(action_space) == set(env_extended_action_space_2d.action_space)
+def test__get_action_space__returns_expected(env, action_space, request):
+    env = request.getfixturevalue(env)
+    assert set(action_space) == set(env.action_space)
 
 
 class TestGridBasic(common.BaseTestsDiscrete):
