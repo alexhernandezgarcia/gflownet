@@ -202,6 +202,125 @@ def test__get_mask_invalid_actions_forward__masks_expected_actions(
     assert set(env.get_valid_actions()) == set()
 
 
+@pytest.mark.parametrize(
+    "env, state, actions_valid_exp",
+    [
+        (
+            "env_extended_action_space_2d",
+            [0, 0],
+            set(),
+        ),
+        (
+            "env_extended_action_space_2d",
+            [2, 2],
+            {(1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [1, 3],
+            {(1, 0), (0, 1), (1, 1), (0, 2), (1, 2)},
+        ),
+        (
+            "env_extended_action_space_2d",
+            [0, 1],
+            {(0, 1)},
+        ),
+        (
+            "env_extended_action_space_3d",
+            [0, 0, 0],
+            set(),
+        ),
+        (
+            "env_extended_action_space_3d",
+            [4, 3, 2],
+            {
+                (1, 0, 0),
+                (0, 1, 0),
+                (0, 0, 1),
+                (1, 1, 0),
+                (1, 0, 1),
+                (0, 1, 1),
+                (2, 0, 0),
+                (0, 2, 0),
+                (0, 0, 2),
+                (2, 1, 0),
+                (2, 0, 1),
+                (1, 2, 0),
+                (1, 0, 2),
+                (0, 2, 1),
+                (0, 1, 2),
+                (2, 2, 0),
+                (2, 0, 2),
+                (0, 2, 2),
+            },
+        ),
+        (
+            "env_extended_action_space_3d",
+            [1, 0, 2],
+            {
+                (1, 0, 0),
+                (0, 0, 1),
+                (1, 0, 1),
+                (0, 0, 2),
+                (1, 0, 2),
+            },
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__masks_expected_actions(
+    env, state, actions_valid_exp, request
+):
+    env = request.getfixturevalue(env)
+    assert set(actions_valid_exp) == set(
+        env.get_valid_actions(state=state, backward=True)
+    )
+    env.set_state(state)
+    assert set(actions_valid_exp) == set(env.get_valid_actions(backward=True))
+
+
+@pytest.mark.parametrize(
+    "state, parents_expected, parents_a_expected",
+    [
+        (
+            [0, 0],
+            [],
+            [],
+        ),
+        (
+            [1, 0],
+            [[0, 0]],
+            [(1, 0)],
+        ),
+        (
+            [1, 1],
+            [[0, 1], [1, 0], [0, 0]],
+            [(1, 0), (0, 1), (1, 1)],
+        ),
+        (
+            [3, 4],
+            [[2, 4], [1, 4], [3, 3], [2, 3], [1, 3], [3, 2], [2, 3], [1, 2]],
+            [(1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+        ),
+    ],
+)
+def test__get_parents__returns_expected(
+    env_extended_action_space_2d, state, parents_expected, parents_a_expected
+):
+    env = env_extended_action_space_2d
+    parents, parents_a = env.get_parents(state)
+    assert len(parents) == len(parents_expected)
+    assert len(parents_a) == len(parents_a_expected)
+    # Create dictionaries of parent_action: parent for comparison
+    parents_actions_exp_dict = {}
+    for parent, action in zip(parents_expected, parents_a_expected):
+        parents_actions_exp_dict[action] = tuple(parent.copy())
+    parents_actions_dict = {}
+    for parent, action in zip(parents, parents_a):
+        parents_actions_dict[action] = tuple(parent.copy())
+
+    assert sorted(parents_actions_exp_dict) == sorted(parents_actions_dict)
+
+
 class TestGridBasic(common.BaseTestsDiscrete):
     """Common tests for 5x5 Grid with standard action space."""
 
