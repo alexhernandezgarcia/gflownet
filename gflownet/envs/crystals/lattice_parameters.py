@@ -30,7 +30,7 @@ from gflownet.utils.crystals.constants import (
 LENGTH_PARAMETER_NAMES = ("a", "b", "c")
 ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
 PARAMETER_NAMES = LENGTH_PARAMETER_NAMES + ANGLE_PARAMETER_NAMES
-
+import numpy as np
 
 # Matrices used in the LatticeParametersSGCCG environment
 B1 = numpy.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])

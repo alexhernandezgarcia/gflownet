@@ -367,6 +367,7 @@ class GFlowNetAgent:
             device=self.device,
             float_type=self.float,
         )
+        # states_policy = tfloat([env.states2policy([env.state])[0] for env in envs]) (do a PR)
         policy_outputs = model(states_policy)
 
         # Sample actions from policy outputs
