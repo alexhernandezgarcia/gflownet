@@ -561,7 +561,7 @@ class GFlowNetEnv:
                 device=self.device,
             )
             logits_sampling[idx_random, :] = self.random_policy_output
-        return policy_outputs
+        return logits_sampling
 
     def sample_actions_batch(
         self,
