@@ -678,7 +678,7 @@ class BaseSet(CompositeBase):
                 unique_indices = self._get_unique_indices(self.state, exclude_nonpresent=False)
                 dones = self._get_dones(self.state)
                 subenv_to_activate = None
-                for idx, (idx_unique, subenv_done) in enumerate(zip(unique_indices, dones)):
+                for idx, (idx_unique, subenv_done) in reversed(list(enumerate(zip(unique_indices, dones)))):
                     if idx_unique != toggled_type:
                         continue
                     if idx_unique == -1:
