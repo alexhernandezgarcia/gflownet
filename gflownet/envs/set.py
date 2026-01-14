@@ -843,7 +843,7 @@ class BaseSet(CompositeBase):
             # not done.
             assert toggle_flag == 0
             seen_types = set()
-            for idx, (idx_unique, subenv_done) in enumerate(zip(unique_indices, dones)):
+            for idx, (idx_unique, subenv_done) in reversed(list(enumerate(zip(unique_indices, dones)))):
                 # Skip non-present sub-environments
                 if idx_unique == -1:
                     continue
