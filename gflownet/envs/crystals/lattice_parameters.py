@@ -153,6 +153,95 @@ class LatticeParameters(ContinuousCube):
         self.lattice_system = lattice_system
         self._setup_constraints()
 
+
+    def _setup_constraints_read_only(self,lattice_system):
+        # Lengths: a, b, c
+        # a == b == c
+        a_idx = None
+        b_idx = None
+        c_idx = None
+        a_idx = None
+        alpha_idx = None
+        beta_idx = None
+        gamma_idx = None
+        alpha_state = None
+        beta_state = None
+        gamma_state = None
+
+        if lattice_system in [CUBIC, RHOMBOHEDRAL]:
+            lengths_ignored_dims = [False, True, True]
+            a_idx = 0
+            b_idx = 0
+            c_idx = 0
+        # a == b != c
+        elif lattice_system in [HEXAGONAL, TETRAGONAL]:
+            lengths_ignored_dims = [False, True, False]
+            a_idx = 0
+            b_idx = 0
+            c_idx = 2
+        # a != b and a != c and b != c
+        elif lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
+            lengths_ignored_dims = [False, False, False]
+            a_idx = 0
+            b_idx = 1
+            c_idx = 2
+        else:
+            raise ValueError(f"{lattice_system} is not a valid lattice system")
+        # Angles: alpha, beta, gamma
+        # alpha == beta == gamma == 90.0
+        if lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
+            angles_ignored_dims = [True, True, True]
+            alpha_idx = None
+            alpha = 90.0
+            alpha_state = self._angle2statevalue(alpha)
+            beta_idx = None
+            beta = 90.0
+            beta_state = self._angle2statevalue(beta)
+            gamma_idx = None
+            gamma = 90.0
+            gamma_state = self._angle2statevalue(gamma)
+        #  alpha == beta == 90.0 and gamma == 120.0
+        elif lattice_system == HEXAGONAL:
+            angles_ignored_dims = [True, True, True]
+            alpha_idx = None
+            alpha = 90.0
+            alpha_state = self._angle2statevalue(alpha)
+            beta_idx = None
+            beta = 90.0
+            beta_state = self._angle2statevalue(beta)
+            gamma_idx = None
+            gamma = 120.0
+            gamma_state = self._angle2statevalue(gamma)
+        # alpha == gamma == 90.0 and beta != 90.0
+        elif lattice_system == MONOCLINIC:
+            angles_ignored_dims = [True, False, True]
+            alpha_idx = None
+            alpha = 90.0
+            alpha_state = self._angle2statevalue(alpha)
+            beta_idx = 4
+            gamma_idx = None
+            gamma = 90.0
+            gamma_state = self._angle2statevalue(gamma)
+        # alpha == beta == gamma != 90.0
+        elif lattice_system == RHOMBOHEDRAL:
+            angles_ignored_dims = [False, True, True]
+            alpha_idx = 3
+            beta_idx = 3
+            gamma_idx = 3
+        # alpha != beta, alpha != gamma, beta != gamma
+        elif lattice_system == TRICLINIC:
+            angles_ignored_dims = [False, False, False]
+            alpha_idx = 3
+            beta_idx = 4
+            gamma_idx = 5
+        else:
+            raise NotImplementedError
+        ignored_dims = lengths_ignored_dims + angles_ignored_dims
+        return {"a_idx": a_idx, "b_idx":b_idx, "c_idx": c_idx, 
+                "alpha_idx": alpha_idx, "beta_idx":beta_idx, "gamma_idx":gamma_idx,
+                "alpha_state":alpha_state, "beta_state":beta_state, "gamma_state": gamma_state,
+                "ignored_dims": ignored_dims}
+
     def _setup_constraints(self):
         """
         Computes the mask of ignored dimensions, given the constraints imposed by the
@@ -240,20 +329,8 @@ class LatticeParameters(ContinuousCube):
         after a call to the Cube's _step().
         """
         state, action, valid = super()._step(action, backward)
-        # self.state = copy(state)
-        # return state, action, valid
-        for idx, (param, is_ignored) in enumerate(
-            zip(PARAMETER_NAMES, self.ignored_dims)
-        ):
-            if not is_ignored:
-                continue
-            param_idx = self._get_index_of_param(param)
-            if param_idx is not None:
-                state[idx] = state[param_idx]
-            else:
-                state[idx] = getattr(self, f"{param}_state")
         self.state = copy(state)
-        return self.state, action, valid
+        return state, action, valid
 
     def _unpack_lengths_angles(
         self, state: Optional[List[float]] = None
@@ -333,6 +410,27 @@ class LatticeParameters(ContinuousCube):
             ],
             dim=1,
         )
+    
+
+    def cube2latticeparams(self,cube_states,crystal_lattice_systems):
+        constraints_dict = [self._setup_constraints_read_only(crystal_lattice_system) for crystal_lattice_system in crystal_lattice_systems]
+        LP_states = []
+
+        for state,constraints in zip(cube_states,constraints_dict):
+            LP_state = copy(state)
+            for idx, (param, is_ignored) in enumerate(
+                zip(PARAMETER_NAMES, constraints["ignored_dims"])
+            ):
+                if not is_ignored:
+                    continue
+                param_idx = constraints[f"{param}_idx"]
+                if param_idx is not None:
+                    LP_state[idx] = LP_state[param_idx]
+                else:
+                    LP_state[idx] = constraints[f"{param}_state"]
+            LP_states.append(LP_state)
+        return LP_states
+        
 
     def state2readable(self, state: Optional[List[float]] = None) -> str:
         """
@@ -352,7 +450,6 @@ class LatticeParameters(ContinuousCube):
             readable = readable.replace(c, "")
         values = readable.split(",")
         values = [float(value) for value in values]
-
         return self.parameters2state(values)
 
     def is_valid(self, state: List) -> bool:
