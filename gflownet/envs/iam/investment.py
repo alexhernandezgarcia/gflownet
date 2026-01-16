@@ -287,6 +287,43 @@ class InvestmentDiscrete(GFlowNetEnv):
             for g, techs in self.network_structure["tag2tech"].items()
         }
 
+        # Pre-cache network structures indexed by state indices (optimization)
+        # Cache sector_idx -> tag tokens
+        self._sector_idx_to_tags = {
+            self.token2idx_sectors[sector]: self.network_structure["sector2tag"][sector]
+            for sector in self.sectors
+        }
+
+        # Cache sector_idx -> tech tokens as set
+        self._sector_idx_to_techs_set = {
+            self.token2idx_sectors[sector]: set(self.network_structure["sector2tech"][sector])
+            for sector in self.sectors
+        }
+
+        # Cache tag_idx -> sector tokens
+        self._tag_idx_to_sectors = {
+            self.token2idx_tags[tag]: self.network_structure["tag2sector"][tag]
+            for tag in self.tags
+        }
+
+        # Cache tag_idx -> tech tokens as set
+        self._tag_idx_to_techs_set = {
+            self.token2idx_tags[tag]: set(self.network_structure["tag2tech"][tag])
+            for tag in self.tags
+        }
+
+        # Cache sector token -> tech tokens as set (for unavailable tech filtering)
+        self._sector_token_to_techs_set = {
+            sector: set(self.network_structure["sector2tech"][sector])
+            for sector in self.sectors
+        }
+
+        # Cache tag token -> tech tokens as set (for unavailable tech filtering)
+        self._tag_token_to_techs_set = {
+            tag: set(self.network_structure["tag2tech"][tag])
+            for tag in self.tags
+        }
+
         # Base class init
         super().__init__(**kwargs)
 
@@ -388,16 +425,13 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         if not has_sector:
             if has_tag:
-                allowed_sectors = self.network_structure["tag2sector"][
-                    self.idx2token_tags[state["TAG"]]
-                ]
-                allowed_techs_tag_set = set(self.network_structure["tag2tech"][
-                                                self.idx2token_tags[state["TAG"]]
-                                            ])
+                # Use cached structures
+                allowed_sectors = self._tag_idx_to_sectors[state["TAG"]]
+                allowed_techs_tag_set = self._tag_idx_to_techs_set[state["TAG"]]
                 techs_available_set = set(techs_available_tokens)
 
                 for a in allowed_sectors:
-                    allowed_techs_sector_set = set(self.network_structure["sector2tech"][a])
+                    allowed_techs_sector_set = self._sector_token_to_techs_set[a]
                     # Use set operations
                     available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
                     if available_techs:
@@ -417,16 +451,13 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         if not has_tag:
             if has_sector:
-                allowed_tags = self.network_structure["sector2tag"][
-                    self.idx2token_sectors[state["SECTOR"]]
-                ]
-                allowed_techs_sector_set = set(self.network_structure["sector2tech"][
-                                                   self.idx2token_sectors[state["SECTOR"]]
-                                               ])
+                # Use cached structures
+                allowed_tags = self._sector_idx_to_tags[state["SECTOR"]]
+                allowed_techs_sector_set = self._sector_idx_to_techs_set[state["SECTOR"]]
                 techs_available_set = set(techs_available_tokens)
 
                 for a in allowed_tags:
-                    allowed_techs_tag_set = set(self.network_structure["tag2tech"][a])
+                    allowed_techs_tag_set = self._tag_token_to_techs_set[a]
                     # Use set operations
                     available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
                     if available_techs:
@@ -481,14 +512,16 @@ class InvestmentDiscrete(GFlowNetEnv):
             ]
             unavailable_sectors_idx = []
             for s in self.sectors:
-                sector_technologies_set = set(self.network_structure["sector2tech"][s])
+                # Use cached structure
+                sector_technologies_set = self._sector_token_to_techs_set[s]
                 # Use set operations
                 if not (sector_technologies_set & techs_available_set):
                     unavailable_sectors_idx.append(self.token2idx_sectors[s])
 
             unavailable_tags_idx = []
             for t in self.tags:
-                tag_technologies_set = set(self.network_structure["tag2tech"][t])
+                # Use cached structure
+                tag_technologies_set = self._tag_token_to_techs_set[t]
                 # Use set operations
                 if not (tag_technologies_set & techs_available_set):
                     unavailable_tags_idx.append(self.token2idx_tags[t])
