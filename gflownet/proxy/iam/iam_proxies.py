@@ -166,6 +166,11 @@ class FAIRY(Proxy):
                 "HIGH": 0.75,
             }
 
+            # cache scaling params
+            self.cons_min = torch.tensor(self.precomputed_scaling_params["CONSUMPTION"]["min"], device=self.device)
+            self.cons_max = torch.tensor(self.precomputed_scaling_params["CONSUMPTION"]["max"], device=self.device)
+            self.cons_scale = self.cons_max - self.cons_min
+
         except PackageNotFoundError:
             print("  💥 `fairy` cannot be initialized.")
 
@@ -217,7 +222,7 @@ class FAIRY(Proxy):
             Proxy energies
         """
         batch_size = len(states)
-        contexts = self.context.repeat(batch_size, 1)
+        contexts = self.context.expand(batch_size, -1)
 
         plan = torch.zeros(
             batch_size,
@@ -226,9 +231,21 @@ class FAIRY(Proxy):
             device=self.device,
         )
 
-        for i, s in enumerate(states):
-            for inv in s:
-                plan[i, self.tech2idx[inv["TECH"]]] = self.amount_map[inv["AMOUNT"]]
+        #for i, s in enumerate(states):
+        #    for inv in s:
+        #        plan[i, self.tech2idx[inv["TECH"]]] = self.amount_map[inv["AMOUNT"]]
+
+        # vector version
+        batch_indices = []
+        tech_indices = []
+        amounts = []
+        for i, state in enumerate(states):
+            for inv in state:
+                batch_indices.append(i)
+                tech_indices.append(self.tech2idx[inv["TECH"]])
+                amounts.append(self.amount_map[inv["AMOUNT"]])
+
+        plan[batch_indices, tech_indices] = torch.tensor(amounts, device=self.device)
 
         developments = self.fairy(contexts, plan)
 
@@ -237,13 +254,14 @@ class FAIRY(Proxy):
         #e_idx = self.var_EMI
 
         # scaling params
-        cons_min = self.precomputed_scaling_params["CONSUMPTION"]["min"]
-        cons_max = self.precomputed_scaling_params["CONSUMPTION"]["max"]
+        # cons_min = self.precomputed_scaling_params["CONSUMPTION"]["min"]
+        # cons_max = self.precomputed_scaling_params["CONSUMPTION"]["max"]
         #emi_min = self.precomputed_scaling_params["EMI_total_CO2"]["min"]
         #emi_max = self.precomputed_scaling_params["EMI_total_CO2"]["max"]
 
         y = developments[:, c_idx]  # CONSUMPTION, or GDP, or something else
-        y = y * (cons_max - cons_min) + cons_min
+        #y = y * (cons_max - cons_min) + cons_min
+        y = torch.addcmul(self.cons_min, y, self.cons_scale)
 
         # Apply budget constraint: zero out consumption where emissions exceed budget
         #emissions = developments[:, e_idx]
