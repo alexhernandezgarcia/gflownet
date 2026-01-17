@@ -174,9 +174,13 @@ class BaseSet(CompositeBase):
         - :py:meth:`~gflownet.envs.set.Set._depad_action`
         """
         action_space = []
-        # Actions to activate a sub-environment
+        # Actions to activate a sub-environment or unique environment
+        if self.can_alternate_subenvs:
+            self.n_toggle_actions = self.max_elements
+        else:
+            self.n_toggle_actions = self.n_unique_envs
         action_space.extend(
-            [self._pad_action((idx,), -1) for idx in range(self.max_elements)]
+            [self._pad_action((idx,), -1) for idx in range(self.n_toggle_actions)]
         )
         # EOS action
         action_space += [self.eos]
@@ -198,10 +202,12 @@ class BaseSet(CompositeBase):
         Computes the forward actions mask of the state.
 
         The mask of the Set environment is the concatenation of the following:
-        - A one-hot encoding of the index of the subenv (True at the index of the
-          active environment). All False if only valid actions are meta-actions.
+        - A one-hot encoding of the index of the sub-environment or unique environment
+          (True at the index of the active environment). All False if the only valid
+          actions are meta-actions.
         - Actual (main) mask of invalid actions:
-            - The mask of the actions to activate a sub-environment, OR
+            - The mask of the actions to activate a sub-environment or unique
+              environment, OR
             - The mask of the active sub-environment.
 
         The mask is False-padded from the back up to mask_dim.
@@ -244,11 +250,21 @@ class BaseSet(CompositeBase):
 
         # Build the mask based on the case
         if case_a:
-            # The main mask is the mask of the meta-actions to toggle a
-            # sub-environment. The action to activate a sub-environment is invalid
-            # (True) if the sub-environment is done. The global EOS is invalid (True)
-            # unless all sub-environments are done.
-            mask = [bool(done) for done in dones]
+            # The main mask is the mask of the meta-actions to toggle a sub-environment
+            # (or unique environment).
+            if self.can_alternate_subenvs:
+                # The action to activate a sub-environment is invalid (True) if the
+                # sub-environment is done.
+                mask = [bool(done) for done in dones]
+            else:
+                # The action to activate a unique environment is invalid (True) if all
+                # its sub-environments are done.
+                indices_unique = self._get_unique_indices(state)
+                mask = [True] * self.n_unique_envs
+                for done, idx_unique in zip(dones, indices_unique):
+                    if not mask[idx_unique] and not done:
+                        mask[idx_unique] = False
+            # The global EOS is invalid (True) unless all other actions are invalid.
             mask += [not all(mask)]
         elif case_b or case_c:
             # The main mask is the mask of the meta-actions to toggle a

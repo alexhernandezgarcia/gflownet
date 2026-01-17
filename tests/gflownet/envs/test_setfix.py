@@ -159,6 +159,36 @@ def env_two_grids_cannot_alternate():
     )
 
 
+@pytest.fixture
+def env_grid2d_tetrismini_cannot_alternate():
+    return SetFix(
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Tetris(
+                width=4,
+                height=5,
+                pieces=["I", "O"],
+                rotations=[0],
+                allow_eos_before_full=True,
+                device="cpu",
+            ),
+        ),
+        can_alternate_subenvs=False,
+    )
+
+
+@pytest.fixture
+def env_two_cubes2d_one_cube3d_cannot_alternate():
+    return SetFix(
+        subenvs=(
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=3, n_comp=3, min_incr=0.1),
+        ),
+        can_alternate_subenvs=False,
+    )
+
+
 @pytest.mark.parametrize(
     "env",
     [
@@ -172,6 +202,8 @@ def env_two_grids_cannot_alternate():
         "env_stacks_equal",
         "env_stacks_diff",
         "env_two_grids_cannot_alternate",
+        "env_grid2d_tetrismini_cannot_alternate",
+        "env_two_cubes2d_one_cube3d_cannot_alternate",
     ],
 )
 def test__environment__initializes_properly(env, request):
@@ -192,6 +224,8 @@ def test__environment__initializes_properly(env, request):
         ("env_stacks_equal", 1),
         ("env_stacks_diff", 2),
         ("env_two_grids_cannot_alternate", 1),
+        ("env_grid2d_tetrismini_cannot_alternate", 2),
+        ("env_two_cubes2d_one_cube3d_cannot_alternate", 2),
     ],
 )
 def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
@@ -209,6 +243,11 @@ def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
         ("env_three_cubes", True),
         ("env_cube2d_cube3d", True),
         ("env_two_cubes2d_one_cube3d", True),
+        ("env_stacks_equal", True),
+        ("env_stacks_diff", True),
+        ("env_two_grids_cannot_alternate", False),
+        ("env_grid2d_tetrismini_cannot_alternate", False),
+        ("env_two_cubes2d_one_cube3d_cannot_alternate", True),
     ],
 )
 def test__environment__is_continuous(env, is_continuous, request):
@@ -238,6 +277,11 @@ def test__environment__is_continuous(env, is_continuous, request):
         ("env_two_cubes2d_one_cube3d", 2, 1),
         ("env_two_grids_cannot_alternate", 0, 0),
         ("env_two_grids_cannot_alternate", 1, 0),
+        ("env_grid2d_tetrismini_cannot_alternate", 0, 0),
+        ("env_grid2d_tetrismini_cannot_alternate", 1, 1),
+        ("env_two_cubes2d_one_cube3d_cannot_alternate", 0, 0),
+        ("env_two_cubes2d_one_cube3d_cannot_alternate", 1, 0),
+        ("env_two_cubes2d_one_cube3d_cannot_alternate", 2, 1),
     ],
 )
 def test__get_unique_idx_of_subenv__returns_expected(
@@ -670,6 +714,66 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 (0, 0, 0),
                 (0, 1, 0),
                 (0, 0, 1),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_two_grids_cannot_alternate",
+            [
+                # fmt: off
+                # Activate unique env
+                (-1, 0, 0),
+                # EOS
+                (-1, -1, -1),
+                # Grid
+                (0, 0, 0),
+                (0, 1, 0),
+                (0, 0, 1),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_grid2d_tetrismini_cannot_alternate",
+            [
+                # fmt: off
+                # Activate unique envs
+                (-1, 0, 0, 0),
+                (-1, 1, 0, 0),
+                # EOS
+                (-1, -1, -1, -1),
+                # Grid
+                (0, 0, 0, 0),
+                (0, 1, 0, 0),
+                (0, 0, 1, 0),
+                # Tetris
+                (1, 1, 0, 0),
+                (1, 1, 0, 1),
+                (1, 1, 0, 2),
+                (1, 1, 0, 3),
+                (1, 4, 0, 0),
+                (1, 4, 0, 1),
+                (1, 4, 0, 2),
+                (1, -1, -1, -1),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            [
+                # fmt: off
+                # Activate unique envs
+                (-1, 0, 0, 0, 0),
+                (-1, 1, 0, 0, 0),
+                # EOS
+                (-1, -1, -1, -1, -1),
+                # Cube 2D
+                (0, 0.0, 0.0, 0.0, 0),
+                (0, 0.0, 0.0, 1.0, 0),
+                (0, np.inf, np.inf, np.inf, 0),
+                # Cube 2D
+                (1, 0.0, 0.0, 0.0, 0.0),
+                (1, 0.0, 0.0, 0.0, 1.0),
+                (1, np.inf, np.inf, np.inf, np.inf),
                 # fmt: on
             ],
         ),
