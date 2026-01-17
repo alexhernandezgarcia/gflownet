@@ -143,6 +143,22 @@ class BaseSet(CompositeBase):
         # Base class init
         super().__init__(**kwargs)
 
+    @property
+    def n_toggle_actions(self) -> int:
+        """
+        Returns the number of actions to toggle sub-environments or unique environments.
+
+        If the Set allows alternating actions between sub-environments, the number of
+        toggle actions is the number of sub-environments. Otherwise, toggle actions
+        activate unique environments and the number of unique environments is returned.
+        """
+        if not hasattr(self, "_n_toggle_actions"):
+            if self.can_alternate_subenvs:
+                self._n_toggle_actions = self.max_elements
+            else:
+                self._n_toggle_actions = self.n_unique_envs
+        return self._n_toggle_actions
+
     # TODO: update by using super().get_action_space(), which will require changing
     # other methods to use the correct indexing of actions
     def get_action_space(self) -> List[Tuple]:
@@ -175,10 +191,6 @@ class BaseSet(CompositeBase):
         """
         action_space = []
         # Actions to activate a sub-environment or unique environment
-        if self.can_alternate_subenvs:
-            self.n_toggle_actions = self.max_elements
-        else:
-            self.n_toggle_actions = self.n_unique_envs
         action_space.extend(
             [self._pad_action((idx,), -1) for idx in range(self.n_toggle_actions)]
         )
@@ -262,7 +274,7 @@ class BaseSet(CompositeBase):
                 indices_unique = self._get_unique_indices(state)
                 mask = [True] * self.n_unique_envs
                 for done, idx_unique in zip(dones, indices_unique):
-                    if not mask[idx_unique] and done == 0:
+                    if mask[idx_unique] and done == 0:
                         mask[idx_unique] = False
             # The global EOS is invalid (True) unless all other actions are invalid.
             mask += [not all(mask)]
@@ -272,15 +284,11 @@ class BaseSet(CompositeBase):
             # sub-environment. The global EOS is invalid (True).  active_subenv is set
             # to -1, in order to make the mask formatting reflect that the valid
             # actions are set meta-actions.
+            mask = [True] * self.n_toggle_actions
             if self.can_alternate_subenvs:
-                unique_indices = self._get_unique_indices(
-                    state, exclude_nonpresent=False
-                )
-                mask = [True] * self._n_unique_envs
-                mask[unique_indices[active_subenv]] = False
-            else:
-                mask = [True] * self.max_elements
                 mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
             mask += [True]
             active_subenv = -1
         elif case_d:
@@ -1118,7 +1126,8 @@ class BaseSet(CompositeBase):
         Calculates the mask dimensionality of the global Set environment.
 
         The mask consists of:
-           - A one-hot encoding of the index of the active sub-environment.
+           - A one-hot encoding of the index of the active sub-environment or unique
+             environment.
            - Actual (main) mask of invalid actions:
                - The mask of the Set actions (activate a sub-environment and EOS), OR
                - The mask of the active sub-environment.
@@ -1133,8 +1142,8 @@ class BaseSet(CompositeBase):
             The number of elements in the Set masks.
         """
         mask_dim_subenvs = [subenv.mask_dim for subenv in self.envs_unique]
-        mask_dim_set_actions = self.n_unique_envs + 1
-        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.max_elements
+        mask_dim_set_actions = self.n_toggle_actions + 1
+        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.n_toggle_actions
 
     def _get_toggle_flag(self, state: Optional[Dict] = None) -> int:
         """
@@ -1214,8 +1223,8 @@ class BaseSet(CompositeBase):
         Applies formatting to the mask of a sub-environment.
 
         The output format is the mask of the input sub-environment, preceded by a
-        one-hot encoding of the index of the active sub-environment and padded with
-        False up to :py:const:`self.mask_dim`.
+        one-hot encoding of the index of the active sub-environment (or unique
+        environment) and padded with False up to :py:const:`self.mask_dim`.
 
         If no sub-environment is active (``active_subenv`` is -1), the prefix is all
         False.
@@ -1227,9 +1236,14 @@ class BaseSet(CompositeBase):
         active_subenv : int
             The index of the active sub-environment, or -1 if no subenv is active.
         """
-        active_subenv_onehot = [False] * self.max_elements
+        active_subenv_onehot = [False] * self.n_toggle_actions
         if active_subenv != -1:
-            active_subenv_onehot[active_subenv] = True
+            if self.can_alternate_subenvs:
+                active_subenv_onehot[active_subenv] = True
+            else:
+                active_subenv_onehot[self._get_unique_idx_of_subenv(active_subenv)] = (
+                    True
+                )
         mask = active_subenv_onehot + mask
         padding = [False] * (self.mask_dim - len(mask))
         return mask + padding
