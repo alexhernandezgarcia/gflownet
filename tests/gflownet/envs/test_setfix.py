@@ -2446,6 +2446,106 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             ]
             # fmt: on
         ),
+        # First Cube 2D done (still active)
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, True, True, # MASK SET (toggle action only one valid)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # No active environment, first Cube 2D done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, False, True, # MASK SET (both environments can be toggled)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # No active environment, first Cube 2D done, 3D Cube done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, True, True, # MASK SET (only first environment can be toggled)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # No active environment, both Cubes 2D done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                True, False, True, # MASK SET (only second environment can be toggled)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # No active environment, all sub-environments done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                True, True, False, # MASK SET (only EOS valid)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
     ],
 )
 def test__get_mask_invalid_actions_forward__returns_expected(
