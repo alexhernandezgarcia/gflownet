@@ -2220,6 +2220,24 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
         ),
         # Source
         (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, False, True, # MASK SET (EOS invalid)
+            ]
+            # fmt: on
+        ),
+        # Source
+        (
             "env_two_grids_cannot_alternate",
             {
                 "_active": -1,
@@ -2304,7 +2322,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             },
             # fmt: off
             [
-                False, # ACTIVE SUBENV
+                False, # ACTIVE UNIQUE ENV
                 False, True, # MASK SET (toggle unique env 0 only valid action)
                 False # PAD
             ]
@@ -2323,7 +2341,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             },
             # fmt: off
             [
-                False, # ACTIVE SUBENV
+                False, # ACTIVE UNIQUE ENV
                 True, False, # MASK SET (EOS only valid action)
                 False # PAD
             ]
@@ -2785,6 +2803,24 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         ),
         # All done
         (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, False, True, # MASK SET 
+            ]
+            # fmt: on
+        ),
+        # All done
+        (
             "env_two_grids_cannot_alternate",
             {
                 "_active": -1,
@@ -2796,8 +2832,9 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             },
             # fmt: off
             [
-                False, False, # ACTIVE SUBENV
-                False, False, True, # MASK SET 
+                False, # ACTIVE UNIQUE ENV
+                False, True, # MASK SET 
+                False # PAD
             ]
             # fmt: on
         ),
@@ -2814,8 +2851,8 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             },
             # fmt: off
             [
-                False, True, # ACTIVE SUBENV
-                True, True, False, # MASK SET 
+                True, # ACTIVE UNIQUE ENV
+                True, True, False, # MASK GRID
             ]
             # fmt: on
         ),
@@ -2832,8 +2869,9 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             },
             # fmt: off
             [
-                False, False, # ACTIVE SUBENV
-                True, False, True, # MASK SET 
+                False, # ACTIVE UNIQUE ENV
+                False, True, # MASK SET 
+                False # PAD
             ]
             # fmt: on
         ),
@@ -2850,8 +2888,128 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             },
             # fmt: off
             [
-                False, False, # ACTIVE SUBENV
-                False, True, True, # MASK SET 
+                False, # ACTIVE UNIQUE ENV
+                False, True, # MASK SET 
+                False # PAD
+            ]
+            # fmt: on
+        ),
+        # All done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, False, True, # MASK SET (only EOS invalid)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # 3D Cube active but done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            # fmt: off
+            [
+                False, True, # ACTIVE UNIQUE ENV
+                True, True, False, False, False, False, # MASK 3D CUBE (intermediate)
+            ]
+            # fmt: on
+        ),
+        # 2D Cube active but done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            # fmt: off
+            [
+                True, False, # ACTIVE UNIQUE ENV
+                True, True, False, False, False, # MASK 3D CUBE (intermediate)
+                False # PAD
+            ]
+            # fmt: on
+        ),
+        # 3D Cube active but source
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                True, False, True, # MASK SET (only toggle active environment valid)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # First 2D Cube active but source
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, True, True, # MASK SET (only toggle active environment valid)
+                False, False, False # PAD
+            ]
+            # fmt: on
+        ),
+        # First 2D Cube active but source
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, True, True, # MASK SET (only toggle active environment valid)
+                False, False, False # PAD
             ]
             # fmt: on
         ),
