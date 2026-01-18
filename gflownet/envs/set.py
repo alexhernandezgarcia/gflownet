@@ -325,7 +325,6 @@ class BaseSet(CompositeBase):
 
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
-        unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
         toggle_flag = self._get_toggle_flag(state)
         dones = self._get_dones(state)
         subenv = None
@@ -381,22 +380,29 @@ class BaseSet(CompositeBase):
             # the parent Set environment's done is True. If so, all toggle actions are
             # invalid.
             assert toggle_flag == 0
-            mask = [True] * self.n_unique_envs
+            mask = [True] * self.n_toggle_actions
             if done:
                 mask += [False]
             else:
                 # Toggling a sub-environment is invalid if the substate is source but
                 # the sub-environment is not done.
-                for idx, (idx_unique, done) in enumerate(zip(unique_indices, dones)):
+                indices_unique = self._get_unique_indices(state)
+                for idx, (idx_unique, done) in enumerate(zip(indices_unique, dones)):
                     # Skip non-present sub-environments
                     if idx_unique == -1:
+                        continue
+                    # Skip sub-envs whose unique env has already been marked as valid
+                    if not self.can_alternate_subenvs and not mask[idx_unique]:
                         continue
                     if not done and self._get_env_unique(idx_unique).is_source(
                         self._get_substate(state, idx)
                     ):
                         continue
                     else:
-                        mask[idx_unique] = False
+                        if self.can_alternate_subenvs:
+                            mask[idx] = False
+                        else:
+                            mask[idx_unique] = False
                 mask += [True]
         elif case_c or case_e:
             # The main mask is the mask of the meta-actions to toggle a
@@ -404,8 +410,11 @@ class BaseSet(CompositeBase):
             # sub-environment. The global EOS is invalid.
             # active_subenv is set to -1, in order to force the prefix reflect that the
             # state is effectively inactive. EOS is invalid from this state.
-            mask = [True] * self.n_unique_envs
-            mask[unique_indices[active_subenv]] = False
+            mask = [True] * self.n_toggle_actions
+            if self.can_alternate_subenvs:
+                mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
             mask += [True]
             active_subenv = -1
         elif case_b or case_d or case_f:
