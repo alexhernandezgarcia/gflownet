@@ -867,28 +867,41 @@ class BaseSet(CompositeBase):
         if case_a:
             # Case A: no sub-environment is active: the parents of the state correspond
             # to states with the same sub-environment states but with one active
-            # sub-environment, unless the sub-environment is at the source state and is
-            # not done.
+            # sub-environment.
+            # If sub-environments can alternate, states with any active sub-environment
+            # are parents, unless the sub-environment is at the source state and is not
+            # done.
+            # If sub-environments cannot alternate, only the last done sub-environment
+            # of each unique environment can be active in the parents.
             assert toggle_flag == 0
-            seen_types = set()
-            for idx, (idx_unique, subenv_done) in reversed(
+            indices_unique_seen = set()
+            for idx, (idx_unique, done) in reversed(
                 list(enumerate(zip(unique_indices, dones)))
             ):
-                # Skip non-present sub-environments
-                if idx_unique == -1:
-                    continue
-                # Skip if we've already found a parent for this type (first valid instance wins)
-                if idx_unique in seen_types:
-                    continue
-                # Can have this as parent if done OR not at source
-                if subenv_done or not self._get_env_unique(idx_unique).is_source(
-                    self._get_substate(state, idx)
-                ):
-                    parent = copy(state)
-                    parent = self._set_active_subenv(idx, parent)
-                    parents.append(parent)
+                if self.can_alternate_subenvs:
+                    # Skip if the subenv is at the source and is not done
+                    if not done and self._get_env_unique(idx_unique).is_source(
+                        self._get_substate(state, idx)
+                    ):
+                        continue
+                else:
+                    # Skip if not done
+                    if not done:
+                        continue
+                    # Skip non-present sub-environments
+                    if idx_unique == -1:
+                        continue
+                    # Skip if the unique index has been already added
+                    if idx_unique in indices_unique_seen:
+                        continue
+                # Add parent and action
+                parent = copy(state)
+                parents.append(self._set_active_subenv(idx, parent))
+                if self.can_alternate_subenvs:
+                    actions.append(self._pad_action((idx,), -1))
+                else:
                     actions.append(self._pad_action((idx_unique,), -1))
-                    seen_types.add(idx_unique)
+                    indices_unique_seen.add(idx_unique)
         elif case_c or case_e:
             # Case B: a sub-environment is active but only the corresponding toggle
             # action is valid: the only parent is the same state with inactive

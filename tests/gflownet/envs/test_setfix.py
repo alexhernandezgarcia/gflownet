@@ -3849,6 +3849,114 @@ def test__step_random__does_not_crash_from_source(env, request):
             ],
             [(0, 1, 0, 0), (0, 0, 1, 0)],
         ),
+        # All done
+        (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [2, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [2, 1],
+                },
+            ],
+            [(-1, 0, 0), (-1, 1, 0)],
+        ),
+        # Intermediate state, no active sub-environment
+        (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [2, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 2],
+                    1: [2, 1],
+                },
+            ],
+            [(-1, 0, 0), (-1, 1, 0)],
+        ),
+        # Intermediate state, no active sub-environment, 0th grid at source
+        (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [2, 1],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [2, 1],
+                },
+            ],
+            [(-1, 1, 0)],
+        ),
+        # Intermediate state, no active sub-environment, 1st grid at source
+        (
+            "env_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [2, 1],
+                1: [0, 0],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2, 1],
+                    1: [0, 0],
+                },
+            ],
+            [(-1, 0, 0)],
+        ),
         # Source -> activate grid
         (
             "env_two_grids_cannot_alternate",
@@ -3895,29 +4003,6 @@ def test__step_random__does_not_crash_from_source(env, request):
             ],
             [(-1, 0, 0)],
         ),
-        # No active environment, only grid 1 is done
-        (
-            "env_two_grids_cannot_alternate",
-            {
-                "_active": -1,
-                "_toggle": 0,
-                "_dones": [0, 1],
-                "_envs_unique": [0, 0],
-                0: [0, 0],
-                1: [1, 1],
-            },
-            [
-                {
-                    "_active": 1,
-                    "_toggle": 0,
-                    "_dones": [0, 1],
-                    "_envs_unique": [0, 0],
-                    0: [0, 0],
-                    1: [1, 1],
-                },
-            ],
-            [(-1, 1, 0)],
-        ),
         # Grid 1 is active but done
         (
             "env_two_grids_cannot_alternate",
@@ -3941,36 +4026,154 @@ def test__step_random__does_not_crash_from_source(env, request):
             ],
             [(0, 0, 0)],
         ),
-        # Grid 0 is active
+        # Grid 1 is active
         (
             "env_two_grids_cannot_alternate",
             {
-                "_active": 0,
+                "_active": 1,
                 "_toggle": 0,
-                "_dones": [0, 1],
+                "_dones": [1, 0],
                 "_envs_unique": [0, 0],
-                0: [1, 2],
-                1: [1, 1],
+                0: [1, 1],
+                1: [1, 2],
             },
             [
                 {
-                    "_active": 0,
+                    "_active": 1,
                     "_toggle": 0,
-                    "_dones": [0, 1],
+                    "_dones": [1, 0],
                     "_envs_unique": [0, 0],
                     0: [1, 1],
                     1: [1, 1],
                 },
                 {
-                    "_active": 0,
+                    "_active": 1,
                     "_toggle": 0,
-                    "_dones": [0, 1],
+                    "_dones": [1, 0],
                     "_envs_unique": [0, 0],
-                    0: [0, 2],
-                    1: [1, 1],
+                    0: [1, 1],
+                    1: [0, 2],
                 },
             ],
             [(0, 0, 1), (0, 1, 0)],
+        ),
+        # All done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.17, 0.32],
+                    1: [0.44, 0.55],
+                    2: [0.39, 0.28, 0.17],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.17, 0.32],
+                    1: [0.44, 0.55],
+                    2: [0.39, 0.28, 0.17],
+                },
+            ],
+            [(-1, 0, 0, 0, 0), (-1, 1, 0, 0, 0)],
+        ),
+        # All done except one 2D Cube
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 1],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.17, 0.32],
+                    1: [-1, -1],
+                    2: [0.39, 0.28, 0.17],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 1],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.17, 0.32],
+                    1: [-1, -1],
+                    2: [0.39, 0.28, 0.17],
+                },
+            ],
+            [(-1, 0, 0, 0, 0), (-1, 1, 0, 0, 0)],
+        ),
+        # Only 3D Cube not done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
+            },
+            [
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 0, 1],
+                    0: [-1, -1],
+                    1: [-1, -1],
+                    2: [0.39, 0.28, 0.17],
+                },
+            ],
+            [(-1, 1, 0, 0, 0)],
+        ),
+        # Only one 2D Cube not done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.17, 0.32],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+            ],
+            [(-1, 0, 0, 0, 0)],
         ),
     ],
 )
@@ -3991,12 +4194,23 @@ def test__get_parents__returns_expected(
     for parent, action in zip(parents, parent_actions):
         parents_actions_dict[action] = tuple([(k, v) for k, v in parent.copy().items()])
 
+    # Compare actions
+    assert all(
+        [
+            a == b
+            for a, b in zip(
+                sorted(parents_actions_exp_dict.keys()),
+                sorted(parents_actions_dict.keys()),
+            )
+        ]
+    )
+    # Compare states
     assert all(
         [
             env.equal(a, b)
             for a, b in zip(
-                sorted(parents_actions_exp_dict),
-                sorted(parents_actions_dict),
+                sorted(parents_actions_exp_dict.values()),
+                sorted(parents_actions_dict.values()),
             )
         ]
     )
