@@ -143,6 +143,22 @@ class BaseSet(CompositeBase):
         # Base class init
         super().__init__(**kwargs)
 
+    @property
+    def n_toggle_actions(self) -> int:
+        """
+        Returns the number of actions to toggle sub-environments or unique environments.
+
+        If the Set allows alternating actions between sub-environments, the number of
+        toggle actions is the number of sub-environments. Otherwise, toggle actions
+        activate unique environments and the number of unique environments is returned.
+        """
+        if not hasattr(self, "_n_toggle_actions"):
+            if self.can_alternate_subenvs:
+                self._n_toggle_actions = self.max_elements
+            else:
+                self._n_toggle_actions = self.n_unique_envs
+        return self._n_toggle_actions
+
     # TODO: update by using super().get_action_space(), which will require changing
     # other methods to use the correct indexing of actions
     def get_action_space(self) -> List[Tuple]:
@@ -150,7 +166,7 @@ class BaseSet(CompositeBase):
         Constructs list with all possible actions, including eos.
 
         The action space of a Set environment consists of:
-            - The actions to activate specific sub-environments.
+            - The actions to activate specific sub-environments or unique environments.
             - The EOS action.
             - The concatenation of the actions of all unique environments
 
@@ -174,9 +190,9 @@ class BaseSet(CompositeBase):
         - :py:meth:`~gflownet.envs.set.Set._depad_action`
         """
         action_space = []
-        # Actions to activate a sub-environment
+        # Actions to activate a sub-environment or unique environment
         action_space.extend(
-            [self._pad_action((idx,), -1) for idx in range(self.max_elements)]
+            [self._pad_action((idx,), -1) for idx in range(self.n_toggle_actions)]
         )
         # EOS action
         action_space += [self.eos]
@@ -198,10 +214,12 @@ class BaseSet(CompositeBase):
         Computes the forward actions mask of the state.
 
         The mask of the Set environment is the concatenation of the following:
-        - A one-hot encoding of the index of the subenv (True at the index of the
-          active environment). All False if only valid actions are meta-actions.
+        - A one-hot encoding of the index of the sub-environment or unique environment
+          (True at the index of the active environment). All False if the only valid
+          actions are meta-actions.
         - Actual (main) mask of invalid actions:
-            - The mask of the actions to activate a sub-environment, OR
+            - The mask of the actions to activate a sub-environment or unique
+              environment, OR
             - The mask of the active sub-environment.
 
         The mask is False-padded from the back up to mask_dim.
@@ -244,20 +262,33 @@ class BaseSet(CompositeBase):
 
         # Build the mask based on the case
         if case_a:
-            # The main mask is the mask of the meta-actions to toggle a
-            # sub-environment. The action to activate a sub-environment is invalid
-            # (True) if the sub-environment is done. The global EOS is invalid (True)
-            # unless all sub-environments are done.
-            mask = [bool(done) for done in dones]
+            # The main mask is the mask of the meta-actions to toggle a sub-environment
+            # (or unique environment).
+            if self.can_alternate_subenvs:
+                # The action to activate a sub-environment is invalid (True) if the
+                # sub-environment is done.
+                mask = [bool(done) for done in dones]
+            else:
+                # The action to activate a unique environment is invalid (True) if all
+                # its sub-environments are done.
+                indices_unique = self._get_unique_indices(state)
+                mask = [True] * self.n_unique_envs
+                for done, idx_unique in zip(dones, indices_unique):
+                    if mask[idx_unique] and done == 0:
+                        mask[idx_unique] = False
+            # The global EOS is invalid (True) unless all other actions are invalid.
             mask += [not all(mask)]
         elif case_b or case_c:
-            # The main mask is the mask of the meta-actions to toggle a
-            # sub-environment, but the only valid action is to toggle the active
-            # sub-environment. The global EOS is invalid (True).
-            # active_subenv is set to -1, in order to make the mask formatting reflect
-            # that the valid actions are set meta-actions.
-            mask = [True] * self.max_elements
-            mask[active_subenv] = False
+            # The main mask is the mask of the meta-actions to toggle a sub-environment
+            # or unique environment, but the only valid action is to toggle the active
+            # sub-environment. The global EOS is invalid (True).  active_subenv is set
+            # to -1, in order to make the mask formatting reflect that the valid
+            # actions are set meta-actions.
+            mask = [True] * self.n_toggle_actions
+            if self.can_alternate_subenvs:
+                mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
             mask += [True]
             active_subenv = -1
         elif case_d:
@@ -349,7 +380,7 @@ class BaseSet(CompositeBase):
             # the parent Set environment's done is True. If so, all toggle actions are
             # invalid.
             assert toggle_flag == 0
-            mask = [True] * self.max_elements
+            mask = [True] * self.n_toggle_actions
             if done:
                 mask += [False]
             else:
@@ -357,12 +388,21 @@ class BaseSet(CompositeBase):
                 # the sub-environment is not done.
                 indices_unique = self._get_unique_indices(state)
                 for idx, (idx_unique, done) in enumerate(zip(indices_unique, dones)):
+                    # Skip non-present sub-environments
+                    if idx_unique == -1:
+                        continue
+                    # Skip sub-envs whose unique env has already been marked as valid
+                    if not self.can_alternate_subenvs and not mask[idx_unique]:
+                        continue
                     if not done and self._get_env_unique(idx_unique).is_source(
                         self._get_substate(state, idx)
                     ):
                         continue
                     else:
-                        mask[idx] = False
+                        if self.can_alternate_subenvs:
+                            mask[idx] = False
+                        else:
+                            mask[idx_unique] = False
                 mask += [True]
         elif case_c or case_e:
             # The main mask is the mask of the meta-actions to toggle a
@@ -370,8 +410,11 @@ class BaseSet(CompositeBase):
             # sub-environment. The global EOS is invalid.
             # active_subenv is set to -1, in order to force the prefix reflect that the
             # state is effectively inactive. EOS is invalid from this state.
-            mask = [True] * self.max_elements
-            mask[active_subenv] = False
+            mask = [True] * self.n_toggle_actions
+            if self.can_alternate_subenvs:
+                mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
             mask += [True]
             active_subenv = -1
         elif case_b or case_d or case_f:
@@ -407,7 +450,7 @@ class BaseSet(CompositeBase):
         subenv = self.subenvs[stage]
         # Extract the part of the mask corresponding to the sub-environment
         # TODO: consider writing a method to do this
-        mask = mask[self.max_elements : self.max_elements + subenv.mask_dim]
+        mask = mask[self.n_toggle_actions : self.n_toggle_actions + subenv.mask_dim]
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
@@ -495,13 +538,34 @@ class BaseSet(CompositeBase):
             # - Update the active sub-environment of the parent Set state
             # - Toggle the flag
             # - Return
-            toggled_subenv = self._depad_action(action)[0]
+            toggled_idx = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
-                self._set_active_subenv(toggled_subenv)
                 if self.can_alternate_subenvs:
+                    self._set_active_subenv(toggled_idx)
                     self._set_toggle_flag(1)
+                else:
+                    # Activate first non-done subenv of the toggled type
+                    indices_unique = self._get_unique_indices(
+                        self.state, exclude_nonpresent=False
+                    )
+                    dones = self._get_dones(self.state)
+                    subenv_to_activate = None
+                    for idx, (idx_unique, done) in enumerate(
+                        zip(indices_unique, dones)
+                    ):
+                        if idx_unique == toggled_idx and not done:
+                            self._set_active_subenv(idx)
+                            break
             else:
-                assert self._get_active_subenv(self.state) == toggled_subenv
+                # Deactivate the current subenv
+                active_subenv = self._get_active_subenv(self.state)
+                if self.can_alternate_subenvs:
+                    assert active_subenv == toggled_idx
+                else:
+                    assert (
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
+                        == toggled_idx
+                    )
                 assert self._get_toggle_flag(self.state) == 0
                 self._set_active_subenv(-1)
             return self.state, action, True
@@ -638,16 +702,35 @@ class BaseSet(CompositeBase):
             # - Update the active sub-environment of the parent Set state
             # - Toggle the flag
             # - Return
-            toggled_subenv = self._depad_action(action)[0]
+            toggled_idx = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
-                self._set_active_subenv(toggled_subenv)
                 if self.can_alternate_subenvs:
+                    self._set_active_subenv(toggled_idx)
                     self._set_toggle_flag(0)
+                else:
+                    # Toggle first done subenv of the toggled type
+                    indices_unique = self._get_unique_indices(
+                        self.state, exclude_nonpresent=False
+                    )
+                    dones = self._get_dones(self.state)
+                    for idx, (idx_unique, done) in reversed(
+                        list(enumerate(zip(indices_unique, dones)))
+                    ):
+                        if idx_unique != -1 and idx_unique == toggled_idx and done:
+                            self._set_active_subenv(idx)
+                            break
             else:
-                assert self._get_active_subenv(self.state) == toggled_subenv
+                # Toggle the current subenv
+                active_subenv = self._get_active_subenv(self.state)
                 if self.can_alternate_subenvs:
+                    assert active_subenv == toggled_idx
                     assert self._get_toggle_flag(self.state) == 1
                     self._set_toggle_flag(0)
+                else:
+                    assert (
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
+                        == toggled_idx
+                    )
                 self._set_active_subenv(-1)
             return self.state, action, True
 
@@ -783,15 +866,42 @@ class BaseSet(CompositeBase):
         if case_a:
             # Case A: no sub-environment is active: the parents of the state correspond
             # to states with the same sub-environment states but with one active
-            # sub-environment, unless the sub-environment is at the source state and is
-            # not done.
+            # sub-environment.
+            # If sub-environments can alternate, states with any active sub-environment
+            # are parents, unless the sub-environment is at the source state and is not
+            # done.
+            # If sub-environments cannot alternate, only the last done sub-environment
+            # of each unique environment can be active in the parents.
             assert toggle_flag == 0
-            dones = self._get_dones(state)
-            for idx, env in enumerate(self.subenvs):
-                if dones[idx] or not env.is_source(self._get_substate(state, idx)):
-                    parent = copy(state)
-                    parents.append(self._set_active_subenv(idx, parent))
+            indices_unique = self._get_unique_indices(state, exclude_nonpresent=False)
+            indices_unique_seen = set()
+            for idx, (idx_unique, done) in reversed(
+                list(enumerate(zip(indices_unique, dones)))
+            ):
+                if self.can_alternate_subenvs:
+                    # Skip if the subenv is at the source and is not done
+                    if not done and self._get_env_unique(idx_unique).is_source(
+                        self._get_substate(state, idx)
+                    ):
+                        continue
+                else:
+                    # Skip if not done
+                    if not done:
+                        continue
+                    # Skip non-present sub-environments
+                    if idx_unique == -1:
+                        continue
+                    # Skip if the unique index has been already added
+                    if idx_unique in indices_unique_seen:
+                        continue
+                # Add parent and action
+                parent = copy(state)
+                parents.append(self._set_active_subenv(idx, parent))
+                if self.can_alternate_subenvs:
                     actions.append(self._pad_action((idx,), -1))
+                else:
+                    actions.append(self._pad_action((idx_unique,), -1))
+                    indices_unique_seen.add(idx_unique)
         elif case_c or case_e:
             # Case B: a sub-environment is active but only the corresponding toggle
             # action is valid: the only parent is the same state with inactive
@@ -800,8 +910,11 @@ class BaseSet(CompositeBase):
             parent = self._set_active_subenv(-1, parent)
             if self.can_alternate_subenvs:
                 parent = self._set_toggle_flag(0, parent)
+                idx_action = active_subenv
+            else:
+                idx_action = self._get_unique_idx_of_subenv(active_subenv)
             parents.append(parent)
-            actions.append(self._pad_action((active_subenv,), -1))
+            actions.append(self._pad_action((idx_action,), -1))
         elif case_b or case_d or case_f:
             # Case C: a sub-environment is active and sub-environment actions are
             # valid: the parents are determined by the parents of the active
@@ -810,7 +923,7 @@ class BaseSet(CompositeBase):
             if subenv is None or state_subenv is None:
                 subenv = self.subenvs[active_subenv]
                 state_subenv = self._get_substate(state, active_subenv)
-            done_subenv = bool(self._get_dones(state)[active_subenv])
+            done_subenv = bool(dones[active_subenv])
             parents_subenv, parent_actions_subenv = subenv.get_parents(
                 state_subenv, done_subenv
             )
@@ -849,7 +962,7 @@ class BaseSet(CompositeBase):
         that correspond to the sub-environment.
         """
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Sample Set actions (to toggle a sub-environment or EOS).
@@ -867,14 +980,14 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert len(actions_set) == policy_outputs.shape[0]
             return actions_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -885,9 +998,12 @@ class BaseSet(CompositeBase):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
@@ -956,7 +1072,7 @@ class BaseSet(CompositeBase):
         n_states = policy_outputs.shape[0]
 
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Get logprobs of Set actions (to toggle a sub-environment or EOS).
@@ -973,14 +1089,14 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert logprobs_set.shape[0] == n_states
             return logprobs_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -991,16 +1107,19 @@ class BaseSet(CompositeBase):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
 
         # Compute logprobs from each unique environment
         logprobs_subenvs = torch.empty(
-            len(active_subenvs), dtype=self.float, device=self.device
+            len(indices_active), dtype=self.float, device=self.device
         )
         for idx, subenv in enumerate(self.envs_unique):
             indices_unique_mask = indices_unique == idx
@@ -1030,7 +1149,8 @@ class BaseSet(CompositeBase):
         Calculates the mask dimensionality of the global Set environment.
 
         The mask consists of:
-           - A one-hot encoding of the index of the active sub-environment.
+           - A one-hot encoding of the index of the active sub-environment or unique
+             environment.
            - Actual (main) mask of invalid actions:
                - The mask of the Set actions (activate a sub-environment and EOS), OR
                - The mask of the active sub-environment.
@@ -1045,8 +1165,8 @@ class BaseSet(CompositeBase):
             The number of elements in the Set masks.
         """
         mask_dim_subenvs = [subenv.mask_dim for subenv in self.envs_unique]
-        mask_dim_set_actions = self.max_elements + 1
-        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.max_elements
+        mask_dim_set_actions = self.n_toggle_actions + 1
+        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.n_toggle_actions
 
     def _get_toggle_flag(self, state: Optional[Dict] = None) -> int:
         """
@@ -1126,8 +1246,8 @@ class BaseSet(CompositeBase):
         Applies formatting to the mask of a sub-environment.
 
         The output format is the mask of the input sub-environment, preceded by a
-        one-hot encoding of the index of the active sub-environment and padded with
-        False up to :py:const:`self.mask_dim`.
+        one-hot encoding of the index of the active sub-environment (or unique
+        environment) and padded with False up to :py:const:`self.mask_dim`.
 
         If no sub-environment is active (``active_subenv`` is -1), the prefix is all
         False.
@@ -1139,9 +1259,14 @@ class BaseSet(CompositeBase):
         active_subenv : int
             The index of the active sub-environment, or -1 if no subenv is active.
         """
-        active_subenv_onehot = [False] * self.max_elements
+        active_subenv_onehot = [False] * self.n_toggle_actions
         if active_subenv != -1:
-            active_subenv_onehot[active_subenv] = True
+            if self.can_alternate_subenvs:
+                active_subenv_onehot[active_subenv] = True
+            else:
+                active_subenv_onehot[self._get_unique_idx_of_subenv(active_subenv)] = (
+                    True
+                )
         mask = active_subenv_onehot + mask
         padding = [False] * (self.mask_dim - len(mask))
         return mask + padding
@@ -1166,14 +1291,14 @@ class BaseSet(CompositeBase):
             corresponds to set actions (toggle and EOS).
         """
         if idx_unique == -1:
-            mask_dim = self.max_elements + 1
+            mask_dim = self.n_toggle_actions + 1
         else:
             mask_dim = self._get_env_unique(idx_unique).mask_dim
         if isinstance(mask, list):
-            return mask[self.max_elements : self.max_elements + mask_dim]
+            return mask[self.n_toggle_actions : self.n_toggle_actions + mask_dim]
         else:
             assert torch.is_tensor(mask)
-            return mask[:, self.max_elements : self.max_elements + mask_dim]
+            return mask[:, self.n_toggle_actions : self.n_toggle_actions + mask_dim]
 
     def get_valid_actions(
         self,
@@ -1203,7 +1328,7 @@ class BaseSet(CompositeBase):
 
         # Set active environment and idx_unique to -1 if the mask contains no active
         # environment
-        if not any(mask[: self.max_elements]):
+        if not any(mask[: self.n_toggle_actions]):
             active_subenv = -1
             idx_unique = -1
         else:
@@ -1240,7 +1365,7 @@ class BaseSet(CompositeBase):
         outputs of the unique environments.
         """
         policy_outputs_set_actions = torch.ones(
-            self.max_elements + 1, dtype=self.float, device=self.device
+            self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
         policy_outputs_subenvs = torch.cat(
             [
@@ -1263,7 +1388,7 @@ class BaseSet(CompositeBase):
             A tensor containing a batch of policy outputs. It is assumed that all the
             rows in the this tensor correspond to actions to activate a sub-environemnt.
         """
-        return policy_outputs[:, : self.max_elements + 1]
+        return policy_outputs[:, : self.n_toggle_actions + 1]
 
     def _get_policy_outputs_of_subenv(
         self,
@@ -1284,7 +1409,7 @@ class BaseSet(CompositeBase):
             Index of the unique environment of which the corresponding columns of the
             policy outputs are to be extracted.
         """
-        init_col = self.max_elements + 1
+        init_col = self.n_toggle_actions + 1
         for idx in range(self.n_unique_envs):
             end_col = init_col + self._get_env_unique(idx).policy_output_dim
             if idx == idx_unique:
