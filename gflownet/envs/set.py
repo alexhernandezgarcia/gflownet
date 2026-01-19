@@ -1285,7 +1285,7 @@ class BaseSet(CompositeBase):
             corresponds to set actions (toggle and EOS).
         """
         if idx_unique == -1:
-            mask_dim = self.n_unique_envs + 1
+            mask_dim = self.n_toggle_actions + 1
         else:
             mask_dim = self._get_env_unique(idx_unique).mask_dim
         if isinstance(mask, list):
@@ -1359,7 +1359,7 @@ class BaseSet(CompositeBase):
         outputs of the unique environments.
         """
         policy_outputs_set_actions = torch.ones(
-            self.n_unique_envs + 1, dtype=self.float, device=self.device
+            self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
         policy_outputs_subenvs = torch.cat(
             [
@@ -1382,7 +1382,7 @@ class BaseSet(CompositeBase):
             A tensor containing a batch of policy outputs. It is assumed that all the
             rows in the this tensor correspond to actions to activate a sub-environemnt.
         """
-        return policy_outputs[:, : self.n_unique_envs + 1]
+        return policy_outputs[:, : self.n_toggle_actions + 1]
 
     def _get_policy_outputs_of_subenv(
         self,
@@ -1403,7 +1403,7 @@ class BaseSet(CompositeBase):
             Index of the unique environment of which the corresponding columns of the
             policy outputs are to be extracted.
         """
-        init_col = self.n_unique_envs + 1
+        init_col = self.n_toggle_actions + 1
         for idx in range(self.n_unique_envs):
             end_col = init_col + self._get_env_unique(idx).policy_output_dim
             if idx == idx_unique:
