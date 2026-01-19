@@ -3957,6 +3957,52 @@ def test__step_random__does_not_crash_from_source(env, request):
             ],
             [(-1, 0, 0)],
         ),
+        # Intermediate state with active 0th grid and toggle flag 1
+        (
+            "env_two_grids",
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [2, 1],
+                1: [0, 0],
+            },
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2, 1],
+                    1: [0, 0],
+                },
+            ],
+            [(-1, 0, 0)],
+        ),
+        # Intermediate state with active 1st grid and toggle flag 1
+        (
+            "env_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [2, 1],
+                    1: [1, 2],
+                },
+            ],
+            [(-1, 1, 0)],
+        ),
         # Source -> activate grid
         (
             "env_two_grids_cannot_alternate",
