@@ -1289,10 +1289,10 @@ class BaseSet(CompositeBase):
         else:
             mask_dim = self._get_env_unique(idx_unique).mask_dim
         if isinstance(mask, list):
-            return mask[self.max_elements : self.max_elements + mask_dim]
+            return mask[self.n_toggle_actions : self.n_toggle_actions + mask_dim]
         else:
             assert torch.is_tensor(mask)
-            return mask[:, self.max_elements : self.max_elements + mask_dim]
+            return mask[:, self.n_toggle_actions : self.n_toggle_actions + mask_dim]
 
     def get_valid_actions(
         self,
@@ -1322,7 +1322,7 @@ class BaseSet(CompositeBase):
 
         # Set active environment and idx_unique to -1 if the mask contains no active
         # environment
-        if not any(mask[: self.max_elements]):
+        if not any(mask[: self.n_toggle_actions]):
             active_subenv = -1
             idx_unique = -1
         else:

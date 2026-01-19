@@ -3029,7 +3029,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 False, False, # ACTIVE UNIQUE ENV
-                False, False, True, # MASK SET 
+                False, False, True, # MASK SET
             ]
             # fmt: on
         ),
@@ -3047,7 +3047,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 False, # ACTIVE UNIQUE ENV
-                False, True, # MASK SET 
+                False, True, # MASK SET
                 False # PAD
             ]
             # fmt: on
@@ -3084,7 +3084,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 False, # ACTIVE UNIQUE ENV
-                False, True, # MASK SET 
+                False, True, # MASK SET
                 False # PAD
             ]
             # fmt: on
@@ -3103,7 +3103,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 False, # ACTIVE UNIQUE ENV
-                False, True, # MASK SET 
+                False, True, # MASK SET
                 False # PAD
             ]
             # fmt: on
@@ -3411,7 +3411,7 @@ def test__get_mask_invalid_actions_backward__all_subenvs_done(
 
 
 @pytest.mark.parametrize(
-    "env, mask, active_subenv, mask_core",
+    "env, mask, idx_unique, mask_core",
     [
         (
             "env_grid2d_tetrismini",
@@ -3508,16 +3508,74 @@ def test__get_mask_invalid_actions_backward__all_subenvs_done(
                 dtype=torch.bool,
             ),
         ),
+        (
+            "env_two_grids_cannot_alternate",
+            # fmt: off
+            [
+                False, # ACTIVE UNIQUE ENV
+                False, True, # MASK SET
+                False # PAD
+            ],
+            # fmt: on
+            -1,
+            [False, True],
+        ),
+        (
+            "env_two_grids_cannot_alternate",
+            # fmt: off
+            [
+                True, # ACTIVE UNIQUE ENV
+                True, True, False, # MASK GRID
+            ],
+            # fmt: on
+            0,
+            [True, True, False],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            # fmt: off
+            [
+                False, False, # ACTIVE UNIQUE ENV
+                False, False, True, # MASK SET (EOS invalid)
+                False, False, False # PAD
+            ],
+            # fmt: on
+            -1,
+            [False, False, True],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            # fmt: off
+            [
+                True, False, # ACTIVE UNIQUE ENV
+                False, False, True, False, False, # MASK 2D CUBE (EOS invalid)
+                False # PAD
+            ],
+            # fmt: on
+            0,
+            [False, False, True, False, False],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            # fmt: off
+            [
+                False, True, # ACTIVE UNIQUE ENV
+                False, False, True, False, False, False, # MASK 3D CUBE (EOS invalid)
+            ],
+            # fmt: on
+            1,
+            [False, False, True, False, False, False],
+        ),
     ],
 )
 def test__extract_core_mask__returns_expected(
-    env, mask, active_subenv, mask_core, request
+    env, mask, idx_unique, mask_core, request
 ):
     env = request.getfixturevalue(env)
     if isinstance(mask, list):
-        assert mask_core == env._extract_core_mask(mask, active_subenv)
+        assert mask_core == env._extract_core_mask(mask, idx_unique)
     else:
-        assert torch.equal(mask_core, env._extract_core_mask(mask, active_subenv))
+        assert torch.equal(mask_core, env._extract_core_mask(mask, idx_unique))
 
 
 @pytest.mark.repeat(10)
@@ -4286,6 +4344,18 @@ def test__get_parents__returns_expected(
                 ),
             },
             [(-1, 0, 0, 0), (-1, 1, 0, 0)],
+        ),
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            [(-1, 0, 0)],
         ),
     ],
 )
