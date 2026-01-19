@@ -4796,6 +4796,167 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                 },
             ],
         ),
+        (
+            "env_two_grids_cannot_alternate",
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    0: [1, 1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+            ],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            [
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [-1, -1],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [-1, -1],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [-1, -1],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [0.2, 0.3],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [0.2, 0.3],
+                    2: [-1, -1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [0.2, 0.3],
+                    2: [-1, -1, -1],
+                },
+            ],
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            [
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 0],
+                    "_envs_unique": [0, 0, 1],
+                    0: [0.1, 0.2],
+                    1: [0.2, 0.3],
+                    2: [-1, -1, -1],
+                },
+            ],
+        ),
     ],
 )
 def test__sample_actions_forward__returns_valid_actions(env, states, request):
@@ -4812,7 +4973,9 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
     actions = env.sample_actions_batch(policy_outputs, masks, states, is_backward=False)
     # Sample actions are valid
     for state, action in zip(states, actions):
-        assert action in env.get_valid_actions(state=state, done=False, backward=False)
+        assert env.action2representative(action) in env.get_valid_actions(
+            state=state, done=False, backward=False
+        )
 
 
 @pytest.mark.repeat(10)
