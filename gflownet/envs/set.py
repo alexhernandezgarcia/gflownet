@@ -450,7 +450,7 @@ class BaseSet(CompositeBase):
         subenv = self.subenvs[stage]
         # Extract the part of the mask corresponding to the sub-environment
         # TODO: consider writing a method to do this
-        mask = mask[self.max_elements : self.max_elements + subenv.mask_dim]
+        mask = mask[self.n_toggle_actions : self.n_toggle_actions + subenv.mask_dim]
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
@@ -962,7 +962,7 @@ class BaseSet(CompositeBase):
         that correspond to the sub-environment.
         """
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Sample Set actions (to toggle a sub-environment or EOS).
@@ -980,7 +980,7 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        active_subenvs = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
         if len(active_subenvs) == 0:
@@ -1069,7 +1069,7 @@ class BaseSet(CompositeBase):
         n_states = policy_outputs.shape[0]
 
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Get logprobs of Set actions (to toggle a sub-environment or EOS).
@@ -1086,7 +1086,7 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        active_subenvs = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
         if len(active_subenvs) == 0:
