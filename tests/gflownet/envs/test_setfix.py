@@ -3589,6 +3589,11 @@ def test__extract_core_mask__returns_expected(
         "env_three_cubes",
         "env_cube2d_cube3d",
         "env_two_cubes2d_one_cube3d",
+        "env_stacks_equal",
+        "env_stacks_diff",
+        "env_two_grids_cannot_alternate",
+        "env_grid2d_tetrismini_cannot_alternate",
+        "env_two_cubes2d_one_cube3d_cannot_alternate",
     ],
 )
 def test__step_random__does_not_crash_from_source(env, request):
@@ -3598,6 +3603,39 @@ def test__step_random__does_not_crash_from_source(env, request):
     env = request.getfixturevalue(env)
     env.reset()
     state_next, action, valid = env.step_random()
+    assert True
+
+
+@pytest.mark.repeat(1)
+@pytest.mark.parametrize(
+    "env",
+    [
+        "env_grid2d_tetrismini",
+        "env_cube_tetris",
+        "env_cube_tetris_grid",
+        "env_two_grids",
+        "env_three_cubes",
+        "env_cube2d_cube3d",
+        "env_two_cubes2d_one_cube3d",
+        "env_stacks_equal",
+        "env_stacks_diff",
+        "env_two_grids_cannot_alternate",
+        "env_grid2d_tetrismini_cannot_alternate",
+        "env_two_cubes2d_one_cube3d_cannot_alternate",
+    ],
+)
+def test__step_random__does_not_crash_and_reaches_done(env, request):
+    env = request.getfixturevalue(env)
+    env.reset()
+    states = [copy(env.state)]
+    actions = []
+    while not env.done:
+        state_next, action, valid = env.step_random()
+        if valid:
+            states.append(copy(state_next))
+            actions.append(action)
+        else:
+            warnings.warn("IMPORTANT: Found invalid action!")
     assert True
 
 
