@@ -980,14 +980,14 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.n_toggle_actions])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert len(actions_set) == policy_outputs.shape[0]
             return actions_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -998,9 +998,12 @@ class BaseSet(CompositeBase):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
@@ -1086,14 +1089,14 @@ class BaseSet(CompositeBase):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.n_toggle_actions])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert logprobs_set.shape[0] == n_states
             return logprobs_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -1104,16 +1107,19 @@ class BaseSet(CompositeBase):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
 
         # Compute logprobs from each unique environment
         logprobs_subenvs = torch.empty(
-            len(active_subenvs), dtype=self.float, device=self.device
+            len(indices_active), dtype=self.float, device=self.device
         )
         for idx, subenv in enumerate(self.envs_unique):
             indices_unique_mask = indices_unique == idx
