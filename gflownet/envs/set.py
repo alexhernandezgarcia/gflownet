@@ -818,7 +818,6 @@ class BaseSet(CompositeBase):
 
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
-        unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
         toggle_flag = self._get_toggle_flag(state)
         dones = self._get_dones(state)
         subenv = None
@@ -874,9 +873,10 @@ class BaseSet(CompositeBase):
             # If sub-environments cannot alternate, only the last done sub-environment
             # of each unique environment can be active in the parents.
             assert toggle_flag == 0
+            indices_unique = self._get_unique_indices(state, exclude_nonpresent=False)
             indices_unique_seen = set()
             for idx, (idx_unique, done) in reversed(
-                list(enumerate(zip(unique_indices, dones)))
+                list(enumerate(zip(indices_unique, dones)))
             ):
                 if self.can_alternate_subenvs:
                     # Skip if the subenv is at the source and is not done
@@ -910,9 +910,11 @@ class BaseSet(CompositeBase):
             parent = self._set_active_subenv(-1, parent)
             if self.can_alternate_subenvs:
                 parent = self._set_toggle_flag(0, parent)
+                idx_action = active_subenv
+            else:
+                idx_action = self._get_unique_idx_of_subenv(active_subenv)
             parents.append(parent)
-            idx_unique = unique_indices[active_subenv]
-            actions.append(self._pad_action((idx_unique,), -1))
+            actions.append(self._pad_action((idx_action,), -1))
         elif case_b or case_d or case_f:
             # Case C: a sub-environment is active and sub-environment actions are
             # valid: the parents are determined by the parents of the active
