@@ -1943,7 +1943,7 @@ def test__step__works_as_expected(
             },
             True,
         ),
-        # From active 0th grid: toggle (deactivate) 0th grid
+        # From active 0th grid: toggle (deactivate) grid
         (
             "env_two_grids_cannot_alternate",
             {
@@ -1965,24 +1965,24 @@ def test__step__works_as_expected(
             },
             True,
         ),
-        # From active 1st grid: toggle (deactivate) 1st grid
+        # From active 1st grid (0th grid done): toggle (deactivate) grid
         (
             "env_two_grids_cannot_alternate",
             {
                 "_active": 1,
                 "_toggle": 0,
-                "_dones": [0, 0],
+                "_dones": [1, 0],
                 "_envs_unique": [0, 0],
-                0: [0, 0],
+                0: [1, 2],
                 1: [0, 0],
             },
-            (-1, 1, 0),
+            (-1, 0, 0),
             {
                 "_active": -1,
                 "_toggle": 0,
-                "_dones": [0, 0],
+                "_dones": [1, 0],
                 "_envs_unique": [0, 0],
-                0: [0, 0],
+                0: [1, 2],
                 1: [0, 0],
             },
             True,
@@ -2009,7 +2009,7 @@ def test__step__works_as_expected(
             },
             True,
         ),
-        # From intermediate state (inactive): toggle (activate) grid 0th
+        # From intermediate state (inactive): toggle (activate) grid
         (
             "env_two_grids_cannot_alternate",
             {
@@ -2028,6 +2028,78 @@ def test__step__works_as_expected(
                 "_envs_unique": [0, 0],
                 0: [1, 1],
                 1: [0, 0],
+            },
+            True,
+        ),
+        # All done: active Cube 2D
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            True,
+        ),
+        # All done: active Cube 3D
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 1, 0, 0, 0),
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            True,
+        ),
+        # First Cube not done: active Cube 2D
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 0, 0, 0, 0),
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
             },
             True,
         ),

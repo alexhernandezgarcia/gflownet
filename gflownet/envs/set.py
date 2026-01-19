@@ -539,7 +539,6 @@ class BaseSet(CompositeBase):
             # - Toggle the flag
             # - Return
             toggled_idx = self._depad_action(action)[0]
-
             if self._get_active_subenv(self.state) == -1:
                 if self.can_alternate_subenvs:
                     self._set_active_subenv(toggled_idx)
@@ -564,7 +563,7 @@ class BaseSet(CompositeBase):
                     assert active_subenv == toggled_idx
                 else:
                     assert (
-                        self._get_unique_env_of_subenv(active_subenv, self.state)
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
                         == toggled_idx
                     )
                 assert self._get_toggle_flag(self.state) == 0
@@ -703,41 +702,35 @@ class BaseSet(CompositeBase):
             # - Update the active sub-environment of the parent Set state
             # - Toggle the flag
             # - Return
-            toggled_type = self._depad_action(action)[0]
+            toggled_idx = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
-                unique_indices = self._get_unique_indices(
-                    self.state, exclude_nonpresent=False
-                )
-                dones = self._get_dones(self.state)
-                subenv_to_activate = None
-                for idx, (idx_unique, subenv_done) in reversed(
-                    list(enumerate(zip(unique_indices, dones)))
-                ):
-                    if idx_unique != toggled_type:
-                        continue
-                    if idx_unique == -1:
-                        continue
-                    # Can activate backward if done OR not at source
-                    if subenv_done or not self._get_env_unique(idx_unique).is_source(
-                        self._get_substate(self.state, idx)
-                    ):
-                        subenv_to_activate = idx
-                        break
-                assert (
-                    subenv_to_activate is not None
-                ), f"No available instance of type {toggled_type} to activate backward"
-                self._set_active_subenv(subenv_to_activate)
                 if self.can_alternate_subenvs:
+                    self._set_active_subenv(toggled_idx)
                     self._set_toggle_flag(0)
+                else:
+                    # Toggle first done subenv of the toggled type
+                    indices_unique = self._get_unique_indices(
+                        self.state, exclude_nonpresent=False
+                    )
+                    dones = self._get_dones(self.state)
+                    for idx, (idx_unique, done) in reversed(
+                        list(enumerate(zip(indices_unique, dones)))
+                    ):
+                        if idx_unique != -1 and idx_unique == toggled_idx and done:
+                            self._set_active_subenv(idx)
+                            break
             else:
+                # Toggle the current subenv
                 active_subenv = self._get_active_subenv(self.state)
-                unique_indices = self._get_unique_indices(
-                    self.state, exclude_nonpresent=False
-                )
-                assert unique_indices[active_subenv] == toggled_type
                 if self.can_alternate_subenvs:
+                    assert active_subenv == toggled_idx
                     assert self._get_toggle_flag(self.state) == 1
                     self._set_toggle_flag(0)
+                else:
+                    assert (
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
+                        == toggled_idx
+                    )
                 self._set_active_subenv(-1)
             return self.state, action, True
 
@@ -752,8 +745,7 @@ class BaseSet(CompositeBase):
         active_subenv = self._get_active_subenv(self.state)
         assert active_subenv != -1
         idx_unique = action[0]
-        unique_indices = self._get_unique_indices(self.state, exclude_nonpresent=False)
-        assert unique_indices[active_subenv] == idx_unique
+        assert self._get_unique_indices(self.state)[active_subenv] == idx_unique
         subenv = self.subenvs[active_subenv]
         action_subenv = self._depad_action(action, idx_unique)
 
