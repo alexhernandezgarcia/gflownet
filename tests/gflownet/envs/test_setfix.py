@@ -1341,7 +1341,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
             },
             True,
         ),
-        # From source: activate 1st grid
+        # From source: activate grid
         (
             "env_two_grids_cannot_alternate",
             {
@@ -1352,9 +1352,9 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 0: [0, 0],
                 1: [0, 0],
             },
-            (-1, 1, 0),
+            (-1, 0, 0),
             {
-                "_active": 1,
+                "_active": 0,
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
@@ -1363,7 +1363,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
             },
             True,
         ),
-        # From source -> activate 0th grid: grid action
+        # From source -> activate grid: grid action
         (
             "env_two_grids_cannot_alternate",
             {
@@ -1389,21 +1389,163 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
         (
             "env_two_grids_cannot_alternate",
             {
-                "_active": 1,
+                "_active": 0,
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
-                0: [0, 0],
-                1: [1, 1],
+                0: [1, 1],
+                1: [0, 0],
             },
             (0, 0, 0),
             {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From no active environment with first grid done: activate grid
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            (-1, 0, 0),
+            {
                 "_active": 1,
                 "_toggle": 0,
-                "_dones": [0, 1],
+                "_dones": [1, 0],
                 "_envs_unique": [0, 0],
-                0: [0, 0],
-                1: [1, 1],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            True,
+        ),
+        # From source: activate 2D Cube
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            (-1, 0, 0, 0, 0),
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            True,
+        ),
+        # From source: activate 3D Cube
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            (-1, 1, 0, 0, 0),
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            True,
+        ),
+        # From active 2D Cube (first) at source, 2D Cube action
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            (0, 0.34, 0.25, 1, 0),
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.34, 0.25],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            True,
+        ),
+        # From active 3D Cube at source, 3D Cube action
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.34, 0.25],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            (1, 0.17, 0.28, 0.39, 1),
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.34, 0.25],
+                1: [-1, -1],
+                2: [0.17, 0.28, 0.39],
+            },
+            True,
+        ),
+        # From no active environment with first 2D Cube done, activate 2D Cube
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.34, 0.25],
+                1: [-1, -1],
+                2: [-1, -1, -1],
+            },
+            (-1, 0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                0: [0.34, 0.25],
+                1: [-1, -1],
+                2: [-1, -1, -1],
             },
             True,
         ),
