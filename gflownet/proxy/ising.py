@@ -23,15 +23,16 @@ def nn_adjacency(
     for c in coords:
         i = coords_to_index[c]
         for axis in range(n_dim):
-            for shift in [-1, 1]:  # For each axis, we consider both directions :
-                # the neighbor on the left (-1) and the neighbor on the right (+1).
+            # For each axis, we consider both directions : the neighbor on the left (-1) and the neighbor on the right (+1).
+            for shift in [-1, 1]:
                 neighbor = list(c)
                 neighbor[axis] += shift
 
                 if periodic:
                     neighbor[axis] %= length
+                # if no periodic conditions, the following are not valid neighbors
                 elif neighbor[axis] < 0 or neighbor[axis] >= length:
-                    continue  # if no periodic conditions, this is not a valid neighbor
+                    continue
 
                 j = coords_to_index[tuple(neighbor)]
                 J[i, j] = J_nn
@@ -112,8 +113,8 @@ class Ising(Proxy):
         """
         if isinstance(states, list):
             states = torch.stack(states)
-        # Flatten all but batch dimension    
-        states = states.view(states.size(0), -1)  
+        # Flatten all but batch dimension
+        states = states.view(states.size(0), -1)
         # Energy computation. Note the factor 0.5!!
         quadratic_term = -0.5 * torch.sum(states @ self.J * states, dim=1)
 
