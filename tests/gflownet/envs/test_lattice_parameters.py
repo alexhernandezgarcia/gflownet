@@ -66,13 +66,13 @@ def test__environment__has_expected_fixed_parameters(
     [CUBIC],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__cubic__constraints_remain_after_random_actions(env, lattice_system):
+def test__cubic__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert len({a, b, c}) == 1
         assert len({alpha, beta, gamma, 90.0}) == 1
-        env.step_random()
 
 
 @pytest.mark.parametrize(
@@ -80,11 +80,11 @@ def test__cubic__constraints_remain_after_random_actions(env, lattice_system):
     [HEXAGONAL],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__hexagonal__constraints_remain_after_random_actions(env, lattice_system):
+def test__hexagonal__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert a == b
         assert len({a, b, c}) == 2
         assert len({alpha, beta, 90.0}) == 1
@@ -96,11 +96,11 @@ def test__hexagonal__constraints_remain_after_random_actions(env, lattice_system
     [MONOCLINIC],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__monoclinic__constraints_remain_after_random_actions(env, lattice_system):
+def test__monoclinic__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert len({a, b, c}) == 3
         assert len({alpha, gamma, 90.0}) == 1
         assert beta != 90.0
@@ -111,11 +111,11 @@ def test__monoclinic__constraints_remain_after_random_actions(env, lattice_syste
     [ORTHORHOMBIC],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__orthorhombic__constraints_remain_after_random_actions(env, lattice_system):
+def test__orthorhombic__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert len({a, b, c}) == 3
         assert len({alpha, beta, gamma, 90.0}) == 1
 
@@ -125,11 +125,11 @@ def test__orthorhombic__constraints_remain_after_random_actions(env, lattice_sys
     [RHOMBOHEDRAL],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__rhombohedral__constraints_remain_after_random_actions(env, lattice_system):
+def test__rhombohedral__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert len({a, b, c}) == 1
         assert len({alpha, beta, gamma}) == 1
         assert len({alpha, beta, gamma, 90.0}) == 2
@@ -140,11 +140,11 @@ def test__rhombohedral__constraints_remain_after_random_actions(env, lattice_sys
     [TETRAGONAL],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__tetragonal__constraints_remain_after_random_actions(env, lattice_system):
+def test__tetragonal__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert a == b
         assert len({a, b, c}) == 2
         assert len({alpha, beta, gamma, 90.0}) == 1
@@ -155,11 +155,11 @@ def test__tetragonal__constraints_remain_after_random_actions(env, lattice_syste
     [TRICLINIC],
 )
 @pytest.mark.repeat(N_REPETITIONS)
-def test__triclinic__constraints_remain_after_random_actions(env, lattice_system):
+def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_system):
     env = env.reset()
     while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        env.trajectory_random()
+        (a, b, c), (alpha, beta, gamma) = env._get_lengths_angles()
         assert len({a, b, c}) == 3
         assert len({alpha, beta, gamma, 90.0}) == 4
 

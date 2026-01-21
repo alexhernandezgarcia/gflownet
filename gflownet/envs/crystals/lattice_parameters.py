@@ -79,21 +79,17 @@ class LatticeParameters(Stack):
         **kwargs,
     ):
         """
-        Args
-        ----
+        Parameters
+        ----------
         lattice_system : str
             One of the seven lattice systems. By default, the triclinic lattice system
             is used, which has no constraints.
-
         min_length : float
             Minimum value of the lengths.
-
         max_length : float
             Maximum value of the lengths.
-
         min_angle : float
             Minimum value of the angles.
-
         max_angle : float
             Maximum value of the angles.
         """
@@ -106,27 +102,105 @@ class LatticeParameters(Stack):
         self.max_angle = max_angle
         self.angle_range = self.max_angle - self.min_angle
         self.condition = Dummy(state=[LATTICE_SYSTEM_INDEX[self.lattice_system]])
+        self.stage_condition = 0
         self.cube = ContinuousCube(n_dim=6, **kwargs)
+        self.stage_cube = 1
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
         # Setup constraints after the call of super to avoid getting the variable
         # self.cube.ignored_dims overriden by the Cube initialization
         self._setup_constraints()
 
     # TODO: if source, keep as is
-    def _statevalue2length(self, value):
+    def _statevalue2length(self, value: float) -> float:
+        """
+        Converts a state value into a length in angstroms.
+
+        Parameters
+        ----------
+        value : float
+            A Cube state value, in [0; 1].
+
+        Returns
+        -------
+        float
+            The value converted into angstroms, according to the minimum and maximum
+            lengths of the environment.
+        """
         return self.min_length + value * self.length_range
 
-    def _length2statevalue(self, length):
+    def _length2statevalue(self, length: float) -> float:
+        """
+        Converts a length value in angstroms into a state value in [0; 1].
+
+        Parameters
+        ----------
+        value : float
+            A value in angstroms.
+
+        Returns
+        -------
+        float
+            The length converted into a Cube state value, in [0; 1], according to the
+            minimum and maximum lengths of the environment.
+        """
         return (length - self.min_length) / self.length_range
 
     # TODO: if source, keep as is
-    def _statevalue2angle(self, value):
+    def _statevalue2angle(self, value: float) -> float:
+        """
+        Converts a state value into an angle in degrees.
+
+        Parameters
+        ----------
+        value : float
+            A Cube state value, in [0; 1].
+
+        Returns
+        -------
+        float
+            The value converted into degrees, according to the minimum and maximum
+            angles of the environment.
+        """
         return self.min_angle + value * self.angle_range
 
-    def _angle2statevalue(self, angle):
+    def _angle2statevalue(self, angle: float) -> float:
+        """
+        Converts an angle value in degrees into a state value in [0; 1].
+
+        Parameters
+        ----------
+        value : float
+            A value in degrees.
+
+        Returns
+        -------
+        float
+            The angle converted into a Cube state value, in [0; 1], according to the
+            minimum and maximum angles of the environment.
+        """
         return (angle - self.min_angle) / self.angle_range
 
-    def _get_param(self, state, param):
+    def _get_param(self, state: List[float], param: str) -> float:
+        """
+        Returns the length or angle of a state corresponding to the input parameter.
+
+        Given a Cube state and a parameter name (a, b, c, angle, beta or gamma), the
+        method returns the value of the corresponding parameter, in angstroms or
+        degrees, and after having applied the lattice system constraints.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+        param : str
+            A parameter name: a, b, c, angle, beta or gamma.
+
+        Returns
+        -------
+        float
+            The value of the parameter, in angstroms or degrees, and after having
+            applied the lattice system constraints.
+        """
         if hasattr(self, param):
             return getattr(self, param)
         else:
@@ -137,7 +211,29 @@ class LatticeParameters(Stack):
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
 
-    def _set_param(self, state, param, value):
+    # TODO: this method should preserve the Cube values of the ignored dimensions
+    def _set_param(self, state: List[float], param: str, value: float) -> List[float]:
+        """
+        Updates a parameter of a state with the input value.
+
+        Given a Cube state, a parameter name (a, b, c, angle, beta or gamma) and a
+        value in angstroms or degrees, the method updates the corresponding parameter
+        in the state after having converted the value into the range [0; 1].
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+        param : str
+            A parameter name: a, b, c, angle, beta or gamma.
+        value : float
+            A parameter value in angstroms or degrees.
+
+        Returns
+        -------
+        state : list
+            The updated Cube state, in environment format.
+        """
         param_idx = self._get_index_of_param(param)
         if param_idx is not None:
             if param in LENGTH_PARAMETER_NAMES:
@@ -148,7 +244,24 @@ class LatticeParameters(Stack):
                 raise ValueError(f"{param} is not a valid lattice parameter")
         return state
 
-    def _get_index_of_param(self, param):
+    def _get_index_of_param(self, param: str) -> int:
+        """
+        Returns the index corresponding to an input parameter.
+
+        The index returned takes into account the lattice system constraints. For
+        example, the index of parameter b for a cubic lattice system is 0, because b ==
+        a.
+
+        Parameters
+        ----------
+        param : str
+            A parameter name: a, b, c, angle, beta or gamma.
+
+        Returns
+        -------
+        int
+            The index corresponding to the parameter.
+        """
         param_idx = f"{param}_idx"
         if hasattr(self, param_idx):
             return getattr(self, param_idx)
@@ -263,16 +376,26 @@ class LatticeParameters(Stack):
         self.state = copy(state)
         return self.state, action, valid
 
-    def _unpack_lengths_angles(
-        self, state: Optional[List[float]] = None
-    ) -> Tuple[Tuple, Tuple]:
+    def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
         """
-        Helper that 1) unpacks values coding lengths and angles from the state or from
-        the attributes of the instance and 2) converts them to actual edge lengths and
-        angles in the target units (angstroms or degrees).
-        """
-        state = self._get_state(state)
+        Returns the lenths and angles of the state.
 
+        The Cube state is converted into actual edge lengths and angles in the target
+        units (angstroms or degrees) and the lattice system constraints are applied.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format
+
+        Returns
+        -------
+        a, b, c : float
+            Lattice lengths of the state, in angstroms.
+        alpha, beta, gamma : float
+            Lattice angles, in degrees.
+        """
+        state = self._get_substate(self._get_state(state), self.stage_cube)
         a, b, c, alpha, beta, gamma = [
             self._get_param(state, p) for p in PARAMETER_NAMES
         ]
@@ -315,6 +438,7 @@ class LatticeParameters(Stack):
             state = self._set_param(state, param, value)
         return state
 
+    # TODO: consider having less indices hard-coded
     @staticmethod
     def apply_lattice_constraints_batch(
         states: TensorType["batch", "6"], lattice_system: int
@@ -429,7 +553,7 @@ class LatticeParameters(Stack):
         """
         state = self._get_state(state)
 
-        lengths, angles = self._unpack_lengths_angles(state)
+        lengths, angles = self._get_lengths_angles(state)
         return f"{lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[float]:
@@ -460,7 +584,7 @@ class LatticeParameters(Stack):
             True if the state is valid according to the attributes of the environment;
             False otherwise.
         """
-        lengths, angles = self._unpack_lengths_angles(state)
+        lengths, angles = self._get_lengths_angles(state)
         # Check lengths
         if any([l < self.min_length or l > self.max_length for l in lengths]):
             return False
