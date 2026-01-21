@@ -691,8 +691,8 @@ class GFlowNetAgent:
             and self.buffer.replay is not None
             and len(self.buffer.replay) > 0
         ):
-            envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
             n_replay = min(n_replay, len(self.buffer.replay))
+            envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
             x_replay = self.buffer.select(
                 self.buffer.replay,
                 n_replay,
@@ -963,7 +963,7 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses.values()]):
+                if not torch.isfinite(losses["all"]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
@@ -1080,6 +1080,7 @@ class GFlowNetAgent:
             states_term,
             actions_trajectories,
             rewards,
+            losses.pop("units", None),
             self.it,
             buffer="replay",
         )
@@ -1145,17 +1146,30 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-            # Log replay buffer rewards
+            # Log replay buffer values
             if self.buffer.replay_updated:
-                rewards_replay = self.buffer.replay.rewards
-                self.logger.log_rewards_and_scores(
-                    rewards_replay,
-                    np.log(rewards_replay),
-                    scores=None,
-                    step=self.it,
-                    prefix="Replay buffer -",
-                    use_context=self.use_context,
-                )
+                values_replay = self.buffer.replay["values"].values
+                if self.buffer.replay_criterion == "reward":
+                    self.logger.log_rewards_and_scores(
+                        values_replay,
+                        np.log(values_replay),
+                        scores=None,
+                        step=self.it,
+                        prefix="Replay buffer -",
+                        use_context=self.use_context,
+                    )
+                elif self.buffer.replay_criterion == "loss":
+                    self.logger.log_min_max_mean(
+                        values_replay,
+                        step=self.it,
+                        prefix="Replay buffer loss -",
+                        use_context=self.use_context,
+                    )
+                else:
+                    raise ValueError(
+                        "Unknown replay buffer criterion identifier. Received "
+                        f"{self.buffer.replay_criterion}, expected reward or loss"
+                    )
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})

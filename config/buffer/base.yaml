@@ -2,6 +2,7 @@ _target_: gflownet.buffer.base.BaseBuffer
 
 replay_buffer: null
 replay_capacity: 0
+replay_criterion: "reward"
 
 # Train and test data
 # Both train and test are dictionaries with the following keys:

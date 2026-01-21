@@ -6,6 +6,7 @@ from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import torch
 from numpy import array
 from omegaconf import OmegaConf
@@ -243,6 +244,37 @@ class Logger:
                 }
             )
 
+        self.log_metrics(metrics, step=step, use_context=use_context)
+
+    def log_min_max_mean(
+        self,
+        values: Union[npt.NDArray, TensorType["n_samples"]],
+        step: int,
+        prefix: str,
+        use_context: bool = True,
+    ):
+        """
+        Logs the minimum, maximum and mean of the values passed as arguments.
+
+        Parameters
+        ----------
+        values : tensor
+            Values corresponding to batch of states.
+        step : int
+            The training iteration number.
+        prefix : str
+            Prefix to be added to the metric names.
+        use_context : bool
+            If True, prepend self.context + / to the key of the metric.
+        """
+        if not self.do.online:
+            return
+
+        metrics = {
+            f"{prefix} min": values.min(),
+            f"{prefix} max": values.max(),
+            f"{prefix} mean": values.mean(),
+        }
         self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_metrics(
