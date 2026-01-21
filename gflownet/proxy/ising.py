@@ -112,7 +112,8 @@ class Ising(Proxy):
         """
         if isinstance(states, list):
             states = torch.stack(states)
-        states = states.view(states.size(0), -1)  # flatten all but batch dimension
+        # Flatten all but batch dimension    
+        states = states.view(states.size(0), -1)  
         # Energy computation. Note the factor 0.5!!
         quadratic_term = -0.5 * torch.sum(states @ self.J * states, dim=1)
 
