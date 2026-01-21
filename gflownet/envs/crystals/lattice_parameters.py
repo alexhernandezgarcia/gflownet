@@ -109,7 +109,7 @@ class LatticeParameters(Stack):
         self.cube = ContinuousCube(n_dim=6, **kwargs)
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
         # Setup constraints after the call of super to avoid getting the variable
-        # self.ignored_dims overriden by the Cube initialization
+        # self.cube.ignored_dims overriden by the Cube initialization
         self._setup_constraints()
 
     # TODO: if source, keep as is
@@ -166,7 +166,7 @@ class LatticeParameters(Stack):
     def _setup_constraints(self):
         """
         Computes the mask of ignored dimensions, given the constraints imposed by the
-        lattice system. Sets self.ignored_dims.
+        lattice system. Sets self.cube.ignored_dims.
         """
         # Lengths: a, b, c
         # a == b == c
@@ -238,7 +238,7 @@ class LatticeParameters(Stack):
             self.gamma_idx = 5
         else:
             raise NotImplementedError
-        self.ignored_dims = lengths_ignored_dims + angles_ignored_dims
+        self.cube.ignored_dims = lengths_ignored_dims + angles_ignored_dims
 
     def _step(
         self,
@@ -251,7 +251,7 @@ class LatticeParameters(Stack):
         """
         state, action, valid = super()._step(action, backward)
         for idx, (param, is_ignored) in enumerate(
-            zip(PARAMETER_NAMES, self.ignored_dims)
+            zip(PARAMETER_NAMES, self.cube.ignored_dims)
         ):
             if not is_ignored:
                 continue
