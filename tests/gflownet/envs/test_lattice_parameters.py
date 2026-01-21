@@ -38,7 +38,7 @@ def env(lattice_system):
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__environment__initializes_properly(env, lattice_system):
-    pass
+    assert True
 
 
 @pytest.mark.parametrize(
