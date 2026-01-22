@@ -476,7 +476,8 @@ class LatticeParameters(Stack):
             # a == b != c
             # alpha == beta == 90.0 and gamma == 120.0
             states[:, 1] = states[:, 0]
-            states[:, 3:5] = 90.0
+            states[:, 3] = 90.0
+            states[:, 4] = 90.0
             states[:, 5] = 120.0
         elif lattice_system == LATTICE_SYSTEM_INDEX[MONOCLINIC]:
             # MONOCLINIC:
@@ -493,7 +494,10 @@ class LatticeParameters(Stack):
             # RHOMBOHEDRAL:
             # a == b == c
             # alpha == beta == gamma != 90.0
-            states[:, 3:] = 90.0
+            states[:, 1] = states[:, 0]
+            states[:, 2] = states[:, 0]
+            states[:, 4] = states[:, 3]
+            states[:, 5] = states[:, 3]
         elif lattice_system == LATTICE_SYSTEM_INDEX[TETRAGONAL]:
             # TETRAGONAL:
             # a == b != c

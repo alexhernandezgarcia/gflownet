@@ -9,7 +9,11 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
+from gflownet.envs.crystals.lattice_parameters import (
+    LATTICE_SYSTEM_INDEX,
+    PARAMETER_NAMES,
+    LatticeParameters,
+)
 from gflownet.utils.common import tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
@@ -170,11 +174,17 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             TRICLINIC,
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
-                [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
             ],
             [
+                [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
+                [1.0, 1.8, 3.0, 30.0, 90.0, 150.0],
+                [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
                 [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
                 [1.0, 1.8, 3.0, 30.0, 90.0, 150.0],
                 [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
@@ -183,11 +193,151 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             CUBIC,
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
             ],
             [
+                [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
+                [1.0, 1.8, 3.0, 30.0, 90.0, 150.0],
+                [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
+                [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
+                [1.0, 1.8, 3.0, 30.0, 90.0, 150.0],
+                [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
+            ],
+        ),
+        (
+            CUBIC,
+            [
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+            ],
+            [
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+            ],
+        ),
+        (
+            TRICLINIC,
+            [
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+            ],
+            [
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+            ],
+        ),
+        (
+            TRICLINIC,
+            [
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                ],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                ],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                ],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                ],
+                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
+                [
+                    1,
+                    [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                ],
+                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+            ],
+            [
+                # CUBIC
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+                # HEXAGONAL
+                [1.0, 1.0, 1.0, 90.0, 90.0, 120.0],
+                [2.0, 2.0, 4.0, 90.0, 90.0, 120.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 120.0],
+                # MONOCLINIC
+                [1.0, 1.0, 1.0, 90.0, 30.0, 90.0],
+                [2.0, 3.0, 4.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 150.0, 90.0],
+                # ORTHORHOMBIC
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 3.0, 4.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+                # RHOMBOHEDRAL
+                [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
+                [2.0, 2.0, 2.0, 60.0, 60.0, 60.0],
+                [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
+                # TETRAGONAL
+                [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
+                [2.0, 2.0, 4.0, 90.0, 90.0, 90.0],
+                [5.0, 5.0, 5.0, 90.0, 90.0, 90.0],
+                # TRICLINIC
                 [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
                 [2.0, 3.0, 4.0, 60.0, 90.0, 120.0],
                 [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
@@ -198,7 +348,7 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
 def test__states2proxy__returns_expected(env, lattice_system, states, expected):
     """
     Various lattice systems are tried because the conversion should be independent of
-    the lattice system, since the states are expected to satisfy the constraints.
+    the lattice system, since the states include the lattice system.
     """
     assert torch.equal(env.states2proxy(states), torch.tensor(expected))
 
@@ -237,7 +387,7 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
 def test__states2policy__returns_expected(env, lattice_system, states, expected):
     """
     Various lattice systems are tried because the conversion should be independent of
-    the lattice system, since the states are expected to satisfy the constraints.
+    the lattice system, since the states include the lattice system.
     """
     assert torch.equal(env.states2policy(states), torch.tensor(expected))
 
