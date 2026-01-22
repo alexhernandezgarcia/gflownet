@@ -7,6 +7,8 @@ import uuid
 from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from collections import Counter
+
 import numpy as np
 import torch
 from torchtyping import TensorType
@@ -708,17 +710,9 @@ class BaseSet(CompositeBase):
                     self._set_active_subenv(toggled_idx)
                     self._set_toggle_flag(0)
                 else:
-                    # Toggle first done subenv of the toggled type
-                    indices_unique = self._get_unique_indices(
-                        self.state, exclude_nonpresent=False
-                    )
-                    dones = self._get_dones(self.state)
-                    for idx, (idx_unique, done) in reversed(
-                        list(enumerate(zip(indices_unique, dones)))
-                    ):
-                        if idx_unique != -1 and idx_unique == toggled_idx and done:
-                            self._set_active_subenv(idx)
-                            break
+                    # Permute the done subenvironments of the selected index, and activate the one in the last position
+                    idx = self.permute_subenvs(toggled_idx)
+                    self._set_active_subenv(idx)
             else:
                 # Toggle the current subenv
                 active_subenv = self._get_active_subenv(self.state)
@@ -895,11 +889,13 @@ class BaseSet(CompositeBase):
                     if idx_unique in indices_unique_seen:
                         continue
                 # Add parent and action
-                parent = copy(state)
-                parents.append(self._set_active_subenv(idx, parent))
                 if self.can_alternate_subenvs:
+                    parent = copy(state)
                     actions.append(self._pad_action((idx,), -1))
+                    parents.append(self._set_active_subenv(idx, parent))
                 else:
+                    parent, _ = self._get_permuted_parent_with_active_subenv(idx_unique, state)
+                    parents.append(parent)
                     actions.append(self._pad_action((idx_unique,), -1))
                     indices_unique_seen.add(idx_unique)
         elif case_c or case_e:
@@ -940,6 +936,116 @@ class BaseSet(CompositeBase):
                 )
 
         return parents, actions
+
+    def permute_subenvs(
+            self, idx_unique: int, state: Optional[Dict] = None
+    ) -> int:
+        """
+        Randomly permutes the done sub-environments of a specific unique environment
+        within the state.
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose done instances should be
+            permuted.
+        state : dict
+            A state of the Set environment. If None, self.state is used.
+
+        Returns
+        -------
+        int
+            The index of the last done instance of the specified type after permutation.
+        """
+        if state is None:
+            state = self.state
+
+        unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+        dones = self._get_dones(state)
+        # Find all done instances of the specified type
+        done_instances_of_type = [
+            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            if u_idx == idx_unique and done
+        ]
+
+        # If fewer than 2 instances, no permutation needed
+        if len(done_instances_of_type) < 2:
+            if len(done_instances_of_type) == 1:
+                return done_instances_of_type[0]
+            else:
+                return -1  # No done instances of this type
+
+        # Collect the substates of done instances
+        substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+
+        # Shuffle the substates
+        permutation = np.random.permutation(len(substates))
+        shuffled_substates = [substates[i] for i in permutation]
+
+        # Apply the shuffled substates back to the state
+        for idx, substate in zip(done_instances_of_type, shuffled_substates):
+            self._set_substate(idx, substate, state)
+
+        if self.subenvs is not None:
+            subenvs_list = list(self.subenvs)
+            subenvs_of_type = [subenvs_list[idx] for idx in done_instances_of_type]
+            shuffled_subenvs = [subenvs_of_type[i] for i in permutation]
+            for i, idx in enumerate(done_instances_of_type):
+                subenvs_list[idx] = shuffled_subenvs[i]
+                # Sync subenv internal state
+                shuffled_subenvs[i].set_state(shuffled_substates[i], done=True)
+            self.subenvs = tuple(subenvs_list)
+
+        # Return the index of the last done instance of this type
+        return done_instances_of_type[-1]
+
+    def _get_permuted_parent_with_active_subenv(
+            self, idx_unique: int, state: Dict
+    ) -> Tuple[Dict, int]:
+        """
+        Creates a copy of the state with done sub-environments of the specified unique
+        type randomly permuted, and returns the state with the last done instance
+        activated.
+
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose done instances should be
+            permuted.
+        state : dict
+            A state of the Set environment.
+
+        Returns
+        -------
+        parent : dict
+            A copy of the state with permuted substates and the last done instance
+            of the specified type activated.
+        idx_activated : int
+            The index of the activated sub-environment.
+        """
+        parent = copy(state)
+
+        unique_indices = self._get_unique_indices(parent, exclude_nonpresent=False)
+        dones = self._get_dones(parent)
+
+        # Find all done instances of the specified type
+        done_instances_of_type = [
+            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            if u_idx == idx_unique and done
+        ]
+
+        # Permute if there are multiple done instances
+        if len(done_instances_of_type) >= 2:
+            substates = [self._get_substate(parent, idx) for idx in done_instances_of_type]
+            permutation = np.random.permutation(len(substates))
+            shuffled_substates = [substates[i] for i in permutation]
+            for idx, substate in zip(done_instances_of_type, shuffled_substates):
+                self._set_substate(idx, substate, parent)
+
+        # Activate the last done instance of this type
+        idx_activated = done_instances_of_type[-1]
+        self._set_active_subenv(idx_activated, parent)
+
+        return parent, idx_activated
 
     def sample_actions_batch(
         self,
@@ -1087,6 +1193,12 @@ class BaseSet(CompositeBase):
                 None,
                 is_backward,
             )
+            # Apply permutation correction for backward toggle actions
+            # (not EOS, not when can_alternate_subenvs is True)
+            if is_backward and not self.can_alternate_subenvs:
+                logprobs_set = self._apply_permutation_correction(
+                    logprobs_set, actions[is_set], states_from, is_set
+                )
 
         # Get the active sub-environment of each mask from the one-hot prefix
         indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
@@ -1143,6 +1255,106 @@ class BaseSet(CompositeBase):
             logprobs[is_set] = logprobs_set
         logprobs[is_active] = logprobs_subenvs
         return logprobs
+
+    def _apply_permutation_correction(
+            self,
+            logprobs: TensorType["n_set_states"],
+            actions: TensorType["n_set_states", "action_dim"],
+            states_from: List,
+            is_set: TensorType["n_states"],
+    ) -> TensorType["n_set_states"]:
+        """
+        Applies the permutation correction to logprobs for backward toggle actions.
+
+        When going backward, the done sub-environments are randomly shuffled before
+        activating one. This correction accounts for the number of unique permutations
+        that result in distinct states. If all substates are identical, no correction
+        is needed since all permutations yield the same state. If substates differ,
+        the correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! * ...)
+        and mi are the multiplicities of identical substates.
+
+        Parameters
+        ----------
+        logprobs : tensor
+            The log probabilities of the set actions (toggle or EOS) before correction.
+            Shape: (n_set_states,)
+        actions : tensor
+            The actions corresponding to the set states. Toggle actions have the format
+            (-1, idx_unique, 0, ...) and EOS actions have the format (-1, -1, -1, ...).
+            Shape: (n_set_states, action_dim)
+        states_from : list
+            All states in the original batch, in environment format.
+        is_set : tensor
+            Boolean mask indicating which states in states_from correspond to set
+            actions (no active sub-environment). Shape: (n_states,)
+
+        Returns
+        -------
+        tensor
+            The corrected log probabilities. Shape: (n_set_states,)
+        """
+        # Extract only the states corresponding to set actions
+        is_set_list = is_set.tolist()
+        states_set = [s for s, is_s in zip(states_from, is_set_list) if is_s]
+
+        # Initialize corrections to zero
+        corrections = torch.zeros_like(logprobs)
+
+        for i, (state, action) in enumerate(zip(states_set, actions)):
+            # Skip EOS actions (format: -1, -1, -1, ...)
+            if action[0].item() == -1 and action[1].item() == -1:
+                continue
+
+            # Get the unique environment index from the toggle action
+            idx_unique = int(action[1].item())
+
+            # Get unique indices and done flags from state
+            unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+            dones = self._get_dones(state)
+
+            # Find all done instances of this unique environment type
+            done_instances_of_type = [
+                idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+                if u_idx == idx_unique and done
+            ]
+
+            # No correction needed if fewer than 2 done instances
+            n_done = len(done_instances_of_type)
+            if n_done <= 1:
+                continue
+
+            # Collect substates of done instances
+            substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+
+            # Count multiplicities by comparing substates using GFlowNetEnv.equal
+            multiplicities = []
+            used = [False] * n_done
+            for j in range(n_done):
+                if used[j]:
+                    continue
+                count = 1
+                used[j] = True
+                for k in range(j + 1, n_done):
+                    if not used[k] and self.equal(substates[j], substates[k]):
+                        count += 1
+                        used[k] = True
+                multiplicities.append(count)
+
+            # Compute number of unique permutations: n! / (m1! * m2! * ...)
+            # In log space: log(n!) - sum(log(mi!))
+            log_n_factorial = torch.lgamma(
+                torch.tensor(n_done + 1, dtype=self.float, device=self.device)
+            )
+            log_denominator = sum(
+                torch.lgamma(torch.tensor(m + 1, dtype=self.float, device=self.device))
+                for m in multiplicities
+            )
+            log_n_unique_perms = log_n_factorial - log_denominator
+
+            # Apply correction
+            corrections[i] = -log_n_unique_perms
+
+        return logprobs + corrections
 
     def _compute_mask_dim(self) -> int:
         """
