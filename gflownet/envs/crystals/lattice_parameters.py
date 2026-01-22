@@ -533,7 +533,6 @@ class LatticeParameters(Stack):
         (alpha, beta, gamma)".
         """
         state = self._get_state(state)
-
         lengths, angles = self._get_lengths_angles(state)
         return f"{lengths}, {angles}"
 
@@ -576,6 +575,7 @@ class LatticeParameters(Stack):
         return True
 
 
+# TODO: Update as standard LatticeParameters
 class LatticeParametersSGCCG(ContinuousCube):
     """
     Continuous lattice parameters environment for crystal structures generation.
