@@ -353,29 +353,6 @@ class LatticeParameters(Stack):
             raise NotImplementedError
         self.cube.ignored_dims = lengths_ignored_dims + angles_ignored_dims
 
-    def _step(
-        self,
-        action: Tuple[float],
-        backward: bool,
-    ) -> Tuple[List[float], Tuple[float], bool]:
-        """
-        Updates the dimensions of the state corresponding to the ignored dimensions
-        after a call to the Cube's _step().
-        """
-        state, action, valid = super()._step(action, backward)
-        for idx, (param, is_ignored) in enumerate(
-            zip(PARAMETER_NAMES, self.cube.ignored_dims)
-        ):
-            if not is_ignored:
-                continue
-            param_idx = self._get_index_of_param(param)
-            if param_idx is not None:
-                state[idx] = state[param_idx]
-            else:
-                state[idx] = getattr(self, f"{param}_state")
-        self.state = copy(state)
-        return self.state, action, valid
-
     def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
         """
         Returns the lenths and angles of the state.
