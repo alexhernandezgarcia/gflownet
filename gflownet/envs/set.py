@@ -7,6 +7,8 @@ import uuid
 from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from collections import Counter
+
 import numpy as np
 import torch
 from torchtyping import TensorType
@@ -1264,55 +1266,93 @@ class BaseSet(CompositeBase):
         """
         Applies the permutation correction to logprobs for backward toggle actions.
 
-        For backward transitions where a unique environment is toggled, the probability
-        needs to account for the random permutation of done subenvs. The correction is
-        -log(n!) where n is the number of done subenvs of that unique type.
+        When going backward, the done sub-environments are randomly shuffled before
+        activating one. This correction accounts for the number of unique permutations
+        that result in distinct states. If all substates are identical, no correction
+        is needed since all permutations yield the same state. If substates differ,
+        the correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! * ...)
+        and mi are the multiplicities of identical substates.
 
         Parameters
         ----------
         logprobs : tensor
-            The log probabilities of the set actions (before correction).
+            The log probabilities of the set actions (toggle or EOS) before correction.
+            Shape: (n_set_states,)
         actions : tensor
-            The actions corresponding to the set states.
+            The actions corresponding to the set states. Toggle actions have the format
+            (-1, idx_unique, 0, ...) and EOS actions have the format (-1, -1, -1, ...).
+            Shape: (n_set_states, action_dim)
         states_from : list
-            All states in the original batch.
+            All states in the original batch, in environment format.
         is_set : tensor
-            Boolean mask indicating which states in states_from are set states.
+            Boolean mask indicating which states in states_from correspond to set
+            actions (no active sub-environment). Shape: (n_states,)
 
         Returns
         -------
-        logprobs : tensor
-            The corrected log probabilities.
+        tensor
+            The corrected log probabilities. Shape: (n_set_states,)
         """
-        # Get the states corresponding to set actions
+        # Extract only the states corresponding to set actions
         is_set_list = is_set.tolist()
         states_set = [s for s, is_s in zip(states_from, is_set_list) if is_s]
 
-        # For each set state, check if the action is a toggle action (not EOS)
-        # and compute the correction
+        # Initialize corrections to zero
         corrections = torch.zeros_like(logprobs)
 
         for i, (state, action) in enumerate(zip(states_set, actions)):
-            # Check if action is EOS (all -1s)
+            # Skip EOS actions (format: -1, -1, -1, ...)
             if action[0].item() == -1 and action[1].item() == -1:
-                # EOS action, no correction needed
                 continue
 
-            # It's a toggle action, get the unique index being toggled
+            # Get the unique environment index from the toggle action
             idx_unique = int(action[1].item())
 
-            # Count the number of done subenvs of this unique type
+            # Get unique indices and done flags from state
             unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
             dones = self._get_dones(state)
 
-            n_done_of_type = sum(
-                1 for u_idx, done in zip(unique_indices, dones)
+            # Find all done instances of this unique environment type
+            done_instances_of_type = [
+                idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
                 if u_idx == idx_unique and done
-            )
+            ]
 
-            # Apply correction: -log(n!)
-            if n_done_of_type > 1:
-                corrections[i] = -torch.lgamma(torch.tensor(n_done_of_type+1, dtype=self.float, device=self.device))
+            # No correction needed if fewer than 2 done instances
+            n_done = len(done_instances_of_type)
+            if n_done <= 1:
+                continue
+
+            # Collect substates of done instances
+            substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+
+            # Count multiplicities by comparing substates using GFlowNetEnv.equal
+            multiplicities = []
+            used = [False] * n_done
+            for j in range(n_done):
+                if used[j]:
+                    continue
+                count = 1
+                used[j] = True
+                for k in range(j + 1, n_done):
+                    if not used[k] and self.equal(substates[j], substates[k]):
+                        count += 1
+                        used[k] = True
+                multiplicities.append(count)
+
+            # Compute number of unique permutations: n! / (m1! * m2! * ...)
+            # In log space: log(n!) - sum(log(mi!))
+            log_n_factorial = torch.lgamma(
+                torch.tensor(n_done + 1, dtype=self.float, device=self.device)
+            )
+            log_denominator = sum(
+                torch.lgamma(torch.tensor(m + 1, dtype=self.float, device=self.device))
+                for m in multiplicities
+            )
+            log_n_unique_perms = log_n_factorial - log_denominator
+
+            # Apply correction
+            corrections[i] = -log_n_unique_perms
 
         return logprobs + corrections
 
