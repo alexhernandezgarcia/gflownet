@@ -269,26 +269,22 @@ class Logger:
 
         metrics = {"Proportion of Option 1": len(options_1)/len(states),
                    "Proportion of Option 2": len(options_2)/len(states),
-                   "Mean LP 1, option 1": np.mean(lp_1_opt_1),
-                   "Mean LP 1, option 2": np.mean(lp_1_opt_2),
-                   "St. Dev. of LP 1, option 1": np.std(lp_1_opt_1),
-                   "St. Dev. of LP 1, option 2": np.std(lp_1_opt_2),
-                   "Mean LP 2, option 1": np.mean(lp_2_opt_1),
-                   "Mean LP 2, option 2": np.mean(lp_2_opt_2),
-                   "St. Dev. of LP 2, option 1": np.std(lp_2_opt_1),
-                   "St. Dev. of LP 2, option 2": np.std(lp_2_opt_2),
-                   "Option 1 mean loss": batch.opt_1_loss,
-                   "Option 2 mean loss": batch.opt_2_loss,
-                   "Option 1 mean logprobs_f": batch.opt_1_logprobs_f,
-                   "Option 1 mean logprobs_b": batch.opt_1_logprobs_b,
-                   "Option 2 mean logprobs_f": batch.opt_2_logprobs_f,
-                   "Option 2 mean logprobs_b": batch.opt_2_logprobs_b,
+                #    "Mean LP 1, option 1": np.mean(lp_1_opt_1),
+                #    "Mean LP 1, option 2": np.mean(lp_1_opt_2),
+                #    "St. Dev. of LP 1, option 1": np.std(lp_1_opt_1),
+                #    "St. Dev. of LP 1, option 2": np.std(lp_1_opt_2),
+                #    "Mean LP 2, option 1": np.mean(lp_2_opt_1),
+                #    "Mean LP 2, option 2": np.mean(lp_2_opt_2),
+                #    "St. Dev. of LP 2, option 1": np.std(lp_2_opt_1),
+                #    "St. Dev. of LP 2, option 2": np.std(lp_2_opt_2),
+                #    "Option 1 mean loss": batch.opt_1_loss,
+                #    "Option 2 mean loss": batch.opt_2_loss,
+                #    "Option 1 mean logprobs_f": batch.opt_1_logprobs_f,
+                #    "Option 1 mean logprobs_b": batch.opt_1_logprobs_b,
+                #    "Option 2 mean logprobs_f": batch.opt_2_logprobs_f,
+                #    "Option 2 mean logprobs_b": batch.opt_2_logprobs_b,
                    }
         
-        # print("Loss for Option 1: ",np.mean(np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1]))))
-        # print("Loss for Option 2: ",np.mean(np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2]))))
-        # print("Loss for Option 1: ",np.square((self.logZ.sum().item() + logprobs_f_np[options == 1] - logprobs_b_np[options == 1])))
-        # print("Loss for Option 2: ",np.square((self.logZ.sum().item() + logprobs_f_np[options == 2] - logprobs_b_np[options == 2])))
         self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_crystal_batch_info(
@@ -301,13 +297,13 @@ class Logger:
         spg_136 = [s[1][2] for s in states if s[1][2] == 136]
         spg_221 = [s[1][2] for s in states if s[1][2] == 221]
         metrics = {"Proportion of SPG 136": len(spg_136)/len(states),
-                   "Proportion of SPG 221": len(spg_221)/len(states),
-                   "SPG 136 mean loss": batch.spg_136_loss,
-                   "SPG 221 mean loss": batch.spg_221_loss,
-                   "SPG 136 mean logprobs_f": batch.spg_136_logprobs_f,
-                   "SPG 136 mean logprobs_b": batch.spg_136_logprobs_b,
-                   "SPG 221 mean logprobs_f": batch.spg_221_logprobs_f,
-                   "SPG 221 mean logprobs_b": batch.spg_221_logprobs_b,}
+                   "Proportion of SPG 221": len(spg_221)/len(states)}
+                #    "SPG 136 mean loss": batch.spg_136_loss,
+                #    "SPG 221 mean loss": batch.spg_221_loss,
+                #    "SPG 136 mean logprobs_f": batch.spg_136_logprobs_f,
+                #    "SPG 136 mean logprobs_b": batch.spg_136_logprobs_b,
+                #    "SPG 221 mean logprobs_f": batch.spg_221_logprobs_f,
+                #    "SPG 221 mean logprobs_b": batch.spg_221_logprobs_b,}
         self.log_metrics(metrics, step=step, use_context=use_context)
 
     def log_metrics(
