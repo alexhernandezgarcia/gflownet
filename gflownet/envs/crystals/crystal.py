@@ -307,6 +307,24 @@ class Crystal(Stack):
         ):
             self.lattice_parameters.set_lattice_system(TRICLINIC)
 
+
+    def convertcube2latticeparams(self,states):
+        '''
+        Converts a list of states from states2proxy into a list of states where the cube-state from the lattice parameters is now
+        converted to the actual lattice parameters (but normalized etc.)
+        '''
+        crystal_lattice_systems = [self.subenvs[0].get_crystal_lattice_system(state[1]) for state in states]
+        cube_states = [state[3] for state in states] # state of the lattice parameters
+        LP_states = self.subenvs[2].cube2latticeparams(cube_states,crystal_lattice_systems)
+        states_copy = copy(states)
+        for i in range(len(states_copy)):
+            states_copy[i][3] =  LP_states[i]
+        return states_copy
+
+    def state2readable(self, state = None):
+        state = self.convertcube2latticeparams([state])[0]
+        return super().state2readable(state)
+
     def states2proxy(
         self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
@@ -326,8 +344,9 @@ class Crystal(Stack):
         -------
         A tensor containing all the states in the batch.
         """
+        states_copy = self.convertcube2latticeparams(states)
         if not self.do_sg_before_composition:
-            return super().states2proxy(states)
+            return super().states2proxy(states_copy)
         stages_composition_first = [
             self.stage_composition,
             self.stage_spacegroup,
@@ -335,7 +354,7 @@ class Crystal(Stack):
         ]
         return torch.cat(
             [
-                self.subenvs[stage].states2proxy([state[stage + 1] for state in states])
+                self.subenvs[stage].states2proxy([state[stage + 1] for state in states_copy])
                 for stage in stages_composition_first
             ],
             dim=1,

@@ -114,8 +114,8 @@ def main(config):
                 batch, times = gflownet.sample_batch(
                     n_forward=bs, env_cond=env_cond, train=False
                 )
-                x_sampled = batch.get_terminating_states(proxy=True)
-                energies = gflownet.proxy(x_sampled)
+                x_proxy = batch.get_terminating_states(proxy=True)
+                energies = gflownet.proxy(x_proxy)
                 x_sampled = batch.get_terminating_states()
                 df = pd.DataFrame(
                     {
@@ -124,7 +124,7 @@ def main(config):
                     }
                 )
                 df.to_csv(tmp_dir / f"gfn_samples_{i}.csv")
-                dct = {"x": x_sampled, "energy": energies.tolist()}
+                dct = {"x": x_sampled, "energy": energies.tolist(), "proxy": x_proxy.tolist()}
                 pickle.dump(dct, open(tmp_dir / f"gfn_samples_{i}.pkl", "wb"))
 
         # Concatenate all samples
