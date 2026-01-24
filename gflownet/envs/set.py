@@ -710,9 +710,10 @@ class BaseSet(CompositeBase):
                     self._set_active_subenv(toggled_idx)
                     self._set_toggle_flag(0)
                 else:
-                    # Permute the done subenvironments of the selected index, and activate the one in the last position
-                    idx = self.permute_subenvs(toggled_idx)
-                    self._set_active_subenv(idx)
+                    # Permute the done subenvironments of the selected index, and
+                    # activate the one in the last position
+                    idx_active_subenv = self.permute_subenvs(toggled_idx)
+                    self._set_active_subenv(idx_active_subenv)
             else:
                 # Toggle the current subenv
                 active_subenv = self._get_active_subenv(self.state)
