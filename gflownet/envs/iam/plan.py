@@ -119,7 +119,7 @@ class Plan(SetFix):
         dones: List[bool] = None,
     ):
         """
-        Applies constraints across sub-environments, when applicable, in the forward
+        Applies constraints across sub-environments in the forward
         direction.
 
         The constraint to be applied is restricting the available technologies of the
