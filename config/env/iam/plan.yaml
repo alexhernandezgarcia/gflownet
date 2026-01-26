@@ -1,9 +1,9 @@
 defaults:
   - base
 
-_target_: gflownet.envs.iam.investment.InvestmentDiscrete
+_target_: gflownet.envs.iam.plan.Plan
 
-id: investment
+id: Plan
 
 sectors: null
 tags: null

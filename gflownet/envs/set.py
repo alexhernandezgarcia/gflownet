@@ -7,15 +7,18 @@ import uuid
 from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+from collections import Counter
+
 import numpy as np
 import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.composite import CompositeBase
 from gflownet.utils.common import copy, tfloat, tlong
 
 
-class BaseSet(GFlowNetEnv):
+class BaseSet(CompositeBase):
     """
     Base class for the SetFlex and the SetFix classes.
 
@@ -32,19 +35,33 @@ class BaseSet(GFlowNetEnv):
     number of elements (sub-environments). That is, all trajectories consist of actions
     in the same set of pre-defined sub-environments.
 
-    Set environments do not impose any order in the sampling of the actions of the
-    sub-environments, unlike in the Stack environment.
+    Set environments do not impose any order in the sub-environments, unlike in the
+    Stack environment.
 
-    However, in order to perform an action of a sub-environment, the sub-environment
-    must be activated first with a special action.
+    For example, a Set may consist of the following 3 sub-environments:
+    - 0: 2D Cube A
+    - 1: 2D Cube B
+    - 2: 10x10 Grid A
 
-    Therefore, the Set environment alternates actions that activate a sub-environment
-    and actions from the active sub-environment.
+    Two variants are implemented that control how much the actions of sub-environments
+    can alternate:
 
-    Additionally, in order to simplify the implementation of the backward transitions,
-    a dummy action to deactivate the sub-environment after its action is included. This
-    action is however meaningful in the backward transitions in order to determine
-    which sub-environment should perform the action.
+        1. Once a sub-environment is selected, the subsequent actions must be of the
+        same sub-environment until its EOS action is performed. This variant is
+        selected by setting ``can_alternate_subenvs`` to False.
+        2. The actions of the sub-environments can be sampled in any order. In order to
+        perform an action of a sub-environment, the sub-environment must be activated
+        first with a special action. This variant is selected by setting
+        ``can_alternate_subenvs`` to True.
+
+    Therefore, if ``can_alternate_subenvs`` is True, the Set environment alternates
+    actions that activate a sub-environment and actions from the active
+    sub-environment.
+
+    Additionally, in order to remove the ambiguity of the backward transitions, active
+    sub-environments also need to be deactivated or toggled to go back to a state with
+    no active sub-environment. This action are needed in the backward transitions in
+    order to determine which sub-environment should perform the action.
 
     Finally, in order to make sure that methods work in their state-less fashion
     (without relying on self.subenvs), the state needs to contain information about
@@ -53,84 +70,105 @@ class BaseSet(GFlowNetEnv):
     All this implies that the state of a Set environment consists of:
     - The index of the active sub-environment or -1 to indicate that no sub-environment
       is active
-    - A flag to indicate whether the sub-environment is activated before (1) or after
-      (0) a sub-environment action (before and after in the forward sense).
+    - A flag (toggle) to indicate whether a sub-environment action is expected, or
+      whether an action to toggle a sub-environment is expected. This flag is only
+      necessary if ``can_alternate_subenvs`` is True. Therefore, the toggle flag is
+      ignored (always 0) if ``can_alternate_subenvs`` is False.
     - A list of flags indicating whether the sub-environments are done (1) or not (0).
     - A dictionary with the states of all the sub-environments
 
-    For example, a Set may consist of the following 3 sub-environments:
-    - 0: 2D Cube A
-    - 1: 2D Cube B
-    - 2: 10x10 Grid A
+    The flow of actions for each of the two variants is as follows:
 
-    The source state has a special "active" state -1 (no environment is active) and the
-    flag set to 0. From the source state, only the actions that activate a
-    sub-environment are valid and all three of them are valid. After the first action,
-    activating for example the grid subenv, the active state is set to 2 and the flag
-    is set to 1. From this state, only the actions of the grid will be valid.  After
-    the action from the sub-environment, the flag is set to 0 and only the action to
-    deactivate the grid sub-environment is valid, which will reset the active state to
-    -1. With no active sub-environment, only the actions to activate a sub-environments
-    will be valid. If the action to active Cube A is selected, then only the actions of
-    Cube A will be valid, and so on and so forth.
+    1. Actions of different sub-environments cannot alternate
+    (``can_alternate_subenvs`` is False)
+
+    - s0:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 1
+    - s1:  (active: 1, toggle: 0, dones: [0, 0]   | action: an action of subenv 1
+    - s2:  (active: 1, toggle: 0, dones: [0, 0]   | action: an action of subenv 1
+    - s3:  (active: 1, toggle: 0, dones: [0, 0]   | action: EOS action of subenv 1
+    - s4:  (active: 1, toggle: 0, dones: [0, 1]   | action: toggle subenv 1
+    - s5:  (active: -1, toggle: 0, dones: [0, 1]) | action: toggle subenv 0
+    - s6:  (active: 0, toggle: 0, dones: [0, 1])  | action: an action of subenv 0
+    - s7:  (active: 0, toggle: 0, dones: [0, 1])  | action: an action of subenv 0
+    - s8:  (active: 0, toggle: 0, dones: [0, 1]   | action: EOS action of subenv 0
+    - s9:  (active: 0, toggle: 0, dones: [1, 1])  | action: toggle subenv 0
+    - s10: (active: -1, toggle: 0, dones: [1, 1]) | action: global EOS
+
+    2. Actions of different sub-environments can alternate (``can_alternate_subenvs``
+    is True)
+
+    - s0:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 1
+    - s1:  (active: 1, toggle: 1, dones: [0, 0]   | action: an action of subenv 1
+    - s2:  (active: 1, toggle: 0, dones: [0, 0])  | action: toggle subenv 1
+    - s3:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 1
+    - s4:  (active: 1, toggle: 1, dones: [0, 0]   | action: an action of subenv 1
+    - s5:  (active: 1, toggle: 0, dones: [0, 0])  | action: toggle subenv 1
+    - s6:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 0
+    - s7:  (active: 0, toggle: 1, dones: [0, 0]   | action: an action of subenv 0
+    - s8:  (active: 0, toggle: 0, dones: [0, 0])  | action: toggle subenv 0
+    - s9:  (active: -1, toggle: 0, dones: [0, 0]) | action: toggle subenv 1
+    - s10: (active: 1, toggle: 1, dones: [0, 0]   | action: EOS action of subenv 1
+    - s11: (active: 1, toggle: 0, dones: [0, 1]   | action: toggle subenv 1
+    - s12: (active: -1, toggle: 0, dones: [0, 1]) | action: toggle subenv 0
+    - s13: (active: 0, toggle: 1, dones: [0, 1]   | action: an action of subenv 0
+    - s14: (active: 0, toggle: 0, dones: [0, 1])  | action: toggle subenv 0
+    - s15: (active: -1, toggle: 0, dones: [0, 1]) | action: toggle subenv 0
+    - s16: (active: 0, toggle: 1, dones: [0, 1]   | action: EOS action of subenv 0
+    - s17: (active: 0, toggle: 0, dones: [1, 1]   | action: toggle subenv 0
+    - s18: (active: -1, toggle: 0, dones: [1, 1]) | action: global EOS
 
     A potential alternative implementation would be to keep the active sub-environment
     active until a different sub-environment is selected. However, this would require
     special handling of continuous environment, since in order to calculate the
     probability of an action, we would have to mix the continuous distribution with the
     discrete distribution over the actions to activate a different sub-environment.
-
     """
 
     def __init__(
         self,
+        can_alternate_subenvs=True,
         **kwargs,
     ):
-        # Base class init
-        super().__init__(**kwargs)
-
-    def _get_unique_environments(
-        self, subenvs: Iterable[GFlowNetEnv]
-    ) -> Tuple[List[GFlowNetEnv], Tuple, List]:
         """
-        Determines the set of unique environments in the iterable subenvs passed as an
-        argument.
-
-        Uniqueness is determined by both the type of environment and the action space.
+        Initializes the BaseSet.
 
         Parameters
         ----------
-        subenvs : iterable
-            Iterable of sub-environments.
-
-        Returns
-        -------
-        unique_envs : list
-            The list of unique environments.
-        unique_envs_keys : tuple
-            A tuple containing the keys that identify each unique environment, namely
-            tuples with the type of environment and the action space.
-        unique_indices : list
-            A list containing the index of the unique environment corresponding to each
-            sub-environment.
+        can_alternate_subenvs : bool
+            If True, actions of different sub-environments can alternate and each
+            sub-environment action is preceded and followed by a meta-action to toggle
+            the sub-environment. If False, once a sub-environment is activated, only
+            actions of that sub-environment can be performed until it gets done (its
+            EOS action is performed).
         """
-        unique_envs = []
-        unique_envs_keys = []
-        unique_indices = []
-        for idx, env in enumerate(subenvs):
-            env_key = (type(env), tuple(env.action_space))
-            if env_key not in unique_envs_keys:
-                unique_envs_keys.append(env_key)
-                unique_envs.append(env)
-            unique_indices.append(unique_envs_keys.index(env_key))
-        return unique_envs, tuple(unique_envs_keys), unique_indices
+        self.can_alternate_subenvs = can_alternate_subenvs
+        # Base class init
+        super().__init__(**kwargs)
 
+    @property
+    def n_toggle_actions(self) -> int:
+        """
+        Returns the number of actions to toggle sub-environments or unique environments.
+
+        If the Set allows alternating actions between sub-environments, the number of
+        toggle actions is the number of sub-environments. Otherwise, toggle actions
+        activate unique environments and the number of unique environments is returned.
+        """
+        if not hasattr(self, "_n_toggle_actions"):
+            if self.can_alternate_subenvs:
+                self._n_toggle_actions = self.max_elements
+            else:
+                self._n_toggle_actions = self.n_unique_envs
+        return self._n_toggle_actions
+
+    # TODO: update by using super().get_action_space(), which will require changing
+    # other methods to use the correct indexing of actions
     def get_action_space(self) -> List[Tuple]:
         r"""
         Constructs list with all possible actions, including eos.
 
         The action space of a Set environment consists of:
-            - The actions to activate specific sub-environments.
+            - The actions to activate specific sub-environments or unique environments.
             - The EOS action.
             - The concatenation of the actions of all unique environments
 
@@ -154,9 +192,9 @@ class BaseSet(GFlowNetEnv):
         - :py:meth:`~gflownet.envs.set.Set._depad_action`
         """
         action_space = []
-        # Actions to activate a sub-environment
+        # Actions to activate a sub-environment or unique environment
         action_space.extend(
-            [self._pad_action((idx,), -1) for idx in range(self.max_elements)]
+            [self._pad_action((idx,), -1) for idx in range(self.n_toggle_actions)]
         )
         # EOS action
         action_space += [self.eos]
@@ -170,18 +208,20 @@ class BaseSet(GFlowNetEnv):
             )
         return action_space
 
-    # TODO: make max prefix indicate the unique environment rather than active subenv
+    # TODO: make mask prefix indicate the unique environment rather than active subenv
     def get_mask_invalid_actions_forward(
-        self, state: Optional[List] = None, done: Optional[bool] = None
+        self, state: Optional[Dict] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
         Computes the forward actions mask of the state.
 
         The mask of the Set environment is the concatenation of the following:
-        - A one-hot encoding of the index of the subenv (True at the index of the
-          active environment). All False if no sub-environment is active.
+        - A one-hot encoding of the index of the sub-environment or unique environment
+          (True at the index of the active environment). All False if the only valid
+          actions are meta-actions.
         - Actual (main) mask of invalid actions:
-            - The mask of the actions to activate a sub-environment, OR
+            - The mask of the actions to activate a sub-environment or unique
+              environment, OR
             - The mask of the active sub-environment.
 
         The mask is False-padded from the back up to mask_dim.
@@ -192,43 +232,83 @@ class BaseSet(GFlowNetEnv):
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
         toggle_flag = self._get_toggle_flag(state)
+        dones = self._get_dones(state)
 
+        # Establish the case based on the active sub-environment, the toggle flag and
+        # the done flags
+        case_a = case_b = case_c = case_d = False
         if active_subenv == -1:
-            # Case A: no sub-environment is active: the main mask is the mask of the
-            # actions to activate a sub-environment. The action to activate a
-            # sub-environment is invalid (True) if the sub-environment is done. EOS is
-            # invalid (True) unless all sub-environments are done.
+            # - Case A: no sub-environment is active: the only valid actions are to
+            # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
-            mask = [bool(done) for done in self._get_dones(state)]
-            mask += [not all(mask)]
-        elif toggle_flag == 0:
-            # Case B: a sub-environment is active but the toggle flag is 0, indicating
-            # that a sub-environment action has just been performed. In this case, the
-            # only valid action is deactivating the currently active sub-environment.
-            # active_subenv is set to -1, in order to force the prefix reflect that the
-            # state is effectively inactive. EOS is invalid from this state.
-            mask = [True] * self.max_elements
-            mask[active_subenv] = False
-            active_subenv = -1
-            mask += [True]
+            case_a = True
+        elif not self.can_alternate_subenvs and dones[active_subenv] == 1:
+            # Case B: in the variant where sub-environments cannot alternate, the
+            # active sub-environment is done: this indicates that since the
+            # sub-environment is done, the only valid action is to toggle (deactivate)
+            # the active sub-environment.
+            case_b = True
+        elif self.can_alternate_subenvs and toggle_flag == 0:
+            # Case C: in the variant where sub-environments can alternate, the toggle
+            # flag is zero: this indicates a sub-environment action has been performed
+            # and the only valid action is to toggle (deactivate) the active
+            # sub-environment.
+            case_c = True
         else:
-            # Case C: a sub-environment is active and the toggle flag is 1, indicating
-            # that a sub-environment action is to be performed: the main mask is the
-            # mask of the sub-environment
-            assert toggle_flag == 1
-            assert not self._get_dones(state)[active_subenv]
+            # Case D: a sub-environment is active and, if sub-environments cannot
+            # alternate, the toggle flag is 1: this indicates that a sub-environment
+            # action is to be performed.
+            assert not self.can_alternate_subenvs or toggle_flag == 1
+            assert not dones[active_subenv]
+            case_d = True
+
+        # Build the mask based on the case
+        if case_a:
+            # The main mask is the mask of the meta-actions to toggle a sub-environment
+            # (or unique environment).
+            if self.can_alternate_subenvs:
+                # The action to activate a sub-environment is invalid (True) if the
+                # sub-environment is done.
+                mask = [bool(done) for done in dones]
+            else:
+                # The action to activate a unique environment is invalid (True) if all
+                # its sub-environments are done.
+                indices_unique = self._get_unique_indices(state)
+                mask = [True] * self.n_unique_envs
+                for done, idx_unique in zip(dones, indices_unique):
+                    if mask[idx_unique] and done == 0:
+                        mask[idx_unique] = False
+            # The global EOS is invalid (True) unless all other actions are invalid.
+            mask += [not all(mask)]
+        elif case_b or case_c:
+            # The main mask is the mask of the meta-actions to toggle a sub-environment
+            # or unique environment, but the only valid action is to toggle the active
+            # sub-environment. The global EOS is invalid (True).  active_subenv is set
+            # to -1, in order to make the mask formatting reflect that the valid
+            # actions are set meta-actions.
+            mask = [True] * self.n_toggle_actions
+            if self.can_alternate_subenvs:
+                mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
+            mask += [True]
+            active_subenv = -1
+        elif case_d:
+            # The main mask is the mask of the active sub-environment
             # Get subenv from unique environments. This way computing the mask does not
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
             subenv = self._get_unique_env_of_subenv(active_subenv, state)
             state_subenv = self._get_substate(state, active_subenv)
             mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
+        else:
+            raise RuntimeError("None of the possible forward cases is True")
 
         # Format mask and return
         return self._format_mask(mask, active_subenv)
 
     def get_mask_invalid_actions_backward(
-        self, state: Optional[List] = None, done: Optional[bool] = None
+        self, state: Optional[Dict] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
         Computes the backward actions mask of the state.
@@ -248,53 +328,109 @@ class BaseSet(GFlowNetEnv):
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
         toggle_flag = self._get_toggle_flag(state)
+        dones = self._get_dones(state)
+        subenv = None
+        state_subenv = None
 
+        # Establish the case based on the active sub-environment, the toggle flag and
+        # the done flags
+        case_a = case_b = case_c = case_d = case_e = case_f = False
         if active_subenv == -1:
-            # Case A: no sub-environment is active: the main mask is the mask of the
-            # actions to activate a sub-environment. The action to activate a
-            # sub-environment is invalid (True) if it is the source state. EOS is
-            # invalid (True) unless the parent Set environment's done is True. If so,
-            # all toggle actions are invalid.
+            # - Case A: no sub-environment is active: the only valid actions are to
+            # toggle sub-environments or the global EOS.
             assert toggle_flag == 0
-            mask = [True] * self.max_elements
+            case_a = True
+        elif self.can_alternate_subenvs:
+            if toggle_flag == 0:
+                # Case B: in the variant where sub-environments can alternate, the
+                # toggle flag is zero: this indicates a sub-environment action (in the
+                # backward sense) must be performed.
+                case_b = True
+            else:
+                # Case C: in the variant where sub-environments can alternate, a
+                # sub-environment is active and the toggle flag is 1: this indicates a
+                # sub-environment action (in the backward sense) has been performed and
+                # the only valid action is to toggle (deactivate) the sub-environment.
+                case_c = True
+        else:
+            if dones[active_subenv] == 1:
+                # Case D: in the variant where sub-environments cannot alternate the
+                # sub-environment is done: this indicates the sub-environment has just
+                # been activated (in the backward sense) and the only valid is the EOS
+                # of the active sub-environment.
+                case_d = True
+            else:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
+                if subenv.is_source(state_subenv):
+                    # Case E: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is in the source state: the only valid action
+                    # is to toggle it.
+                    case_e = True
+                else:
+                    # Case F: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is not in the source state and is not done:
+                    # this indicates a sub-environment action (in the backward sense)
+                    # must be performed.
+                    case_f = True
+
+        # Build the mask based on the case
+        if case_a:
+            # The main mask is the mask of the meta-actions to activate a
+            # sub-environment.  The action to activate a sub-environment is invalid
+            # (True) if it is the source state. The global EOS is invalid (True) unless
+            # the parent Set environment's done is True. If so, all toggle actions are
+            # invalid.
+            assert toggle_flag == 0
+            mask = [True] * self.n_toggle_actions
             if done:
                 mask += [False]
             else:
                 # Toggling a sub-environment is invalid if the substate is source but
                 # the sub-environment is not done.
-                dones = self._get_dones(state)
                 indices_unique = self._get_unique_indices(state)
                 for idx, (idx_unique, done) in enumerate(zip(indices_unique, dones)):
+                    # Skip non-present sub-environments
+                    if idx_unique == -1:
+                        continue
+                    # Skip sub-envs whose unique env has already been marked as valid
+                    if not self.can_alternate_subenvs and not mask[idx_unique]:
+                        continue
                     if not done and self._get_env_unique(idx_unique).is_source(
                         self._get_substate(state, idx)
                     ):
                         continue
                     else:
-                        mask[idx] = False
+                        if self.can_alternate_subenvs:
+                            mask[idx] = False
+                        else:
+                            mask[idx_unique] = False
                 mask += [True]
-        elif toggle_flag == 1:
-            # Case B: a sub-environment is active but the toggle flag is 1, indicating
-            # that sub-environment action has just been performed (in the backward
-            # sense). In this case, the only valid action is deactivating the currently
-            # active sub-environment. active_subenv is set to -1, in order to force
-            # the prefix reflect that the state is effectively inactive. EOS is invalid
-            # from this state.
-            mask = [True] * self.max_elements
-            mask[active_subenv] = False
-            active_subenv = -1
+        elif case_c or case_e:
+            # The main mask is the mask of the meta-actions to toggle a
+            # sub-environment, but the only valid action is to toggle the active
+            # sub-environment. The global EOS is invalid.
+            # active_subenv is set to -1, in order to force the prefix reflect that the
+            # state is effectively inactive. EOS is invalid from this state.
+            mask = [True] * self.n_toggle_actions
+            if self.can_alternate_subenvs:
+                mask[active_subenv] = False
+            else:
+                mask[self._get_unique_idx_of_subenv(active_subenv)] = False
             mask += [True]
-        else:
-            # Case C: a sub-environment is active and the toggle flag is 0, indicating
-            # that a sub-environment action is to be performed (in the backward sense):
-            # the main mask is the mask of the sub-environment
-            assert toggle_flag == 0
+            active_subenv = -1
+        elif case_b or case_d or case_f:
+            # The main mask is the mask of the active sub-environment
             # Get subenv from unique environments. This way computing the mask does not
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
-            subenv = self._get_unique_env_of_subenv(active_subenv, state)
-            state_subenv = self._get_substate(state, active_subenv)
-            done_subenv = self._get_dones(state)[active_subenv]
+            if subenv is None or state_subenv is None:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
+            done_subenv = dones[active_subenv]
             mask = subenv.get_mask_invalid_actions_backward(state_subenv, done_subenv)
+        else:
+            raise RuntimeError("None of the possible backward cases is True")
 
         # Format mask and return
         return self._format_mask(mask, active_subenv)
@@ -316,29 +452,35 @@ class BaseSet(GFlowNetEnv):
         subenv = self.subenvs[stage]
         # Extract the part of the mask corresponding to the sub-environment
         # TODO: consider writing a method to do this
-        mask = mask[self.max_elements : self.max_elements + subenv.mask_dim]
+        mask = mask[self.n_toggle_actions : self.n_toggle_actions + subenv.mask_dim]
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
 
     def step(
         self, action: Tuple, skip_mask_check: bool = False
-    ) -> Tuple[List, Tuple, bool]:
+    ) -> Tuple[Dict, Tuple, bool]:
         """
         Executes forward step given an action.
 
         Actions may be either sub-environent actions, or set actions. If the former,
-        the action is performed by the corresponding sub-environment and then the
-        parent state is updated accordingly. If the latter, no sub-environment is
-        involved and the changes are in the Set variables (active subenv and toggle
-        flag)
+        the action is performed by the corresponding sub-environment and then the set
+        state is updated accordingly. If the latter, no sub-environment is involved and
+        the changes are in the meta-data of the state (active subenv and toggle flag)
 
         Because the same action may correspond to multiple sub-environments, the action
         will always be performed on the active sub-environment.
 
-        After a sub-environment action, the toggle flag of the state is set to 0.
-        After an action to toggle a sub-environment, the active sub-environment is
-        updated accordingly.
+        - Toggle actions:
+            - Activate the corresponding sub-environment if no sub-environment is
+              currently active.
+                - If can_alternate_subenvs is True, the toggle flag is set to 1.
+            - Reset the active sub-environment flag to -1 if a sub-environment is
+              currently active.
+                - The toggle flag is expected to be 0 and it remains 0.
+        - Environment actions:
+            - Updates the corresponding sub-environment as well as the set state.
+            - If can_alternate_subenvs is True, the toggle flag is set to 0.
 
         Parameters
         ----------
@@ -347,12 +489,10 @@ class BaseSet(GFlowNetEnv):
 
         Returns
         -------
-        self.state : list
+        self.state : dict
             The state after executing the action.
-
         action : int
             Action executed.
-
         valid : bool
             False, if the action is not allowed for the current state. True otherwise.
         """
@@ -400,19 +540,42 @@ class BaseSet(GFlowNetEnv):
             # - Update the active sub-environment of the parent Set state
             # - Toggle the flag
             # - Return
-            toggled_subenv = self._depad_action(action)[0]
+            toggled_idx = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
-                self._set_active_subenv(toggled_subenv)
-                self._set_toggle_flag(1)
+                if self.can_alternate_subenvs:
+                    self._set_active_subenv(toggled_idx)
+                    self._set_toggle_flag(1)
+                else:
+                    # Activate first non-done subenv of the toggled type
+                    indices_unique = self._get_unique_indices(
+                        self.state, exclude_nonpresent=False
+                    )
+                    dones = self._get_dones(self.state)
+                    subenv_to_activate = None
+                    for idx, (idx_unique, done) in enumerate(
+                        zip(indices_unique, dones)
+                    ):
+                        if idx_unique == toggled_idx and not done:
+                            self._set_active_subenv(idx)
+                            break
             else:
-                assert self._get_active_subenv(self.state) == toggled_subenv
+                # Deactivate the current subenv
+                active_subenv = self._get_active_subenv(self.state)
+                if self.can_alternate_subenvs:
+                    assert active_subenv == toggled_idx
+                else:
+                    assert (
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
+                        == toggled_idx
+                    )
+                assert self._get_toggle_flag(self.state) == 0
                 self._set_active_subenv(-1)
-                self._set_toggle_flag(0)
             return self.state, action, True
 
         # Case B: the action is an action from a sub-environment
         # Get the sub-environment corresponding to the action and its sub-action
-        assert self._get_toggle_flag(self.state) == 1
+        if self.can_alternate_subenvs:
+            assert self._get_toggle_flag(self.state) == 1
 
         # Get active sub-environment and depad action
         active_subenv = self._get_active_subenv(self.state)
@@ -443,32 +606,39 @@ class BaseSet(GFlowNetEnv):
             return self.state, action, False
         self.n_actions += 1
 
-        # Update (global) Set state and return
+        # Update (global) Set state, apply constraints and return
         # Note that the unique indices are not change by performing an action
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
-        self._set_toggle_flag(0)
+        if self.can_alternate_subenvs or subenv.done:
+            self._set_toggle_flag(0)
+        self._apply_constraints(state=self.state, action=action, is_backward=False)
         return self.state, action, valid
 
     def step_backwards(
         self, action: Tuple, skip_mask_check: bool = False
-    ) -> Tuple[List, Tuple, bool]:
+    ) -> Tuple[Dict, Tuple, bool]:
         """
         Executes backward step given an action.
 
         Actions may be either sub-environent actions, or set actions. If the former,
-        the action is performed by the corresponding sub-environment and then the
-        parent state is updated accordingly. If the latter, no sub-environment is
-        involved and the changes are in the Set variables (active subenv and toggle
-        flag)
+        the action is performed by the corresponding sub-environment and then the set
+        state is updated accordingly. If the latter, no sub-environment is involved and
+        the changes are in the meta-data of the state (active subenv and toggle flag)
 
         Because the same action may correspond to multiple sub-environments, the action
         will always be performed on the active sub-environment.
 
-        After a sub-environment action, the toggle flag of the state, is set to 1,
-        contrary to the forward step. After an action to toggle a sub-environment, the
-        active sub-environment is updated accordingly.
+        - Toggle actions:
+            - Activate the corresponding sub-environment if no sub-environment is
+              currently active.
+            - Reset the active sub-environment flag to -1 if a sub-environment is
+              currently active.
+            - Set the toggle flag to 0.
+        - Environment actions:
+            - Updates the corresponding sub-environment as well as the set state.
+            - If can_alternate_subenvs is True, set the toggle flag is set to 1.
 
         Parameters
         ----------
@@ -477,12 +647,10 @@ class BaseSet(GFlowNetEnv):
 
         Returns
         -------
-        self.state : list
+        self.state : dict
             The state after executing the action.
-
         action : int
             Action executed.
-
         valid : bool
             False, if the action is not allowed for the current state. True otherwise.
         """
@@ -495,9 +663,14 @@ class BaseSet(GFlowNetEnv):
 
         # Case A: the action is EOS or is an action to toggle a sub-environment
         if action[0] == -1:
-            # If there is an active sub-environment but the toggle flag is 0, the
-            # action cannot be a Set action, thus it is invalid
-            if self._get_active_subenv() != -1 and self._get_toggle_flag() == 0:
+            # If can_alternate_subenvs is True and there is an active sub-environment
+            # but the toggle flag is 0, the action cannot be a Set action, thus it is
+            # invalid
+            if (
+                self.can_alternate_subenvs
+                and self._get_active_subenv() != -1
+                and self._get_toggle_flag() == 0
+            ):
                 return self.state, action, False
             # Skip mask check in pre-step from base environment because the mask would
             # not match the action space
@@ -531,21 +704,35 @@ class BaseSet(GFlowNetEnv):
             # - Update the active sub-environment of the parent Set state
             # - Toggle the flag
             # - Return
-            toggled_subenv = self._depad_action(action)[0]
+            toggled_idx = self._depad_action(action)[0]
             if self._get_active_subenv(self.state) == -1:
-                self._set_active_subenv(toggled_subenv)
-                self._set_toggle_flag(0)
+                if self.can_alternate_subenvs:
+                    self._set_active_subenv(toggled_idx)
+                    self._set_toggle_flag(0)
+                else:
+                    # Permute the done subenvironments of the selected index, and activate the one in the last position
+                    idx = self.permute_subenvs(toggled_idx)
+                    self._set_active_subenv(idx)
             else:
-                assert self._get_active_subenv(self.state) == toggled_subenv
-                assert self._get_toggle_flag(self.state) == 1
+                # Toggle the current subenv
+                active_subenv = self._get_active_subenv(self.state)
+                if self.can_alternate_subenvs:
+                    assert active_subenv == toggled_idx
+                    assert self._get_toggle_flag(self.state) == 1
+                    self._set_toggle_flag(0)
+                else:
+                    assert (
+                        self._get_unique_idx_of_subenv(active_subenv, self.state)
+                        == toggled_idx
+                    )
                 self._set_active_subenv(-1)
-                self._set_toggle_flag(0)
             return self.state, action, True
 
         # Case B: the action is an action from a sub-environment
 
-        # If the toggle flag is not 0, then it is an invalid action
-        if not self._get_toggle_flag(self.state) == 0:
+        # If can_alternate_subenvs is True and the toggle flag is not 0, then it is an
+        # invalid action
+        if self.can_alternate_subenvs and not self._get_toggle_flag(self.state) == 0:
             return self.state, action, False
 
         # Get active sub-environment and depad action
@@ -578,17 +765,19 @@ class BaseSet(GFlowNetEnv):
             return self.state, action, False
         self.n_actions += 1
 
-        # Update (global) Set state and return
+        # Update (global) Set state, apply constraints and return
         self._set_substate(active_subenv, subenv.state)
         self._set_subdone(active_subenv, subenv.done)
         self._set_active_subenv(active_subenv)
-        self._set_toggle_flag(1)
+        if self.can_alternate_subenvs:
+            self._set_toggle_flag(1)
+        self._apply_constraints(state=self.state, action=action, is_backward=True)
         return self.state, action, valid
 
     # TODO: Think about the connection with permutation invariance
     def get_parents(
         self,
-        state: Optional[List] = None,
+        state: Optional[Dict] = None,
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
@@ -597,12 +786,10 @@ class BaseSet(GFlowNetEnv):
 
         Parameters
         ----------
-        state : list
+        state : dict
             State in environment format. If not, self.state is used.
-
         done : bool
             Whether the trajectory is done. If None, self.done is used.
-
         action : tuple
             Ignored.
 
@@ -610,7 +797,6 @@ class BaseSet(GFlowNetEnv):
         -------
         parents : list
             List of parents in state format
-
         actions : list
             List of actions that lead to state for each parent in parents
         """
@@ -627,44 +813,120 @@ class BaseSet(GFlowNetEnv):
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
         toggle_flag = self._get_toggle_flag(state)
+        dones = self._get_dones(state)
+        subenv = None
+        state_subenv = None
 
+        # Establish the case based on the active sub-environment, the toggle flag and
+        # the done flags
+        case_a = case_b = case_c = case_d = case_e = case_f = False
         if active_subenv == -1:
+            # - Case A: no sub-environment is active
+            assert toggle_flag == 0
+            case_a = True
+        elif self.can_alternate_subenvs:
+            if toggle_flag == 0:
+                # Case B: in the variant where sub-environments can alternate, the
+                # toggle flag is zero: this indicates sub-environment actions (in the
+                # backward sense) are valid.
+                case_b = True
+            else:
+                # Case C: in the variant where sub-environments can alternate, a
+                # sub-environment is active and the toggle flag is 1: this indicates
+                # the corresponding toggle action (deactivate) is valid.
+                case_c = True
+        else:
+            if dones[active_subenv] == 1:
+                # Case D: in the variant where sub-environments cannot alternate the
+                # sub-environment is done: this indicates the sub-environment has just
+                # been activated (in the backward sense) and the only valid is the EOS
+                # of the active sub-environment.
+                case_d = True
+            else:
+                subenv = self._get_unique_env_of_subenv(active_subenv, state)
+                state_subenv = self._get_substate(state, active_subenv)
+                if subenv.is_source(state_subenv):
+                    # Case E: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is in the source state: the only valid action
+                    # is to toggle it.
+                    case_e = True
+                else:
+                    # Case F: in the variant where sub-environments cannot alternate,
+                    # the sub-environment is not in the source state and is not done:
+                    # this indicates sub-environment actions (in the backward sense)
+                    # are valid.
+                    case_f = True
+
+        if case_a:
             # Case A: no sub-environment is active: the parents of the state correspond
             # to states with the same sub-environment states but with one active
-            # sub-environment, unless the sub-environment is at the source state and is
-            # not done.
+            # sub-environment.
+            # If sub-environments can alternate, states with any active sub-environment
+            # are parents, unless the sub-environment is at the source state and is not
+            # done.
+            # If sub-environments cannot alternate, only the last done sub-environment
+            # of each unique environment can be active in the parents.
             assert toggle_flag == 0
-            dones = self._get_dones(state)
-            for idx, env in enumerate(self.subenvs):
-                if dones[idx] or not env.is_source(self._get_substate(state, idx)):
+            indices_unique = self._get_unique_indices(state, exclude_nonpresent=False)
+            indices_unique_seen = set()
+            for idx, (idx_unique, done) in reversed(
+                list(enumerate(zip(indices_unique, dones)))
+            ):
+                if self.can_alternate_subenvs:
+                    # Skip if the subenv is at the source and is not done
+                    if not done and self._get_env_unique(idx_unique).is_source(
+                        self._get_substate(state, idx)
+                    ):
+                        continue
+                else:
+                    # Skip if not done
+                    if not done:
+                        continue
+                    # Skip non-present sub-environments
+                    if idx_unique == -1:
+                        continue
+                    # Skip if the unique index has been already added
+                    if idx_unique in indices_unique_seen:
+                        continue
+                # Add parent and action
+                if self.can_alternate_subenvs:
                     parent = copy(state)
-                    parents.append(self._set_active_subenv(idx, parent))
                     actions.append(self._pad_action((idx,), -1))
-        elif toggle_flag == 1:
-            # Case B: a sub-environment is active but the toggle flag is 1, indicating
-            # that a sub-environment has just been activated. In this case, the only
-            # parent is the same state with inactive sub-environments and toggle flag
-            # 0.
+                    parents.append(self._set_active_subenv(idx, parent))
+                else:
+                    parent, _ = self._get_permuted_parent_with_active_subenv(idx_unique, state)
+                    parents.append(parent)
+                    actions.append(self._pad_action((idx_unique,), -1))
+                    indices_unique_seen.add(idx_unique)
+        elif case_c or case_e:
+            # Case B: a sub-environment is active but only the corresponding toggle
+            # action is valid: the only parent is the same state with inactive
+            # sub-environments and toggle flag 0.
             parent = copy(state)
             parent = self._set_active_subenv(-1, parent)
-            parent = self._set_toggle_flag(0, parent)
+            if self.can_alternate_subenvs:
+                parent = self._set_toggle_flag(0, parent)
+                idx_action = active_subenv
+            else:
+                idx_action = self._get_unique_idx_of_subenv(active_subenv)
             parents.append(parent)
-            actions.append(self._pad_action((active_subenv,), -1))
-        else:
-            # Case C: a sub-environment is active and the toggle flag is 0, indicating
-            # that a sub-environment action has just been performed (in the forward
-            # sense): The parents are determined by the parents of the active
+            actions.append(self._pad_action((idx_action,), -1))
+        elif case_b or case_d or case_f:
+            # Case C: a sub-environment is active and sub-environment actions are
+            # valid: the parents are determined by the parents of the active
             # sub-environment.
             assert toggle_flag == 0
-            subenv = self.subenvs[active_subenv]
-            state_subenv = self._get_substate(state, active_subenv)
-            done_subenv = bool(self._get_dones(state)[active_subenv])
+            if subenv is None or state_subenv is None:
+                subenv = self.subenvs[active_subenv]
+                state_subenv = self._get_substate(state, active_subenv)
+            done_subenv = bool(dones[active_subenv])
             parents_subenv, parent_actions_subenv = subenv.get_parents(
                 state_subenv, done_subenv
             )
             for p, p_a in zip(parents_subenv, parent_actions_subenv):
                 parent = copy(state)
-                parent = self._set_toggle_flag(1, parent)
+                if self.can_alternate_subenvs:
+                    parent = self._set_toggle_flag(1, parent)
                 parent = self._set_substate(active_subenv, p, parent)
                 if p_a == subenv.eos:
                     parent = self._set_subdone(active_subenv, False, parent)
@@ -674,6 +936,116 @@ class BaseSet(GFlowNetEnv):
                 )
 
         return parents, actions
+
+    def permute_subenvs(
+            self, idx_unique: int, state: Optional[Dict] = None
+    ) -> int:
+        """
+        Randomly permutes the done sub-environments of a specific unique environment
+        within the state.
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose done instances should be
+            permuted.
+        state : dict
+            A state of the Set environment. If None, self.state is used.
+
+        Returns
+        -------
+        int
+            The index of the last done instance of the specified type after permutation.
+        """
+        if state is None:
+            state = self.state
+
+        unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+        dones = self._get_dones(state)
+        # Find all done instances of the specified type
+        done_instances_of_type = [
+            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            if u_idx == idx_unique and done
+        ]
+
+        # If fewer than 2 instances, no permutation needed
+        if len(done_instances_of_type) < 2:
+            if len(done_instances_of_type) == 1:
+                return done_instances_of_type[0]
+            else:
+                return -1  # No done instances of this type
+
+        # Collect the substates of done instances
+        substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+
+        # Shuffle the substates
+        permutation = np.random.permutation(len(substates))
+        shuffled_substates = [substates[i] for i in permutation]
+
+        # Apply the shuffled substates back to the state
+        for idx, substate in zip(done_instances_of_type, shuffled_substates):
+            self._set_substate(idx, substate, state)
+
+        if self.subenvs is not None:
+            subenvs_list = list(self.subenvs)
+            subenvs_of_type = [subenvs_list[idx] for idx in done_instances_of_type]
+            shuffled_subenvs = [subenvs_of_type[i] for i in permutation]
+            for i, idx in enumerate(done_instances_of_type):
+                subenvs_list[idx] = shuffled_subenvs[i]
+                # Sync subenv internal state
+                shuffled_subenvs[i].set_state(shuffled_substates[i], done=True)
+            self.subenvs = tuple(subenvs_list)
+
+        # Return the index of the last done instance of this type
+        return done_instances_of_type[-1]
+
+    def _get_permuted_parent_with_active_subenv(
+            self, idx_unique: int, state: Dict
+    ) -> Tuple[Dict, int]:
+        """
+        Creates a copy of the state with done sub-environments of the specified unique
+        type randomly permuted, and returns the state with the last done instance
+        activated.
+
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose done instances should be
+            permuted.
+        state : dict
+            A state of the Set environment.
+
+        Returns
+        -------
+        parent : dict
+            A copy of the state with permuted substates and the last done instance
+            of the specified type activated.
+        idx_activated : int
+            The index of the activated sub-environment.
+        """
+        parent = copy(state)
+
+        unique_indices = self._get_unique_indices(parent, exclude_nonpresent=False)
+        dones = self._get_dones(parent)
+
+        # Find all done instances of the specified type
+        done_instances_of_type = [
+            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            if u_idx == idx_unique and done
+        ]
+
+        # Permute if there are multiple done instances
+        if len(done_instances_of_type) >= 2:
+            substates = [self._get_substate(parent, idx) for idx in done_instances_of_type]
+            permutation = np.random.permutation(len(substates))
+            shuffled_substates = [substates[i] for i in permutation]
+            for idx, substate in zip(done_instances_of_type, shuffled_substates):
+                self._set_substate(idx, substate, parent)
+
+        # Activate the last done instance of this type
+        idx_activated = done_instances_of_type[-1]
+        self._set_active_subenv(idx_activated, parent)
+
+        return parent, idx_activated
 
     def sample_actions_batch(
         self,
@@ -696,7 +1068,7 @@ class BaseSet(GFlowNetEnv):
         that correspond to the sub-environment.
         """
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Sample Set actions (to toggle a sub-environment or EOS).
@@ -714,14 +1086,14 @@ class BaseSet(GFlowNetEnv):
             )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert len(actions_set) == policy_outputs.shape[0]
             return actions_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -732,9 +1104,12 @@ class BaseSet(GFlowNetEnv):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
@@ -803,7 +1178,7 @@ class BaseSet(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
 
         # Get the states in the batch with and without an active sub-environment
-        is_active = torch.any(mask[:, : self.max_elements], axis=1)
+        is_active = torch.any(mask[:, : self.n_toggle_actions], axis=1)
         is_set = torch.logical_not(is_active)
 
         # Get logprobs of Set actions (to toggle a sub-environment or EOS).
@@ -818,16 +1193,22 @@ class BaseSet(GFlowNetEnv):
                 None,
                 is_backward,
             )
+            # Apply permutation correction for backward toggle actions
+            # (not EOS, not when can_alternate_subenvs is True)
+            if is_backward and not self.can_alternate_subenvs:
+                logprobs_set = self._apply_permutation_correction(
+                    logprobs_set, actions[is_set], states_from, is_set
+                )
 
         # Get the active sub-environment of each mask from the one-hot prefix
-        active_subenvs = torch.where(mask[is_active, : self.max_elements])[1]
+        indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
 
         # If there are no states with active sub-environments, return here
-        if len(active_subenvs) == 0:
+        if len(indices_active) == 0:
             assert logprobs_set.shape[0] == n_states
             return logprobs_set
 
-        active_subenvs_int = active_subenvs.tolist()
+        indices_active_int = indices_active.tolist()
         indices_unique_int = []
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         """
@@ -838,16 +1219,19 @@ class BaseSet(GFlowNetEnv):
         idx = 0
         for state, active in zip(states_from, is_active):
             if active:
-                active_subenv = active_subenvs_int[idx]
-                idx_unique = self._get_unique_indices(state)[active_subenv]
-                states_dict[idx_unique].append(self._get_substate(state, active_subenv))
+                if self.can_alternate_subenvs:
+                    active_subenv = indices_active_int[idx]
+                    idx_unique = self._get_unique_indices(state)[active_subenv]
+                else:
+                    idx_unique = indices_active_int[idx]
+                states_dict[idx_unique].append(self._get_substate(state))
                 indices_unique_int.append(idx_unique)
                 idx += 1
         indices_unique = tlong(indices_unique_int, device=self.device)
 
         # Compute logprobs from each unique environment
         logprobs_subenvs = torch.empty(
-            len(active_subenvs), dtype=self.float, device=self.device
+            len(indices_active), dtype=self.float, device=self.device
         )
         for idx, subenv in enumerate(self.envs_unique):
             indices_unique_mask = indices_unique == idx
@@ -872,66 +1256,113 @@ class BaseSet(GFlowNetEnv):
         logprobs[is_active] = logprobs_subenvs
         return logprobs
 
-    def _pad_action(self, action: Tuple, idx_unique: int) -> Tuple:
-        r"""
-        Pads an action by adding the unique index (or -1) as the first element and zeros
-        as padding.
+    def _apply_permutation_correction(
+            self,
+            logprobs: TensorType["n_set_states"],
+            actions: TensorType["n_set_states", "action_dim"],
+            states_from: List,
+            is_set: TensorType["n_states"],
+    ) -> TensorType["n_set_states"]:
+        """
+        Applies the permutation correction to logprobs for backward toggle actions.
 
-        See:
-        - :py:meth:`~gflownet.envs.set.BaseSet.get_action_space`
+        When going backward, the done sub-environments are randomly shuffled before
+        activating one. This correction accounts for the number of unique permutations
+        that result in distinct states. If all substates are identical, no correction
+        is needed since all permutations yield the same state. If substates differ,
+        the correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! * ...)
+        and mi are the multiplicities of identical substates.
 
         Parameters
         ----------
-        action : tuple
-            The action to be padded.
-        idx_unique : int
-            The index of the unique environment or -1 for Set actions (toggle actions
-            and EOS)
+        logprobs : tensor
+            The log probabilities of the set actions (toggle or EOS) before correction.
+            Shape: (n_set_states,)
+        actions : tensor
+            The actions corresponding to the set states. Toggle actions have the format
+            (-1, idx_unique, 0, ...) and EOS actions have the format (-1, -1, -1, ...).
+            Shape: (n_set_states, action_dim)
+        states_from : list
+            All states in the original batch, in environment format.
+        is_set : tensor
+            Boolean mask indicating which states in states_from correspond to set
+            actions (no active sub-environment). Shape: (n_states,)
 
         Returns
         -------
-        tuple
-            The padded and pre-fixed action.
+        tensor
+            The corrected log probabilities. Shape: (n_set_states,)
         """
-        return (idx_unique,) + action + (0,) * (self.action_dim - len(action) - 1)
+        # Extract only the states corresponding to set actions
+        is_set_list = is_set.tolist()
+        states_set = [s for s, is_s in zip(states_from, is_set_list) if is_s]
 
-    def _depad_action(self, action: Tuple, idx_unique: int = None) -> Tuple:
-        """
-        Reverses the padding operation, such that the resulting action can be passed to
-        the underlying environment.
+        # Initialize corrections to zero
+        corrections = torch.zeros_like(logprobs)
 
-        See:
-        - :py:meth:`~gflownet.envs.set.BaseSet._pad_action`
+        for i, (state, action) in enumerate(zip(states_set, actions)):
+            # Skip EOS actions (format: -1, -1, -1, ...)
+            if action[0].item() == -1 and action[1].item() == -1:
+                continue
 
-        Parameters
-        ----------
-        action : tuple
-            The action to be depadded.
-        idx_unique : int
-            The index of the unique environment or -1 for Set actions (toggle actions
-            and EOS)
+            # Get the unique environment index from the toggle action
+            idx_unique = int(action[1].item())
 
-        Returns
-        -------
-        tuple
-            The depadded action, as it appears in the action space of the
-            sub-environment it belongs to. If idx_unique is -1 (Set action), then the
-            returned action is a single-element tuple with the sub-environment index.
-        """
-        if idx_unique is None:
-            idx_unique = action[0]
-        else:
-            assert idx_unique == action[0]
-        if idx_unique != -1:
-            return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
-        return (action[1],)
+            # Get unique indices and done flags from state
+            unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+            dones = self._get_dones(state)
+
+            # Find all done instances of this unique environment type
+            done_instances_of_type = [
+                idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+                if u_idx == idx_unique and done
+            ]
+
+            # No correction needed if fewer than 2 done instances
+            n_done = len(done_instances_of_type)
+            if n_done <= 1:
+                continue
+
+            # Collect substates of done instances
+            substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+
+            # Count multiplicities by comparing substates using GFlowNetEnv.equal
+            multiplicities = []
+            used = [False] * n_done
+            for j in range(n_done):
+                if used[j]:
+                    continue
+                count = 1
+                used[j] = True
+                for k in range(j + 1, n_done):
+                    if not used[k] and self.equal(substates[j], substates[k]):
+                        count += 1
+                        used[k] = True
+                multiplicities.append(count)
+
+            # Compute number of unique permutations: n! / (m1! * m2! * ...)
+            # In log space: log(n!) - sum(log(mi!))
+            log_n_factorial = torch.lgamma(
+                torch.tensor(n_done + 1, dtype=self.float, device=self.device)
+            )
+            log_denominator = sum(
+                torch.lgamma(torch.tensor(m + 1, dtype=self.float, device=self.device))
+                for m in multiplicities
+            )
+            log_n_unique_perms = log_n_factorial - log_denominator
+
+            # Apply correction
+            corrections[i] = -log_n_unique_perms
+
+        return logprobs + corrections
 
     def _compute_mask_dim(self) -> int:
         """
         Calculates the mask dimensionality of the global Set environment.
 
         The mask consists of:
-           - A one-hot encoding of the index of the active sub-environment.
+           - A one-hot encoding of the index of the active sub-environment or unique
+             environment.
            - Actual (main) mask of invalid actions:
                - The mask of the Set actions (activate a sub-environment and EOS), OR
                - The mask of the active sub-environment.
@@ -946,300 +1377,50 @@ class BaseSet(GFlowNetEnv):
             The number of elements in the Set masks.
         """
         mask_dim_subenvs = [subenv.mask_dim for subenv in self.envs_unique]
-        mask_dim_set_actions = self.max_elements + 1
-        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.max_elements
+        mask_dim_set_actions = self.n_toggle_actions + 1
+        return max(mask_dim_subenvs + [mask_dim_set_actions]) + self.n_toggle_actions
 
-    def _get_active_subenv(self, state: Optional[List] = None) -> int:
+    def _get_toggle_flag(self, state: Optional[Dict] = None) -> int:
         """
-        Returns the index of the currently active sub-environment from self.state[0][0]
-        or from the state passed as an argument.
+        Returns the value of the toggle flag from the state.
+
+        If no state is passed, ``self.state`` is used.
+
+        The toggle flag is indicated in ``state["_toggle"]``.
 
         Parameters
         ----------
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        """
-        if state is None:
-            state = self.state
-        return state[0][0]
-
-    def _set_active_subenv(self, idx_subenv: int, state: Optional[List] = None) -> List:
-        """
-        Sets the index of the active sub-environment in self.state or in the state
-        passed as an argument.
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of the sub-environment to set as active, or -1.
-        state : list
+        state : dict
             A state of the parent Set environment.
-
-        Returns
-        -------
-        list
-            The Set state.
-        """
-        assert idx_subenv in range(self.max_elements) or idx_subenv == -1
-        if state is None:
-            state = self.state
-        state[0][0] = idx_subenv
-        return state
-
-    def _get_toggle_flag(self, state: Optional[List] = None) -> int:
-        """
-        Returns the value of the toggle flag from self.state[0][1] or from the state
-        passed as an argument.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
         """
         if state is None:
             state = self.state
-        return state[0][1]
+        return state["_toggle"]
 
-    def _set_toggle_flag(self, toggle_flag: int, state: Optional[List] = None) -> List:
+    def _set_toggle_flag(self, toggle_flag: int, state: Optional[Dict] = None) -> Dict:
         """
-        Sets the toggle flag in self.state or in the state passed as an argument.
+        Sets the toggle flag.
+
+        If no state is passed, ``self.state`` is used.
+
+        The toggle flag is set in ``state["_toggle"]``.
 
         Parameters
         ----------
         toggle_flag : int
             Value of the toggle flag to set in the state. Must be 0 or 1.
-        state : list
+        state : dict
             A state of the parent Set environment.
 
         Returns
         -------
-        list
-            The Set state.
+        The updated Set state.
         """
         assert toggle_flag in [0, 1]
         if state is None:
             state = self.state
-        state[0][1] = toggle_flag
+        state["_toggle"] = toggle_flag
         return state
-
-    def _get_dones(self, state: Optional[List] = None) -> int:
-        """
-        Returns the part of the state containing the list of done flags, which indicate
-        which sub-environments are done or not present.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        """
-        if state is None:
-            state = self.state
-        return state[0][2]
-
-    def _set_subdone(
-        self, idx_subenv: int, done: bool, state: Optional[List] = None
-    ) -> List:
-        """
-        Updates the done flag corresponding to the sub-environment indicated by
-        idx_subenv, by retrieving the done attribute of the sub-environment.
-
-        This method modifies self.state
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of the sub-environment of which to set the done flag.
-        done : bool
-            The value of done to be set in the state.
-        state : list
-            A state of the parent Set environment.
-
-        Returns
-        -------
-        list
-            The Set state.
-        """
-        assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
-        state[0][2][idx_subenv] = int(done)
-        return state
-
-    def _get_unique_indices(
-        self, state: Optional[List] = None, exclude_nonpresent: bool = True
-    ) -> int:
-        """
-        Returns the part of the state containing the unique indices, which identify the
-        type of environment of each element in the set.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        exclude_nonpresent : bool
-            If True, return only the indices of sub-environments that are present in
-            the state, that is exclude indices with -1.
-        """
-        if state is None:
-            state = self.state
-        if exclude_nonpresent:
-            return [idx for idx in state[0][3] if idx != -1]
-        return state[0][3]
-
-    def _set_unique_index(
-        self, idx_subenv: int, idx_unique: int, state: Optional[List] = None
-    ) -> int:
-        """
-        Updates the index of the sub-environment indicated by idx_subenv in the list of
-        unique indices.
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of the sub-environment of which to set the unique index.
-        idx_unique : int
-            The unique index to be set.
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        """
-        assert idx_subenv in range(self.max_elements)
-        assert idx_unique in range(self.n_unique_envs)
-        if state is None:
-            state = self.state
-        state[0][3][idx_subenv] = idx_unique
-        return state
-
-    def _get_substate(self, state: List, idx_subenv: Optional[int] = None):
-        """
-        Returns the part of the state corresponding to the subenv indicated by
-        idx_subenv.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment.
-        idx_subenv : int
-            Index of the sub-environment of which the corresponding part of the
-            state is to be extracted. If None, the state of the active subenv is used.
-
-        Returns
-        -------
-        The state of a sub-environment.
-        """
-        if idx_subenv is None:
-            idx_subenv = self._get_active_subenv(state)
-        if idx_subenv not in range(self.max_elements):
-            raise ValueError(
-                f"Index {idx_subenv} is not a valid sub-environment index."
-            )
-        return state[1][idx_subenv]
-
-    def _get_substates(self, state: List):
-        """
-        Returns a list with all the states of the sub-environments.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment.
-
-        Returns
-        -------
-        list
-            All sub-states in the state.
-        """
-        return list(state[1].values())
-
-    def _set_substate(
-        self,
-        idx_subenv: int,
-        state_subenv: Union[List, TensorType, dict],
-        state: Optional[List] = None,
-    ) -> List:
-        """
-        Updates the global (Set) state by setting as substate of subenv idx_subenv the
-        current state of the sub-environment.
-
-        This method modifies self.state if state is None.
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of the sub-environment of which to set the state.
-        state_subenv : list or tensor or dict
-            The state of a sub-environment.
-        state : list
-            A state of the global Set environment.
-
-        Returns
-        -------
-        list
-            The Set state.
-        """
-        assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
-        state[1][idx_subenv] = state_subenv
-        return state
-
-    def _get_env_unique(self, idx_unique: int) -> GFlowNetEnv:
-        """
-        Returns the unique environment with index idx_unique.
-
-        Parameters
-        ----------
-        idx_unique : int
-            The index of the unique environment to be retrieved.
-
-        Returns
-        -------
-        GFlowNetEnv
-            The unique environment with index idx_unique.
-        """
-        return self.envs_unique[idx_unique]
-
-    def _get_unique_idx_of_subenv(
-        self, idx_subenv: int, state: Optional[List] = None
-    ) -> int:
-        """
-        Returns the index of the unique environment corresponding to the subenv at
-        index idx_subenv.
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of a sub-environment (from 0 to self.max_elements). Note that this is
-            the index of a subenv, not of the unique environments.
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        """
-        assert idx_subenv in range(self.max_elements)
-        if state is None:
-            state = self.state
-        return self._get_unique_indices(state)[idx_subenv]
-
-    def _get_unique_env_of_subenv(
-        self, idx_subenv: int, state: Optional[List] = None
-    ) -> GFlowNetEnv:
-        """
-        Returns the unique environment corresponding to the subenv at index idx_subenv.
-
-        Parameters
-        ----------
-        idx_subenv : int
-            Index of a sub-environment (from 0 to self.max_elements). Note that this is
-            the index of a subenv, not of the unique environments.
-        state : list
-            A state of the parent Set environment, which is a list whose first element
-            is the index of the active sub-environment.
-        """
-        return self._get_env_unique(self._get_unique_idx_of_subenv(idx_subenv, state))
 
     def action2representative(self, action: Tuple) -> Tuple:
         """
@@ -1271,13 +1452,17 @@ class BaseSet(GFlowNetEnv):
         representative = self._pad_action(representative_subenv, idx_unique)
         return representative
 
+    # TODO: consider moving to Composite
     def _format_mask(self, mask: List[bool], active_subenv: int):
         r"""
         Applies formatting to the mask of a sub-environment.
 
         The output format is the mask of the input sub-environment, preceded by a
-        one-hot encoding of the index of the active sub-environment and padded with
-        False up to :py:const:`self.mask_dim`.
+        one-hot encoding of the index of the active sub-environment (or unique
+        environment) and padded with False up to :py:const:`self.mask_dim`.
+
+        If no sub-environment is active (``active_subenv`` is -1), the prefix is all
+        False.
 
         Parameters
         ----------
@@ -1286,9 +1471,14 @@ class BaseSet(GFlowNetEnv):
         active_subenv : int
             The index of the active sub-environment, or -1 if no subenv is active.
         """
-        active_subenv_onehot = [False] * self.max_elements
+        active_subenv_onehot = [False] * self.n_toggle_actions
         if active_subenv != -1:
-            active_subenv_onehot[active_subenv] = True
+            if self.can_alternate_subenvs:
+                active_subenv_onehot[active_subenv] = True
+            else:
+                active_subenv_onehot[self._get_unique_idx_of_subenv(active_subenv)] = (
+                    True
+                )
         mask = active_subenv_onehot + mask
         padding = [False] * (self.mask_dim - len(mask))
         return mask + padding
@@ -1313,19 +1503,19 @@ class BaseSet(GFlowNetEnv):
             corresponds to set actions (toggle and EOS).
         """
         if idx_unique == -1:
-            mask_dim = self.max_elements + 1
+            mask_dim = self.n_toggle_actions + 1
         else:
             mask_dim = self._get_env_unique(idx_unique).mask_dim
         if isinstance(mask, list):
-            return mask[self.max_elements : self.max_elements + mask_dim]
+            return mask[self.n_toggle_actions : self.n_toggle_actions + mask_dim]
         else:
             assert torch.is_tensor(mask)
-            return mask[:, self.max_elements : self.max_elements + mask_dim]
+            return mask[:, self.n_toggle_actions : self.n_toggle_actions + mask_dim]
 
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
-        state: Optional[List] = None,
+        state: Optional[Dict] = None,
         done: Optional[bool] = None,
         backward: Optional[bool] = False,
     ) -> List[Tuple]:
@@ -1350,7 +1540,7 @@ class BaseSet(GFlowNetEnv):
 
         # Set active environment and idx_unique to -1 if the mask contains no active
         # environment
-        if not any(mask[: self.max_elements]):
+        if not any(mask[: self.n_toggle_actions]):
             active_subenv = -1
             idx_unique = -1
         else:
@@ -1387,7 +1577,7 @@ class BaseSet(GFlowNetEnv):
         outputs of the unique environments.
         """
         policy_outputs_set_actions = torch.ones(
-            self.max_elements + 1, dtype=self.float, device=self.device
+            self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
         policy_outputs_subenvs = torch.cat(
             [
@@ -1410,7 +1600,7 @@ class BaseSet(GFlowNetEnv):
             A tensor containing a batch of policy outputs. It is assumed that all the
             rows in the this tensor correspond to actions to activate a sub-environemnt.
         """
-        return policy_outputs[:, : self.max_elements + 1]
+        return policy_outputs[:, : self.n_toggle_actions + 1]
 
     def _get_policy_outputs_of_subenv(
         self,
@@ -1431,14 +1621,14 @@ class BaseSet(GFlowNetEnv):
             Index of the unique environment of which the corresponding columns of the
             policy outputs are to be extracted.
         """
-        init_col = self.max_elements + 1
+        init_col = self.n_toggle_actions + 1
         for idx in range(self.n_unique_envs):
             end_col = init_col + self._get_env_unique(idx).policy_output_dim
             if idx == idx_unique:
                 return policy_outputs[:, init_col:end_col]
             init_col = end_col
 
-    def is_source(self, state: Optional[List] = None) -> bool:
+    def is_source(self, state: Optional[Dict] = None) -> bool:
         """
         Returns True if the environment's state or the state passed as parameter (if
         not None) is the source state of the environment.
@@ -1449,7 +1639,7 @@ class BaseSet(GFlowNetEnv):
 
         Parameters
         ----------
-        state : list
+        state : dict
             None, or a state in environment format.
 
         Returns
@@ -1502,9 +1692,8 @@ class SetFix(BaseSet):
         **kwargs,
     ):
         """
-        Args
-        ----
-
+        Parameters
+        ----------
         subenvs : iterable
             An iterable containing the set of the sub-environments.
         """
@@ -1518,23 +1707,31 @@ class SetFix(BaseSet):
             _,
             self.unique_indices,
         ) = self._get_unique_environments(self.subenvs)
-        self.n_unique_envs = len(self.envs_unique)
+        self._n_unique_envs = len(self.envs_unique)
 
-        # States are represented as a list with two elements:
-        # 0: Meta-data about the Set
-        #   - The index of the currently active sub-environment, or -1 if none is
-        #   active.
-        #   - A flag indicating whether a sub-environment is active before (1) or after
-        #   (0) a sub-environment action (in the forward sense).
-        #   - A list of flags indicating whether the sub-environments are done (1) or
-        #   not (0).
-        #   - A list of indices identifying the unique environment corresponding to
-        #   each subenv. -1 if there is no sub-environment in that position. All -1 in
-        #   the source.
-        # - A dictionary of subenv's states, with keys the indices of the subenvs.
-        self.source = [[-1, 0] + [[0] * self.max_elements] + [self.unique_indices]] + [
+        # States are represented as a dictionary with the following keys and values:
+        # - Meta-data about the Set
+        #   - "_active":  The index of the currently active sub-environment, or -1 if
+        #   none is active.
+        #   - "_toggle": A flag indicating whether a sub-environment is active before
+        #   (1) or after (0) a sub-environment action (in the forward sense).
+        #   - "_done": A list of flags indicating whether the sub-environments are done
+        #   (1) or not (0).
+        #   - "_envs_unique": A list of indices identifying the unique environment
+        #   corresponding to each subenv. -1 if there is no sub-environment in that
+        #   position. All -1 in the source.
+        # - States of the sub-environments, with keys the indices of the subenvs.
+        # The only meta-data key specific to the Set (not part of composite
+        # environments by default) is "_toggle".
+        self.source = {
+            "_active": -1,
+            "_toggle": 0,
+            "_dones": [0] * self.max_elements,
+            "_envs_unique": self.unique_indices,
+        }
+        self.source.update(
             {idx: subenv.source for idx, subenv in enumerate(self.subenvs)}
-        ]
+        )
 
         # Get action dimensionality by computing the maximum action length among all
         # sub-environments, and adding 1 to indicate the sub-environment.
@@ -1562,41 +1759,6 @@ class SetFix(BaseSet):
         action.
         """
         return sum([subenv.max_traj_length for subenv in self.subenvs]) * 3 + 1
-
-    def reset(self, env_id: Union[int, str] = None):
-        """
-        Resets the environment by resetting the sub-environments.
-        """
-        for subenv in self.subenvs:
-            subenv.reset()
-        super().reset(env_id=env_id)
-        return self
-
-    def set_state(self, state: List, done: Optional[bool] = False):
-        """
-        Sets a state and done.
-
-        The correct state and done of each sub-environment are set too.
-
-        Parameters
-        ----------
-        state : list
-            A state of the parent Set environment.
-
-        done : bool
-            Whether the trajectory of the environment is done or not.
-        """
-        # If done is True, then the done flags in the set should all be 1
-        dones = [bool(el) for el in self._get_dones(state)]
-        if done:
-            assert all(dones)
-
-        super().set_state(state, done)
-        # Set state and done of each sub-environment
-        for idx, (subenv, done_subenv) in enumerate(zip(self.subenvs, dones)):
-            subenv.set_state(self._get_substate(self.state, idx), done_subenv)
-
-        return self
 
     # TODO: The current representation is not permutation invariant. In order to
     # properly let a GFlowNet on a Set environment, the representation should be
@@ -1792,8 +1954,8 @@ class SetFlex(BaseSet):
         **kwargs,
     ):
         """
-        Args
-        ----
+        Parameters
+        ----------
         max_elements : int
             The maximum number of enviroments that can be included in the set. Note
             that this number does not refer to the number of unique environments, but
@@ -1839,7 +2001,7 @@ class SetFlex(BaseSet):
             _,
         ) = self._get_unique_environments(envs_unique)
         self.max_elements = max_elements
-        self.n_unique_envs = len(self.envs_unique)
+        self._n_unique_envs = len(self.envs_unique)
         self.do_random_subenvs = do_random_subenvs
 
         # Allocate a cache for env instances of each of the unique environments. These
@@ -1848,23 +2010,27 @@ class SetFlex(BaseSet):
         # time these methods are called.
         self.envs_unique_cache = {idx: [] for idx in range(self.n_unique_envs)}
 
-        # States are represented as a list with two elements:
-        # 0: Meta-data about the Set
-        #   - The index of the currently active sub-environment, or -1 if none is
-        #   active.
-        #   - A flag indicating whether a sub-environment is active before (1) or after
-        #   (0) a sub-environment action (in the forward sense).
-        #   - A list of flags indicating whether the sub-environments are done (1) or
-        #   not done (0). The flag of environments that do not correspond to a subenv
+        # States are represented as a dictionary with the following keys and values:
+        # - Meta-data about the Set
+        #   - "_active":  The index of the currently active sub-environment, or -1 if
+        #   none is active.
+        #   - "_toggle": A flag indicating whether a sub-environment is active before
+        #   (1) or after (0) a sub-environment action (in the forward sense).
+        #   - "_done": A list of flags indicating whether the sub-environments are done
+        #   (1) or not (0). The flag of environments that do not correspond to a subenv
         #   is set to 1. In the source state, the list is set to all 1s.
-        #   - A list of indices identifying the unique environment corresponding to
-        #   each subenv. -1 if there is no sub-environment in that position. All -1 in
-        #   the source.
-        # 1: A dictionary of subenv's states, with keys the indices of the subenvs. In
-        # the source state, it is an empty dictionary.
-        self.source = [
-            [-1, 0] + [[1] * self.max_elements] + [[-1] * self.max_elements]
-        ] + [{}]
+        #   - "_envs_unique": A list of indices identifying the unique environment. -1
+        #   if there is no sub-environment in that position. All -1 in the source.
+        # - States of the sub-environments, with keys the indices of the subenvs. In
+        # the source state, there is not any.
+        # The only meta-data key specific to the Set (not part of composite
+        # environments by default) is "_toggle".
+        self.source = {
+            "_active": -1,
+            "_toggle": 0,
+            "_dones": [1] * self.max_elements,
+            "_envs_unique": [-1] * self.max_elements,
+        }
 
         # Set sub-environments
         # - If subenvs is not None, set them as sub-environments
@@ -1979,9 +2145,13 @@ class SetFlex(BaseSet):
         # Set done of sub-environments to 0 and pad with 1's.
         dones = [0] * n_subenvs + [1] * (self.max_elements - n_subenvs)
         # Set self.state
-        self.state = [[-1, 0] + [dones] + [unique_indices]] + [
-            {idx: subenv.source for idx, subenv in enumerate(subenvs)}
-        ]
+        self.state = {
+            "_active": -1,
+            "_toggle": 0,
+            "_dones": dones,
+            "_envs_unique": unique_indices,
+        }
+        self.state.update({idx: subenv.source for idx, subenv in enumerate(subenvs)})
 
     def _get_max_trajectory_length(self) -> int:
         """
@@ -2074,7 +2244,7 @@ class SetFlex(BaseSet):
 
         return envs
 
-    def set_state(self, state: List, done: Optional[bool] = False):
+    def set_state(self, state: Dict, done: Optional[bool] = False):
         """
         Sets a state and done.
 
@@ -2083,9 +2253,8 @@ class SetFlex(BaseSet):
 
         Parameters
         ----------
-        state : list
-            A state of the parent Set environment.
-
+        state : dict
+            A state of the Set environment.
         done : bool
             Whether the trajectory of the environment is done or not.
         """
@@ -2116,7 +2285,7 @@ class SetFlex(BaseSet):
     # the elements.  A simple but potentially effective representation could involve
     # randomly permuting the elements of the set in the policy representation.
     def states2policy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_policy_dim"]:
         """
         Prepares a batch of states in environment format for the policy model.
@@ -2212,7 +2381,7 @@ class SetFlex(BaseSet):
 
     # TODO: this implementation may be useles for flexible sets.
     def states2proxy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in environment format for a proxy.
@@ -2237,7 +2406,7 @@ class SetFlex(BaseSet):
                 self._set_substate(idx, subenv.state2proxy(substate)[0], state)
         return states_proxy
 
-    def state2readable(self, state: Optional[List[int]] = None) -> str:
+    def state2readable(self, state: Optional[Dict] = None) -> str:
         """
         Converts a state into human-readable representation.
 
@@ -2248,7 +2417,7 @@ class SetFlex(BaseSet):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format.
 
         Returns

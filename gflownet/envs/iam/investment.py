@@ -8,6 +8,7 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from sympy.logic.boolalg import Boolean
 from sympy.physics.quantum import state
 from torch.distributions import Categorical
 from torchtyping import TensorType
@@ -172,8 +173,10 @@ class InvestmentDiscrete(GFlowNetEnv):
         tags: Iterable = None,
         techs: Iterable = None,
         amounts: Iterable = None,
+        techs_available: Iterable = None,
         **kwargs,
     ):
+
         # Main attributes
         self.choices = CHOICES
 
@@ -233,6 +236,16 @@ class InvestmentDiscrete(GFlowNetEnv):
             "TECH": 0,
             "AMOUNT": 0,
         }
+        # Available technologies
+        if techs_available is None:
+            self.techs_available = tuple(range(1, self.n_techs + 1))
+        else:
+            if isinstance(techs_available[0], str):
+                self.techs_available = tuple(
+                    [self.token2idx_techs[tech] for tech in techs_available]
+                )
+            elif isinstance(techs_available[0], int):
+                self.techs_available = tuple(techs_available)
 
         self.network_structure = {
             "sector2tag": ALLOWED_SECTOR2TAGS,
@@ -251,8 +264,71 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         self.eos = (-1, -1)
 
+        self.filled_on_set = torch.zeros(self.n_techs - 1, 3)
+
+        # pre-computed inverse mappings for masking
+        self.tech2sector_idx = {
+            self.token2idx_techs[t]: self.token2idx_sectors[s]
+            for t, s in self.network_structure["tech2sector"].items()
+        }
+
+        self.tech2tag_idx = {
+            self.token2idx_techs[t]: self.token2idx_tags[g]
+            for t, g in self.network_structure["tech2tag"].items()
+        }
+
+        self.sector2tech_idx = {
+            self.token2idx_sectors[s]: {self.token2idx_techs[t] for t in techs}
+            for s, techs in self.network_structure["sector2tech"].items()
+        }
+
+        self.tag2tech_idx = {
+            self.token2idx_tags[g]: {self.token2idx_techs[t] for t in techs}
+            for g, techs in self.network_structure["tag2tech"].items()
+        }
+
+        # Pre-cache network structures indexed by state indices (optimization)
+        # Cache sector_idx -> tag tokens
+        self._sector_idx_to_tags = {
+            self.token2idx_sectors[sector]: self.network_structure["sector2tag"][sector]
+            for sector in self.sectors
+        }
+
+        # Cache sector_idx -> tech tokens as set
+        self._sector_idx_to_techs_set = {
+            self.token2idx_sectors[sector]: set(self.network_structure["sector2tech"][sector])
+            for sector in self.sectors
+        }
+
+        # Cache tag_idx -> sector tokens
+        self._tag_idx_to_sectors = {
+            self.token2idx_tags[tag]: self.network_structure["tag2sector"][tag]
+            for tag in self.tags
+        }
+
+        # Cache tag_idx -> tech tokens as set
+        self._tag_idx_to_techs_set = {
+            self.token2idx_tags[tag]: set(self.network_structure["tag2tech"][tag])
+            for tag in self.tags
+        }
+
+        # Cache sector token -> tech tokens as set (for unavailable tech filtering)
+        self._sector_token_to_techs_set = {
+            sector: set(self.network_structure["sector2tech"][sector])
+            for sector in self.sectors
+        }
+
+        # Cache tag token -> tech tokens as set (for unavailable tech filtering)
+        self._tag_token_to_techs_set = {
+            tag: set(self.network_structure["tag2tech"][tag])
+            for tag in self.tags
+        }
+
         # Base class init
         super().__init__(**kwargs)
+
+        self.mask_buffer = [True] * len(self.get_action_space())
+
 
     def get_action_space(self) -> List[Tuple]:
         """
@@ -287,9 +363,9 @@ class InvestmentDiscrete(GFlowNetEnv):
         return all_actions
 
     def get_mask_invalid_actions_forward(
-        self,
-        state: Optional[Dict] = None,
-        done: Optional[bool] = None,
+            self,
+            state: Optional[Dict] = None,
+            done: Optional[bool] = None,
     ) -> List[bool]:
         """
         Returns a list of length the action space with values:
@@ -308,122 +384,154 @@ class InvestmentDiscrete(GFlowNetEnv):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if done:
-            return [True for _ in range(self.action_space_dim)]
 
         # Initialize mask to all invalid
-        mask = [True for _ in range(self.action_space_dim)]
+        mask = self.mask_buffer.copy()
+
+        if done:
+            return mask
 
         assigned = self.get_assigned_attributes(state)
+
+        # Pre-compute logical checks
+        has_sector = "SECTOR" in assigned
+        has_tag = "TAG" in assigned
+        has_tech = "TECH" in assigned
+        has_amount = "AMOUNT" in assigned
+
         if self.well_defined_investment(state):  # if you have full investment
             mask[self.action2index(self.eos)] = False
             return mask
 
-        if "TECH" in assigned and not "SECTOR" in assigned:
-            forced_sector_token = self.network_structure["tech2sector"][
-                self.idx2token_techs[state["TECH"]]
-            ]
+        if has_tech and not has_sector:
+            forced_sector_idx = self.tech2sector_idx[state["TECH"]]
             forced_action = (
                 self.token2idx_choices["SECTOR"],
-                self.token2idx_sectors[forced_sector_token],
+                forced_sector_idx,
             )
             mask[self.action2index(forced_action)] = False
             return mask
 
-        if "TECH" in assigned and not "TAG" in assigned:
-            forced_tag_token = self.network_structure["tech2tag"][
-                self.idx2token_techs[state["TECH"]]
-            ]
+        if has_tech and not has_tag:
+            forced_tag_idx = self.tech2tag_idx[state["TECH"]]
             forced_action = (
                 self.token2idx_choices["TAG"],
-                self.token2idx_tags[forced_tag_token],
+                forced_tag_idx,
             )
             mask[self.action2index(forced_action)] = False
             return mask
 
-        if "SECTOR" not in assigned:
-            if "TAG" in assigned:
-                allowed_sectors = self.network_structure["tag2sector"][
-                    self.idx2token_tags[state["TAG"]]
-                ]
+        techs_available_tokens = [self.idx2token_techs[t] for t in self.techs_available]
+
+        if not has_sector:
+            if has_tag:
+                # Use cached structures
+                allowed_sectors = self._tag_idx_to_sectors[state["TAG"]]
+                allowed_techs_tag_set = self._tag_idx_to_techs_set[state["TAG"]]
+                techs_available_set = set(techs_available_tokens)
+
                 for a in allowed_sectors:
-                    mask[
-                        self.action2index(
-                            (
-                                self.token2idx_choices["SECTOR"],
-                                self.token2idx_sectors[a],
+                    allowed_techs_sector_set = self._sector_token_to_techs_set[a]
+                    # Use set operations
+                    available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
+                    if available_techs:
+                        mask[
+                            self.action2index(
+                                (
+                                    self.token2idx_choices["SECTOR"],
+                                    self.token2idx_sectors[a],
+                                )
                             )
-                        )
-                    ] = False
+                        ] = False
             else:
                 for b in range(self.n_sectors):
                     mask[
                         self.action2index((self.token2idx_choices["SECTOR"], b + 1))
                     ] = False
 
-        if "TAG" not in assigned:
-            if "SECTOR" in assigned:
-                allowed_tags = self.network_structure["sector2tag"][
-                    self.idx2token_sectors[state["SECTOR"]]
-                ]
+        if not has_tag:
+            if has_sector:
+                # Use cached structures
+                allowed_tags = self._sector_idx_to_tags[state["SECTOR"]]
+                allowed_techs_sector_set = self._sector_idx_to_techs_set[state["SECTOR"]]
+                techs_available_set = set(techs_available_tokens)
+
                 for a in allowed_tags:
-                    mask[
-                        self.action2index(
-                            (self.token2idx_choices["TAG"], self.token2idx_tags[a])
-                        )
-                    ] = False
+                    allowed_techs_tag_set = self._tag_token_to_techs_set[a]
+                    # Use set operations
+                    available_techs = allowed_techs_sector_set & allowed_techs_tag_set & techs_available_set
+                    if available_techs:
+                        mask[
+                            self.action2index(
+                                (self.token2idx_choices["TAG"], self.token2idx_tags[a])
+                            )
+                        ] = False
             else:
                 for b in range(self.n_tags):
                     mask[self.action2index((self.token2idx_choices["TAG"], b + 1))] = (
                         False
                     )
 
-        if "TECH" not in assigned:
-            if "SECTOR" in assigned and "TAG" in assigned:
-                allowed_techs_sector = self.network_structure["sector2tech"][
-                    self.idx2token_sectors[state["SECTOR"]]
-                ]
-                allowed_techs_tag = self.network_structure["tag2tech"][
-                    self.idx2token_tags[state["TAG"]]
-                ]
-                allowed_techs = list(set(allowed_techs_sector) & set(allowed_techs_tag))
-                for a in allowed_techs:
-                    mask[
-                        self.action2index(
-                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
-                        )
-                    ] = False
-            elif "SECTOR" in assigned and "TAG" not in assigned:
-                allowed_techs = self.network_structure["sector2tech"][
-                    self.idx2token_sectors[state["SECTOR"]]
-                ]
-                for a in allowed_techs:
-                    mask[
-                        self.action2index(
-                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
-                        )
-                    ] = False
-            elif "SECTOR" not in assigned and "TAG" in assigned:
-                allowed_techs = self.network_structure["tag2tech"][
-                    self.idx2token_tags[state["TAG"]]
-                ]
-                for a in allowed_techs:
-                    mask[
-                        self.action2index(
-                            (self.token2idx_choices["TECH"], self.token2idx_techs[a])
-                        )
-                    ] = False
+        if not has_tech:
+            if has_sector and has_tag:
+                allowed_techs_sector = self.sector2tech_idx[state["SECTOR"]]
+                allowed_techs_tag = self.tag2tech_idx[state["TAG"]]
+                # Use set operations directly
+                allowed_techs_idx = allowed_techs_sector & allowed_techs_tag
+                for a in allowed_techs_idx:
+                    mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
+            elif has_sector and not has_tag:
+                allowed_techs_idx = self.sector2tech_idx[state["SECTOR"]]
+                for a in allowed_techs_idx:
+                    mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
+            elif not has_sector and has_tag:
+                allowed_techs_idx = self.tag2tech_idx[state["TAG"]]
+                for a in allowed_techs_idx:
+                    mask[self.action2index((self.token2idx_choices["TECH"], a))] = False
             else:
                 for b in range(self.n_techs):
                     mask[self.action2index((self.token2idx_choices["TECH"], b + 1))] = (
                         False
                     )
 
-        if "AMOUNT" not in assigned:
+        if not has_amount:
             for b in range(self.n_amounts):
                 mask[self.action2index((self.token2idx_choices["AMOUNT"], b + 1))] = (
                     False
                 )
+
+        if not has_tech and len(self.techs_available) != self.n_techs:
+            # no need to double check if TECH has alredy been assigned or all techs are available
+            # Compute sets once
+            techs_available_set = set(techs_available_tokens)
+            all_techs_set = set(self.techs)
+            unavailable_techs = all_techs_set - techs_available_set
+
+            unavailable_techs_idx = [
+                self.token2idx_techs[t] for t in unavailable_techs
+            ]
+            unavailable_sectors_idx = []
+            for s in self.sectors:
+                # Use cached structure
+                sector_technologies_set = self._sector_token_to_techs_set[s]
+                # Use set operations
+                if not (sector_technologies_set & techs_available_set):
+                    unavailable_sectors_idx.append(self.token2idx_sectors[s])
+
+            unavailable_tags_idx = []
+            for t in self.tags:
+                # Use cached structure
+                tag_technologies_set = self._tag_token_to_techs_set[t]
+                # Use set operations
+                if not (tag_technologies_set & techs_available_set):
+                    unavailable_tags_idx.append(self.token2idx_tags[t])
+
+            for t in unavailable_techs_idx:
+                mask[self.action2index((self.token2idx_choices["TECH"], t))] = True
+            for s in unavailable_sectors_idx:
+                mask[self.action2index((self.token2idx_choices["SECTOR"], s))] = True
+            for t in unavailable_tags_idx:
+                mask[self.action2index((self.token2idx_choices["TAG"], t))] = True
 
         return mask
 
@@ -538,30 +646,25 @@ class InvestmentDiscrete(GFlowNetEnv):
         return 5
 
     def states2proxy(
-        self, states: Union[List[Dict], List[TensorType["max_length"]]]
-    ) -> TensorType["batch", "state_dim"]:
+        self, states: List[Dict]
+    ) -> List[List[Dict]]:  # TensorType["batch", "state_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy: the batch is
         simply converted into a tensor of indices.
 
         Parameters
         ----------
-        states : list or tensor
-            A batch of states in environment format, either as a list of states or as a
-            list of tensors.
+        states : list of dictionaries
+            A batch of states in environment format, as list of states
 
         Returns
         -------
-        A list containing all the states in the batch, represented themselves as lists.
+        The same list, but as a list of lists of one dictionary each, for compatibility with plan.
+        Processing is performed in the proxy model
         """
-        batch_size = len(states)
-        batch_tensor = torch.zeros((batch_size, len(self.techs)), dtype=torch.float32)
+        processed_states = [[single_state] for single_state in states]
 
-        for i, single_state in enumerate(states):
-            pos = single_state["TECH"]
-            val = single_state["AMOUNT"]
-            batch_tensor[i, pos - 1] = val  # subtract 1 since positions start at 1
-        return tlong(batch_tensor, device=self.device)
+        return processed_states
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
@@ -588,16 +691,12 @@ class InvestmentDiscrete(GFlowNetEnv):
         # One-hot encode each
         onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(
             self.float
-        )  # 0 is admissible
-        onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(
-            self.float
-        )  # 0 is admissible
-        onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(
-            self.float
-        )  # 0 is not admissible
+        )
+        onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(self.float)
+        onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(self.float)
         onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(
             self.float
-        )  # 0 is not admissible
+        )
 
         # Concatenate along the last dimension
         batch_tensor = torch.cat(
@@ -707,8 +806,8 @@ class InvestmentDiscrete(GFlowNetEnv):
         states = []
 
         for _ in range(n_states):
-            tech_token = random.choice(self.techs)
-            tech_idx = self.token2idx_techs[tech_token]
+            tech_idx = random.choice(self.techs_available)
+            tech_token = self.idx2token_techs[tech_idx]
 
             amount_token = random.choice(self.amounts)
             amount_idx = self.token2idx_amounts[amount_token]
@@ -748,3 +847,40 @@ class InvestmentDiscrete(GFlowNetEnv):
     ) -> List[str]:
         state = self._get_state(state)
         return [key for key, value in state.items() if value != 0]
+
+    def set_available_techs(self, techs: Iterable):
+        """
+        Updates the set of available techs.
+
+        This method modifies ``self.techs_available`` by updating with a tuple version
+        of the technology indices passed as input.
+
+        Parameters
+        ----------
+        techs : iterable
+            A set of technology indices.
+        """
+        self.techs_available = tuple(techs)
+
+    def constrain_on_all(self, filled: TensorType):
+        """
+        Defines the constraints based on other elements of the set of investments.
+
+        Receives as input an Mx3 tensor, with M being the other elements of the Set, *excluding* the environment itself.
+        First Columns contains all assigned sector indices, second columns contains all tag indices, third columns contains all technology indices.
+        """
+        # Extract assigned techs from column 2 (TECH column)
+        tech_column = filled[:, 2]
+
+        # Get non-zero tech indices
+        assigned_mask = tech_column != 0
+        if not assigned_mask.any():
+            # No techs assigned yet, all are available
+            self.techs_available = tuple(range(1, self.n_techs + 1))
+        else:
+            assigned_techs = set(tech_column[assigned_mask].int().tolist())
+            # Use set difference directly
+            techs_available = tuple(t for t in range(1, self.n_techs + 1) if t not in assigned_techs)
+            self.techs_available = techs_available
+
+        self.filled_on_set = filled

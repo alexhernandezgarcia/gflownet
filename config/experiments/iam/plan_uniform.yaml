@@ -1,38 +1,34 @@
 # @package _global_
-# 10x10 Ising model with uniform reward
+# Investment (single) environment trained with the Uniform proxy and the TB loss
 
 defaults:
-   - override /env: options
+   - override /env: iam/plan
    - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
    - override /proxy: uniform
    - override /logger: wandb
 
-# Environment
-env:
-  n_options: 100
-
 # Buffer
-buffer:
-  test:
-    type: all
+#buffer:
+#  test:
+#    type: pkl
+#    path: data/iam/test_set_v0.pkl
 
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 100
-    lr: 0.001
-    z_dim: 16
+      forward: 20
+    lr: 0.002
+    z_dim: 8
     lr_z_mult: 100
-    n_train_steps: 1000
+    n_train_steps: 5000
 
 # Policy
 policy:
   forward:
     type: mlp
-    n_hid: 128
+    n_hid: 1024
     n_layers: 2
   backward:
     shared_weights: True
@@ -42,23 +38,22 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "options"
-  run_name: "100"
+  project_name: "SET-IAM-UNIF"
+  run_name: "Plan Unif. TB"
   tags: 
     - gflownet
-    - options
+    - plan
     - uniform
+    - set
 
 # Evaluator
 evaluator:
-  first_it: True
+  first_it: False
   period: 500
-  n: 1000
-  checkpoints_period: 500
-  n_trajs_logprobs: 10
-
+  n: 100
+  checkpoints_period: 1000
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/plan/uniform/${now:%Y-%m-%d_%H-%M-%S_%f}
