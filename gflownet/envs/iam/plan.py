@@ -137,39 +137,20 @@ class Plan(SetFix):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        if action is not None and action[0] != -1:
+        if action is not None and action[1] != -1:
             return
 
         current_state = state if state is not None else self.state
 
-        # Get done flags - only update non-done subenvs
-        dones_list = self._get_dones(current_state)
-        non_done_indices = [i for i, d in enumerate(dones_list) if not d]
-
-        if not non_done_indices:
-            return
-
-        # Compute hash of current tech assignments to avoid redundant updates
-        tech_assignments = tuple(self._get_substate(current_state, i)["TECH"] for i in range(self.n_techs))
-        constraint_hash = hash(tech_assignments)
-
-        if constraint_hash == self._last_constraint_hash:
-            return  # No change in tech assignments, skip constraint update
-
-        self._last_constraint_hash = constraint_hash
-
-        # Compute filled array once
         filled = self._states2array(
             current_state=current_state, fill_in_from_tech=True, with_amounts=False
         )
-        filled_tensor = torch.from_numpy(filled).float()
+        filled = torch.tensor(filled).float()
 
-        # Only update non-done subenvs
-        n = self.n_techs
-        for idx in non_done_indices:
-            mask = torch.ones(n, dtype=torch.bool)
-            mask[idx] = False
-            other_investments = filled_tensor[mask]
+        for idx in range(self.n_techs):
+            select = list(range(self.n_techs))
+            select.pop(idx)
+            other_investments = filled[select, :]
             self.subenvs[idx].constrain_on_all(other_investments)
 
     @profile
