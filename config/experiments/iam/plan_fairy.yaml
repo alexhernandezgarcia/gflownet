@@ -8,10 +8,10 @@ defaults:
    - override /logger: wandb
 
 # Buffer
-buffer:
-  test:
-    type: pkl
-    path: data/iam/test_set_v0.pkl
+# buffer:
+#   test:
+#     type: pkl
+#     path: data/iam/test_set_v0.pkl
 #    type: random
 #    n: 100
 
