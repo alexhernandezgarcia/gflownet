@@ -8,10 +8,10 @@ defaults:
    - override /logger: wandb
 
 # Buffer
-buffer:
-  test:
-    type: pkl
-    path: data/iam/test_set_v0.pkl
+#buffer:
+#  test:
+#    type: pkl
+#    path: data/iam/test_set_v0.pkl
 
 # GFlowNet hyperparameters
 gflownet:
@@ -38,12 +38,13 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-slim"
+  project_name: "SET-IAM-UNIF"
   run_name: "Plan Unif. TB"
   tags: 
     - gflownet
     - plan
     - uniform
+    - set
 
 # Evaluator
 evaluator:
