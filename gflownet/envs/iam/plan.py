@@ -141,13 +141,15 @@ class Plan(SetFix):
             return
 
         current_state = state if state is not None else self.state
+        dones_list = self._get_dones(current_state)
+        non_done_indices = [i for i, d in enumerate(dones_list) if not d]
 
         filled = self._states2array(
             current_state=current_state, fill_in_from_tech=True, with_amounts=False
         )
         filled = torch.tensor(filled).float()
 
-        for idx in range(self.n_techs):
+        for idx in non_done_indices:
             select = list(range(self.n_techs))
             select.pop(idx)
             other_investments = filled[select, :]
