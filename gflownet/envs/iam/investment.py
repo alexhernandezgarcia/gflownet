@@ -874,13 +874,7 @@ class InvestmentDiscrete(GFlowNetEnv):
 
         # Get non-zero tech indices
         assigned_mask = tech_column != 0
-        if not assigned_mask.any():
-            # No techs assigned yet, all are available
-            self.techs_available = tuple(range(1, self.n_techs + 1))
-        else:
-            assigned_techs = set(tech_column[assigned_mask].int().tolist())
-            # Use set difference directly
-            techs_available = tuple(t for t in range(1, self.n_techs + 1) if t not in assigned_techs)
-            self.techs_available = techs_available
-
+        assigned_techs = set(tech_column[assigned_mask].tolist())
+        techs_available = set(range(1, self.n_techs + 1)) - assigned_techs
+        self.set_available_techs(techs_available)
         self.filled_on_set = filled

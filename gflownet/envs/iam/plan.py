@@ -15,18 +15,9 @@ import numpy as np
 import torch
 from torchtyping import TensorType
 
-import math
-from torch.distributions import Bernoulli
-from gflownet.utils.common import tbool
-
 from gflownet.envs.iam.investment import TECHS, InvestmentDiscrete
 from gflownet.envs.set import SetFix
 
-try:
-    profile
-except NameError:
-    def profile(func):
-        return func
 
 class Plan(SetFix):
     """
@@ -80,14 +71,11 @@ class Plan(SetFix):
         self.n_techs_choices = self.n_techs + 1
         self.n_amounts_choices = subenvs[0].n_amounts + 1
 
-        self._last_constraint_hash = None
-
         # Initialize base Stack environment
         super().__init__(
             subenvs=tuple(subenvs),
-            can_alternate_subenvs=False,
-            **kwargs
-        )
+            can_alternate_subenvs = False,
+            **kwargs)
 
         # Pre-compute tech to sector/tag index mappings for faster lookup
         self._tech_idx_to_sector_idx = {
@@ -111,7 +99,6 @@ class Plan(SetFix):
         """
         return True
 
-    @profile
     def _apply_constraints_forward(
         self,
         action: Tuple = None,
@@ -119,7 +106,7 @@ class Plan(SetFix):
         dones: List[bool] = None,
     ):
         """
-        Applies constraints across sub-environments in the forward
+        Applies constraints across sub-environments, when applicable, in the forward
         direction.
 
         The constraint to be applied is restricting the available technologies of the
@@ -137,40 +124,19 @@ class Plan(SetFix):
         dones : list
             A list indicating the sub-environments that are done.
         """
-        if action is not None and action[1] != -1:
-            return
-
         current_state = state if state is not None else self.state
-        dones_list = self._get_dones(current_state)
-        non_done_indices = [i for i, d in enumerate(dones_list) if not d]
 
         filled = self._states2array(
             current_state=current_state, fill_in_from_tech=True, with_amounts=False
         )
         filled = torch.tensor(filled).float()
 
-        for idx in non_done_indices:
+        for idx in range(self.n_techs):
             select = list(range(self.n_techs))
             select.pop(idx)
             other_investments = filled[select, :]
             self.subenvs[idx].constrain_on_all(other_investments)
 
-    @profile
-    def _apply_constraints_backward(self, action: Tuple = None, state = None):
-        """
-        Applies constraints in the backward direction by recomputing based on current state.
-
-        Parameters
-        ----------
-        action : tuple
-            An action from the Set environment.
-        state : dict (optional)
-            A state from the Set environment. If None, self.state is used.
-        """
-        current_state = state if state is not None else self.state
-        self._apply_constraints_forward(action=None, state=current_state)
-
-    @profile
     def _get_techs_set(self, state: Optional[List]) -> Set[int]:
         """
         Returns the set of technologies that have already been set in the state.
@@ -193,7 +159,6 @@ class Plan(SetFix):
                 techs.append(tech)
         return set(techs)
 
-    @profile
     def states2proxy(self, states: List[List]) -> List[List[Dict]]:
         """
         Prepares a batch of states in "environment format" for a proxy: the batch is
@@ -223,7 +188,6 @@ class Plan(SetFix):
         to_pass["AMOUNT"] = self.idx2token_amounts[state["AMOUNT"]]
         return to_pass
 
-    @profile
     def _states2array(
         self, current_state=None, fill_in_from_tech=False, with_amounts=False
     ) -> np.ndarray:
@@ -234,22 +198,12 @@ class Plan(SetFix):
         """
         current_state = current_state if current_state is not None else self.state
 
-        # Get all substates
         substates = self._get_substates(current_state)
 
-        # Convert to list of values
-        if with_amounts:
-            state_to_list = [
-                [inv["SECTOR"], inv["TAG"], inv["TECH"], inv["AMOUNT"]]
-                for inv in substates
-            ]
-        else:
-            state_to_list = [
-                [inv["SECTOR"], inv["TAG"], inv["TECH"]]
-                for inv in substates
-            ]
-
+        state_to_list = [list(inv.values()) for inv in substates]
         filled = np.array(state_to_list, dtype=np.int32)
+        if not with_amounts:
+            filled = filled[:, :0:2]
 
         if fill_in_from_tech:
             # Vectorized approach: find all rows where tech is set but sector/tag are not
@@ -265,49 +219,11 @@ class Plan(SetFix):
             # Fill sectors using vectorized lookup
             if np.any(needs_sector):
                 tech_indices = tech_col[needs_sector].astype(int)
-                filled[needs_sector, 0] = [
-                    self._tech_idx_to_sector_idx[idx] for idx in tech_indices
-                ]
+                filled[needs_sector, 0] = [self._tech_idx_to_sector_idx[idx] for idx in tech_indices]
 
             # Fill tags using vectorized lookup
             if np.any(needs_tag):
                 tech_indices = tech_col[needs_tag].astype(int)
-                filled[needs_tag, 1] = [
-                    self._tech_idx_to_tag_idx[idx] for idx in tech_indices
-                ]
+                filled[needs_tag, 1] = [self._tech_idx_to_tag_idx[idx] for idx in tech_indices]
 
         return filled
-
-    @profile
-    def randomize_and_temper_sampling_distribution(
-            self,
-            policy_outputs: TensorType["n_states", "policy_output_dim"],
-            probability_random_action: Optional[float] = 0.0,
-            temperature: Optional[float] = 1.0,
-    ) -> TensorType["n_states", "policy_output_dim"]:
-        """
-        Override to handle sliced policy outputs correctly.
-        """
-
-        do_temper = not math.isclose(temperature, 1.0, abs_tol=1e-08)
-        do_random = not math.isclose(probability_random_action, 0.0, abs_tol=1e-08)
-
-        if not do_temper and not do_random:
-            return policy_outputs
-
-        logits_sampling = policy_outputs.clone().detach()
-
-        if do_temper:
-            logits_sampling /= temperature
-
-        if do_random:
-            idx_random = tbool(
-                Bernoulli(
-                    probability_random_action * torch.ones(policy_outputs.shape[0])
-                ).sample(),
-                device=self.device,
-            )
-            # Use uniform distribution matching the actual policy_outputs shape
-            logits_sampling[idx_random, :] = 1.0
-
-        return logits_sampling
