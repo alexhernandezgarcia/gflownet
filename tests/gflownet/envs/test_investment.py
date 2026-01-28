@@ -11,7 +11,7 @@ def env():
 
 @pytest.fixture
 def env_techs_available():
-    return InvestmentDiscrete(techs_available=([1, 17, 28]))
+    return InvestmentDiscrete(techs_available=([1, 7, 11, 14, 16, 22, 26]))
 
 
 @pytest.mark.parametrize(

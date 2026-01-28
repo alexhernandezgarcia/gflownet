@@ -80,8 +80,6 @@ class Plan(SetFix):
         self.n_techs_choices = self.n_techs + 1
         self.n_amounts_choices = subenvs[0].n_amounts + 1
 
-        self._last_constraint_hash = None
-
         # Initialize base Stack environment
         super().__init__(
             subenvs=tuple(subenvs),
@@ -311,3 +309,123 @@ class Plan(SetFix):
             logits_sampling[idx_random, :] = 1.0
 
         return logits_sampling
+
+    @profile
+    def states2policy(
+            self, states: List[List]
+    ) -> TensorType["batch", "state_policy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model.
+
+        This implementation achieves permutation invariance by lexicographically sorting
+        the investment states before one-hot encoding. This ensures that states with the
+        same investments in different orders produce identical encodings.
+
+        The encoding consists of:
+        1. Meta-information: active subenv one-hot, toggle flag, done flags
+        2. Sorted one-hot encoding of all investments (SECTOR, TAG, TECH, AMOUNT)
+
+        Parameters
+        ----------
+        states : list
+            A batch of states in environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        n_states = len(states)
+
+        # Compute meta-information dimensions
+        meta_dim = self.n_subenvs + 1 + self.n_subenvs  # active_onehot + toggle + dones
+
+        # Compute investment encoding dimensions
+        depths = [
+            self.n_sector_choices,
+            self.n_tags_choices,
+            self.n_techs_choices,
+            self.n_amounts_choices
+        ]
+        investment_dim = sum(self.n_techs * d for d in depths)
+
+        total_dim = meta_dim + investment_dim
+
+        # Pre-allocate output tensor
+        output = torch.zeros(n_states, total_dim, dtype=self.float, device=self.device)
+
+        for batch_idx, state in enumerate(states):
+            offset = 0
+
+            # 1. Encode active sub-environment as one-hot
+            active_subenv = self._get_active_subenv(state)
+            active_onehot = torch.zeros(self.n_subenvs, dtype=self.float, device=self.device)
+            if active_subenv != -1:
+                active_onehot[active_subenv] = 1.0
+            output[batch_idx, offset:offset + self.n_subenvs] = active_onehot
+            offset += self.n_subenvs
+
+            # 2. Encode toggle flag
+            toggle_flag = self._get_toggle_flag(state)
+            output[batch_idx, offset] = float(toggle_flag)
+            offset += 1
+
+            # 3. Encode done flags
+            dones = self._get_dones(state)
+            output[batch_idx, offset:offset + self.n_subenvs] = torch.tensor(
+                dones, dtype=self.float, device=self.device
+            )
+            offset += self.n_subenvs
+
+            # 4. Encode investments with permutation invariance (sorted)
+            state_matrix = self._states2array(
+                current_state=state, fill_in_from_tech=False, with_amounts=True
+            )
+            investment_encoding = self._one_hot_plan_matrix(state_matrix)
+            output[batch_idx, offset:offset + investment_dim] = torch.tensor(
+                investment_encoding, dtype=self.float, device=self.device
+            )
+
+        return output
+
+    def _one_hot_plan_matrix(self, state_matrix: np.ndarray) -> np.ndarray:
+        """
+        Returns a one-hot encoded plan with permutation invariance.
+
+        The state matrix is lexicographically sorted before encoding to ensure
+        that the same set of investments always produces the same encoding
+        regardless of their order.
+
+        Parameters
+        ----------
+        state_matrix : np.ndarray
+            Array of shape (n_techs, 4) with columns [SECTOR, TAG, TECH, AMOUNT]
+
+        Returns
+        -------
+        np.ndarray
+            Flattened one-hot encoding of the sorted investments.
+        """
+        # Lexicographic sort for permutation invariance
+        # Sort by all columns: first by SECTOR, then TAG, then TECH, then AMOUNT
+        sorted_indices = np.lexsort(state_matrix[:, ::-1].T)
+        state_matrix = state_matrix[sorted_indices]
+
+        depths = [
+            self.n_sector_choices,
+            self.n_tags_choices,
+            self.n_techs_choices,
+            self.n_amounts_choices
+        ]
+        total_size = sum(self.n_techs * d for d in depths)
+
+        # Pre-allocate entire output array
+        output = np.zeros(total_size, dtype=np.float32)
+
+        offset = 0
+        for j, depth in enumerate(depths):
+            size = self.n_techs * depth
+            view = output[offset:offset + size].reshape(self.n_techs, depth)
+            view[np.arange(self.n_techs), state_matrix[:, j]] = 1
+            offset += size
+
+        return output

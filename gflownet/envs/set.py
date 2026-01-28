@@ -298,7 +298,8 @@ class BaseSet(CompositeBase):
             # Get subenv from unique environments. This way computing the mask does not
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
-            subenv = self._get_unique_env_of_subenv(active_subenv, state)
+            #subenv = self._get_unique_env_of_subenv(active_subenv, state)
+            subenv = self.subenvs[active_subenv]
             state_subenv = self._get_substate(state, active_subenv)
             mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
         else:
