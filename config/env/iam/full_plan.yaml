@@ -1,0 +1,11 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.iam.full_plan.FullPlan
+
+id: full_plan
+
+sectors: null
+tags: null
+techs: null
+amounts: null
