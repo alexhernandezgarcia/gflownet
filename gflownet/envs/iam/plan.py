@@ -429,3 +429,15 @@ class Plan(SetFix):
             offset += size
 
         return output
+
+    def get_mask_invalid_actions_forward(
+            self, state: Optional[Dict] = None, done: Optional[bool] = None
+    ) -> List[bool]:
+        """
+        Override to ensure constraints are applied when computing mask.
+        """
+        current_state = state if state is not None else self.state
+        # Apply constraints to update subenvs' techs_available
+        self._apply_constraints_forward(action=None, state=current_state)
+
+        return super().get_mask_invalid_actions_forward(state, done)

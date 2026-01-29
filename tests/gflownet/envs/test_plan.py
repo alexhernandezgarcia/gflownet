@@ -1,6 +1,7 @@
 import common
 import pytest
 import torch
+import numpy as np
 
 from gflownet.envs.iam.plan import Plan
 
@@ -124,21 +125,6 @@ def test__trajectory_random__does_not_crash_from_source(env):
 def test__trajectory_lengths_are_consistent(env):
     """
     Test that all trajectories from source to terminating state have the same length.
-
-    In the Plan environment, each trajectory should:
-    1. Toggle each sub-environment once to activate it
-    2. Perform exactly 4 actions per sub-environment (SECTOR, TAG, TECH, AMOUNT)
-    3. Perform EOS for each sub-environment
-    4. Toggle each sub-environment once to deactivate it
-    5. Perform global EOS
-
-    Since can_alternate_subenvs=False, the expected pattern for each of n_techs
-    sub-environments is: toggle_on, 4 actions, EOS, toggle_off
-    Plus final global EOS.
-
-    Total = n_techs * (1 + 4 + 1 + 1) + 1 = n_techs * 7 + 1
-    But actually the sub-env EOS is one of the 4 actions boundary... let's just
-    verify consistency across multiple trajectories.
     """
     trajectory_lengths = []
 
@@ -156,13 +142,6 @@ def test__trajectory_lengths_are_consistent(env):
 def test__trajectory_length_matches_expected(env):
     """
     Test that trajectory length matches the expected value based on the environment structure.
-
-    For Plan with can_alternate_subenvs=False:
-    - Each sub-environment requires: toggle_on (1) + subenv_actions + toggle_off (1)
-    - Each InvestmentDiscrete sub-environment has max 5 actions (4 choices + EOS)
-    - Final global EOS (1)
-
-    The exact length depends on the trajectory taken through each sub-environment.
     """
     env.reset()
     _, actions = env.trajectory_random()
@@ -408,6 +387,449 @@ def test_debug_backward_constraints_and_masks(env):
         mask_fw = env.get_mask_invalid_actions_forward()
         n_valid = sum(not m for m in mask_fw)
         print(f"Number of valid forward actions: {n_valid}")
+
+
+# =============================================================================
+# LOGPROB DIAGNOSTIC TESTS
+# =============================================================================
+
+@pytest.mark.repeat(5)
+def test__logprobs_forward_backward_consistency(env):
+    """
+    Test that forward and backward log probabilities are computed consistently
+    for the same trajectory.
+    """
+    env.reset()
+
+    # Sample a forward trajectory and record states and actions
+    trajectory_states = [env.state.copy()]
+    trajectory_actions = []
+
+    while not env.done:
+        # Get valid forward actions
+        mask_forward = env.get_mask_invalid_actions_forward()
+        valid_actions = env.get_valid_actions(mask_forward)
+
+        # Sample a random valid action
+        action = valid_actions[np.random.randint(len(valid_actions))]
+        trajectory_actions.append(action)
+
+        env.step(action)
+        trajectory_states.append(env.state.copy())
+
+    # Compute forward log probabilities
+    logprobs_forward = []
+    for i, (state, action) in enumerate(zip(trajectory_states[:-1], trajectory_actions)):
+        env.reset()
+        env.set_state(state, done=False)
+
+        # Get mask and compute uniform logprob
+        mask = env.get_mask_invalid_actions_forward()
+        n_valid = sum(1 for m in mask if not m)
+        logprob = -np.log(n_valid) if n_valid > 0 else float('-inf')
+        logprobs_forward.append(logprob)
+
+    # Compute backward log probabilities
+    logprobs_backward = []
+    for i in range(len(trajectory_actions) - 1, -1, -1):
+        state_after = trajectory_states[i + 1]
+        action = trajectory_actions[i]
+
+        # Set to state after action
+        env.reset()
+        is_terminal = (i == len(trajectory_actions) - 1)
+        env.set_state(state_after, done=is_terminal)
+
+        # Get backward mask and compute uniform logprob
+        mask = env.get_mask_invalid_actions_backward(done=is_terminal)
+        n_valid = sum(1 for m in mask if not m)
+        logprob = -np.log(n_valid) if n_valid > 0 else float('-inf')
+        logprobs_backward.append(logprob)
+
+    logprobs_backward = logprobs_backward[::-1]  # Reverse to match forward order
+
+    # Print diagnostics
+    print(f"\nTrajectory length: {len(trajectory_actions)}")
+    print(f"Sum logprobs_forward: {sum(logprobs_forward):.4f}")
+    print(f"Sum logprobs_backward: {sum(logprobs_backward):.4f}")
+    print(f"Difference (F - B): {sum(logprobs_forward) - sum(logprobs_backward):.4f}")
+
+    # Check that all logprobs are finite
+    assert all(np.isfinite(lp) for lp in logprobs_forward), \
+        f"Some forward logprobs are not finite: {logprobs_forward}"
+    assert all(np.isfinite(lp) for lp in logprobs_backward), \
+        f"Some backward logprobs are not finite: {logprobs_backward}"
+
+
+@pytest.mark.repeat(10)
+def test__logprobs_trajectory_balance_components(env):
+    """
+    Test the components of the trajectory balance equation:
+    log Z + log P_F(tau) = log P_B(tau|x) + log R(x)
+
+    For uniform reward (R=1, log R=0), we expect:
+    log P_F(tau) - log P_B(tau|x) = -log Z
+    """
+    differences = []
+
+    for _ in range(10):
+        env.reset()
+
+        # Sample forward trajectory
+        trajectory_states = [env.state.copy()]
+        trajectory_actions = []
+
+        while not env.done:
+            mask = env.get_mask_invalid_actions_forward()
+            valid_actions = env.get_valid_actions(mask)
+            action = valid_actions[np.random.randint(len(valid_actions))]
+            trajectory_actions.append(action)
+            env.step(action)
+            trajectory_states.append(env.state.copy())
+
+        # Compute forward logprobs (uniform policy)
+        logprob_forward_total = 0.0
+        for state, action in zip(trajectory_states[:-1], trajectory_actions):
+            env.reset()
+            env.set_state(state, done=False)
+            mask = env.get_mask_invalid_actions_forward()
+            n_valid = sum(1 for m in mask if not m)
+            logprob_forward_total += -np.log(n_valid)
+
+        # Compute backward logprobs (uniform policy)
+        logprob_backward_total = 0.0
+        for i in range(len(trajectory_actions) - 1, -1, -1):
+            state_after = trajectory_states[i + 1]
+            is_terminal = (i == len(trajectory_actions) - 1)
+            env.reset()
+            env.set_state(state_after, done=is_terminal)
+            mask = env.get_mask_invalid_actions_backward(done=is_terminal)
+            n_valid = sum(1 for m in mask if not m)
+            logprob_backward_total += -np.log(n_valid)
+
+        diff = logprob_forward_total - logprob_backward_total
+        differences.append(diff)
+
+    differences = np.array(differences)
+
+    print(f"\nlog P_F - log P_B statistics:")
+    print(f"  Mean: {differences.mean():.4f}")
+    print(f"  Std:  {differences.std():.4f}")
+    print(f"  Min:  {differences.min():.4f}")
+    print(f"  Max:  {differences.max():.4f}")
+    print(f"  Expected -log Z (for 4^29 states): {-29 * np.log(4):.4f}")
+
+    # For TB to work, all trajectories should give approximately the same difference
+    assert differences.std() < 1.0, \
+        f"Variance in log P_F - log P_B is too high: std={differences.std():.4f}"
+
+
+@pytest.mark.repeat(5)
+def test__forward_backward_mask_symmetry(env):
+    """
+    Test that forward and backward masks are symmetric.
+    """
+    env.reset()
+
+    asymmetries = []
+
+    while not env.done:
+        state_before = env.state.copy()
+
+        # Get forward mask and valid actions
+        mask_forward = env.get_mask_invalid_actions_forward()
+        valid_forward = env.get_valid_actions(mask_forward)
+
+        if not valid_forward:
+            break
+
+        # Take a random action
+        action = valid_forward[np.random.randint(len(valid_forward))]
+        env.step(action)
+
+        state_after = env.state.copy()
+        is_done = env.done
+
+        # Get backward mask from the new state
+        mask_backward = env.get_mask_invalid_actions_backward(done=is_done)
+        valid_backward = env.get_valid_actions(mask_backward, backward=True)
+
+        # Check if the action we just took is valid backward
+        if action not in valid_backward:
+            asymmetries.append({
+                'action': action,
+                'state_before': state_before,
+                'state_after': state_after,
+                'valid_forward': len(valid_forward),
+                'valid_backward': len(valid_backward),
+            })
+
+    if asymmetries:
+        print(f"\nFound {len(asymmetries)} asymmetries:")
+        for asym in asymmetries[:3]:
+            print(f"  Action: {asym['action']}")
+            print(f"  Valid forward: {asym['valid_forward']}, Valid backward: {asym['valid_backward']}")
+
+    assert len(asymmetries) == 0, \
+        f"Found {len(asymmetries)} forward/backward mask asymmetries"
+
+
+@pytest.mark.repeat(3)
+def test__backward_trajectory_reaches_source_with_correct_logprobs(env):
+    """
+    Test that backward trajectories from terminating states reach the source.
+    """
+    # Get a terminating state
+    env.reset()
+    env.trajectory_random()
+    terminal_state = env.state.copy()
+
+    # Reset and set to terminal state
+    env.reset()
+    env.set_state(terminal_state, done=True)
+
+    backward_logprobs = []
+    step_count = 0
+    max_steps = 500
+
+    while not env.is_source() and step_count < max_steps:
+        mask = env.get_mask_invalid_actions_backward()
+        valid_actions = env.get_valid_actions(mask, backward=True)
+
+        assert len(valid_actions) > 0, \
+            f"No valid backward actions at step {step_count}, state: {env.state}"
+
+        # Compute uniform logprob
+        logprob = -np.log(len(valid_actions))
+        backward_logprobs.append(logprob)
+
+        # Take random backward step
+        action = valid_actions[np.random.randint(len(valid_actions))]
+        env.step_backwards(action)
+        step_count += 1
+
+    assert env.is_source(), \
+        f"Did not reach source after {step_count} steps"
+
+    total_logprob = sum(backward_logprobs)
+
+    print(f"\nBackward trajectory:")
+    print(f"  Steps: {step_count}")
+    print(f"  Total log P_B: {total_logprob:.4f}")
+    print(f"  Mean log P_B per step: {total_logprob / step_count:.4f}")
+
+    assert np.isfinite(total_logprob), "Total backward logprob is not finite"
+
+
+@pytest.mark.repeat(5)
+def test__permutation_invariance_does_not_affect_logprobs(env):
+    """
+    Test that permutation invariance in states2policy doesn't create
+    inconsistencies in logprob computation.
+    """
+    investments = []
+    for i in range(min(3, env.n_techs)):
+        investments.append({
+            "SECTOR": (i % 5) + 1,
+            "TAG": (i % 3) + 1,
+            "TECH": i + 1,
+            "AMOUNT": (i % 4) + 1,
+        })
+
+    # Pad with empty
+    while len(investments) < env.n_techs:
+        investments.append({"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0})
+
+    # Create state with original order
+    state1 = _make_plan_state(env, investments.copy())
+
+    # Create state with shuffled order (swap first two)
+    shuffled = investments.copy()
+    shuffled[0], shuffled[1] = shuffled[1], shuffled[0]
+    state2 = _make_plan_state(env, shuffled)
+
+    # Get policy representations
+    policy1 = env.states2policy([state1])
+    policy2 = env.states2policy([state2])
+
+    # They should be identical due to sorting
+    assert torch.allclose(policy1, policy2), \
+        "Policy representations differ for permuted states"
+
+    print("\nPermutation invariance verified: policy outputs match for reordered states")
+
+
+def test__tb_loss_components_with_uniform_policy(env):
+    """
+    Compute exact TB loss components using uniform policy.
+
+    TB Loss = (log Z + log P_F - log P_B - log R)^2
+
+    For uniform reward (log R = 0):
+    TB Loss = (log Z + log P_F - log P_B)^2
+
+    At optimum: log Z = log P_B - log P_F (averaged over trajectories)
+    """
+    n_trajectories = 50
+
+    log_pf_minus_pb = []
+
+    for _ in range(n_trajectories):
+        env.reset()
+        log_pf = 0.0
+
+        # Forward trajectory with uniform policy
+        trajectory = []
+        while not env.done:
+            mask = env.get_mask_invalid_actions_forward()
+            n_valid = sum(1 for m in mask if not m)
+            log_pf += -np.log(n_valid)
+
+            valid_actions = env.get_valid_actions(mask)
+            action = valid_actions[np.random.randint(len(valid_actions))]
+            trajectory.append((env.state.copy(), action))
+            env.step(action)
+
+        terminal_state = env.state.copy()
+
+        # Backward log prob
+        log_pb = 0.0
+        env.reset()
+        env.set_state(terminal_state, done=True)
+
+        for i in range(len(trajectory) - 1, -1, -1):
+            _, action = trajectory[i]
+            is_terminal = (i == len(trajectory) - 1)
+
+            mask = env.get_mask_invalid_actions_backward(done=is_terminal)
+            n_valid = sum(1 for m in mask if not m)
+            log_pb += -np.log(n_valid)
+
+            env.step_backwards(action)
+
+        log_pf_minus_pb.append(log_pf - log_pb)
+
+    log_pf_minus_pb = np.array(log_pf_minus_pb)
+
+    # Optimal log Z should make the loss zero
+    optimal_log_z = -np.mean(log_pf_minus_pb)
+
+    # Compute what the loss would be with different log Z values
+    test_log_z_values = [0, 10, 20, 30, 40, optimal_log_z]
+
+    print(f"\nTB Loss analysis (uniform policy, uniform reward):")
+    print(f"  Number of trajectories: {n_trajectories}")
+    print(f"  log P_F - log P_B: mean={np.mean(log_pf_minus_pb):.4f}, std={np.std(log_pf_minus_pb):.4f}")
+    print(f"  Optimal log Z: {optimal_log_z:.4f}")
+    print(f"  Theoretical log Z (4^29): {29 * np.log(4):.4f}")
+    print(f"\n  Loss at different log Z values:")
+
+    for log_z in test_log_z_values:
+        loss = np.mean((log_z + log_pf_minus_pb) ** 2)
+        print(f"    log Z = {log_z:8.2f}: Loss = {loss:.4f}")
+
+    # The key insight: if std is high, the model might find it easier to
+    # make log P_F ≈ log P_B (so diff ≈ 0) rather than learn correct log Z
+    if np.std(log_pf_minus_pb) > 5.0:
+        print(f"\n  WARNING: High variance in log P_F - log P_B!")
+        print(f"  This makes learning log Z difficult.")
+
+
+def test__mask_and_policy_output_dimensions(env):
+    """
+    Verify that mask dimensions match policy output dimensions correctly.
+    """
+    env.reset()
+
+    # Get dimensions
+    policy_output = env.get_policy_output(env.fixed_distr_params)
+    mask_forward = env.get_mask_invalid_actions_forward()
+
+    print(f"\nDimension analysis:")
+    print(f"  Policy output dim: {len(policy_output)}")
+    print(f"  Forward mask dim: {len(mask_forward)}")
+    print(f"  Action space dim: {len(env.action_space)}")
+    print(f"  env.mask_dim: {env.mask_dim}")
+    print(f"  env.policy_output_dim: {env.policy_output_dim}")
+
+    # Mask structure
+    print(f"\n  Mask structure (first 50 values):")
+    print(f"    {mask_forward[:50]}")
+
+    # Count valid actions
+    n_valid = sum(1 for m in mask_forward if not m)
+    print(f"\n  Number of valid actions: {n_valid}")
+
+    # Check which actions are valid
+    valid_actions = env.get_valid_actions(mask_forward)
+    print(f"  Valid actions (first 10): {valid_actions[:10]}")
+
+
+def test__mask_policy_action_space_alignment(env):
+    """
+    Test that the mask indices correctly correspond to action space indices.
+    """
+    env.reset()
+
+    mask = env.get_mask_invalid_actions_forward()
+    action_space = env.action_space
+
+    print(f"\nMask-Action alignment check:")
+    print(f"  Mask length: {len(mask)}")
+    print(f"  Action space length: {len(action_space)}")
+
+
+def test__set_mask_structure_analysis(env):
+    """
+    Analyze the structure of the Set environment mask.
+    """
+    env.reset()
+
+    mask = env.get_mask_invalid_actions_forward()
+
+    n_toggle = env.n_toggle_actions if hasattr(env, 'n_toggle_actions') else 0
+    n_subenvs = env.n_subenvs if hasattr(env, 'n_subenvs') else 0
+
+    print(f"\nSet mask structure analysis:")
+    print(f"  Total mask length: {len(mask)}")
+    print(f"  n_toggle_actions: {n_toggle}")
+    print(f"  n_subenvs: {n_subenvs}")
+    print(f"  Action space length: {len(env.action_space)}")
+
+    print(f"\n  Mask breakdown:")
+    print(f"    Prefix (first {n_toggle}): {mask[:n_toggle]}")
+
+    active = env._get_active_subenv(env.state)
+    print(f"    Active subenv: {active}")
+
+    if active == -1:
+        core_length = n_toggle + 1
+        print(f"    Expected core length (toggles + EOS): {core_length}")
+        print(f"    Core mask: {mask[n_toggle:n_toggle + core_length]}")
+
+    # Count how the action space is organized
+    toggle_actions = [a for a in env.action_space if a[0] == -1 and a != env.eos]
+    eos_actions = [a for a in env.action_space if a == env.eos]
+    subenv_actions = [a for a in env.action_space if a[0] != -1]
+
+    print(f"\n  Action space organization:")
+    print(f"    Toggle actions: {len(toggle_actions)} (indices 0-{len(toggle_actions)-1})")
+    print(f"    EOS actions: {len(eos_actions)}")
+    print(f"    Subenv actions: {len(subenv_actions)}")
+    print(f"    First few actions: {env.action_space[:5]}")
+
+    print(f"\n  CRITICAL CHECK:")
+    print(f"    Does mask[i] correspond to action_space[i]?")
+
+    valid_by_mask = [i for i, m in enumerate(mask) if not m]
+    valid_actions = env.get_valid_actions(mask)
+    valid_indices = [env.action_space.index(a) for a in valid_actions]
+
+    print(f"    Valid indices from mask: {valid_by_mask[:10]}")
+    print(f"    Valid indices from get_valid_actions: {valid_indices[:10]}")
+
+    if valid_by_mask != valid_indices:
+        print(f"    MISMATCH DETECTED - This is the bug!")
 
 
 class TestPlan(common.BaseTestsDiscrete):
