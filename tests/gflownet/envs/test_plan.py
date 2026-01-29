@@ -2,8 +2,11 @@ import common
 import pytest
 import torch
 import numpy as np
+from collections import defaultdict
 
 from gflownet.envs.iam.plan import Plan
+
+from gflownet.utils.common import copy, tbool, tfloat
 
 
 @pytest.fixture
@@ -493,7 +496,8 @@ def test__logprobs_trajectory_balance_components(env):
             env.reset()
             env.set_state(state, done=False)
             mask = env.get_mask_invalid_actions_forward()
-            n_valid = sum(1 for m in mask if not m)
+            valid_actions = env.get_valid_actions(mask)
+            n_valid = len(valid_actions)
             logprob_forward_total += -np.log(n_valid)
 
         # Compute backward logprobs (uniform policy)
@@ -504,7 +508,8 @@ def test__logprobs_trajectory_balance_components(env):
             env.reset()
             env.set_state(state_after, done=is_terminal)
             mask = env.get_mask_invalid_actions_backward(done=is_terminal)
-            n_valid = sum(1 for m in mask if not m)
+            valid_actions = env.get_valid_actions(mask)
+            n_valid = len(valid_actions)
             logprob_backward_total += -np.log(n_valid)
 
         diff = logprob_forward_total - logprob_backward_total
@@ -865,3 +870,464 @@ class TestPlan(common.BaseTestsDiscrete):
             "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
             "test__gflownet_minimal_runs": 5,
         }
+
+
+"""
+Tests to ensure no invalid actions are sampled at any point in trajectories.
+Add these to test_plan.py
+"""
+"""
+Tests to ensure no invalid actions are sampled at any point in trajectories.
+Add these to test_plan.py
+"""
+
+class TestNoInvalidActions:
+    """
+    Comprehensive tests to ensure no invalid actions are ever sampled
+    during forward or backward trajectories.
+
+    Note: For Set-based environments, the mask has a special structure with a prefix,
+    so we cannot simply check mask[action_index]. Instead, we use get_valid_actions()
+    which correctly interprets the mask structure.
+    """
+
+    @pytest.mark.parametrize("n_trajectories", [10])
+    def test__forward_trajectory__never_samples_invalid_actions(self, env, n_trajectories):
+        """
+        Test that forward trajectories never sample invalid actions.
+        Checks at each step that:
+        1. The sampled action is in the valid actions list
+        2. The step is valid
+        """
+        for traj_idx in range(n_trajectories):
+            env.reset()
+            step_count = 0
+            max_steps = env.max_traj_length + 10
+
+            while not env.done and step_count < max_steps:
+                state_before = copy(env.state)
+
+                # Get valid actions (this handles the mask correctly for Set envs)
+                valid_actions = env.get_valid_actions()
+
+                assert len(valid_actions) > 0, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"No valid forward actions available!\n"
+                    f"State: {state_before}"
+                )
+
+                # Sample action using the environment's method
+                policy_output = env.random_policy_output.clone().unsqueeze(0)
+                mask = env.get_mask_invalid_actions_forward()
+                mask_tensor = tbool([mask], device=env.device)
+
+                actions = env.sample_actions_batch(
+                    policy_outputs=policy_output,
+                    mask=mask_tensor,
+                    states_from=[env.state],
+                    is_backward=False,
+                )
+                action = actions[0]
+
+                # Check 1: Action should be in valid actions
+                action_repr = env.action2representative(action)
+                assert action_repr in valid_actions, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"Sampled action {action} (repr: {action_repr}) not in valid actions!\n"
+                    f"Valid actions: {valid_actions[:10]}... ({len(valid_actions)} total)\n"
+                    f"State: {state_before}"
+                )
+
+                # Execute step
+                state_after, action_executed, valid = env.step(action)
+
+                # Check 2: Step should be valid
+                assert valid, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"Step returned invalid for action {action}!\n"
+                    f"State before: {state_before}\n"
+                    f"State after: {state_after}"
+                )
+
+                step_count += 1
+
+            assert env.done, (
+                f"Trajectory {traj_idx}: Did not reach done state after {step_count} steps"
+            )
+
+    @pytest.mark.parametrize("n_trajectories", [10])
+    def test__backward_trajectory__never_samples_invalid_actions(self, env, n_trajectories):
+        """
+        Test that backward trajectories never sample invalid actions.
+        """
+        # First, get terminating states
+        terminating_states = []
+        for _ in range(n_trajectories):
+            env.reset()
+            env.trajectory_random()
+            terminating_states.append(copy(env.state))
+
+        for traj_idx, terminal_state in enumerate(terminating_states):
+            env.reset()
+            env.set_state(terminal_state, done=True)
+
+            step_count = 0
+            max_steps = env.max_traj_length + 10
+
+            while not env.is_source() and step_count < max_steps:
+                state_before = copy(env.state)
+                done_before = env.done
+
+                # Get valid actions (handles mask structure correctly)
+                valid_actions = env.get_valid_actions(backward=True)
+
+                assert len(valid_actions) > 0, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"No valid backward actions available!\n"
+                    f"State: {state_before}\n"
+                    f"Done: {done_before}"
+                )
+
+                # Sample action
+                policy_output = env.random_policy_output.clone().unsqueeze(0)
+                mask = env.get_mask_invalid_actions_backward()
+                mask_tensor = tbool([mask], device=env.device)
+
+                actions = env.sample_actions_batch(
+                    policy_outputs=policy_output,
+                    mask=mask_tensor,
+                    states_from=[env.state],
+                    is_backward=True,
+                )
+                action = actions[0]
+
+                # Check 1: Action should be in valid actions
+                action_repr = env.action2representative(action)
+                assert action_repr in valid_actions, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"Sampled backward action {action} not in valid actions!\n"
+                    f"Valid actions: {valid_actions[:10]}...\n"
+                    f"State: {state_before}"
+                )
+
+                # Execute backward step
+                state_after, action_executed, valid = env.step_backwards(action)
+
+                # Check 2: Step should be valid
+                assert valid, (
+                    f"Trajectory {traj_idx}, step {step_count}: "
+                    f"Backward step returned invalid for action {action}!\n"
+                    f"State before: {state_before}\n"
+                    f"State after: {state_after}"
+                )
+
+                step_count += 1
+
+            assert env.is_source(), (
+                f"Trajectory {traj_idx}: Did not reach source after {step_count} steps"
+            )
+
+    @pytest.mark.parametrize("n_trajectories", [5])
+    def test__forward_then_backward__actions_remain_valid(self, env, n_trajectories):
+        """
+        Test that after a forward trajectory, we can traverse backward
+        and each backward step is valid.
+
+        Note: Due to permutation invariance in Set environments, the exact
+        forward actions may not be valid backward (the substates may be in
+        different positions). Instead, we verify that backward traversal
+        works correctly by checking that each step is valid.
+        """
+        for traj_idx in range(n_trajectories):
+            env.reset()
+
+            # Collect forward trajectory
+            forward_states = [copy(env.state)]
+            forward_actions = []
+
+            while not env.done:
+                valid_actions = env.get_valid_actions()
+                assert len(valid_actions) > 0, "No valid forward actions"
+
+                # Sample random valid action
+                action = valid_actions[np.random.randint(len(valid_actions))]
+                forward_actions.append(action)
+
+                state, _, valid = env.step(action)
+                assert valid, f"Forward step {len(forward_actions)} invalid"
+                forward_states.append(copy(state))
+
+            terminal_state = copy(env.state)
+
+            # Now go backward using random valid actions (not necessarily the same ones)
+            env.reset()
+            env.set_state(terminal_state, done=True)
+
+            backward_step_count = 0
+            max_backward_steps = len(forward_actions) + 10
+
+            while not env.is_source() and backward_step_count < max_backward_steps:
+                valid_actions_bw = env.get_valid_actions(backward=True)
+                assert len(valid_actions_bw) > 0, (
+                    f"Trajectory {traj_idx}, backward step {backward_step_count}: "
+                    f"No valid backward actions"
+                )
+
+                # Take a random valid backward action
+                action = valid_actions_bw[np.random.randint(len(valid_actions_bw))]
+                state, _, valid = env.step_backwards(action)
+
+                assert valid, (
+                    f"Trajectory {traj_idx}, backward step {backward_step_count}: "
+                    f"Backward step invalid for action {action}"
+                )
+
+                backward_step_count += 1
+
+            assert env.is_source(), (
+                f"Trajectory {traj_idx}: Did not reach source after {backward_step_count} backward steps"
+            )
+
+    @pytest.mark.parametrize("n_tests", [20])
+    def test__random_state__mask_is_consistent(self, env, n_tests):
+        """
+        Test that for any random state, the mask computed by passing the state
+        equals the mask computed after set_state.
+        """
+        for test_idx in range(n_tests):
+            # Get a random state
+            env.reset()
+            n_steps = np.random.randint(1, 50)
+            for _ in range(n_steps):
+                if env.done:
+                    break
+                env.step_random()
+
+            test_state = copy(env.state)
+            is_done = env.done
+
+            # Method 1: Compute mask by passing state (after reset)
+            env.reset()
+            mask_passed = env.get_mask_invalid_actions_forward(test_state, done=is_done)
+
+            # Method 2: Compute mask after set_state
+            env.reset()
+            env.set_state(test_state, done=is_done)
+            mask_after_set = env.get_mask_invalid_actions_forward()
+
+            # They should be equal
+            assert mask_passed == mask_after_set, (
+                f"Test {test_idx}: Masks differ!\n"
+                f"State: {test_state}\n"
+                f"Differences at indices: "
+                f"{[i for i, (a, b) in enumerate(zip(mask_passed, mask_after_set)) if a != b]}"
+            )
+
+    @pytest.mark.parametrize("n_tests", [20])
+    def test__random_state__backward_mask_is_consistent(self, env, n_tests):
+        """
+        Test that for any random state, the backward mask computed by passing the state
+        equals the backward mask computed after set_state.
+        """
+        for test_idx in range(n_tests):
+            # Get a random non-source state
+            env.reset()
+            n_steps = np.random.randint(1, 50)
+            for _ in range(n_steps):
+                if env.done:
+                    break
+                env.step_random()
+
+            if env.is_source():
+                continue  # Skip source states
+
+            test_state = copy(env.state)
+            is_done = env.done
+
+            # Method 1: Compute mask by passing state (after reset)
+            env.reset()
+            mask_passed = env.get_mask_invalid_actions_backward(test_state, done=is_done)
+
+            # Method 2: Compute mask after set_state
+            env.reset()
+            env.set_state(test_state, done=is_done)
+            mask_after_set = env.get_mask_invalid_actions_backward()
+
+            # They should be equal
+            assert mask_passed == mask_after_set, (
+                f"Test {test_idx}: Backward masks differ!\n"
+                f"State: {test_state}\n"
+                f"Differences at indices: "
+                f"{[i for i, (a, b) in enumerate(zip(mask_passed, mask_after_set)) if a != b]}"
+            )
+
+    def test__constraints_applied_correctly__no_duplicate_techs(self, env):
+        """
+        Test that the tech constraint is enforced: no tech can be selected twice.
+        """
+        for _ in range(10):
+            env.reset()
+
+            while not env.done:
+                # Get the techs that have been assigned
+                assigned_techs = set()
+                for idx in range(env.n_techs):
+                    substate = env._get_substate(env.state, idx)
+                    if substate['TECH'] != 0:
+                        assigned_techs.add(substate['TECH'])
+
+                # Take a step
+                state_before = copy(env.state)
+                state_after, action, valid = env.step_random()
+
+                assert valid, f"Step was invalid for action {action}"
+
+                # After step, check no duplicate techs
+                techs_after = []
+                for idx in range(env.n_techs):
+                    substate = env._get_substate(env.state, idx)
+                    if substate['TECH'] != 0:
+                        techs_after.append(substate['TECH'])
+
+                assert len(techs_after) == len(set(techs_after)), (
+                    f"Duplicate techs found after action {action}!\n"
+                    f"Techs: {techs_after}\n"
+                    f"State before: {state_before}\n"
+                    f"State after: {state_after}"
+                )
+
+            # Verify final state has unique techs
+            final_techs = []
+            for idx in range(env.n_techs):
+                substate = env._get_substate(env.state, idx)
+                if substate['TECH'] != 0:
+                    final_techs.append(substate['TECH'])
+
+            assert len(final_techs) == len(set(final_techs)), (
+                f"Duplicate techs in final state: {final_techs}"
+            )
+
+    @pytest.mark.parametrize("n_trajectories", [5])
+    def test__step_random__always_valid(self, env, n_trajectories):
+        """
+        Test that step_random always returns valid steps.
+        """
+        for traj_idx in range(n_trajectories):
+            env.reset()
+            step_count = 0
+
+            while not env.done:
+                state_before = copy(env.state)
+                active_before = env._get_active_subenv()
+                toggle_before = env._get_toggle_flag()
+                dones_before = env._get_dones().copy()
+
+                # Get valid actions count
+                valid_actions = env.get_valid_actions()
+                n_valid = len(valid_actions)
+
+                assert n_valid > 0, (
+                    f"Trajectory {traj_idx}, step {step_count}: No valid actions!\n"
+                    f"Active: {active_before}, Toggle: {toggle_before}\n"
+                    f"Dones: {dones_before[:5]}..."
+                )
+
+                # Take step
+                state_after, action, valid = env.step_random()
+
+                assert valid, (
+                    f"Trajectory {traj_idx}, step {step_count}: Invalid step!\n"
+                    f"Action: {action}\n"
+                    f"Active before: {active_before}, Toggle before: {toggle_before}\n"
+                    f"Dones before: {dones_before[:5]}...\n"
+                    f"Valid actions ({n_valid}): {valid_actions[:5]}...\n"
+                    f"Action in valid_actions: {env.action2representative(action) in valid_actions}"
+                )
+
+                step_count += 1
+
+                if step_count > env.max_traj_length:
+                    pytest.fail(f"Trajectory {traj_idx} exceeded max length")
+
+            assert env.done, f"Trajectory {traj_idx} did not complete"
+
+    @pytest.mark.parametrize("n_trajectories", [5])
+    def test__step_random_backward__always_valid(self, env, n_trajectories):
+        """
+        Test that step_random backward always returns valid steps.
+        """
+        # Get terminating states
+        terminating_states = []
+        for _ in range(n_trajectories):
+            env.reset()
+            env.trajectory_random()
+            terminating_states.append(copy(env.state))
+
+        for traj_idx, terminal_state in enumerate(terminating_states):
+            env.reset()
+            env.set_state(terminal_state, done=True)
+
+            step_count = 0
+            max_steps = env.max_traj_length + 10
+
+            while not env.is_source() and step_count < max_steps:
+                state_before = copy(env.state)
+
+                # Get valid actions count
+                valid_actions = env.get_valid_actions(backward=True)
+                n_valid = len(valid_actions)
+
+                assert n_valid > 0, (
+                    f"Trajectory {traj_idx}, step {step_count}: No valid backward actions!\n"
+                    f"State: {state_before}"
+                )
+
+                # Take backward step
+                state_after, action, valid = env.step_random(backward=True)
+
+                assert valid, (
+                    f"Trajectory {traj_idx}, step {step_count}: Invalid backward step!\n"
+                    f"Action: {action}\n"
+                    f"Valid actions ({n_valid}): {valid_actions[:5]}...\n"
+                    f"Action in valid_actions: {env.action2representative(action) in valid_actions}"
+                )
+
+                step_count += 1
+
+            assert env.is_source(), (
+                f"Trajectory {traj_idx}: Did not reach source after {step_count} steps"
+            )
+
+    @pytest.mark.parametrize("n_trajectories", [3])
+    def test__full_trajectory__forward_backward_reaches_source(self, env, n_trajectories):
+        """
+        Test complete forward then backward trajectories reach source.
+        """
+        for traj_idx in range(n_trajectories):
+            # Forward trajectory
+            env.reset()
+            assert env.is_source(), "Should start at source"
+
+            forward_steps = 0
+            while not env.done:
+                _, _, valid = env.step_random()
+                assert valid, f"Forward step {forward_steps} invalid"
+                forward_steps += 1
+                assert forward_steps <= env.max_traj_length, "Exceeded max trajectory length"
+
+            terminal_state = copy(env.state)
+
+            # Backward trajectory
+            env.reset()
+            env.set_state(terminal_state, done=True)
+
+            backward_steps = 0
+            while not env.is_source():
+                _, _, valid = env.step_random(backward=True)
+                assert valid, f"Backward step {backward_steps} invalid"
+                backward_steps += 1
+                assert backward_steps <= env.max_traj_length + 10, "Exceeded max backward steps"
+
+            assert env.is_source(), "Should end at source"
+
+            print(f"Trajectory {traj_idx}: {forward_steps} forward, {backward_steps} backward steps")
