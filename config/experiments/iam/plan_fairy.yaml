@@ -18,7 +18,7 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 1024
+      forward: 128
     lr: 0.002
     z_dim: 8
     lr_z_mult: 100
@@ -31,7 +31,10 @@ policy:
     n_hid: 2048
     n_layers: 2
   backward:
-    shared_weights: True
+    shared_weights: False
+    type: mlp
+    n_hid: 2048
+    n_layers: 2
 
 # WandB
 logger:
