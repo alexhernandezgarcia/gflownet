@@ -38,7 +38,7 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-plan-fairy"
+  project_name: "iam-plan-fairy-CONS"
   run_name: "Plan Fairy TB"
   tags:
     - gflownet
