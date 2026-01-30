@@ -13,7 +13,7 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tfloat, tlong
+from gflownet.utils.common import copy, tlong, tfloat
 
 CHOICES = tuple(["SECTOR", "TAG", "TECH", "AMOUNT", "LOCK"])
 
@@ -728,8 +728,8 @@ class FullPlan(GFlowNetEnv):
         # Convert indices to values
         plans_tensor = amount_idx_to_value[plans_indices]
 
-        # Ordered tech names (matching column order in tensor)
-        tech_names = [self.idx2token_techs[idx] for idx in range(1, self.n_techs + 1)]
+        # Ordered tech names with SUBS_ prefix (matching proxy's subsidies_names format)
+        tech_names = ["SUBS_" + self.idx2token_techs[idx] for idx in range(1, self.n_techs + 1)]
 
         return plans_tensor, tech_names
 
