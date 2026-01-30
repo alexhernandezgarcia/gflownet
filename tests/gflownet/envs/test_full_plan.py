@@ -89,12 +89,12 @@ def test__get_right_mask__tech_set_forces_tag(env):
 )
 def test__get_action_space__returns_expected(env, action_space_structure):
     expected_len = (
-            action_space_structure["n_sector_actions"]
-            + action_space_structure["n_tag_actions"]
-            + action_space_structure["n_tech_actions"]
-            + action_space_structure["n_amount_actions"]
-            + action_space_structure["n_lock_actions"]
-            + (1 if action_space_structure["has_eos"] else 0)
+        action_space_structure["n_sector_actions"]
+        + action_space_structure["n_tag_actions"]
+        + action_space_structure["n_tech_actions"]
+        + action_space_structure["n_amount_actions"]
+        + action_space_structure["n_lock_actions"]
+        + (1 if action_space_structure["has_eos"] else 0)
     )
     assert len(env.action_space) == expected_len
     assert env.eos in env.action_space
@@ -123,99 +123,136 @@ def test__get_action_space__returns_expected(env, action_space_structure):
     [
         # Source state has no parents
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                [],
-                [],
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            [],
+            [],
         ),
         # State with only SECTOR assigned in partial
         (
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            [
                 {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
                     "plan": [0] * 29,
-                },
-                [
-                    {
-                        "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                        "plan": [0] * 29,
-                    }
-                ],
-                [(1, 1)],  # SECTOR=POWER action
+                }
+            ],
+            [(1, 1)],  # SECTOR=POWER action
         ),
         # State with TECH and AMOUNT in partial (can only undo TECH, not AMOUNT due to forced ordering)
         (
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
+                "plan": [0] * 29,
+            },
+            [
+                {
+                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1},
+                    "plan": [0] * 29,
+                },
+            ],
+            [(3, 3)],  # TECH=power_NUCLEAR action
+        ),
+        # State with SECTOR, TECH, and AMOUNT in partial
+        (
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 1},
+                "plan": [0] * 29,
+            },
+            [
+                {
+                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
+                    "plan": [0] * 29,
+                },
                 {
                     "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
                     "plan": [0] * 29,
                 },
-                [
-                    {
-                        "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                        "plan": [0] * 29,
-                    },
-                ],
-                [(3, 3)],  # TECH=power_NUCLEAR action
-        ),
-        # State with SECTOR, TECH, and AMOUNT in partial
-        (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 1},
-                    "plan": [0] * 29,
-                },
-                [
-                    {
-                        "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                        "plan": [0] * 29,
-                    },
-                    {
-                        "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 1},
-                        "plan": [0] * 29,
-                    },
-                ],
-                [(3, 3), (1, 1)],
+            ],
+            [(3, 3), (1, 1)],
         ),
         # State with SECTOR, TAG, and AMOUNT in partial (no TECH)
         (
+            {
+                "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 1},
+                "plan": [0] * 29,
+            },
+            [
                 {
-                    "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 1},
+                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
                     "plan": [0] * 29,
                 },
-                [
-                    {
-                        "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 1},
-                        "plan": [0] * 29,
-                    },
-                    {
-                        "partial": {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},
-                        "plan": [0] * 29,
-                    },
-                    {
-                        "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-                        "plan": [0] * 29,
-                    },
-                ],
-                [(2, 2), (1, 1), (4, 1)],
+                {
+                    "partial": {"SECTOR": 0, "TAG": 2, "TECH": 0, "AMOUNT": 1},
+                    "plan": [0] * 29,
+                },
+                {
+                    "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                    "plan": [0] * 29,
+                },
+            ],
+            [(2, 2), (1, 1), (4, 1)],
         ),
         # Empty partial with one tech locked in plan - parent is state with that tech in partial
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    # Tech 3 has amount 2
-                },
-                [
-                    {
-                        "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},  # power_NUCLEAR is POWER/GREEN
-                        "plan": [0] * 29,
-                    }
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [
+                    0,
+                    0,
+                    2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
                 ],
-                [(5, 3)],  # LOCK for tech 3
+                # Tech 3 has amount 2
+            },
+            [
+                {
+                    "partial": {
+                        "SECTOR": 1,
+                        "TAG": 1,
+                        "TECH": 3,
+                        "AMOUNT": 2,
+                    },  # power_NUCLEAR is POWER/GREEN
+                    "plan": [0] * 29,
+                }
+            ],
+            [(5, 3)],  # LOCK for tech 3
         ),
     ],
 )
-def test__get_parents__returns_expected(env, state, parents_expected, parents_a_expected):
+def test__get_parents__returns_expected(
+    env, state, parents_expected, parents_a_expected
+):
     parents, parents_a = env.get_parents(state)
     assert len(parents) == len(parents_expected)
     assert len(parents_a) == len(parents_a_expected)
@@ -226,9 +263,7 @@ def test__get_parents__returns_expected(env, state, parents_expected, parents_a_
         plan_tuple = tuple(s["plan"])
         return (partial_tuple, plan_tuple)
 
-    actual_pairs = set(
-        (state_to_tuple(p), a) for p, a in zip(parents, parents_a)
-    )
+    actual_pairs = set((state_to_tuple(p), a) for p, a in zip(parents, parents_a))
     expected_pairs = set(
         (state_to_tuple(p), a) for p, a in zip(parents_expected, parents_a_expected)
     )
@@ -241,180 +276,272 @@ def test__get_parents__returns_expected(env, state, parents_expected, parents_a_
     [
         # From source, assign SECTOR
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (1, 1),  # SECTOR=POWER
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                True,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (1, 1),  # SECTOR=POWER
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            True,
         ),
         # From source, assign TAG
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (2, 1),  # TAG=GREEN
-                {
-                    "partial": {"SECTOR": 0, "TAG": 1, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                True,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (2, 1),  # TAG=GREEN
+            {
+                "partial": {"SECTOR": 0, "TAG": 1, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            True,
         ),
         # From source, assign TECH directly
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (3, 3),  # TECH=power_NUCLEAR
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                True,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (3, 3),  # TECH=power_NUCLEAR
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            True,
         ),
         # Assign AMOUNT from TECH -> FALSE, should fill in sector and tag first
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (4, 1),  # AMOUNT=HIGH
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (4, 1),  # AMOUNT=HIGH
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 7, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # Fill in SECTOR when TECH is set
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (1, 1),  # SECTOR=POWER (correct for power_NUCLEAR)
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                True,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (1, 1),  # SECTOR=POWER (correct for power_NUCLEAR)
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            True,
         ),
         # Fill in TAG before SECTOR when TECH is set -> FALSE
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (2, 1),  # TAG=GREEN
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (2, 1),  # TAG=GREEN
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # Fill in TAG after SECTOR when TECH is set
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (2, 1),  # TAG=GREEN (correct for power_NUCLEAR)
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                True,
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (2, 1),  # TAG=GREEN (correct for power_NUCLEAR)
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            True,
         ),
         # LOCK action on complete partial
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
-                    "plan": [0] * 29,
-                },
-                (5, 3),  # LOCK tech 3
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                },
-                True,
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
+                "plan": [0] * 29,
+            },
+            (5, 3),  # LOCK tech 3
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [
+                    0,
+                    0,
+                    2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+            },
+            True,
         ),
         # LOCK action on incomplete partial -> FALSE
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (5, 3),  # LOCK tech 3
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (5, 3),  # LOCK tech 3
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # LOCK action with wrong tech index -> FALSE
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
-                    "plan": [0] * 29,
-                },
-                (5, 5),  # LOCK tech 5 (but partial has tech 3)
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
+                "plan": [0] * 29,
+            },
+            (5, 5),  # LOCK tech 5 (but partial has tech 3)
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 2},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # Invalid: Reassigning SECTOR
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (1, 2),  # Try to change SECTOR to ENERGY
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (1, 2),  # Try to change SECTOR to ENERGY
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # Invalid: incompatible Tech (nuclear on brown)
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                (3, 3),  # TECH=power_NUCLEAR (GREEN, not BROWN)
-                {
-                    "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                False,
+            {
+                "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            (3, 3),  # TECH=power_NUCLEAR (GREEN, not BROWN)
+            {
+                "partial": {"SECTOR": 1, "TAG": 2, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            False,
         ),
         # Invalid: selecting tech that's already in plan
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                    # Tech 3 already assigned
-                },
-                (3, 3),  # TECH=power_NUCLEAR (already in plan)
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                },
-                False,
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [
+                    0,
+                    0,
+                    2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+                # Tech 3 already assigned
+            },
+            (3, 3),  # TECH=power_NUCLEAR (already in plan)
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [
+                    0,
+                    0,
+                    2,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+            },
+            False,
         ),
     ],
 )
 def test__step__returns_expected(env, state, action, next_state, valid):
     env.set_state(state)
     result_state, result_action, result_valid = env.step(action)
-    assert env.equal(result_state, next_state), f"State mismatch: {result_state} != {next_state}"
+    assert env.equal(
+        result_state, next_state
+    ), f"State mismatch: {result_state} != {next_state}"
     assert result_action == action
     assert result_valid == valid
 
@@ -423,25 +550,25 @@ def test__step__returns_expected(env, state, action, next_state, valid):
     "state, readable",
     [
         (
-                {
-                    "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                "PARTIAL: UNASSIGNED | UNASSIGNED | UNASSIGNED | UNASSIGNED",
+            {
+                "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            "PARTIAL: UNASSIGNED | UNASSIGNED | UNASSIGNED | UNASSIGNED",
         ),
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
-                    "plan": [0] * 29,
-                },
-                "PARTIAL: POWER | UNASSIGNED | UNASSIGNED | UNASSIGNED",
+            {
+                "partial": {"SECTOR": 1, "TAG": 0, "TECH": 0, "AMOUNT": 0},
+                "plan": [0] * 29,
+            },
+            "PARTIAL: POWER | UNASSIGNED | UNASSIGNED | UNASSIGNED",
         ),
         (
-                {
-                    "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
-                    "plan": [0] * 29,
-                },
-                "PARTIAL: POWER | GREEN | power_NUCLEAR | HIGH",
+            {
+                "partial": {"SECTOR": 1, "TAG": 1, "TECH": 3, "AMOUNT": 1},
+                "plan": [0] * 29,
+            },
+            "PARTIAL: POWER | GREEN | power_NUCLEAR | HIGH",
         ),
     ],
 )
@@ -462,7 +589,9 @@ def test__state2readable__partial_component(env, state, readable):
         (True, True, True),  # Empty partial, complete plan
     ],
 )
-def test__well_defined_plan__returns_expected(env, partial_empty, plan_complete, is_well_defined):
+def test__well_defined_plan__returns_expected(
+    env, partial_empty, plan_complete, is_well_defined
+):
     if partial_empty:
         partial = {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}
     else:

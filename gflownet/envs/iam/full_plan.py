@@ -13,17 +13,9 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tlong, tfloat
+from gflownet.utils.common import copy, tfloat, tlong
 
-CHOICES = tuple(
-    [
-        "SECTOR",
-        "TAG",
-        "TECH",
-        "AMOUNT",
-        "LOCK"
-    ]
-)
+CHOICES = tuple(["SECTOR", "TAG", "TECH", "AMOUNT", "LOCK"])
 
 SECTORS = tuple(
     [
@@ -267,17 +259,32 @@ class FullPlan(GFlowNetEnv):
         """
         all_actions = (
             # SECTOR actions (choice_idx = 1)
-                [(self.token2idx_choices["SECTOR"], self.token2idx_sectors[s]) for s in self.sectors]
-                # TAG actions (choice_idx = 2)
-                + [(self.token2idx_choices["TAG"], self.token2idx_tags[t]) for t in self.tags]
-                # TECH actions (choice_idx = 3)
-                + [(self.token2idx_choices["TECH"], self.token2idx_techs[t]) for t in self.techs]
-                # AMOUNT actions (choice_idx = 4)
-                + [(self.token2idx_choices["AMOUNT"], self.token2idx_amounts[a]) for a in self.amounts]
-                # LOCK actions (choice_idx = 5)
-                + [(self.token2idx_choices["LOCK"], tech_idx) for tech_idx in range(1, self.n_techs + 1)]
-                # EOS
-                + [self.eos]
+            [
+                (self.token2idx_choices["SECTOR"], self.token2idx_sectors[s])
+                for s in self.sectors
+            ]
+            # TAG actions (choice_idx = 2)
+            + [
+                (self.token2idx_choices["TAG"], self.token2idx_tags[t])
+                for t in self.tags
+            ]
+            # TECH actions (choice_idx = 3)
+            + [
+                (self.token2idx_choices["TECH"], self.token2idx_techs[t])
+                for t in self.techs
+            ]
+            # AMOUNT actions (choice_idx = 4)
+            + [
+                (self.token2idx_choices["AMOUNT"], self.token2idx_amounts[a])
+                for a in self.amounts
+            ]
+            # LOCK actions (choice_idx = 5)
+            + [
+                (self.token2idx_choices["LOCK"], tech_idx)
+                for tech_idx in range(1, self.n_techs + 1)
+            ]
+            # EOS
+            + [self.eos]
         )
         return all_actions
 
@@ -325,7 +332,6 @@ class FullPlan(GFlowNetEnv):
             return mask
 
         # Partial is not complete - determine valid assignment actions
-        # This closely follows InvestmentDiscrete logic
         assigned = self._get_assigned_in_partial(partial)
 
         has_sector = "SECTOR" in assigned
@@ -369,11 +375,17 @@ class FullPlan(GFlowNetEnv):
                 ]
                 for sector_token in allowed_sectors:
                     # Check if this sector has available techs compatible with tag
-                    sector_techs = set(self.network_structure["sector2tech"][sector_token])
-                    tag_techs = set(self.network_structure["tag2tech"][
-                                        self.idx2token_tags[partial["TAG"]]
-                                    ])
-                    compatible_available = sector_techs & tag_techs & available_tech_tokens
+                    sector_techs = set(
+                        self.network_structure["sector2tech"][sector_token]
+                    )
+                    tag_techs = set(
+                        self.network_structure["tag2tech"][
+                            self.idx2token_tags[partial["TAG"]]
+                        ]
+                    )
+                    compatible_available = (
+                        sector_techs & tag_techs & available_tech_tokens
+                    )
                     if compatible_available:
                         action = (
                             self.token2idx_choices["SECTOR"],
@@ -383,7 +395,9 @@ class FullPlan(GFlowNetEnv):
             else:
                 # Any sector that has available techs
                 for sector_token in self.sectors:
-                    sector_techs = set(self.network_structure["sector2tech"][sector_token])
+                    sector_techs = set(
+                        self.network_structure["sector2tech"][sector_token]
+                    )
                     if sector_techs & available_tech_tokens:
                         action = (
                             self.token2idx_choices["SECTOR"],
@@ -400,11 +414,15 @@ class FullPlan(GFlowNetEnv):
                 ]
                 for tag_token in allowed_tags:
                     # Check if this tag has available techs compatible with sector
-                    sector_techs = set(self.network_structure["sector2tech"][
-                                           self.idx2token_sectors[partial["SECTOR"]]
-                                       ])
+                    sector_techs = set(
+                        self.network_structure["sector2tech"][
+                            self.idx2token_sectors[partial["SECTOR"]]
+                        ]
+                    )
                     tag_techs = set(self.network_structure["tag2tech"][tag_token])
-                    compatible_available = sector_techs & tag_techs & available_tech_tokens
+                    compatible_available = (
+                        sector_techs & tag_techs & available_tech_tokens
+                    )
                     if compatible_available:
                         action = (
                             self.token2idx_choices["TAG"],
@@ -431,15 +449,29 @@ class FullPlan(GFlowNetEnv):
                 allowed_techs_tag = self.network_structure["tag2tech"][
                     self.idx2token_tags[partial["TAG"]]
                 ]
-                allowed_techs = set(allowed_techs_sector) & set(allowed_techs_tag) & available_tech_tokens
+                allowed_techs = (
+                    set(allowed_techs_sector)
+                    & set(allowed_techs_tag)
+                    & available_tech_tokens
+                )
             elif has_sector:
-                allowed_techs = set(self.network_structure["sector2tech"][
-                                        self.idx2token_sectors[partial["SECTOR"]]
-                                    ]) & available_tech_tokens
+                allowed_techs = (
+                    set(
+                        self.network_structure["sector2tech"][
+                            self.idx2token_sectors[partial["SECTOR"]]
+                        ]
+                    )
+                    & available_tech_tokens
+                )
             elif has_tag:
-                allowed_techs = set(self.network_structure["tag2tech"][
-                                        self.idx2token_tags[partial["TAG"]]
-                                    ]) & available_tech_tokens
+                allowed_techs = (
+                    set(
+                        self.network_structure["tag2tech"][
+                            self.idx2token_tags[partial["TAG"]]
+                        ]
+                    )
+                    & available_tech_tokens
+                )
             else:
                 allowed_techs = available_tech_tokens
 
@@ -450,7 +482,7 @@ class FullPlan(GFlowNetEnv):
                 )
                 mask[self.action2index(action)] = False
 
-        # AMOUNT actions (always available if not set and partial has tech or we allow early amount)
+        # AMOUNT actions (always available if not set)
         if not has_amount and not self._plan_is_complete(plan):
             for amount_idx in range(1, self.n_amounts + 1):
                 action = (self.token2idx_choices["AMOUNT"], amount_idx)
@@ -465,10 +497,10 @@ class FullPlan(GFlowNetEnv):
     def _partial_is_complete(self, partial: Dict) -> bool:
         """Check if partial investment has all fields assigned."""
         return (
-                partial["SECTOR"] != 0 and
-                partial["TAG"] != 0 and
-                partial["TECH"] != 0 and
-                partial["AMOUNT"] != 0
+            partial["SECTOR"] != 0
+            and partial["TAG"] != 0
+            and partial["TECH"] != 0
+            and partial["AMOUNT"] != 0
         )
 
     def _plan_is_complete(self, plan: List) -> bool:
@@ -561,8 +593,12 @@ class FullPlan(GFlowNetEnv):
                     parent = copy(state)
                     parent["plan"][tech_plan_idx] = 0
                     parent["partial"] = {
-                        "SECTOR": self.token2idx_sectors[self.network_structure["tech2sector"][tech_token]],
-                        "TAG": self.token2idx_tags[self.network_structure["tech2tag"][tech_token]],
+                        "SECTOR": self.token2idx_sectors[
+                            self.network_structure["tech2sector"][tech_token]
+                        ],
+                        "TAG": self.token2idx_tags[
+                            self.network_structure["tech2tag"][tech_token]
+                        ],
                         "TECH": tech_idx,
                         "AMOUNT": amount,
                     }
@@ -649,34 +685,53 @@ class FullPlan(GFlowNetEnv):
         For each tech: up to 4 assignments (SECTOR, TAG, TECH, AMOUNT) + 1 LOCK = 5
         Total: n_techs * 5 + 1 (EOS)
         """
-        return self.n_techs * 5 + 1
+        return self.n_techs * 6 + 1
 
     def states2proxy(
         self, states: Union[List[Dict], List[TensorType["max_length"]]]
-    ) -> TensorType["batch", "state_dim"]:
+    ) -> Tuple[TensorType["batch", "n_techs"], List[str]]:
         """
-        Prepares a batch of states in "environment format" for a proxy: the batch is
-        simply converted into a tensor of indices.
+        Prepares a batch of states for the FAIRY proxy.
+
+        Returns a tensor of shape (batch, n_techs) containing amount values,
+        along with the ordered list of technology names for validation.
 
         Parameters
         ----------
-        states : list or tensor
-            A batch of states in environment format, either as a list of states or as a
-            list of tensors.
+        states : list
+            A batch of states in environment format.
 
         Returns
         -------
-        A list containing all the states in the batch, represented themselves as lists.
+        Tuple[torch.Tensor, List[str]]
+            - plans_tensor: (batch, n_techs) tensor with amount values [0.0, 0.1, 0.3, 0.75]
+            - tech_names: ordered list of technology names matching tensor columns
         """
         batch_size = len(states)
-        batch_tensor = torch.zeros((batch_size, self.n_techs), dtype=torch.float32)
 
+        # Amount index to value mapping (index 0 = unassigned, 1-4 = HIGH/MED/LOW/NONE)
+        amount_idx_to_value = torch.tensor(
+            [0.0, 0.75, 0.3, 0.1, 0.0],  # idx: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
+            device=self.device,
+            dtype=self.float,
+        )
+
+        # Build plans tensor from state plan lists
+        plans_indices = torch.zeros(
+            batch_size, self.n_techs, dtype=torch.long, device=self.device
+        )
         for i, state in enumerate(states):
-            plan = state["plan"]
-            for tech_idx in range(self.n_techs):
-                batch_tensor[i, tech_idx] = plan[tech_idx]
+            plans_indices[i] = torch.tensor(
+                state["plan"], dtype=torch.long, device=self.device
+            )
 
-        return tfloat(batch_tensor, device=self.device, float_type=self.float)
+        # Convert indices to values
+        plans_tensor = amount_idx_to_value[plans_indices]
+
+        # Ordered tech names (matching column order in tensor)
+        tech_names = [self.idx2token_techs[idx] for idx in range(1, self.n_techs + 1)]
+
+        return plans_tensor, tech_names
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
@@ -701,24 +756,32 @@ class FullPlan(GFlowNetEnv):
             techs = tlong([partial["TECH"]], self.device)
             amounts = tlong([partial["AMOUNT"]], self.device)
 
-            onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(self.float)
+            onehot_sector = F.one_hot(sectors, num_classes=self.n_sectors + 1).to(
+                self.float
+            )
             onehot_tag = F.one_hot(tags, num_classes=self.n_tags + 1).to(self.float)
             onehot_tech = F.one_hot(techs, num_classes=self.n_techs + 1).to(self.float)
-            onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(self.float)
+            onehot_amount = F.one_hot(amounts, num_classes=self.n_amounts + 1).to(
+                self.float
+            )
 
             # One-hot encode plan
             plan_tensor = tlong(plan, self.device)
-            onehot_plan = F.one_hot(plan_tensor, num_classes=self.n_amounts + 1).to(self.float)
+            onehot_plan = F.one_hot(plan_tensor, num_classes=self.n_amounts + 1).to(
+                self.float
+            )
             onehot_plan_flat = onehot_plan.flatten()
 
             # Concatenate
-            state_tensor = torch.cat([
-                onehot_sector.squeeze(0),
-                onehot_tag.squeeze(0),
-                onehot_tech.squeeze(0),
-                onehot_amount.squeeze(0),
-                onehot_plan_flat,
-            ])
+            state_tensor = torch.cat(
+                [
+                    onehot_sector.squeeze(0),
+                    onehot_tag.squeeze(0),
+                    onehot_tech.squeeze(0),
+                    onehot_amount.squeeze(0),
+                    onehot_plan_flat,
+                ]
+            )
             batch_tensors.append(state_tensor)
 
         return torch.stack(batch_tensors)
@@ -850,12 +913,16 @@ class FullPlan(GFlowNetEnv):
             tech_token = self.idx2token_techs[tech_idx]
             amount_idx = plan[tech_idx - 1]
 
-            result.append({
-                "TECH": tech_token,
-                "SECTOR": self.network_structure["tech2sector"][tech_token],
-                "TAG": self.network_structure["tech2tag"][tech_token],
-                "AMOUNT": self.idx2token_amounts[amount_idx] if amount_idx > 0 else None,
-                "AMOUNT_IDX": amount_idx,
-            })
+            result.append(
+                {
+                    "TECH": tech_token,
+                    "SECTOR": self.network_structure["tech2sector"][tech_token],
+                    "TAG": self.network_structure["tech2tag"][tech_token],
+                    "AMOUNT": (
+                        self.idx2token_amounts[amount_idx] if amount_idx > 0 else None
+                    ),
+                    "AMOUNT_IDX": amount_idx,
+                }
+            )
 
         return result
