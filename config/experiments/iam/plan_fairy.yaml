@@ -38,8 +38,8 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-plan-unif"
-  run_name: "Plan Unif. TB"
+  project_name: "iam-plan-fairy"
+  run_name: "Plan Fairy TB"
   tags:
     - gflownet
     - plan
