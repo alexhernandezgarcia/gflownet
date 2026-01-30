@@ -18,7 +18,7 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 32
+      forward: 1024
     lr: 0.002
     z_dim: 8
     lr_z_mult: 100
