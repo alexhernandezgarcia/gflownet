@@ -1,5 +1,5 @@
-from importlib.metadata import PackageNotFoundError, version
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from importlib.metadata import PackageNotFoundError
+from typing import List, Optional, Tuple
 
 import torch
 from torchtyping import TensorType
@@ -19,99 +19,96 @@ class FAIRY(Proxy):
         **kwargs,
     ):
         """
-        Wrapper class around the fairy proxy.
+        Wrapper class around the FAIRY proxy model.
+
+        The proxy takes investment plans (subsidies for each technology) and predicts
+        economic outcomes like consumption. It expects inputs as a tuple of
+        (plans_tensor, tech_names) where plans_tensor is (batch, n_techs) and
+        tech_names is an ordered list matching the tensor columns.
+
+        On first call, validates that environment tech names match proxy tech names
+        and caches a permutation index for efficient reordering.
 
         Parameters
         ----------
-        key_gdx : optional
-            GDX key for context selection
+        key_gdx : str, optional
+            GDX key for context selection. If None, uses first available.
         key_year : int, optional
-            Year for context selection
-        key_region : optional
-            Region name for context selection
+            Year for context selection. If None, uses first available.
+            Values < 2000 are treated as indices and converted: year = 2010 + 5 * key_year
+        key_region : str, optional
+            Region name for context selection. If None, defaults to "europe".
+            Valid regions: europe, mexico, laca, brazil, southafrica, ssa, seasia,
+            oceania, te, jpnkor, india, mena, usa, indonesia, canada, china, sasia
         SCC : float, optional
-            Social cost of carbon #Trillion USD over GtCO2
+            Social cost of carbon (Trillion USD / GtCO2). If None, estimated from data.
         device : str or torch.device, optional
-            Device to run on ('cpu', 'cuda', 'cuda:0', etc.)
-            If None, uses the device of the loaded model (likely cuda)
+            Device to run on ('cpu', 'cuda', 'cuda:0', etc.). Default 'cpu'.
         """
         super().__init__(**kwargs)
 
-        print("Initializing fairy proxy:")
+        print("Initializing FAIRY proxy:")
+
         try:
             fairy, data = initialize_fairy()
             self.fairy = fairy
             self.precomputed_scaling_params = data.precomputed_scaling_params
 
-            # Convert subsidies_names to list if it's a pandas Index
-            self.subsidies_names = (
+            # Technology and variable names from the model
+            self.tech_names_ordered = (
                 list(self.fairy.subsidies_names)
                 if hasattr(self.fairy.subsidies_names, "__iter__")
                 else self.fairy.subsidies_names
             )
+            self.n_techs = len(self.tech_names_ordered)
+
             self.variables_names = (
                 list(self.fairy.variables_names)
                 if hasattr(self.fairy.variables_names, "__iter__")
                 else self.fairy.variables_names
             )
 
+            # Device setup
             if device is None:
-                # Use the device the model is currently on
                 self.device = next(self.fairy.parameters()).device
             else:
-                # Convert string to torch.device if needed
-                if isinstance(device, str):
-                    self.device = torch.device(device)
-                else:
-                    self.device = device
-
-                # Move model to the specified device
+                self.device = torch.device(device) if isinstance(device, str) else device
                 self.fairy = self.fairy.to(self.device)
 
-            print(f"Using device: {self.device}")
+            print(f"  Device: {self.device}")
+            print(f"  Technologies: {self.n_techs}")
 
+            # Context selection: GDX key
             if key_gdx is None:
                 self.key_gdx = data.keys_df.iloc[0, 2]
             else:
                 self.key_gdx = key_gdx
+
+            # Context selection: Year
             if key_year is None:
                 self.key_year = int(data.keys_df.iloc[0, 3])
             else:
                 self.key_year = int(key_year)
-                # consistency: eventually convert year index to calendar year
                 if self.key_year < 2000:
                     self.key_year = 2010 + 5 * self.key_year
 
+            # Context selection: Region
             if key_region is None:
-                self.key_region = "europe"  # data.keys_df.iloc[0, 1]
+                self.key_region = "europe"
             else:
-                assert key_region in [
-                    "europe",
-                    "mexico",
-                    "laca",
-                    "brazil",
-                    "southafrica",
-                    "ssa",
-                    "seasia",
-                    "oceania",
-                    "te",
-                    "jpnkor",
-                    "india",
-                    "mena",
-                    "usa",
-                    "indonesia",
-                    "canada",
-                    "china",
-                    "sasia",
+                valid_regions = [
+                    "europe", "mexico", "laca", "brazil", "southafrica", "ssa",
+                    "seasia", "oceania", "te", "jpnkor", "india", "mena", "usa",
+                    "indonesia", "canada", "china", "sasia",
                 ]
+                assert key_region in valid_regions, f"Invalid region: {key_region}"
                 self.key_region = key_region
 
-            if SCC is None:
-                if self.key_year > 2050:
-                    late_year = self.key_year
-                else:
-                    late_year = 2075
+            print(f"  Context: gdx={self.key_gdx}, year={self.key_year}, region={self.key_region}")
 
+            # Social cost of carbon
+            if SCC is None:
+                late_year = self.key_year if self.key_year > 2050 else 2075
                 index = data.index_map.get((self.key_gdx, late_year, self.key_region))
                 SCC_guess = data.variables_df[
                     index, self.variables_names.index("SHADOWPRICE_carbon")
@@ -125,47 +122,31 @@ class FAIRY(Proxy):
                     + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
                 )
             else:
-                self.SCC = (
-                    torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
-                )
+                self.SCC = torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
 
             self.SCC = self.SCC.to(self.device)
             self.SCC = torch.clamp(self.SCC, 1e-3, 1)
 
+            # Load context vector
             context_index = data.index_map.get(
                 (self.key_gdx, self.key_year, self.key_region)
             )
-            try:
-                assert context_index is not None
-            except AssertionError:
-                print(
-                    f"Context index {context_index} not found for (gdx, year, region): {self.key_gdx, self.key_year, self.key_region}"
-                )
-                exit(1)
-            context = data.variables_df[context_index, :]
-            context = context.squeeze()
+            assert context_index is not None, (
+                f"Context not found for (gdx, year, region): "
+                f"({self.key_gdx}, {self.key_year}, {self.key_region})"
+            )
 
-            context = context.to(self.device)
-
-            # Add batch dimension: (features,) -> (1, features)
-            self.context = context.unsqueeze(0)
+            context = data.variables_df[context_index, :].squeeze().to(self.device)
+            self.context = context.unsqueeze(0)  # (1, n_variables)
 
             # Set model to eval mode (required for BatchNorm with batch_size=1)
             self.fairy.eval()
 
-            # precompute amounts for call
-            self.tech2idx = {name: i for i, name in enumerate(self.subsidies_names)}
+            # Output variable indices
             self.var_CONS = self.variables_names.index("CONSUMPTION")
             self.var_EMI = self.variables_names.index("EMI_total_CO2")
 
-            self.amount_map = {
-                "NONE": 0.0,
-                "LOW": 0.1,
-                "MEDIUM": 0.3,
-                "HIGH": 0.75,
-            }
-
-            # cache scaling params
+            # Cached scaling parameters as tensors for efficient rescaling
             self.cons_min = torch.tensor(
                 self.precomputed_scaling_params["CONSUMPTION"]["min"],
                 device=self.device,
@@ -176,12 +157,15 @@ class FAIRY(Proxy):
             )
             self.cons_scale = self.cons_max - self.cons_min
 
-            # Permutation index for reordering (computed on first call)
+            # Permutation index for reordering env techs -> proxy techs
+            # Computed on first __call__ and cached
             self._permutation_idx: Optional[torch.Tensor] = None
-            self._env_n_techs: Optional[int] = None
+
+            print("  FAIRY proxy initialized successfully")
 
         except PackageNotFoundError:
-            print("  💥 `fairy` cannot be initialized.")
+            print("  💥 FAIRY cannot be initialized: package not found")
+            raise
 
     def _initialize_permutation(self, tech_names: List[str]) -> None:
         """
@@ -213,7 +197,6 @@ class FAIRY(Proxy):
         self._permutation_idx = torch.tensor(
             permutation, dtype=torch.long, device=self.device
         )
-        self._env_n_techs = len(tech_names)
 
     def to(self, device):
         """
@@ -250,23 +233,16 @@ class FAIRY(Proxy):
         """
         Forward pass of the proxy.
 
-        The proxy, for each state in the batch:
-            -initializes an empty vector of subsidies
-            -scan the investment dictionaries one by one
-            -read the associated tech and amounts, and fill in the subsidies vector
-            -compute the projection
-            -read projected consumption and emissions
-            -compute the reward as consumption - emissions*SCC, in Trillion USD
-
         Parameters
         ----------
-        states : List of List[Dict]
-            Each List[Dict] represents a single state. Each Dict is an investment configuration, a list defines a plan.
-            List of plans is a batch.
+        states : Tuple[torch.Tensor, List[str]]
+            - plans_tensor: (batch, n_techs) with subsidy values
+            - tech_names: ordered list of tech names matching tensor columns
+
         Returns
         -------
         torch.Tensor
-            Proxy energies
+            Proxy energies (consumption values), shape (batch,)
         """
         plans_tensor, tech_names = states
 
