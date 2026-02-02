@@ -31,10 +31,10 @@ policy:
     n_hid: 2048
     n_layers: 2
   backward:
-    shared_weights: False
-    type: mlp
-    n_hid: 2048
-    n_layers: 2
+    shared_weights: True
+    # type: mlp
+    # n_hid: 2048
+    # n_layers: 2
 
 # WandB
 logger:
