@@ -1546,12 +1546,10 @@ class ContinuousCube(CubeBase):
         if any([s > 1.0 for s in effective_dims]) or any(
             [s < 0.0 for s in effective_dims]
         ):
-            warnings.warn(
-                f"""
+            warnings.warn(f"""
                 State is out of cube bounds.
                 \nCurrent state:\n{self.state}\nAction:\n{action}\nNext state: {state}
-                """
-            )
+                """)
             return self.state, action, False
 
         # Otherwise, set self.state as the udpated state and return valid.
