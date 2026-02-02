@@ -36,12 +36,20 @@ policy:
     # n_hid: 2048
     # n_layers: 2
 
+# Proxy (eform)
+proxy:
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: 0.1
+    alpha: 1.0
+
 # WandB
 logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-plan-fairy-CONS"
+  project_name: "iam-plan-fairy-CONS-exprew"
   run_name: "Plan Fairy TB"
   tags:
     - gflownet
