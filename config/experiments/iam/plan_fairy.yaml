@@ -51,9 +51,9 @@ logger:
 # Evaluator
 evaluator:
   first_it: False
-  period: 1000
+  period: 5000
   n: 100
-  checkpoints_period: 1000
+  checkpoints_period: 5000
 
 # Hydra
 hydra:
