@@ -643,12 +643,10 @@ class Tree(GFlowNetEnv):
         """
         if done is True and self._get_stage() != Stage.COMPLETE:
             done = False
-            warnings.warn(
-                f"""
+            warnings.warn(f"""
             Attempted to set state {self.state2readable(state)} with done = True, which
             is not compatible with the environment. Forcing done = False.
-            """
-            )
+            """)
         return super().set_state(state, done)
 
     # TODO: needs to be update
