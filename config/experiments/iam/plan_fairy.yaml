@@ -11,7 +11,7 @@ defaults:
 buffer:
   test:
     type: uniform
-    n: 100000
+    n: 10000
 
 # GFlowNet hyperparameters
 gflownet:
