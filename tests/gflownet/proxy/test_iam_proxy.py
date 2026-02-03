@@ -449,13 +449,13 @@ class TestFAIRYHelpers:
         fairy_proxy,
         batch_size: int,
         amount_value: float = 0.1,
-    ) -> tuple:
-        """Create a plans tensor and tech names for testing.
+    ) -> torch.Tensor:
+        """Create a plans tensor for testing.
 
         Parameters
         ----------
         fairy_proxy : FAIRY
-            The proxy instance to get tech names from.
+            The proxy instance to get tech count from.
         batch_size : int
             Number of samples in batch.
         amount_value : float
@@ -463,8 +463,8 @@ class TestFAIRYHelpers:
 
         Returns
         -------
-        tuple
-            (plans_tensor, tech_names)
+        torch.Tensor
+            plans_tensor of shape (batch_size, n_techs)
         """
         n_techs = fairy_proxy.n_techs
         plans_tensor = torch.full(
@@ -472,14 +472,13 @@ class TestFAIRYHelpers:
             amount_value,
             dtype=torch.float32,
         )
-        tech_names = fairy_proxy.tech_names_ordered.copy()
-        return plans_tensor, tech_names
+        return plans_tensor
 
     @staticmethod
     def create_varied_plans_tensor(
         fairy_proxy,
         batch_size: int,
-    ) -> tuple:
+    ) -> torch.Tensor:
         """Create plans tensor with varied investment levels.
 
         Parameters
@@ -491,8 +490,8 @@ class TestFAIRYHelpers:
 
         Returns
         -------
-        tuple
-            (plans_tensor, tech_names)
+        torch.Tensor
+            plans_tensor of shape (batch_size, n_techs)
         """
         n_techs = fairy_proxy.n_techs
         # Amount values: NONE=0.0, LOW=0.1, MEDIUM=0.3, HIGH=0.75
@@ -503,8 +502,7 @@ class TestFAIRYHelpers:
             for j in range(n_techs):
                 plans_tensor[i, j] = amount_values[(i + j) % len(amount_values)]
 
-        tech_names = fairy_proxy.tech_names_ordered.copy()
-        return plans_tensor, tech_names
+        return plans_tensor
 
 
 class TestFAIRYCall:
@@ -517,11 +515,11 @@ class TestFAIRYCall:
 
     def test_call_basic(self, fairy_proxy):
         """Test basic __call__ with simple tensor input."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=2, amount_value=0.1
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (2,)
         assert isinstance(result, torch.Tensor)
@@ -530,11 +528,11 @@ class TestFAIRYCall:
 
     def test_call_single_state(self, fairy_proxy):
         """Test __call__ with a single state."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.3
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (1,)
         assert isinstance(result, torch.Tensor)
@@ -542,11 +540,11 @@ class TestFAIRYCall:
 
     def test_call_zero_investment(self, fairy_proxy):
         """Test __call__ with zero investment (all subsidies are 0)."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.0
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (1,)
         assert isinstance(result, torch.Tensor)
@@ -554,11 +552,11 @@ class TestFAIRYCall:
 
     def test_call_max_investment(self, fairy_proxy):
         """Test __call__ with maximum investment (HIGH = 0.75)."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.75
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (1,)
         assert isinstance(result, torch.Tensor)
@@ -566,11 +564,11 @@ class TestFAIRYCall:
 
     def test_call_varied_investments(self, fairy_proxy):
         """Test __call__ with varied investment levels across batch."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_varied_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_varied_plans_tensor(
             fairy_proxy, batch_size=4
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (4,)
         assert isinstance(result, torch.Tensor)
@@ -585,9 +583,7 @@ class TestFAIRYCall:
         for i, amount in enumerate(amount_values):
             plans_tensor[i, :] = amount
 
-        tech_names = fairy_proxy.tech_names_ordered.copy()
-
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (4,)
         assert isinstance(result, torch.Tensor)
@@ -595,11 +591,11 @@ class TestFAIRYCall:
 
     def test_call_returns_tensor_type(self, fairy_proxy):
         """Test that __call__ always returns a torch.Tensor."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.75
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert isinstance(result, torch.Tensor)
         assert result.dtype == torch.float32
@@ -607,47 +603,46 @@ class TestFAIRYCall:
     def test_call_batch_size_consistency(self, fairy_proxy):
         """Test that output batch size matches input batch size."""
         for batch_size in [1, 5, 10, 50]:
-            plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+            plans_tensor = TestFAIRYHelpers.create_plans_tensor(
                 fairy_proxy, batch_size=batch_size, amount_value=0.1
             )
 
-            result = fairy_proxy((plans_tensor, tech_names))
+            result = fairy_proxy(plans_tensor)
 
             assert result.shape == (batch_size,)
             assert torch.all(torch.isfinite(result))
 
     def test_call_no_grad(self, fairy_proxy):
         """Test that __call__ does not compute gradients."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.1
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         # Result should not have gradient
         assert not result.requires_grad
 
     def test_call_deterministic(self, fairy_proxy):
         """Test that __call__ produces deterministic results."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.3
         )
 
-        result1 = fairy_proxy((plans_tensor.clone(), tech_names))
-        result2 = fairy_proxy((plans_tensor.clone(), tech_names))
+        result1 = fairy_proxy(plans_tensor.clone())
+        result2 = fairy_proxy(plans_tensor.clone())
 
         assert torch.allclose(result1, result2)
 
     def test_call_different_inputs_different_outputs(self, fairy_proxy):
         """Test that different inputs produce different outputs."""
         n_techs = fairy_proxy.n_techs
-        tech_names = fairy_proxy.tech_names_ordered.copy()
 
         plans_low = torch.full((1, n_techs), 0.0, dtype=torch.float32)
         plans_high = torch.full((1, n_techs), 0.75, dtype=torch.float32)
 
-        result_low = fairy_proxy((plans_low, tech_names))
-        result_high = fairy_proxy((plans_high, tech_names))
+        result_low = fairy_proxy(plans_low)
+        result_high = fairy_proxy(plans_high)
 
         assert not torch.allclose(result_low, result_high)
 
@@ -664,83 +659,38 @@ class TestFAIRYPermutation:
         """Test that permutation index is None before first call."""
         assert fairy_proxy._permutation_idx is None
 
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
-        fairy_proxy((plans_tensor, tech_names))
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
+        fairy_proxy(plans_tensor)
 
         assert fairy_proxy._permutation_idx is not None
 
     def test_permutation_cached_after_first_call(self, fairy_proxy):
         """Test that permutation index is cached and reused."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
-        fairy_proxy((plans_tensor, tech_names))
+        fairy_proxy(plans_tensor)
         perm_first = fairy_proxy._permutation_idx.clone()
 
-        fairy_proxy((plans_tensor, tech_names))
+        fairy_proxy(plans_tensor)
         perm_second = fairy_proxy._permutation_idx
 
         assert torch.equal(perm_first, perm_second)
 
-    def test_permutation_identity_when_order_matches(self, fairy_proxy):
-        """Test that permutation is identity when tech order matches proxy."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+    def test_permutation_has_correct_length(self, fairy_proxy):
+        """Test that permutation has correct length matching n_techs."""
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
-        fairy_proxy((plans_tensor, tech_names))
+        fairy_proxy(plans_tensor)
 
-        # Should be identity permutation [0, 1, 2, ...]
-        expected = torch.arange(fairy_proxy.n_techs, dtype=torch.long)
-        assert torch.equal(
-            fairy_proxy._permutation_idx.cpu(),
-            expected,
-        )
+        assert fairy_proxy._permutation_idx.shape[0] == fairy_proxy.n_techs
 
-    def test_permutation_reorders_correctly(self, fairy_proxy):
-        """Test that permutation correctly reorders shuffled tech names."""
-        n_techs = fairy_proxy.n_techs
-        tech_names = fairy_proxy.tech_names_ordered.copy()
+    def test_tech_names_matches_environment_techs(self, fairy_proxy):
+        """Test that tech_names has SUBS_ prefix added to environment TECHS."""
+        from gflownet.envs.iam.full_plan import TECHS
 
-        # Shuffle tech names
-        shuffled_indices = torch.randperm(n_techs).tolist()
-        shuffled_tech_names = [tech_names[i] for i in shuffled_indices]
-
-        # Create plans tensor with known values per tech
-        plans_tensor = torch.arange(n_techs, dtype=torch.float32).unsqueeze(0)
-        # Shuffle the tensor to match shuffled names
-        shuffled_plans = plans_tensor[:, shuffled_indices]
-
-        # Reset permutation
-        fairy_proxy._permutation_idx = None
-
-        result = fairy_proxy((shuffled_plans, shuffled_tech_names))
-
-        assert result.shape == (1,)
-        assert torch.isfinite(result[0])
-
-    def test_permutation_raises_on_missing_tech_in_proxy(self, fairy_proxy):
-        """Test that missing tech in proxy raises ValueError."""
-        plans_tensor = torch.zeros(1, fairy_proxy.n_techs + 1, dtype=torch.float32)
-        tech_names = fairy_proxy.tech_names_ordered.copy() + ["FAKE_TECH"]
-
-        fairy_proxy._permutation_idx = None
-
-        with pytest.raises(ValueError, match="Technologies in environment but not in proxy"):
-            fairy_proxy((plans_tensor, tech_names))
-
-    def test_permutation_raises_on_missing_tech_in_env(self, fairy_proxy):
-        """Test that missing tech in environment raises ValueError."""
-        plans_tensor = torch.zeros(1, fairy_proxy.n_techs - 1, dtype=torch.float32)
-        tech_names = fairy_proxy.tech_names_ordered[:-1]
-
-        fairy_proxy._permutation_idx = None
-
-        with pytest.raises(ValueError, match="Technologies in proxy but not in environment"):
-            fairy_proxy((plans_tensor, tech_names))
+        # tech_names should be TECHS with SUBS_ prefix
+        expected = ["SUBS_" + tech for tech in TECHS]
+        assert fairy_proxy.tech_names == expected
 
 
 class TestFAIRYInit:
@@ -753,6 +703,7 @@ class TestFAIRYInit:
         assert hasattr(proxy, "fairy")
         assert hasattr(proxy, "precomputed_scaling_params")
         assert hasattr(proxy, "tech_names_ordered")
+        assert hasattr(proxy, "tech_names")
         assert hasattr(proxy, "n_techs")
         assert hasattr(proxy, "variables_names")
         assert hasattr(proxy, "device")
@@ -776,7 +727,12 @@ class TestFAIRYInit:
         proxy = FAIRY()
         assert isinstance(proxy.tech_names_ordered, list)
 
-    def test_init_n_techs_matches_tech_names(self):
+    def test_init_tech_names_is_list(self):
+        """Test that tech_names is a list (with SUBS_ prefix)."""
+        proxy = FAIRY()
+        assert isinstance(proxy.tech_names, list)
+
+    def test_init_n_techs_matches_tech_names_ordered(self):
         """Test that n_techs matches length of tech_names_ordered."""
         proxy = FAIRY()
         assert proxy.n_techs == len(proxy.tech_names_ordered)
@@ -860,11 +816,9 @@ class TestFAIRYDeviceHandling:
 
     def test_device_consistency(self, fairy_proxy):
         """Test that all tensors are on the same device."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.device == fairy_proxy.device
         assert fairy_proxy.context.device == fairy_proxy.device
@@ -891,10 +845,8 @@ class TestFAIRYDeviceHandling:
             pytest.skip("CUDA not available")
 
         # Initialize permutation
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
-        fairy_proxy((plans_tensor, tech_names))
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
+        fairy_proxy(plans_tensor)
 
         fairy_proxy.to("cuda")
 
@@ -907,24 +859,20 @@ class TestFAIRYDeviceHandling:
 
     def test_call_output_on_correct_device(self, fairy_proxy):
         """Test that __call__ output is on the correct device."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.device == fairy_proxy.device
 
     def test_call_accepts_tensor_on_different_device(self, fairy_proxy):
         """Test that __call__ moves input tensor to correct device."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
         # Ensure tensor is on CPU
         plans_tensor = plans_tensor.cpu()
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.device == fairy_proxy.device
         assert torch.isfinite(result[0])
@@ -940,11 +888,11 @@ class TestDenormalization:
 
     def test_consumption_denormalization(self, fairy_proxy):
         """Test that consumption is properly denormalized."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=1, amount_value=0.1
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         # Get scaling params
         consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
@@ -991,9 +939,7 @@ class TestDenormalizationNumericStability:
         for i in range(40):
             plans_tensor[i, :] = amount_values[i % len(amount_values)]
 
-        tech_names = fairy_proxy.tech_names_ordered.copy()
-
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert torch.all(
             torch.isfinite(result)
@@ -1001,11 +947,11 @@ class TestDenormalizationNumericStability:
 
     def test_denormalization_scaling_bounds(self, fairy_proxy):
         """Test that denormalized consumption stays within reasonable bounds."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_varied_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_varied_plans_tensor(
             fairy_proxy, batch_size=40
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         # Get bounds from scaling parameters
         consumption_params = fairy_proxy.precomputed_scaling_params["CONSUMPTION"]
@@ -1065,7 +1011,6 @@ class TestDenormalizationNumericStability:
     def test_extreme_investment_combinations(self, fairy_proxy):
         """Test numeric stability with extreme investment combinations."""
         n_techs = fairy_proxy.n_techs
-        tech_names = fairy_proxy.tech_names_ordered.copy()
 
         # All NONE (minimal investment)
         plans_none = torch.zeros(1, n_techs, dtype=torch.float32)
@@ -1073,8 +1018,8 @@ class TestDenormalizationNumericStability:
         # All HIGH (maximal investment)
         plans_high = torch.full((1, n_techs), 0.75, dtype=torch.float32)
 
-        result_none = fairy_proxy((plans_none, tech_names))
-        result_high = fairy_proxy((plans_high, tech_names))
+        result_none = fairy_proxy(plans_none)
+        result_high = fairy_proxy(plans_high)
 
         assert torch.all(torch.isfinite(result_none))
         assert torch.all(torch.isfinite(result_high))
@@ -1093,11 +1038,11 @@ class TestFAIRYRobustness:
 
     def test_large_batch_size(self, fairy_proxy):
         """Test __call__ with a large batch size."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=100, amount_value=0.1
         )
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert result.shape == (100,)
         assert torch.all(torch.isfinite(result))
@@ -1113,46 +1058,31 @@ class TestFAIRYRobustness:
             not fairy_proxy.fairy.training
         ), "Model should be in eval mode for inference"
 
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
-            fairy_proxy, batch_size=1
-        )
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(fairy_proxy, batch_size=1)
 
-        result = fairy_proxy((plans_tensor, tech_names))
+        result = fairy_proxy(plans_tensor)
 
         assert torch.isfinite(result[0])
-
-    def test_call_with_wrong_tensor_shape(self, fairy_proxy):
-        """Test that mismatched tech names raises error."""
-        tech_names = fairy_proxy.tech_names_ordered.copy() + ["FAKE_TECH_1", "FAKE_TECH_2"]
-
-        # Tensor shape matches extended tech_names
-        wrong_plans = torch.zeros(1, len(tech_names), dtype=torch.float32)
-
-        fairy_proxy._permutation_idx = None
-
-        with pytest.raises(ValueError, match="Technologies in environment but not in proxy"):
-            fairy_proxy((wrong_plans, tech_names))
 
     def test_call_with_empty_batch(self, fairy_proxy):
         """Test __call__ with empty batch."""
         n_techs = fairy_proxy.n_techs
-        tech_names = fairy_proxy.tech_names_ordered.copy()
 
         empty_plans = torch.zeros(0, n_techs, dtype=torch.float32)
 
-        result = fairy_proxy((empty_plans, tech_names))
+        result = fairy_proxy(empty_plans)
 
         assert result.shape == (0,)
 
     def test_repeated_calls_same_result(self, fairy_proxy):
         """Test that repeated calls with same input give same result."""
-        plans_tensor, tech_names = TestFAIRYHelpers.create_plans_tensor(
+        plans_tensor = TestFAIRYHelpers.create_plans_tensor(
             fairy_proxy, batch_size=5, amount_value=0.3
         )
 
         results = []
         for _ in range(5):
-            result = fairy_proxy((plans_tensor.clone(), tech_names))
+            result = fairy_proxy(plans_tensor.clone())
             results.append(result.clone())
 
         for i in range(1, len(results)):

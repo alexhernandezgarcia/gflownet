@@ -64,7 +64,8 @@ class FAIRY(Proxy):
             self.n_techs = len(self.tech_names_ordered)
 
             # Import tech names ordering from Plan
-            self.tech_names = TECHS
+            self.tech_names = ["SUBS_"+TECHS[idx] for idx in range(0, self.n_techs)]
+
 
             self.variables_names = (
                 list(self.fairy.variables_names)
