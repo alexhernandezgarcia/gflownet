@@ -9,8 +9,6 @@ defaults:
 
 # Buffer
 buffer:
-  replay_capacity: 0
-  check_diversity: False
   test:
     type: uniform
     n: 10000
@@ -21,12 +19,10 @@ gflownet:
   optimizer:
     batch_size:
       forward: 16
-      backward_replay: 0
     lr: 0.0001
     z_dim: 8
     lr_z_mult: 100
     n_train_steps: 20000
-  replay_sampling: weighted
 
 # Policy
 policy:
