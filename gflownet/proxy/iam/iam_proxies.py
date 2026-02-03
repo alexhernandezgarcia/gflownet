@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple
 import torch
 from torchtyping import TensorType
 
+from gflownet.envs.iam.full_plan import TECHS
 from gflownet.proxy.base import Proxy
 from gflownet.proxy.iam.scenario_scripts.Scenario_Models import initialize_fairy
 
@@ -62,6 +63,9 @@ class FAIRY(Proxy):
             )
             self.n_techs = len(self.tech_names_ordered)
 
+            # Import tech names ordering from Plan
+            self.tech_names = TECHS
+
             self.variables_names = (
                 list(self.fairy.variables_names)
                 if hasattr(self.fairy.variables_names, "__iter__")
@@ -72,7 +76,9 @@ class FAIRY(Proxy):
             if device is None:
                 self.device = next(self.fairy.parameters()).device
             else:
-                self.device = torch.device(device) if isinstance(device, str) else device
+                self.device = (
+                    torch.device(device) if isinstance(device, str) else device
+                )
                 self.fairy = self.fairy.to(self.device)
 
             print(f"  Device: {self.device}")
@@ -97,14 +103,30 @@ class FAIRY(Proxy):
                 self.key_region = "europe"
             else:
                 valid_regions = [
-                    "europe", "mexico", "laca", "brazil", "southafrica", "ssa",
-                    "seasia", "oceania", "te", "jpnkor", "india", "mena", "usa",
-                    "indonesia", "canada", "china", "sasia",
+                    "europe",
+                    "mexico",
+                    "laca",
+                    "brazil",
+                    "southafrica",
+                    "ssa",
+                    "seasia",
+                    "oceania",
+                    "te",
+                    "jpnkor",
+                    "india",
+                    "mena",
+                    "usa",
+                    "indonesia",
+                    "canada",
+                    "china",
+                    "sasia",
                 ]
                 assert key_region in valid_regions, f"Invalid region: {key_region}"
                 self.key_region = key_region
 
-            print(f"  Context: gdx={self.key_gdx}, year={self.key_year}, region={self.key_region}")
+            print(
+                f"  Context: gdx={self.key_gdx}, year={self.key_year}, region={self.key_region}"
+            )
 
             # Social cost of carbon
             if SCC is None:
@@ -122,7 +144,9 @@ class FAIRY(Proxy):
                     + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
                 )
             else:
-                self.SCC = torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
+                self.SCC = (
+                    torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
+                )
 
             self.SCC = self.SCC.to(self.device)
             self.SCC = torch.clamp(self.SCC, 1e-3, 1)
@@ -229,7 +253,10 @@ class FAIRY(Proxy):
         return self
 
     @torch.no_grad()
-    def __call__(self, states: Tuple[torch.Tensor, List[str]]) -> TensorType:
+    def __call__(
+        self,
+        states: torch.Tensor,
+    ) -> TensorType:
         """
         Forward pass of the proxy.
 
@@ -244,11 +271,11 @@ class FAIRY(Proxy):
         torch.Tensor
             Proxy energies (consumption values), shape (batch,)
         """
-        plans_tensor, tech_names = states
+        plans_tensor = states
 
         # Initialize permutation on first call
         if self._permutation_idx is None:
-            self._initialize_permutation(tech_names)
+            self._initialize_permutation(self.tech_names)
 
         # Move to device and apply permutation
         plans_tensor = plans_tensor.to(self.device)

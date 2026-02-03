@@ -728,10 +728,7 @@ class FullPlan(GFlowNetEnv):
         # Convert indices to values
         plans_tensor = amount_idx_to_value[plans_indices]
 
-        # Ordered tech names with SUBS_ prefix (matching proxy's subsidies_names format)
-        tech_names = ["SUBS_" + self.idx2token_techs[idx] for idx in range(1, self.n_techs + 1)]
-
-        return plans_tensor, tech_names
+        return plans_tensor
 
     def states2policy(
         self, states: Union[List[Dict[str, int]], List[TensorType["max_length"]]]
