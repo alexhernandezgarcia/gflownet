@@ -77,6 +77,20 @@ def proxy_rbf_exponential(center, beta, alpha, distance):
 
 
 @pytest.fixture()
+def proxy_sigmoid(alpha, beta, gamma):
+    return Uniform(
+        reward_function="sigmoid",
+        reward_function_kwargs={
+            "alpha": alpha,
+            "beta": beta,
+            "gamma": gamma,
+        },
+        device="cpu",
+        float_precision=32,
+    )
+
+
+@pytest.fixture()
 def proxy_callable(reward_function, logreward_function):
     return Uniform(
         reward_function=reward_function,
@@ -99,27 +113,28 @@ def proxy_exponential_clipped(beta, alpha):
 
 
 @pytest.mark.parametrize(
-    "proxy, beta, alpha, center, distance",
+    "proxy, beta, alpha, center, distance, gamma",
     [
-        ("uniform", None, None, None, None),
-        ("proxy_power", 1, None, None, None),
-        ("proxy_power", 2, None, None, None),
-        ("proxy_exponential", 1, 1, None, None),
-        ("proxy_exponential", -1, 1, None, None),
-        ("proxy_exponential", 1, 2, None, None),
-        ("proxy_exponential", -1, 3, None, None),
-        ("proxy_shift", 5, None, None, None),
-        ("proxy_shift", -5, None, None, None),
-        ("proxy_product", 2, None, None, None),
-        ("proxy_product", -2, None, None, None),
-        ("proxy_rbf_exponential", 1.0, 1.0, 0.0, "squared"),
-        ("proxy_rbf_exponential", -1.0, 2.0, 1.34, "squared"),
-        ("proxy_rbf_exponential", -1.0, 2.0, 1.34, "euclidean"),
-        ("proxy_rbf_exponential", 2.0, 2.0, -0.5, "abs"),
+        ("uniform", None, None, None, None, None),
+        ("proxy_power", 1, None, None, None, None),
+        ("proxy_power", 2, None, None, None, None),
+        ("proxy_exponential", 1, 1, None, None, None),
+        ("proxy_exponential", -1, 1, None, None, None),
+        ("proxy_exponential", 1, 2, None, None, None),
+        ("proxy_exponential", -1, 3, None, None, None),
+        ("proxy_shift", 5, None, None, None, None),
+        ("proxy_shift", -5, None, None, None, None),
+        ("proxy_product", 2, None, None, None, None),
+        ("proxy_product", -2, None, None, None, None),
+        ("proxy_rbf_exponential", 1.0, 1.0, 0.0, "squared", None),
+        ("proxy_rbf_exponential", -1.0, 2.0, 1.34, "squared", None),
+        ("proxy_rbf_exponential", -1.0, 2.0, 1.34, "euclidean", None),
+        ("proxy_rbf_exponential", 2.0, 2.0, -0.5, "abs", None),
+        ("proxy_sigmoid", 1.0, 1.0, None, None, 1.0),
     ],
 )
 def test__uniform_proxy_initializes_without_errors(
-    proxy, beta, alpha, center, distance, request
+    proxy, beta, alpha, center, distance, gamma, request
 ):
     proxy = request.getfixturevalue(proxy)
     assert True
@@ -943,6 +958,136 @@ def test_reward_function_rbf_exponential__behaves_as_expected(
     )
     assert all(
         check_proxy2reward(proxy.proxy2logreward(proxy_values), logrewards_exp_clipped)
+    )
+    # Log rewards, computing the log of the rewards
+    assert all(
+        check_proxy2reward(
+            torch.log(rewards_exp),
+            proxy.proxy2logreward(proxy_values),
+            atol=1e-1,
+            ignore_inf=True,
+        )
+    )
+    assert all(
+        check_proxy2reward(
+            torch.log(proxy.proxy2reward(proxy_values)),
+            proxy.proxy2logreward(proxy_values),
+            atol=1e-1,
+            ignore_inf=True,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "alpha, beta, gamma, proxy_values, rewards_exp, logrews_exp, logrews_exp_clipped",
+    [
+        (
+            1.0,
+            1.0,
+            1.0,
+            [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                4.539e-05,
+                0.26894,
+                0.37754,
+                0.47502,
+                0.5,
+                0.52497,
+                0.62245,
+                0.73105,
+                0.99995,
+            ],
+            [
+                -10.0,
+                -1.3132,
+                -0.9740,
+                -0.7443,
+                -0.6931,
+                -0.6443,
+                -0.4740,
+                -0.3132,
+                -4.5398e-05,
+            ],
+            [
+                -10.0,
+                -1.3132,
+                -0.9740,
+                -0.7443,
+                -0.6931,
+                -0.6443,
+                -0.4740,
+                -0.3132,
+                -4.5398e-05,
+            ],
+        ),
+        (
+            5.0,
+            10.0,
+            100.0,
+            [-1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                2.26e-06,
+                0.00033,
+                0.01832,
+                0.04950,
+                0.13231,
+                2.98722,
+                4.97740,
+                5.0,
+            ],
+            [
+                -12.995,
+                -7.9957,
+                -3.9994,
+                -3.0056,
+                -2.0225,
+                1.09434,
+                1.60490,
+                1.60943,
+            ],
+            [
+                -12.995,
+                -7.9957,
+                -3.9994,
+                -3.0056,
+                -2.0225,
+                1.09434,
+                1.60490,
+                1.60943,
+            ],
+        ),
+    ],
+)
+def test_reward_function_sigmoid__behaves_as_expected(
+    proxy_sigmoid,
+    alpha,
+    beta,
+    gamma,
+    proxy_values,
+    rewards_exp,
+    logrews_exp,
+    logrews_exp_clipped,
+):
+    proxy = proxy_sigmoid
+    proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
+    # Rewards
+    rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
+    assert all(check_proxy2reward(proxy._reward_function(proxy_values), rewards_exp))
+    assert all(check_proxy2reward(proxy.proxy2reward(proxy_values), rewards_exp))
+    # Log Rewards
+    logrews_exp = tfloat(logrews_exp, device=proxy.device, float_type=proxy.float)
+    logrews_exp_clipped = tfloat(
+        logrews_exp_clipped, device=proxy.device, float_type=proxy.float
+    )
+    assert all(
+        check_proxy2reward(
+            proxy._logreward_function(proxy_values), logrews_exp, atol=1e-3
+        )
+    )
+    assert all(
+        check_proxy2reward(
+            proxy.proxy2logreward(proxy_values), logrews_exp_clipped, atol=1e-3
+        )
     )
     # Log rewards, computing the log of the rewards
     assert all(
