@@ -367,7 +367,7 @@ class Proxy(ABC):
                     (
                         1.0
                         + Proxy._exponential(
-                            beta=-kwargs["beta"], alpha=kwargs["gamma"]
+                            beta=kwargs["beta"], alpha=kwargs["gamma"]
                         )(x)
                     )
                 ),
@@ -557,7 +557,7 @@ class Proxy(ABC):
         values).
 
         $$
-        R(x) = \frac{\alpha}{1 + \gamma\exp(-\beta\varepsilon(x)),
+        R(x) = \frac{\alpha}{1 + \gamma\exp(\beta\varepsilon(x)),
         $$
 
         The parameter $$\alpha$$ controls the maximum reward that can be attained, that
@@ -565,11 +565,11 @@ class Proxy(ABC):
         strictly positive.
 
         The parameter $$\beta$$ controls the steepness of the exponential. The higher,
-        the steeper. If $$\beta$$ is positive, the sigmoid returns higher rewards for
+        the steeper. If $$\beta$$ is negative, the sigmoid returns higher rewards for
         higher proxy values. If $$\beta$$ is negative, the relationship is reversed.
 
         The parameter $$\gamma$$ controls the start of the of the exponential growth.
-        For positive $$\beta$$, the larger $$\gamma$$, the later (more positive) the
+        For negative $$\beta$$, the larger $$\gamma$$, the later (more positive) the
         exponential growth begins and thus the reward for proxy values of zero is
         smaller.
 
@@ -588,7 +588,7 @@ class Proxy(ABC):
         values.
         """
         return lambda proxy_values: alpha / (
-            1.0 + Proxy._exponential(beta=-beta, alpha=gamma)(proxy_values)
+            1.0 + Proxy._exponential(beta=beta, alpha=gamma)(proxy_values)
         )
 
     def infer_on_train_set(self):
