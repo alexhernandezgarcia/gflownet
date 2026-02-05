@@ -2,11 +2,11 @@
 # A configuration that works well with the uniform proxy.
 
 defaults:
-   - override /env: hcube
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: uniform
-   - override /logger: wandb
+  - override /env: hcube
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
 
 # Environment
 env:

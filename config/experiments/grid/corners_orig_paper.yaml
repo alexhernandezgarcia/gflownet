@@ -2,11 +2,11 @@
 # A configuration that works well with a 10x10 Grid environment and the corners proxy.
 
 defaults:
-   - override /env: grid
-   - override /gflownet: flowmatch
-   - override /loss: flowmatching
-   - override /proxy: box/corners
-   - override /logger: wandb
+  - override /env: grid
+  - override /gflownet: flowmatch
+  - override /loss: flowmatching
+  - override /proxy: box/corners
+  - override /logger: wandb
 
 # Environment
 env:
