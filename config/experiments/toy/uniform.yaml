@@ -2,10 +2,10 @@
 # A Toy environment trained with the Uniform proxy and the TB loss
 
 defaults:
-   - override /env: toy
-   - override /gflownet: trajectorybalance
-   - override /proxy: uniform
-   - override /logger: wandb
+  - override /env: toy
+  - override /gflownet: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
 
 # Buffer
 buffer:
