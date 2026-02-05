@@ -983,7 +983,7 @@ def test_reward_function_rbf_exponential__behaves_as_expected(
     [
         (
             1.0,
-            1.0,
+            -1.0,
             1.0,
             [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
             [
@@ -1022,7 +1022,7 @@ def test_reward_function_rbf_exponential__behaves_as_expected(
         ),
         (
             5.0,
-            10.0,
+            -10.0,
             100.0,
             [-1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
             [
