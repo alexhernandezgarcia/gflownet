@@ -7,7 +7,7 @@ defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: crystals/corners
+  - override /proxy: crystals/density
   - override /logger: wandb
 
 device: cpu
@@ -93,21 +93,10 @@ policy:
     n_layers: 3
     shared_weights: False
 
-# Proxy (corners)
+# Proxy (density)
 proxy:
-  config:
-    - spacegroup: 225
-      mu: 0.85
-      sigma: 0.05
-    - spacegroup: 229
-      mu: 0.65
-      sigma: 0.05
-    - element: 46
-      mu: 0.75
-      sigma: 0.2
-    - element: 78
-      mu: 0.75
-      sigma: 0.1
+  reward_min: 1e-08
+  do_clip_rewards: True
 
 # Evaluator
 evaluator:
@@ -124,7 +113,7 @@ evaluator:
 # WandB
 logger:
   lightweight: True
-  run_name: "turaco corners"
+  run_name: "turaco density"
   project_name: "crystal-gfn"
   tags:
     - gflownet
