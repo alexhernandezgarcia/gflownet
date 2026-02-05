@@ -3,12 +3,12 @@
 # wandb: https://wandb.ai/alexhg/cube/runs/9u2d3zzh
 
 defaults:
-   - override /env: scrabble
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /evaluator: base
-   - override /proxy: scrabble
-   - override /logger: wandb
+  - override /env: scrabble
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /evaluator: base
+  - override /proxy: scrabble
+  - override /logger: wandb
 
 # Buffer
 buffer:
