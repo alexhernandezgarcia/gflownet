@@ -673,6 +673,14 @@ class LatticeParametersSGCCG(ContinuousCube):
             One of the seven lattice systems. By default, the triclinic lattice system
             is used, which has no constraints.
         """
+        # Raise deprecation warning
+        raise DeprecationWarning(
+            "The environment that implements a projected version of the lattice "
+            "parameters is currently obsolete. It needs to be updated to properly "
+            "implement the lattice system constraints, similarly to the non-projected "
+            "version of the environment."
+        )
+
         self.continuous = True
         self.lattice_system = lattice_system
 

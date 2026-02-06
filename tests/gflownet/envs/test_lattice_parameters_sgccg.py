@@ -28,6 +28,9 @@ from gflownet.utils.crystals.constants import (
 
 N_REPETITIONS = 100
 
+# Skip entire module until it gets updated
+pytest.skip(allow_module_level=True)
+
 
 @pytest.fixture()
 def env(lattice_system):
