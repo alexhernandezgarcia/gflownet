@@ -562,6 +562,30 @@ class LatticeParameters(Stack):
             )
         return states
 
+    def states2policy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_policy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model.
+
+        The policy representation is identical to that of the Cube environment and it
+        is agnostic to the lattice system. Also, the action of the condition (Dummy)
+        environment is deterministic. Therefore, instead of using the Stack's
+        method, the Cube part of the states is first extracted and then the entire
+        batch is converted into the policy representation using the Cube environment.
+
+        Parameters
+        ---------
+        states : list
+            A batch of states in environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = [self._get_substate(state, self.stage_cube) for state in states]
+        return self.cube.states2policy(states)
+
     def state2readable(self, state: Optional[List[float]] = None) -> str:
         """
         Converts the state into a human-readable string in the format "(a, b, c),
