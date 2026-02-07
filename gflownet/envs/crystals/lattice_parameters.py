@@ -106,9 +106,6 @@ class LatticeParameters(Stack):
         self.cube = ContinuousCube(n_dim=6, **kwargs)
         self.stage_cube = 1
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
-        # Setup constraints after the call of super to avoid getting the variable
-        # self.cube.ignored_dims overriden by the Cube initialization
-        self._setup_constraints()
 
     # TODO: if source, keep as is
     def _statevalue2length(self, value: float) -> float:
@@ -270,11 +267,10 @@ class LatticeParameters(Stack):
 
     def set_lattice_system(self, lattice_system: str):
         """
-        Sets the lattice system of the unit cell and updates the constraints.
+        Sets the lattice system of the unit cell as the condition of the environment.
         """
         self.lattice_system = lattice_system
         self.condition.set_state([LATTICE_SYSTEM_INDEX[self.lattice_system]])
-        self._setup_constraints()
 
     def _setup_constraints(self):
         """
@@ -414,6 +410,45 @@ class LatticeParameters(Stack):
         for param, value in zip(PARAMETER_NAMES, parameters):
             state = self._set_param(state, param, value)
         return state
+
+    def _check_has_constraints(self) -> bool:
+        """
+        Checks whether the Stack has constraints across sub-environments.
+
+        The environment always constraints.
+        Returns
+        -------
+        bool
+            True, indicating that the environment has intra-environment constraints.
+        """
+        return True
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Union[List, torch.Tensor] = None,
+        dones: List[bool] = None,
+    ):
+        """
+        Applies constraints across sub-environments, when applicable, in the forward
+        direction.
+
+        This method simply applies the lattice system constraints from the condition
+        sub-environment (Dummy) onto the Cube.
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the LatticeParameters environment.
+        state : list or tensor (optional)
+            A state from the LatticeParameters environment.
+        dones : list
+            A list indicating the sub-environments that are done.
+        """
+        if self._do_constraints_for_stage(
+            self.stage_condition, action, is_backward=False
+        ):
+            self._setup_constraints()
 
     # TODO: consider having less indices hard-coded
     @staticmethod
