@@ -107,7 +107,6 @@ class LatticeParameters(Stack):
         self.stage_cube = 1
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
 
-    # TODO: if source, keep as is
     def _statevalue2length(self, value: float) -> float:
         """
         Converts a state value into a length in angstroms.
@@ -142,7 +141,6 @@ class LatticeParameters(Stack):
         """
         return (length - self.min_length) / self.length_range
 
-    # TODO: if source, keep as is
     def _statevalue2angle(self, value: float) -> float:
         """
         Converts a state value into an angle in degrees.
@@ -185,6 +183,10 @@ class LatticeParameters(Stack):
         method returns the value of the corresponding parameter, in angstroms or
         degrees, and after having applied the lattice system constraints.
 
+        If the value of the state corresponding to ``param`` is not fixed (due to
+        lattice system constraints) and is in the source state value, the value is
+        returned as is without any conversion.
+
         Parameters
         ----------
         state : list
@@ -201,21 +203,26 @@ class LatticeParameters(Stack):
         if hasattr(self, param):
             return getattr(self, param)
         else:
+            value = state[self._get_index_of_param(param)]
             if param in LENGTH_PARAMETER_NAMES:
-                return self._statevalue2length(state[self._get_index_of_param(param)])
+                if value == self._get_substate(self.source, self.stage_cube)[0]:
+                    return value
+                return self._statevalue2length(value)
             elif param in ANGLE_PARAMETER_NAMES:
-                return self._statevalue2angle(state[self._get_index_of_param(param)])
+                if value == self._get_substate(self.source, self.stage_cube)[3]:
+                    return value
+                return self._statevalue2angle(value)
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
 
-    # TODO: this method should preserve the Cube values of the ignored dimensions
     def _set_param(self, state: List[float], param: str, value: float) -> List[float]:
         """
         Updates a parameter of a state with the input value.
 
         Given a Cube state, a parameter name (a, b, c, angle, beta or gamma) and a
         value in angstroms or degrees, the method updates the corresponding parameter
-        in the state after having converted the value into the range [0; 1].
+        in the state after having converted the value into the range [0; 1], unless the
+        value is the same as in the source state, in which it is not converted.
 
         Parameters
         ----------
@@ -233,6 +240,8 @@ class LatticeParameters(Stack):
         """
         param_idx = self._get_index_of_param(param)
         if param_idx is not None:
+            if value == self._get_substate(self.source, self.stage_cube)[param_idx]:
+                return state
             if param in LENGTH_PARAMETER_NAMES:
                 state[param_idx] = self._length2statevalue(value)
             elif param in ANGLE_PARAMETER_NAMES:
@@ -377,8 +386,13 @@ class LatticeParameters(Stack):
     def parameters2state(
         self, parameters: Tuple = None, lengths: Tuple = None, angles: Tuple = None
     ) -> List[float]:
-        """Converts a set of lattice parameters in angstroms and degrees into a
-        ContinuousCube state, with the parameters in the [0, 1] range.
+        """
+        Converts a set of lattice parameters in angstroms and degrees into a state
+        representation.
+
+        This method converts the parameters into the part of the state corresponding to
+        the ContinuousCube, which is in the [0, 1] range, except for the parameters of
+        ignored dimensions, which are set to the values of the source state.
 
         The parameters may be passed as a single tuple parameters containing the six
         parameters or via separate lengths and angles. If parameters is not None,
@@ -407,8 +421,11 @@ class LatticeParameters(Stack):
             parameters = lengths + angles
 
         state = copy(self.cube.source)
-        for param, value in zip(PARAMETER_NAMES, parameters):
-            state = self._set_param(state, param, value)
+        for param, value, is_ignored in zip(
+            PARAMETER_NAMES, parameters, self.cube.ignored_dims
+        ):
+            if not is_ignored:
+                state = self._set_param(state, param, value)
         return state
 
     def _check_has_constraints(self) -> bool:
@@ -593,18 +610,24 @@ class LatticeParameters(Stack):
         """
         state = self._get_state(state)
         lengths, angles = self._get_lengths_angles(state)
-        return f"{lengths}, {angles}"
+        return f"Stage {self._get_stage(state)}; {self.lattice_system}; {lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[float]:
         """
         Converts a human-readable representation of a state into the standard format.
         """
+        readables = readable.split("; ")
+        stage = int(readables[0][-1])
+        readable_cube = readables[2]
         for c in ["(", ")", " "]:
-            readable = readable.replace(c, "")
-        values = readable.split(",")
+            readable_cube = readable_cube.replace(c, "")
+        values = readable_cube.split(",")
         values = [float(value) for value in values]
+        state_cube = self.parameters2state(values)
 
-        return self.parameters2state(values)
+        state = copy(self.source)
+        self._set_stage(stage)
+        return self._set_substate(self.stage_cube, state_cube, state)
 
     def is_valid(self, state: List) -> bool:
         """

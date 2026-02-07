@@ -541,17 +541,16 @@ def test__states2policy__returns_expected(env, lattice_system, states, expected)
 @pytest.mark.parametrize(
     "lattice_system, expected_output",
     [
-        (CUBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "(1.0, 1.0, 1.0), (90.0, 30.0, 90.0)"),
-        (ORTHORHOMBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
-        (TETRAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
+        (CUBIC, "Stage 0; cubic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Stage 0; hexagonal; (-1, -1, -1), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Stage 0; monoclinic; (-1, -1, -1), (90.0, -1, 90.0)"),
+        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1, -1, -1), (-1, -1, -1)"),
+        (TETRAGONAL, "Stage 0; tetragonal; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Stage 0; triclinic; (-1, -1, -1), (-1, -1, -1)"),
     ],
 )
-@pytest.mark.skip(reason="skip until it gets updated")
-def test__state2readable__gives_expected_results_for_initial_states(
+def test__state2readable__gives_expected_results_for_source_states(
     env, lattice_system, expected_output
 ):
     assert env.state2readable() == expected_output
@@ -560,20 +559,19 @@ def test__state2readable__gives_expected_results_for_initial_states(
 @pytest.mark.parametrize(
     "lattice_system, readable",
     [
-        (CUBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "(1.0, 1.0, 1.0), (90.0, 30.0, 90.0)"),
-        (ORTHORHOMBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
-        (TETRAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
+        (CUBIC, "Stage 0; cubic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Stage 0; hexagonal; (-1, -1, -1), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Stage 0; monoclinic; (-1, -1, -1), (90.0, -1, 90.0)"),
+        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1, -1, -1), (-1, -1, -1)"),
+        (TETRAGONAL, "Stage 0; tetragonal; (-1, -1, -1), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Stage 0; triclinic; (-1, -1, -1), (-1, -1, -1)"),
     ],
 )
-@pytest.mark.skip(reason="skip until it gets updated")
-def test__readable2state__gives_expected_results_for_initial_states(
+def test__readable2state__gives_expected_results_for_source_states(
     env, lattice_system, readable
 ):
-    assert env.readable2state(readable) == env.state
+    assert env.readable2state(readable) == env.source
 
 
 @pytest.mark.parametrize(
