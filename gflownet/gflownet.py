@@ -21,6 +21,7 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
+from gflownet.utils import vislogger
 from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import (
     bootstrap_samples,
@@ -116,8 +117,8 @@ class GFlowNetAgent:
             GPU. By default it is 0, so no garbage collection is performed. This is
             because it can incur a large time overhead unnecessarily.
         collect_reversed_logprobs: bool
-            If True, reversed logprobs will be computed and collected during sampling batches
-            for training
+            If True, reversed logprobs will be computed and collected during sampling
+            batches for training
 
         Raises
         ------
@@ -156,6 +157,16 @@ class GFlowNetAgent:
             )
         # Logging
         self.logger = logger
+        # If vislogger is used attach methods
+        if self.logger.usevislogger:
+            if self.logger.usevislogger:
+                self.logger.vislogger.attach_fns(
+                    fn_state_to_text=self.env.states2readables
+                )
+                if self.logger.visloggerconfig["use_env_feature_fn"]:
+                    self.logger.vislogger.attach_fns(
+                        fn_compute_features=self.env.features_from_states
+                    )
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
@@ -1014,6 +1025,11 @@ class GFlowNetAgent:
             final=True,
         )
         # Close logger
+        if (
+            self.logger.usevislogger
+            and not self.logger.visloggerconfig["show_during_training"]
+        ):
+            self.logger.vislogger.compute_graph()
         if self.use_context is False:
             self.logger.end()
 
@@ -1156,6 +1172,43 @@ class GFlowNetAgent:
                     prefix="Replay buffer -",
                     use_context=self.use_context,
                 )
+
+        # Log vislogger data if used
+        if (
+            self.logger.usevislogger
+            and self.it % self.logger.visloggerconfig["log_every_n"] == 0
+        ):
+            traj_indices = batch.get_trajectory_indices()
+            order = sorted(range(len(traj_indices)), key=lambda i: traj_indices[i])
+            done = [batch.get_done()[i] for i in order]
+            with torch.no_grad():
+                logging_loss = self.loss.compute_losses_of_batch(batch).flatten()
+                # Can be done better
+                # specify state/trajectory level in the loss classes? #TODO
+                if (
+                    self.loss.acronym == "FL"
+                    or self.loss.id == "FM"
+                    or self.loss.id == "DB"
+                ):
+                    logging_loss = logging_loss[done]
+                elif self.loss.acronym != "TB" and self.loss.acronym != "VG":
+                    raise NotImplementedError
+            self.logger.vislogger.log(
+                batch_idx=np.array([traj_indices[i] for i in order]),
+                states=[batch.get_states()[i] for i in order],
+                total_reward=np.array(rewards),
+                loss=np.array(logging_loss),
+                iteration=self.it,
+                logprobs_forward=np.array(
+                    [batch.get_logprobs(backward=False)[0][i] for i in order]
+                ),
+                logprobs_backward=np.array(
+                    [batch.get_logprobs(backward=True)[0][i] for i in order]
+                ),
+            )
+            self.logger.vislogger.write_to_db(
+                compute_graph=self.logger.visloggerconfig["show_during_training"]
+            )
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})
