@@ -140,11 +140,6 @@ class VisLogger:
         if self.features:
             self.current.update({"features_valid_provided": None})
 
-        # Checks and Warnings
-        assert (
-            self.fn_state_to_text is not None
-        ), "No fn_state_to_text provided. This is neccessary to distinguish states."
-
     def attach_fns(self, fn_state_to_text=None, fn_compute_features=None):
         """Attach the functions after initialization."""
         if fn_state_to_text is not None:
