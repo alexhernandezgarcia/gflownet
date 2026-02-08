@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 from dash import Input, Output, State, dash_table, dcc, html, no_update
 from dash.dash_table.Format import Format, Scheme
-from plot_utils import Plotter
+
+from .plot_utils import Plotter
 
 
 def run_dashboard(

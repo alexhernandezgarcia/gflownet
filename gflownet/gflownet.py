@@ -21,7 +21,6 @@ from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
-from gflownet.utils import vislogger
 from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import (
     bootstrap_samples,
@@ -1025,13 +1024,28 @@ class GFlowNetAgent:
             final=True,
         )
         # Close logger
+        if self.use_context is False:
+            self.logger.end()
+        # Run dashboard if specified
+        # all of this could be moved to gflownet.end(), see #todo in train.py
         if (
             self.logger.usevislogger
             and not self.logger.visloggerconfig["show_during_training"]
         ):
             self.logger.vislogger.compute_graph()
-        if self.use_context is False:
-            self.logger.end()
+        if (
+            self.logger.usevislogger
+            and self.logger.visloggerconfig["launch_after_training"]
+        ):
+            from gflownet.utils.vislogger.dashboard import run_dashboard
+
+            run_dashboard(
+                data=self.logger.logdir / "visdata",
+                text_to_img_fn=self.env.text_to_img_fn,
+                state_aggregation_fn=self.env.state_aggregation_fn,
+                s0=self.env.state2readable(self.env.source),
+                debug_mode=False,
+            )
 
     @torch.no_grad()
     def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):

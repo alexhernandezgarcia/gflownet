@@ -7,8 +7,11 @@ vislogger:
   log_every_n: 10
   # If true expects the env to have a function features_from_states(states)
   use_env_feature_fn: True
-  # Shows the dashboard during training
+  # Shows the dashboard during training (not fully implemented yet)
   show_during_training: False
+  # Launches the dashboard after training
+  launch_after_training: True
+
 
 tags:
     - gflownet
