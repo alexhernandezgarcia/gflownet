@@ -88,15 +88,13 @@ def run_dashboard(
 
     # create empty testset if it is missing and get column names
     cur = conn.cursor()
-    cur.execute(
-        """
+    cur.execute("""
             CREATE TABLE IF NOT EXISTS testset (
                 id TEXT PRIMARY KEY,
                 total_reward REAL,
                 features_valid REAL
             )
-        """
-    )
+        """)
     testset_cols = pd.read_sql_query(
         "SELECT name FROM pragma_table_info('testset');", conn
     )["name"].tolist()

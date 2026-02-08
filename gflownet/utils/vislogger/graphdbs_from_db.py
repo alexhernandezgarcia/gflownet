@@ -3,18 +3,15 @@
 
 def create_tables(conn):
     """Create both nodes and edges tables in the same database."""
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS nodes (
             id TEXT PRIMARY KEY,
             node_type TEXT,
             reward REAL
         )
-    """
-    )
+    """)
 
-    conn.execute(
-        """
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS edges (
             id TEXT,
             source TEXT,
@@ -24,19 +21,16 @@ def create_tables(conn):
             logprobs_forward REAL,
             logprobs_backward REAL
         )
-    """
-    )
+    """)
     conn.commit()
 
 
 def insert_root_node(conn):
     """Add the root."""
-    conn.execute(
-        """
+    conn.execute("""
         INSERT OR IGNORE INTO nodes (id, node_type, reward)
         VALUES ('#', 'start', NULL)
-    """
-    )
+    """)
     conn.commit()
 
 
@@ -54,8 +48,7 @@ def truncate_graph(conn):
 
     # Step 1: Identify removable nodes
     # A node is removable if it has exactly 1 unique predecessor AND 1 unique successor
-    cursor.execute(
-        """
+    cursor.execute("""
             CREATE TEMP TABLE IF NOT EXISTS removable_nodes AS
             WITH node_connections AS (
                 SELECT
@@ -71,8 +64,7 @@ def truncate_graph(conn):
             SELECT id
             FROM node_connections
             WHERE num_predecessors = 1 AND num_successors = 1 AND type != "final"
-        """
-    )
+        """)
 
     removable_count = cursor.execute("SELECT COUNT(*) FROM removable_nodes").fetchone()[
         0
@@ -82,16 +74,14 @@ def truncate_graph(conn):
         return
 
     # Step 2: Create lookup table mapping each removable node to its unique successor
-    cursor.execute(
-        """
+    cursor.execute("""
             CREATE TEMP TABLE IF NOT EXISTS node_successors AS
             SELECT DISTINCT
                 e.source as node_id,
                 e.target as successor_id
             FROM edges e
             WHERE e.source IN (SELECT id FROM removable_nodes)
-        """
-    )
+        """)
 
     # Step 3: Iteratively bypass removable nodes
     iteration = 0
@@ -102,15 +92,13 @@ def truncate_graph(conn):
         cursor.execute("DROP TABLE IF EXISTS edges_to_delete")
 
         # Materialize edges to update/delete
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TEMP TABLE edges_to_delete AS
             SELECT e.source, e.target, e.trajectory_id
             FROM edges e
             WHERE e.source NOT IN (SELECT id FROM removable_nodes)
               AND e.target IN (SELECT id FROM removable_nodes)
-        """
-        )
+        """)
 
         cursor.execute("SELECT COUNT(*) FROM edges_to_delete")
         edges_to_update = cursor.fetchone()[0]
@@ -120,8 +108,7 @@ def truncate_graph(conn):
             break
 
         # Insert bypass edges
-        cursor.execute(
-            """
+        cursor.execute("""
             INSERT INTO edges (
                 id,
                 source,
@@ -150,19 +137,16 @@ def truncate_graph(conn):
                 ON e_next.source = e.target
                AND e_next.target = ns.successor_id
                AND e_next.trajectory_id = e.trajectory_id
-        """
-        )
+        """)
 
         # Delete only the original edges
-        cursor.execute(
-            """
+        cursor.execute("""
             DELETE FROM edges
             WHERE (source, target, trajectory_id) IN (
                 SELECT source, target, trajectory_id
                 FROM edges_to_delete
             )
-        """
-        )
+        """)
 
         cursor.execute("DROP TABLE edges_to_delete")
         conn.commit()
@@ -174,13 +158,11 @@ def truncate_graph(conn):
         )
 
     # Step 4: Handle edges between removable nodes (internal chain edges)
-    cursor.execute(
-        """
+    cursor.execute("""
             DELETE FROM edges
             WHERE source IN (SELECT id FROM removable_nodes)
                OR target IN (SELECT id FROM removable_nodes)
-        """
-    )
+        """)
 
     # Step 6: Clean up temporary tables
     cursor.execute("DROP TABLE IF EXISTS removable_nodes")
@@ -199,8 +181,7 @@ def create_graph_dbs(conn):
 
     seen_nodes = set(["#"])
 
-    read_cur.execute(
-        """
+    read_cur.execute("""
         SELECT
             final_id,
             step,
@@ -212,8 +193,7 @@ def create_graph_dbs(conn):
             logprobs_backward
         FROM trajectories
         ORDER BY final_id, step
-    """
-    )
+    """)
 
     current_trajectory = None
     prev_row = None

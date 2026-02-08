@@ -748,12 +748,10 @@ class Plotter:
         """
         non_valid = pd.read_sql_query(query, conn, params=iteration)["count"][0]
         if non_valid:
-            print(
-                f"""
+            print(f"""
                 {non_valid} objects of the logged data have not been
                 downprojected due to invalid features.
-                """
-            )
+                """)
 
         features = logged[feature_cols].to_numpy()
         df_dp = logged.drop(columns=feature_cols)
@@ -773,19 +771,15 @@ class Plotter:
             query = "SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0"
             non_valid_t = pd.read_sql_query(query, conn)["count"][0]
             if non_valid_t:
-                print(
-                    f"""
+                print(f"""
                     {non_valid_t} objects of the testset have not been
                     downprojected due to invalid features.
-                """
-                )
+                """)
 
             # concat features
             features_t = testset[feature_cols_testset].to_numpy()
             testset = testset.drop(columns=feature_cols_testset)
-            assert (
-                features.shape[1] == features_t.shape[1]
-            ), f"""
+            assert features.shape[1] == features_t.shape[1], f"""
                     Testset and Logged data have a different amout of features.\n
                     Testset: {feature_cols_testset}
                     Logged: {feature_cols}
