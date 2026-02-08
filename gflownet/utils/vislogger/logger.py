@@ -27,7 +27,6 @@ Scalability:
 import os
 import sqlite3
 from datetime import datetime
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -43,8 +42,8 @@ class VisLogger:
         self,
         path: str | None = None,
         s0_included: bool = True,
-        fn_state_to_text: Callable | None = None,
-        fn_compute_features: Callable | None = None,
+        fn_state_to_text: callable | None = None,
+        fn_compute_features: callable | None = None,
         metrics: list[str] | None = None,
         features: list[str] | None = None,
     ):
@@ -60,7 +59,7 @@ class VisLogger:
             start state included.
             The start states will then be removed before writing to the database.
             s0 will be specified as '#' in the visualizations.
-        fn_state_to_text: Callable
+        fn_state_to_text: callable
             Function to convert a batch of states to a list of readable strings to
             identify a single state.
             Neccessary, used to distinguish states.
@@ -68,7 +67,7 @@ class VisLogger:
             added).
             s0 will be specified as '#' in the visualizations,
             make sure no state has the same identifier.
-        fn_compute_features: Callable
+        fn_compute_features: callable
             Function to compute features from the states.
             Should take the states in the same format as given (torch Tensor, np array
             or list) and return a tuple consisting of:
