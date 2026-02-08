@@ -64,13 +64,11 @@ def run_dashboard(
         )
 
         def image_fn(state):
-            """Image fn."""
             return None
 
     else:
 
         def image_fn(state):
-            """Image fn."""
             if state == "#":
                 return None
             return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
@@ -1295,28 +1293,30 @@ def run_dashboard(
 
         if add_handlers:
             title = "Directed Acyclic Graph, Mode: Expand"
-            subtitle = """
-                Click on 'Select children' nodes to expand the Graph
-                and click on the root to collapse it.
-                Select a node or items from other visuals to switch to selection mode.
-                Edge coloring: 
-            """
+            subtitle = (
+                "Click on 'Select children' nodes to expand the Graph"
+                "and click on the root to collapse it."
+                "Select a node or items from other visuals to switch to selection mode."
+                "Edge coloring: "
+            )
         else:
             title = "Directed Acyclic Graph, Mode: Selection"
-            subtitle = """
-                Shows all trajectories going through the selected items.
-                Clear selection or select the root to switch to expanding mode.
-                Edge coloring: 
-            """
+            subtitle = (
+                "hows all trajectories going through the selected items."
+                "Clear selection or select the root to switch to expanding mode."
+                "Edge coloring: "
+            )
         if metric in ["highest", "lowest"]:
-            subtitle += f"""
-                {metric.capitalize()} {direction} logprobabilities of the edge
-                over selected iterations.
-            """
+            subtitle += (
+                f"{metric.capitalize()} {direction} logprobabilities of the edge"
+                "over selected iterations."
+            )
         elif metric == "variance":
-            subtitle += f"""Latest {direction} logprobability
-            of the edge (in selected iterations) -
-            mean ({direction} logprobabilities) over selected iterations."""
+            subtitle += (
+                "Latest {direction} logprobability"
+                "of the edge (in selected iterations) -"
+                f"mean ({direction} logprobabilities) over selected iterations."
+            )
         elif metric == "frequency":
             subtitle += "Frequency of the edge over selected iterations."
         return result["elements"], result["stylesheet"], layout_config, title, subtitle

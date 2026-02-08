@@ -350,12 +350,12 @@ class Plotter:
                 title += (
                     "Log Odds Ratio of Samples to Testset Objects (Scaled to [-1,1])"
                 )
-                title += """
-                    <br><sup>
-                    1: Only Testset Objects. -1: Only Samples.
-                    0: Ratio Samples/Testset Objects Is the Same as the Global Ratio.
-                    </sup>
-                """
+                title += (
+                    "<br><sup>"
+                    "1: Only Testset Objects. -1: Only Samples."
+                    "0: Ratio Samples/Testset Objects Is the Same as the Global Ratio."
+                    "</sup>"
+                )
             else:
                 legend_title = "N Samples"
                 title += "Number of Sampled Objects"
@@ -366,10 +366,10 @@ class Plotter:
             metric_max = 1
             metric_min = 0
             legend_title = "R"
-            title += """
-                Correlation Between the Sum of the Forward Logprobabilities and
-                Reward for bins with > 10 Samples
-            """
+            title += (
+                "Correlation Between the Sum of the Forward Logprobabilities and"
+                "Reward for bins with > 10 Samples"
+            )
         else:
             raise NotImplementedError("Unknown ss_style")
         title += "<br><sup>Select a hex or hover over it to see its details</sup>"
@@ -786,10 +786,10 @@ class Plotter:
             assert (
                 features.shape[1] == features_t.shape[1]
             ), f"""
-                        Testset and Logged data have a different amout of features.\n
-                        Testset: {feature_cols_testset}
-                        Logged: {feature_cols}
-                        """
+                    Testset and Logged data have a different amout of features.\n
+                    Testset: {feature_cols_testset}
+                    Logged: {feature_cols}
+                """
             features = np.concatenate((features, features_t), axis=0)
             df_dp = pd.concat([df_dp, testset], axis=0, ignore_index=True)
 
@@ -1379,10 +1379,10 @@ class Plotter:
         if metric == "variance":
             color_scale = self.cs_diverging_edgechange
             zmin, zmax, zmid = -3, 3, 0
-            title = f"""
-                Edge Heatmap<br><sup>Difference: {direction.capitalize()}
-                Logprobability - Mean of Edge</sup>
-            """
+            title = (
+                f"Edge Heatmap<br><sup>Difference: {direction.capitalize()}"
+                "Logprobability - Mean of Edge</sup>"
+            )
         elif metric == "frequency":
             color_scale = self.cs_main
             zmin = 0
@@ -1392,10 +1392,10 @@ class Plotter:
         else:  # highest or lowest
             color_scale = self.cs_main
             zmin, zmax, zmid = -10, 0, None
-            title = f"""
-                Edge Heatmap<br><sup>{metric.capitalize()}
-                Value of {direction.capitalize()} Logprobabilities</sup>
-            """
+            title = (
+                f"Edge Heatmap<br><sup>{metric.capitalize()}"
+                f"Value of {direction.capitalize()} Logprobabilities</sup>"
+            )
 
         # heatmap_data = heatmap_data.sort_index(axis=1)
 
@@ -1565,10 +1565,10 @@ class Plotter:
 
         fig.update_layout(
             autosize=True,
-            title=f"""
-                State Space of Final Objects<br><sup>Size shows {metric}
-                for the latest iteration the object occured
-            """,
+            title=(
+                f"State Space of Final Objects<br><sup>Size shows {metric}"
+                "for the latest iteration the object occured"
+            ),
             template="plotly_dark",
             legend=dict(
                 itemsizing="constant",  # ensures marker size is not scaled
