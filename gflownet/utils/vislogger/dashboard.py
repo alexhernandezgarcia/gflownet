@@ -16,6 +16,7 @@ def run_dashboard(
     data: str,
     text_to_img_fn: callable,
     state_aggregation_fn: callable,
+    s0: str = "#",
     debug_mode: bool = False,
 ):
     """Runs the dashboard on http://127.0.0.1:8050/.
@@ -35,6 +36,12 @@ def run_dashboard(
         list of strings and return one state as a string. If not specified the longest
         common substring of all strings will be used. There is no guarantee that this is
         a valid state.
+    s0: str
+        Gives the option to specify the start state.
+        By default '#' is used and treated as an empty state.
+        If s0 is meaningful in your environment (e.g. the position [0, 0] in a grid),
+        you can specify how your start state looks here.
+        In that case it will be displayed via the text_to_img_fn.
     debug_mode : bool, optional
         Whether to display in debug mode for error handling. By default, False.
     """
@@ -68,7 +75,7 @@ def run_dashboard(
                 return None
             return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
 
-    plotter = Plotter(data_path, image_fn, state_aggregation_fn)
+    plotter = Plotter(data_path, image_fn, state_aggregation_fn, s0)
 
     # get provided metrics and feature columns
     conn = sqlite3.connect(data_path)
@@ -132,6 +139,22 @@ def run_dashboard(
             html.Div(
                 [
                     # -------- TAB SELECTOR --------
+                    html.A(
+                        html.Button(
+                            "How to Use",
+                            style={
+                                "border-radius": "8px",
+                            },
+                        ),
+                        href="https://github.com/florianholeczek/GFlowNet_Training_Vis_Pilot/blob/master/Dashboard_Introduction.md",
+                        target="_blank",
+                        style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                            "margin-bottom": "50px",
+                            "textDecoration": "none",
+                        },
+                    ),
                     html.H4("View"),
                     html.Div(
                         [
@@ -1064,10 +1087,10 @@ def run_dashboard(
             if not selected_tids or "range" not in selected_tids:
                 return no_update
 
-            x_range = np.round(selected_tids["range"]["x"]).astype(int)
-            t_ids = tid_list[x_range[0] : x_range[1] + 1]
+            y_range = np.round(selected_tids["range"]["y"]).astype(int)
+            t_ids = tid_list[y_range[0] : y_range[1] + 1]
             t_ids = list({elem for sublist in t_ids for elem in sublist})
-            iterations = np.round(selected_tids["range"]["y"]).astype(int).tolist()
+            iterations = np.round(selected_tids["range"]["x"]).astype(int).tolist()
 
             # get trajectory ids that are also in iteration range
             # and then all node ids for these trajectory_ids
@@ -1081,7 +1104,7 @@ def run_dashboard(
             """
             params = t_ids + [iterations[0], iterations[1]]
             selected_ids = pd.read_sql_query(query, conn, params=params)
-            selected_ids = list(set(selected_ids["trajectory_id"].to_list())) + ["#"]
+            selected_ids = list(set(selected_ids["trajectory_id"].to_list()))
             conn.close()
             return selected_ids, None, []
 
@@ -1268,7 +1291,7 @@ def run_dashboard(
             layout_config["rankDir"] = "LR"  # Left to right
         elif layout_name == "breadthfirst":
             layout_config["spacingFactor"] = 1.2
-            layout_config["roots"] = '[id = "START"]'
+            layout_config["roots"] = '[id = "#"]'
 
         if add_handlers:
             title = "Directed Acyclic Graph, Mode: Expand"
@@ -1302,19 +1325,31 @@ def run_dashboard(
     @app.callback(
         Output("build-ids", "data"),
         Input("dag-table", "selected_row_ids"),
+        Input("dag-graph", "tapNodeData"),
         State("dag-table", "data"),
         State("build-ids", "data"),
     )
-    def save_selected_rows(selected_rows, table_data, build_ids):
-        if selected_rows:
+    def save_selected_rows(selected_rows, node_select, table_data, build_ids):
+        # reset build ids if root selected
+        if "dag-graph.tapNodeData" in dash.callback_context.triggered[0]["prop_id"]:
+            if node_select.get("id") == "#":
+                return ["#"]
+            else:
+                return no_update
+        # update build ids from table
+        if selected_rows or table_data:
+            print("selected rows")
             children = set([r["id"] for r in table_data])
             unselected = children - set(selected_rows)
-            build_ids = set(build_ids) - unselected
-            build_ids = set(selected_rows) | build_ids | set(["#"])
+            new_build_ids = set(build_ids) - unselected
+            if len(new_build_ids) < len(build_ids):
+                removed_node = set(build_ids) - new_build_ids
+                assert len(removed_node) == 1, "Bug in DAG selection"
+                build_ids = plotter.dag_remove_node_prune(
+                    build_ids, list(removed_node)[0]
+                )
+            build_ids = set(selected_rows) | set(build_ids) | set(["#"])
             return list(build_ids)
-        elif table_data:
-            children = set([r["id"] for r in table_data])
-            return list(set(build_ids) - children)
         else:
             return ["#"]
 
@@ -1532,9 +1567,8 @@ def run_dashboard(
         target_img = image_fn(target)
 
         def make_img(svg_b64):
-            """Make img."""
             if svg_b64 is None:
-                return html.Div("root")
+                return html.Div("s0")
             return html.Img(src=svg_b64, style={"height": "100px"})
 
         children = html.Div(

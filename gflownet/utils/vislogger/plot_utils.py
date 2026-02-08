@@ -11,9 +11,10 @@ from umap import UMAP
 
 class Plotter:
 
-    def __init__(self, data, image_fn, state_aggregation_fn):
+    def __init__(self, data, image_fn, state_aggregation_fn, s0):
         """Init datapath, functions and colorscales."""
         self.data = data
+        self.s0 = s0
         self.image_fn = image_fn
         if state_aggregation_fn is None:
             self.raw_state_aggregation_fn = self.longest_common_substring
@@ -22,6 +23,7 @@ class Plotter:
 
         # colorscales
         self.cs_main = px.colors.sequential.YlGn
+        self.cs_iteration = px.colors.sequential.Teal
         self.cs_diverging_testset = px.colors.diverging.PRGn
         self.cs_diverging_edgechange = px.colors.diverging.PiYG
         self.cs_diverging_dir = px.colors.diverging.balance_r
@@ -985,7 +987,9 @@ class Plotter:
 
             # create handlers
             handler_nodes = (
-                nodes[nodes["node_type"] != "final"].copy().drop(["reward"], axis=1)
+                nodes[(nodes["node_type"] != "final") | (nodes["n_children"] > 0)]
+                .copy()
+                .drop(["reward"], axis=1)
             )
             handler_nodes["node_type"] = "handler"
             handler_nodes["id"] = "handler_" + handler_nodes["id"]
@@ -1008,6 +1012,9 @@ class Plotter:
         nodes["iteration1"] = iteration[1]
         if direction == "backward":
             edges.rename(columns={"source": "target", "target": "source"}, inplace=True)
+
+        if self.s0 != "#":
+            nodes.loc[nodes["id"] == "#", "image"] = self.image_fn(self.s0)
 
         # convert to cytoscape structure
         nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
@@ -1064,7 +1071,7 @@ class Plotter:
                     "border-color": "#000000",
                 },
             },
-            # START node (keep text label)
+            # START node default "#" (keep text label)
             {
                 "selector": 'node[node_type = "start"]',
                 "style": {
@@ -1131,6 +1138,26 @@ class Plotter:
             },
         ]
 
+        if self.s0 != "#":
+            stylesheet.append(
+                # START node custom (display image)
+                {
+                    "selector": 'node[node_type = "start"]',
+                    "style": {
+                        "label": "",
+                        "background-color": "#fff",
+                        "background-image": "data(image)",
+                        "background-fit": "contain",
+                        "background-clip": "none",
+                        "shape": "round-rectangle",
+                        "width": "60px",
+                        "height": "45px",
+                        "border-width": "5px",
+                        "border-color": "#BAEB9D",
+                    },
+                },
+            )
+
         # Add color styles for each edge
         for edge in edges:
             edge_id = edge["data"]["id"]
@@ -1148,6 +1175,36 @@ class Plotter:
             "elements": elements,
             "stylesheet": stylesheet,
         }
+
+    def dag_remove_node_prune(self, nodelist, node_to_remove):
+        """
+        removes the node from the list and all unconnected children
+        :return: new list
+        """
+        conn = sqlite3.connect(self.data)
+        remaining = set(nodelist)
+        if node_to_remove not in remaining:
+            return remaining
+        stack = [node_to_remove]
+        while stack:
+            node = stack.pop()
+            if node not in remaining:
+                continue
+            remaining.remove(node)
+            query = "SELECT DISTINCT target FROM edges WHERE source = ?"
+            children = pd.read_sql_query(query, conn, params=[node])["target"].tolist()
+            for child in children:
+                if child not in remaining:
+                    continue
+                query = "SELECT DISTINCT source FROM edges WHERE target = ?"
+                parents = pd.read_sql_query(query, conn, params=[child])[
+                    "source"
+                ].tolist()
+                if not any(parent in remaining for parent in parents):
+                    stack.append(child)
+
+        conn.close()
+        return remaining
 
     def update_DAG_overview(self, direction, metric, iteration, page):
         """Update the edge heatmap
@@ -1459,7 +1516,7 @@ class Plotter:
         if selected_ids:
             df["opacity"] = df["id"].isin(selected_ids) * 0.9 + 0.1
         else:
-            df["opacity"] = 1
+            df["opacity"] = 0.5
 
         # Separate test set and normal points
         df_test = df[df["istestset"] == 1]
@@ -1475,7 +1532,7 @@ class Plotter:
                 marker=dict(
                     size=df_normal["metric_norm"],
                     color=df_normal["iteration"],
-                    colorscale=self.cs_main,
+                    colorscale=self.cs_iteration,
                     line=dict(color="black", width=1),
                     showscale=True,
                     colorbar=dict(title="Iteration", thickness=15, len=0.7),
@@ -1603,10 +1660,12 @@ class Plotter:
         # Map iteration categories to numeric indices
         iter_to_idx = {it: i for i, it in enumerate(iterations)}
         first_iter_idx = first_iter.map(iter_to_idx)
-        n_colors = len(self.cs_main)
+        n_colors = len(self.cs_iteration)
         # Normalize first-iteration index → color
         obj_color = {
-            text: self.cs_main[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+            text: self.cs_iteration[
+                int(idx / max(1, len(iterations) - 1) * (n_colors - 1))
+            ]
             for text, idx in first_iter_idx.items()
         }
 
@@ -1653,7 +1712,7 @@ class Plotter:
                 marker=dict(
                     size=0,
                     color=[df["iteration"].min(), df["iteration"].max()],
-                    colorscale=self.cs_main,
+                    colorscale=self.cs_iteration,
                     cmin=df["iteration"].min(),
                     cmax=df["iteration"].max(),
                     showscale=True,
@@ -1724,7 +1783,7 @@ class Plotter:
                 mode="markers",
                 marker=dict(
                     color=df["iteration"],
-                    colorscale=self.cs_main,
+                    colorscale=self.cs_iteration,
                     colorbar=dict(title="Iteration of<br>First Sample"),
                     symbol="square",
                     line=dict(width=1, color="black"),

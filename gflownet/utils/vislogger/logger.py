@@ -27,6 +27,7 @@ Scalability:
 import os
 import sqlite3
 from datetime import datetime
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -42,8 +43,8 @@ class VisLogger:
         self,
         path: str | None = None,
         s0_included: bool = True,
-        fn_state_to_text: callable | None = None,
-        fn_compute_features: callable | None = None,
+        fn_state_to_text: Callable | None = None,
+        fn_compute_features: Callable | None = None,
         metrics: list[str] | None = None,
         features: list[str] | None = None,
     ):
