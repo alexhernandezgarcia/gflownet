@@ -614,6 +614,16 @@ class LatticeParameters(Stack):
         """
         Converts the state into a human-readable string in the format "(a, b, c),
         (alpha, beta, gamma)".
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        str
+            A human-readable version of the state.
         """
         state = self._get_state(state)
         lengths, angles = self._get_lengths_angles(state)
@@ -622,6 +632,16 @@ class LatticeParameters(Stack):
     def readable2state(self, readable: str) -> List[float]:
         """
         Converts a human-readable representation of a state into the standard format.
+
+        Parameters
+        ----------
+        readable : str
+            A human-readable version of a state.
+
+        Returns
+        -------
+        state : list
+            A state in environment format.
         """
         readables = readable.split("; ")
         stage = int(readables[0][-1])
