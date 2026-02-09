@@ -169,6 +169,45 @@ class LatticeParameters(Stack):
         """
         return LATTICE_SYSTEMS[self._get_substate(state, self.stage_condition)[0]]
 
+    def set_lattice_system(
+        self, lattice_system: Union[int, str], state: Optional[List] = None
+    ) -> List:
+        """
+        Sets the lattice system of the unit cell as the condition of the environment.
+
+        If the input state is not None, it is updated with the given lattice system.
+        Otherwise ``self.state`` is updated.
+
+        Parameters
+        ----------
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+        state : list (optional)
+            A state in environment format.
+
+        Returns
+        -------
+        state
+            The input state updated with the given lattice system. This is a state of
+            the LatticeParameters environment in environment format.
+        """
+        if state is None:
+            state = self.state
+            done_condition = self.condition.done
+        else:
+            done_condition = self._get_stage(state) > self.stage_condition
+        if isinstance(lattice_system, str):
+            lattice_system = LATTICE_SYSTEM_INDEX[lattice_system]
+
+        # Update state of condition sub-environment
+        self.condition.set_state([lattice_system], done_condition)
+        # Update self.state or input state
+        state = self._set_substate(self.stage_condition, self.condition.state, state)
+
+        return state
+
     @property
     def lattice_system_idx(self) -> int:
         """
@@ -260,20 +299,6 @@ class LatticeParameters(Stack):
             minimum and maximum angles of the environment.
         """
         return (angle - self.min_angle) / self.angle_range
-
-    def set_lattice_system(self, lattice_system: str):
-        """
-        Sets the lattice system of the unit cell as the condition of the environment.
-
-        In order to properly update the lattice system, two elements need to be
-        updated:
-            - The condition state
-            - The part of the global Stack state corresponding to the condition
-        """
-        self.condition.set_state(
-            [LATTICE_SYSTEM_INDEX[lattice_system]], self.condition.done
-        )
-        self._set_substate(self.stage_condition, self.condition.state)
 
     def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
         """
