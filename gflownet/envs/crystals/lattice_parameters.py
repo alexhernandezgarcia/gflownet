@@ -277,9 +277,16 @@ class LatticeParameters(Stack):
     def set_lattice_system(self, lattice_system: str):
         """
         Sets the lattice system of the unit cell as the condition of the environment.
+
+        In order to properly update the lattice system, three elements need to be
+        updated:
+            - The attribute ``self.lattice_system``
+            - The condition state
+            - The part of the global Stack state corresponding to the condition
         """
         self.lattice_system = lattice_system
         self.condition.set_state([LATTICE_SYSTEM_INDEX[self.lattice_system]])
+        self._set_substate(self.stage_condition, self.condition.state)
 
     def _setup_constraints(self):
         """

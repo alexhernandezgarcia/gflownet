@@ -284,6 +284,10 @@ class Crystal(Stack):
             if self.do_sg_to_lp_constraints:
                 lattice_system = self.space_group.lattice_system
                 self.lattice_parameters.set_lattice_system(lattice_system)
+                # Update global Stack state with state of LatticeParameters
+                self._set_substate(
+                    self.stage_latticeparameters, self.lattice_parameters.state
+                )
 
     def _apply_constraints_backward(self, action: Tuple = None):
         """
@@ -306,6 +310,10 @@ class Crystal(Stack):
             )
         ):
             self.lattice_parameters.set_lattice_system(TRICLINIC)
+            # Update global Stack state with state of LatticeParameters
+            self._set_substate(
+                self.stage_latticeparameters, self.lattice_parameters.state
+            )
 
     def states2proxy(
         self, states: List[List]
