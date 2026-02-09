@@ -569,8 +569,10 @@ class Proxy(ABC):
         higher proxy values. If $$\beta$$ is positive, the relationship is reversed.
 
         The parameter $$\gamma$$ controls the start of the of the exponential growth.
-        For negative $$\beta$$, the larger $$\gamma$$, the later (more positive) the
-        exponential growth begins and thus the reward for proxy values of zero is
+        The value of $$\gamma$$ must be strictly positive to keep the sigmoidal
+        behaviour and avoid degenerate, invalid functions. For negative $$\beta$$, the
+        larger $$\gamma$$, the later (more positive) the exponential growth begins and
+        thus the reward for proxy values of zero is
         smaller.
 
         Parameters
