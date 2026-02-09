@@ -9,7 +9,7 @@ implementations.
 
 from typing import List, Optional, Tuple, Union
 
-import numpy
+import numpy as np
 import torch
 from scipy.linalg import expm, logm
 from torch import Tensor
@@ -38,14 +38,25 @@ LENGTH_PARAMETER_NAMES = ("a", "b", "c")
 ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
 PARAMETER_NAMES = LENGTH_PARAMETER_NAMES + ANGLE_PARAMETER_NAMES
 
+# Ignored dimensions for each lattice system
+IGNORED_DIMS = {
+    CUBIC: [False, True, True, True, True, True],
+    HEXAGONAL: [False, True, False, True, True, True],
+    MONOCLINIC: [False, False, False, True, False, True],
+    ORTHORHOMBIC: [False, False, False, True, True, True],
+    RHOMBOHEDRAL: [False, True, True, False, True, True],
+    TETRAGONAL: [False, True, False, True, True, True],
+    TRICLINIC: [False, False, False, False, False, False],
+}
+
 
 # Matrices used in the LatticeParametersSGCCG environment
-B1 = numpy.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
-B2 = numpy.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
-B3 = numpy.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
-B4 = numpy.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
-B5 = numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])
-B6 = numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+B1 = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
+B2 = np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
+B3 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
+B4 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
+B5 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])
+B6 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 
 
 # TODO: figure out a way to inherit the (discrete) LatticeParameters env or create a
@@ -105,6 +116,7 @@ class LatticeParameters(Stack):
         self.stage_condition = 0
         self.cube = ContinuousCube(n_dim=6, **kwargs)
         self.stage_cube = 1
+        self.source_cube_value = self.cube.source[0]
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
 
     def _statevalue2length(self, value: float) -> float:
@@ -474,10 +486,90 @@ class LatticeParameters(Stack):
         ):
             self._setup_constraints()
 
+    def apply_lattice_constraints(
+        self, state: List[float], lattice_system: Union[int, str]
+    ) -> Tuple[Tuple, Tuple]:
+        """
+        Applies lattice system constraints to a single state.
+
+        The input state is expected to be a state of the ContinuousCube in environment
+        format.
+
+        Parameters
+        ----------
+        state : list
+            A state of the ContinuousCube in environment format.
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+
+        Returns
+        -------
+        a, b, c : float
+            Lattice lengths of the state, in angstroms.
+        alpha, beta, gamma : float
+            Lattice angles, in degrees.
+        """
+        state = np.array(state, dtype=float)
+        is_source = state == self.source_cube_value
+        parameters = np.concatenate(
+            [
+                self._statevalue2length(state[:3]),
+                self._statevalue2angle(state[3:]),
+            ],
+        )
+        parameters[is_source] = self.source_cube_value
+        parameters = np.reshape(parameters, (1, -1))
+        parameters = self.apply_lattice_constraints_batch(
+            parameters, lattice_system
+        ).squeeze()
+        lengths = tuple(parameters[:3])
+        angles = tuple(parameters[3:])
+        return lengths, angles
+
+    def revert_lattice_constraints(
+        self, parameters: List[float], lattice_system: Union[int, str]
+    ) -> List[float]:
+        """
+        Reverts lattice system constraints to a set of lattice parameters.
+
+        The output is in the format of a ContinuousCube state in environment format,
+        with the parameters in the [0, 1] range.
+
+        Parameters
+        ----------
+        parameters : list
+            A list of lattice parameters in angstroms and degrees.
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+
+        Returns
+        -------
+        state : list
+            A ContinuousCube state in environment format.
+        """
+        if isinstance(lattice_system, int):
+            lattice_system = LATTICE_SYSTEMS[lattice_system]
+        parameters = np.array(parameters, dtype=float)
+        is_source = parameters == self.source_cube_value
+        is_ignored = np.array(IGNORED_DIMS[lattice_system])
+        state = np.concatenate(
+            [
+                self._statevalue2length(parameters[:3]),
+                self._statevalue2angle(parameters[3:]),
+            ],
+        )
+        state[is_source] = self.source_cube_value
+        state[is_ignored] = self.source_cube_value
+        return state.tolist()
+
     # TODO: consider having less indices hard-coded
     @staticmethod
     def apply_lattice_constraints_batch(
-        states: TensorType["batch", "6"], lattice_system: int
+        states: TensorType["batch", "6"], lattice_system: Union[int, str]
     ):
         """
         Applies lattice system constraints to a batch of states.
@@ -495,19 +587,23 @@ class LatticeParameters(Stack):
             units (angstroms and angles), but no lattice system constraints.
         lattice_system : int
             The index of the lattice system, as stored in
-            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS`
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
         """
-        if lattice_system == LATTICE_SYSTEM_INDEX[TRICLINIC]:
+        if isinstance(lattice_system, int):
+            lattice_system = LATTICE_SYSTEMS[lattice_system]
+
+        if lattice_system == TRICLINIC:
             # TRICLINIC: no constraints
             pass
-        elif lattice_system == LATTICE_SYSTEM_INDEX[CUBIC]:
+        elif lattice_system == CUBIC:
             # CUBIC:
             # a == b == c
             # alpha == beta == gamma == 90.0
             states[:, 1] = states[:, 0]
             states[:, 2] = states[:, 0]
             states[:, 3:] = 90.0
-        elif lattice_system == LATTICE_SYSTEM_INDEX[HEXAGONAL]:
+        elif lattice_system == HEXAGONAL:
             # HEXAGONAL:
             # a == b != c
             # alpha == beta == 90.0 and gamma == 120.0
@@ -515,18 +611,18 @@ class LatticeParameters(Stack):
             states[:, 3] = 90.0
             states[:, 4] = 90.0
             states[:, 5] = 120.0
-        elif lattice_system == LATTICE_SYSTEM_INDEX[MONOCLINIC]:
+        elif lattice_system == MONOCLINIC:
             # MONOCLINIC:
             # a != b and a != c and b != c
             # alpha == gamma == 90.0 and beta != 90.0
             states[:, 3] = 90.0
             states[:, 5] = 90.0
-        elif lattice_system == LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]:
+        elif lattice_system == ORTHORHOMBIC:
             # ORTHORHOMBIC:
             # a != b and a != c and b != c
             # alpha == beta == gamma == 90.0
             states[:, 3:] = 90.0
-        elif lattice_system == LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]:
+        elif lattice_system == RHOMBOHEDRAL:
             # RHOMBOHEDRAL:
             # a == b == c
             # alpha == beta == gamma != 90.0
@@ -534,7 +630,7 @@ class LatticeParameters(Stack):
             states[:, 2] = states[:, 0]
             states[:, 4] = states[:, 3]
             states[:, 5] = states[:, 3]
-        elif lattice_system == LATTICE_SYSTEM_INDEX[TETRAGONAL]:
+        elif lattice_system == TETRAGONAL:
             # TETRAGONAL:
             # a == b != c
             # alpha == beta == gamma == 90.0
@@ -626,8 +722,12 @@ class LatticeParameters(Stack):
             A human-readable version of the state.
         """
         state = self._get_state(state)
-        lengths, angles = self._get_lengths_angles(state)
-        return f"Stage {self._get_stage(state)}; {self.lattice_system}; {lengths}, {angles}"
+        stage = self._get_stage(state)
+        state_cube = self._get_substate(state, self.stage_cube)
+        lengths, angles = self.apply_lattice_constraints(
+            state_cube, self.lattice_system
+        )
+        return f"Stage {stage}; {self.lattice_system}; {lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[float]:
         """
@@ -650,10 +750,9 @@ class LatticeParameters(Stack):
             readable_cube = readable_cube.replace(c, "")
         values = readable_cube.split(",")
         values = [float(value) for value in values]
-        state_cube = self.parameters2state(values)
-
+        state_cube = self.revert_lattice_constraints(values, self.lattice_system)
         state = copy(self.source)
-        self._set_stage(stage)
+        state = self._set_stage(stage, state)
         return self._set_substate(self.stage_cube, state_cube, state)
 
     def is_valid(self, state: List) -> bool:
@@ -855,9 +954,9 @@ class LatticeParametersSGCCG(ContinuousCube):
         a = j[0, 0] ** 0.5
         b = j[1, 1] ** 0.5
         c = j[2, 2] ** 0.5
-        alpha = numpy.rad2deg(numpy.arccos(j[1, 2] / (b * c)))
-        beta = numpy.rad2deg(numpy.arccos(j[0, 2] / (a * c)))
-        gamma = numpy.rad2deg(numpy.arccos(j[0, 1] / (a * b)))
+        alpha = np.rad2deg(np.arccos(j[1, 2] / (b * c)))
+        beta = np.rad2deg(np.arccos(j[0, 2] / (a * c)))
+        gamma = np.rad2deg(np.arccos(j[0, 1] / (a * b)))
 
         return [a, b, c, alpha, beta, gamma]
 
@@ -882,11 +981,11 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         # Compute the matrix J from the values of the lattice parameters
         # (see Eq. 23 in the paper)
-        ab_cos_gamma = a * b * numpy.cos(numpy.deg2rad(gamma))
-        ac_cos_beta = a * c * numpy.cos(numpy.deg2rad(beta))
-        bc_cos_alpha = b * c * numpy.cos(numpy.deg2rad(alpha))
+        ab_cos_gamma = a * b * np.cos(np.deg2rad(gamma))
+        ac_cos_beta = a * c * np.cos(np.deg2rad(beta))
+        bc_cos_alpha = b * c * np.cos(np.deg2rad(alpha))
 
-        j = numpy.array(
+        j = np.array(
             [
                 [a**2, ab_cos_gamma, ac_cos_beta],
                 [ab_cos_gamma, b**2, bc_cos_alpha],
@@ -1102,7 +1201,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # - a == b
             self.ignored_dims = [True, True, True, True, False, False]
             self.projection_tied_values = [None] * 6
-            self.projection_fixed_values = [-numpy.log(3) / 4, 0, 0, 0, None, None]
+            self.projection_fixed_values = [-np.log(3) / 4, 0, 0, 0, None, None]
             self.lattice_params_tied_values = [None, 0, None, None, None, None]
             self.lattice_params_fixed_values = [None, None, None, 90, 90, 120]
 
