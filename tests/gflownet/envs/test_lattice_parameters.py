@@ -46,26 +46,6 @@ def test__environment__initializes_properly(env, lattice_system):
 
 
 @pytest.mark.parametrize(
-    "lattice_system, expected_params",
-    [
-        (CUBIC, [None, None, None, 90, 90, 90]),
-        (HEXAGONAL, [None, None, None, 90, 90, 120]),
-        (MONOCLINIC, [None, None, None, 90, None, 90]),
-        (ORTHORHOMBIC, [None, None, None, 90, 90, 90]),
-        (RHOMBOHEDRAL, [None, None, None, None, None, None]),
-        (TETRAGONAL, [None, None, None, 90, 90, 90]),
-        (TRICLINIC, [None, None, None, None, None, None]),
-    ],
-)
-def test__environment__has_expected_fixed_parameters(
-    env, lattice_system, expected_params
-):
-    for expected_value, param_name in zip(expected_params, PARAMETER_NAMES):
-        if expected_value is not None:
-            assert getattr(env, param_name) == expected_value
-
-
-@pytest.mark.parametrize(
     "lattice_system",
     [CUBIC],
 )
