@@ -124,19 +124,74 @@ class LatticeParameters(Stack):
             Maximum value of the angles.
         """
         self.continuous = True
-        self.lattice_system = lattice_system
         self.min_length = min_length
         self.max_length = max_length
         self.length_range = self.max_length - self.min_length
         self.min_angle = min_angle
         self.max_angle = max_angle
         self.angle_range = self.max_angle - self.min_angle
-        self.condition = Dummy(state=[LATTICE_SYSTEM_INDEX[self.lattice_system]])
+        self.condition = Dummy(state=[LATTICE_SYSTEM_INDEX[lattice_system]])
         self.stage_condition = 0
         self.cube = ContinuousCube(n_dim=6, **kwargs)
         self.stage_cube = 1
         self.source_cube_value = self.cube.source[0]
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
+
+    def get_lattice_system_idx(self, state: List) -> int:
+        """
+        Returns the lattice system index, retrieved from the condition state.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        int
+            The index of the lattice system contained in the condition state.
+        """
+        return self._get_substate(state, self.stage_condition)[0]
+
+    def get_lattice_system(self, state: List) -> str:
+        """
+        Returns the lattice system name, retrieved from the condition state.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        str
+            The name of the lattice system contained in the condition state.
+        """
+        return LATTICE_SYSTEMS[self._get_substate(state, self.stage_condition)[0]]
+
+    @property
+    def lattice_system_idx(self) -> int:
+        """
+        Returns the lattice system index of the environment as per ``self.state``.
+
+        Returns
+        -------
+        int
+            The index of the lattice system contained in the condition state.
+        """
+        return self.get_lattice_system_idx(self.state)
+
+    @property
+    def lattice_system(self) -> str:
+        """
+        Returns the name of the lattice system of the environment as per ``self.state``.
+
+        Returns
+        -------
+        str
+            The name of the lattice system contained in the condition state.
+        """
+        return self.get_lattice_system(self.state)
 
     def _statevalue2length(self, value: float) -> float:
         """
@@ -210,14 +265,14 @@ class LatticeParameters(Stack):
         """
         Sets the lattice system of the unit cell as the condition of the environment.
 
-        In order to properly update the lattice system, three elements need to be
+        In order to properly update the lattice system, two elements need to be
         updated:
-            - The attribute ``self.lattice_system``
             - The condition state
             - The part of the global Stack state corresponding to the condition
         """
-        self.lattice_system = lattice_system
-        self.condition.set_state([LATTICE_SYSTEM_INDEX[self.lattice_system]])
+        self.condition.set_state(
+            [LATTICE_SYSTEM_INDEX[lattice_system]], self.condition.done
+        )
         self._set_substate(self.stage_condition, self.condition.state)
 
     def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
@@ -426,12 +481,6 @@ class LatticeParameters(Stack):
         if self._do_constraints_for_stage(
             self.stage_condition, action, is_backward=False
         ):
-            lattice_system_condition = self.condition.state[0]
-            lattice_system_state = self._get_substate(
-                self._get_state(self.state), self.stage_condition
-            )[0]
-            assert lattice_system_condition == lattice_system_state
-            assert self.lattice_system == LATTICE_SYSTEMS[lattice_system_state]
             self.cube.ignored_dims = IGNORED_DIMS[self.lattice_system]
 
     def _check_has_constraints(self) -> bool:
@@ -459,7 +508,7 @@ class LatticeParameters(Stack):
 
         The batch may contain states with different lattice systems (conditions). The
         constraints are applied by taking the lattice system from the state (the Dummy
-        part of the Stack), instead of taking it from `self.lattice_system`.
+        part of the Stack).
 
         Paramters
         ---------
@@ -471,8 +520,9 @@ class LatticeParameters(Stack):
         -------
         A tensor containing all the states in the batch.
         """
+        n_states = len(states)
         lattice_systems, states = zip(*[(state[1], state[2]) for state in states])
-        lattice_systems = tlong(lattice_systems, device=self.device).squeeze()
+        lattice_systems = tlong(lattice_systems, device=self.device).reshape(n_states)
         states = tfloat(states, device=self.device, float_type=self.float)
         states = torch.cat(
             [
@@ -530,10 +580,9 @@ class LatticeParameters(Stack):
         state = self._get_state(state)
         stage = self._get_stage(state)
         state_cube = self._get_substate(state, self.stage_cube)
-        lengths, angles = self.apply_lattice_constraints(
-            state_cube, self.lattice_system
-        )
-        return f"Stage {stage}; {self.lattice_system}; {lengths}, {angles}"
+        lattice_system = self.get_lattice_system(state)
+        lengths, angles = self.apply_lattice_constraints(state_cube, lattice_system)
+        return f"Stage {stage}; {lattice_system}; {lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[float]:
         """
