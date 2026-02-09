@@ -1510,6 +1510,55 @@ def test__step__action_sequence_has_expected_result(
 
 
 @pytest.mark.parametrize(
+    "env, state_init, action, state_expected",
+    [
+        (
+            "env_mini_comp_first",
+            [
+                2,
+                {1: 1, 3: 4},
+                [4, 3, 105],
+                [1, [TETRAGONAL_IDX], [0.1, 0.0, 0.3, 0.0, 0.0, 0.0]],
+            ],
+            (2, 1, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 1),
+            [
+                2,
+                {1: 1, 3: 4},
+                [4, 3, 105],
+                [1, [TETRAGONAL_IDX], [-1, -1, -1, -1, -1, -1]],
+            ],
+        ),
+        (
+            "env_mini_comp_first",
+            [
+                2,
+                {1: 1, 3: 4},
+                [4, 3, 105],
+                [1, [TETRAGONAL_IDX], [-1, -1, -1, -1, -1, -1]],
+            ],
+            (2, 0, 0, 0, 0, 0, 0, 0, 0),
+            [
+                2,
+                {1: 1, 3: 4},
+                [4, 3, 105],
+                [0, [TETRAGONAL_IDX], [-1, -1, -1, -1, -1, -1]],
+            ],
+        ),
+    ],
+)
+def test__step_backwards__behaves_as_expected(
+    env, state_init, action, state_expected, request
+):
+    env = request.getfixturevalue(env)
+    env.set_state(state_init)
+    assert env.equal(env.state, state_init)
+    state_next, action, valid = env.step_backwards(action)
+    assert valid
+    assert env.equal(env.state, state_expected)
+    assert env.equal(state_next, state_expected)
+
+
+@pytest.mark.parametrize(
     "env, state_init, state_end, actions, last_action_valid",
     [
         (
@@ -1653,7 +1702,7 @@ def test__step__action_sequence_has_expected_result(
                 1,
                 [4, 3, 105],
                 {1: 1, 3: 4},
-                [0, [TRICLINIC_IDX], [-1, -1, -1, -1, -1, -1]],
+                [0, [TETRAGONAL_IDX], [-1, -1, -1, -1, -1, -1]],
             ],
             [0, [4, 3, 105], {}, [0, [TRICLINIC_IDX], [-1, -1, -1, -1, -1, -1]]],
             [
@@ -1669,7 +1718,7 @@ def test__step__action_sequence_has_expected_result(
                 2,
                 [4, 3, 105],
                 {1: 1, 3: 4},
-                [0, [TRICLINIC_IDX], [-1, -1, -1, -1, -1, -1]],
+                [0, [TETRAGONAL_IDX], [-1, -1, -1, -1, -1, -1]],
             ],
             [0, [0, 0, 0], {}, [0, [TRICLINIC_IDX], [-1, -1, -1, -1, -1, -1]]],
             [
@@ -2212,12 +2261,12 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                 ],
             ],
             [
-                (0, 1, 7, 0, 0, 0, 0, 0),
-                (0, 3, 16, 0, 0, 0, 0, 0),
-                (0, 1, 6, 0, 0, 0, 0, 0),
-                (0, 3, 8, 0, 0, 0, 0, 0),
-                (0, 2, 11, 0, 0, 0, 0, 0),
-                (0, 3, 9, 0, 0, 0, 0, 0),
+                (0, 1, 7, 0, 0, 0, 0, 0, 0),
+                (0, 3, 16, 0, 0, 0, 0, 0, 0),
+                (0, 1, 6, 0, 0, 0, 0, 0, 0),
+                (0, 3, 8, 0, 0, 0, 0, 0, 0),
+                (0, 2, 11, 0, 0, 0, 0, 0, 0),
+                (0, 3, 9, 0, 0, 0, 0, 0, 0),
             ],
         ],
         [
@@ -2243,10 +2292,10 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                 ],
             ],
             [
-                (0, 1, 6, 0, 0, 0, 0, 0),
-                (1, 2, 14, 0, 0, 0, 0, 0),
-                (1, 2, 2, 1, 0, 0, 0, 0),
-                (1, 2, 1, 3, 0, 0, 0, 0),
+                (0, 1, 6, 0, 0, 0, 0, 0, 0),
+                (1, 2, 14, 0, 0, 0, 0, 0, 0),
+                (1, 2, 2, 1, 0, 0, 0, 0, 0),
+                (1, 2, 1, 3, 0, 0, 0, 0, 0),
             ],
         ],
         [
@@ -2316,19 +2365,19 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                 ],
             ],
             [
-                (0, 1, 15, 0, 0, 0, 0, 0),
-                (0, 1, 2, 0, 0, 0, 0, 0),
-                (1, 2, 7, 0, 0, 0, 0, 0),
-                (2, 0.49, 0.40, 0.40, 0.37, 0.35, 0.36, 0.0),
-                (1, 2, 1, 1, 0, 0, 0, 0),
-                (1, 2, 1, 3, 0, 0, 0, 0),
-                (0, 2, 11, 0, 0, 0, 0, 0),
-                (0, 3, 9, 0, 0, 0, 0, 0),
-                (1, 2, 2, 3, 0, 0, 0, 0),
-                (0, 3, 2, 0, 0, 0, 0, 0),
-                (2, 0.27, 0.28, 0.30, 0.39, 0.37, 0.29, 0.0),
-                (2, 0.32, 0.30, 0.45, 0.33, 0.42, 0.39, 0.0),
-                (0, 4, 4, 0, 0, 0, 0, 0),
+                (0, 1, 15, 0, 0, 0, 0, 0, 0),
+                (0, 1, 2, 0, 0, 0, 0, 0, 0),
+                (1, 2, 7, 0, 0, 0, 0, 0, 0),
+                (2, 1, 0.49, 0.40, 0.40, 0.37, 0.35, 0.36, 0.0),
+                (1, 2, 1, 1, 0, 0, 0, 0, 0),
+                (1, 2, 1, 3, 0, 0, 0, 0, 0),
+                (0, 2, 11, 0, 0, 0, 0, 0, 0),
+                (0, 3, 9, 0, 0, 0, 0, 0, 0),
+                (1, 2, 2, 3, 0, 0, 0, 0, 0),
+                (0, 3, 2, 0, 0, 0, 0, 0, 0),
+                (2, 1, 0.27, 0.28, 0.30, 0.39, 0.37, 0.29, 0.0),
+                (2, 1, 0.32, 0.30, 0.45, 0.33, 0.42, 0.39, 0.0),
+                (0, 4, 4, 0, 0, 0, 0, 0, 0),
             ],
         ],
     ],
@@ -2597,6 +2646,7 @@ class TestCrystalSGFirst(common.BaseTestsContinuous):
         }
 
 
+@pytest.mark.skip(reason="LatticeParameters with SGCCG project is obsolete")
 class TestCrystalLPSGCCG(common.BaseTestsContinuous):
     """Common tests for crystal stack with SGCCG lattice parameters."""
 
