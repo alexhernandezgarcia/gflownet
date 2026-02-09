@@ -22,7 +22,7 @@ from gflownet.envs.crystals.lattice_parameters import (
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy
-from gflownet.utils.crystals.constants import TRICLINIC
+from gflownet.utils.crystals.constants import LATTICE_SYSTEMS, TRICLINIC
 
 
 class Crystal(Stack):
@@ -437,15 +437,34 @@ class Crystal(Stack):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
             state = {}
+            # Composition
             state[self.stage_composition] = self.subenvs[
                 self.stage_composition
             ].readable2state(row["Formulae"])
+            # Space group
             state[self.stage_spacegroup] = self.subenvs[
                 self.stage_spacegroup
             ]._set_constrained_properties([0, 0, row["Space Group"]])
-            state[self.stage_latticeparameters] = self.subenvs[
-                self.stage_latticeparameters
-            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
+            # Lattice parameters
+            lattice_system = self.space_group.get_lattice_system(
+                state[self.stage_spacegroup]
+            )
+            if lattice_system not in LATTICE_SYSTEMS:
+                lattice_system = TRICLINIC
+            state_lp = copy(self.lattice_parameters.source)
+            state_lp = self.lattice_parameters._set_stage(
+                self.lattice_parameters.stage_cube, state_lp
+            )
+            state_lp = self.lattice_parameters.set_lattice_system(
+                lattice_system, state_lp
+            )
+            state_cube = self.lattice_parameters.revert_lattice_constraints(
+                tuple(row[list(PARAMETER_NAMES)]), lattice_system
+            )
+            state[self.stage_latticeparameters] = self.lattice_parameters._set_substate(
+                self.lattice_parameters.stage_cube, state_cube, state_lp
+            )
+            # Check validity
             is_valid_subenvs = [
                 subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
             ]
