@@ -541,13 +541,13 @@ def test__states2policy__returns_expected(env, lattice_system, states, expected)
 @pytest.mark.parametrize(
     "lattice_system, expected_output",
     [
-        (CUBIC, "Stage 0; cubic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "Stage 0; hexagonal; (-1, -1, -1), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "Stage 0; monoclinic; (-1, -1, -1), (90.0, -1, 90.0)"),
-        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1, -1, -1), (-1, -1, -1)"),
-        (TETRAGONAL, "Stage 0; tetragonal; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "Stage 0; triclinic; (-1, -1, -1), (-1, -1, -1)"),
+        (CUBIC, "Stage 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Stage 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Stage 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
+        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
+        (TETRAGONAL, "Stage 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Stage 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
     ],
 )
 def test__state2readable__gives_expected_results_for_source_states(
@@ -559,13 +559,13 @@ def test__state2readable__gives_expected_results_for_source_states(
 @pytest.mark.parametrize(
     "lattice_system, readable",
     [
-        (CUBIC, "Stage 0; cubic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "Stage 0; hexagonal; (-1, -1, -1), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "Stage 0; monoclinic; (-1, -1, -1), (90.0, -1, 90.0)"),
-        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1, -1, -1), (-1, -1, -1)"),
-        (TETRAGONAL, "Stage 0; tetragonal; (-1, -1, -1), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "Stage 0; triclinic; (-1, -1, -1), (-1, -1, -1)"),
+        (CUBIC, "Stage 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Stage 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Stage 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
+        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
+        (TETRAGONAL, "Stage 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Stage 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
     ],
 )
 def test__readable2state__gives_expected_results_for_source_states(
