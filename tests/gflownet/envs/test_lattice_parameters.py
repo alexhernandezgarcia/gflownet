@@ -323,6 +323,15 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
                 [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
             ],
         ),
+        (
+            CUBIC,
+            [
+                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+            ],
+            [
+                [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
+            ],
+        ),
     ],
 )
 def test__states2proxy__returns_expected(env, lattice_system, states, expected):
@@ -552,6 +561,32 @@ def test__readable2state__gives_expected_results_for_source_states(
     env, lattice_system, readable
 ):
     assert env.readable2state(readable) == env.source
+
+
+@pytest.mark.parametrize(
+    "lattice_system, state_init, action, state_expected",
+    [
+        (
+            TETRAGONAL,
+            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [0.1, 0.0, 0.3, 0.0, 0.0, 0.0]],
+            (1, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 1),
+            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+        ),
+        (
+            TETRAGONAL,
+            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+            (0, 0, 0, 0, 0, 0, 0, 0),
+            [0, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+        ),
+    ],
+)
+def test__step_backwards__behaves_as_expected(
+    env, lattice_system, state_init, action, state_expected
+):
+    env.set_state(state_init)
+    assert env.equal(env.state, state_init)
+    env.step_backwards(action)
+    assert env.equal(env.state, state_expected)
 
 
 @pytest.mark.parametrize(
