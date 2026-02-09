@@ -566,7 +566,7 @@ class Proxy(ABC):
 
         The parameter $$\beta$$ controls the steepness of the exponential. The higher,
         the steeper. If $$\beta$$ is negative, the sigmoid returns higher rewards for
-        higher proxy values. If $$\beta$$ is negative, the relationship is reversed.
+        higher proxy values. If $$\beta$$ is positive, the relationship is reversed.
 
         The parameter $$\gamma$$ controls the start of the of the exponential growth.
         For negative $$\beta$$, the larger $$\gamma$$, the later (more positive) the
