@@ -27,27 +27,26 @@ class Ising(Proxy):
 
             E(s) = -\frac{1}{2} s^T J s - h \cdot s
 
-        where ``s`` is a spin configuration, ``J`` is the coupling matrix,
-        and ``h`` is an external magnetic field.
+        where ``s`` is a spin configuration, ``J`` is the coupling matrix, and ``h`` is
+        an external magnetic field.
 
         The factor ``1/2`` ensures that each pairwise interaction is counted once.
 
         Parameters
         ----------
-            n_dim : int
-                Number of spatial dimensions of the lattice. Not needed if J is
-                provided.
-            length : int
-                Number of sites along each dimension. Not needed if J is provided.
-            J_nn : float, default=1.0
-                Nearest-neighbor coupling strength.
-            periodic : bool, default=True
-                Whether to use periodic boundary conditions.
-            J :
-                Optional full coupling matrix. Overrides Nearest-neighbor coupling
-                matrix construction.
-            h :
-                External magnetic field (scalar or site-dependent tensor).
+        n_dim : int
+            Number of spatial dimensions of the lattice. Not needed if J is provided.
+        length : int
+            Number of sites along each dimension. Not needed if J is provided.
+        J_nn : float, default=1.0
+            Nearest-neighbor coupling strength.
+        periodic : bool, default=True
+            Whether to use periodic boundary conditions.
+        J :
+            Optional full coupling matrix. Overrides Nearest-neighbor coupling matrix
+            construction.
+        h :
+            External magnetic field (scalar or site-dependent tensor).
         """
         super().__init__(**kwargs)
 
@@ -68,7 +67,8 @@ class Ising(Proxy):
             self.J = self.nn_adjacency()
         else:
             raise ValueError(
-                "Either provide J or both n_dim and length to construct nearest-neighbor lattice."
+                "Either provide J or both n_dim and length to construct "
+                "nearest-neighbor lattice."
             )
 
         self.h = torch.as_tensor(h, device=self.device, dtype=self.float)
@@ -83,8 +83,8 @@ class Ising(Proxy):
 
         Returns
         -------
-        A tensor of shape ``(N, N)``, where ``N = length**n_dim``,
-            representing the nearest-neighbor coupling matrix.
+        A tensor of shape ``(N, N)``, where ``N = length**n_dim``, representing the
+        nearest-neighbor coupling matrix.
         """
         N = self.length**self.n_dim
         J = torch.zeros((N, N), dtype=self.float, device=self.device)
@@ -95,7 +95,8 @@ class Ising(Proxy):
         for c in coords:
             i = coords_to_index[c]
             for axis in range(self.n_dim):
-                # For each axis, we consider both directions : the neighbor on the left (-1) and the neighbor on the right (+1).
+                # For each axis, we consider both directions : the neighbor on the left
+                # (-1) and the neighbor on the right (+1).
                 for shift in [-1, 1]:
                     neighbor = list(c)
                     neighbor[axis] += shift
@@ -116,17 +117,17 @@ class Ising(Proxy):
         """
         Compute the Ising energy for a batch of spin configurations.
 
-            - Flattens input to shape (batch, state_dim).
-            - Computes the quadratic interaction term:
-                    ``-0.5 * sum( (s @ J) * s)``
-            - Computes the field term:
-                    -h * sum(s)                (if h is scalar)
-              or  -sum(h * s)                  (if h is per-site)
+        - Flattens input to shape (batch, state_dim).
+        - Computes the quadratic interaction term:
+                ``-0.5 * sum( (s @ J) * s)``
+        - Computes the field term:
+                ``-h * sum(s)``                (if h is scalar)
+          or ``-sum(h * s)``                   (if h is per-site)
 
 
         Parameters
         ----------
-        states : list or torch.Tensor
+        states : list or tensor
             Batch of spin configurations.
 
         Returns
