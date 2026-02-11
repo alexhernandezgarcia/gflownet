@@ -1,12 +1,12 @@
 # @package _global_
 
 defaults:
-   - override /env: crystals/lattice_parameters
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /policy: mlp
-   - override /proxy: crystals/lattice_parameters
-   - override /logger: wandb
+  - override /env: crystals/lattice_parameters
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: crystals/lattice_parameters
+  - override /logger: wandb
 
 # Environment
 env:

@@ -1005,8 +1005,7 @@ def _get_terminating_states(env, n):
     elif hasattr(env, "get_random_terminating_states"):
         return env.get_random_terminating_states(n, 0)
     else:
-        warnings.warn(
-            f"""
+        warnings.warn(f"""
         Testing backward sampling or setting terminating states requires that
         the environment implements one of the following:
             - get_all_terminating_states()
@@ -1015,8 +1014,7 @@ def _get_terminating_states(env, n):
             - get_random_terminating_states()
         Environment {env.__class__} does not have any of the above, therefore
         backward sampling will not be tested.
-        """
-        )
+        """)
         return None
 
 

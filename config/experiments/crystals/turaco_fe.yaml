@@ -6,7 +6,7 @@
 defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
+  - override /loss: trajectorybalance
   - override /proxy: crystals/dave
   - override /logger: wandb
 
@@ -61,7 +61,7 @@ buffer:
   train: null
   test:
     type: csv
-    path: /network/projects/crystalgfn/data/playground/gull.csv
+    path: ${user.data.root}/crystals/gull.csv
 
 # GFlowNet hyperparameters
 gflownet:
