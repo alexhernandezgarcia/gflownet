@@ -400,7 +400,7 @@ class LatticeParameters(Stack):
         state = np.concatenate(
             [
                 self._length2statevalue(parameters[:3]),
-                self._length2statevalue(parameters[3:]),
+                self._angle2statevalue(parameters[3:]),
             ],
         )
         state[is_source] = self.source_cube_value
