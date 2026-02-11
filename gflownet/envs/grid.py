@@ -2,6 +2,8 @@
 Classes to represent a hyper-grid environments
 """
 
+import base64
+import io
 import itertools
 from typing import List, Optional, Tuple, Union
 
@@ -200,6 +202,12 @@ class Grid(GFlowNetEnv):
         """
         state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
+
+    def features_from_states(self, states: Optional[List] = None):
+        """
+        Computes the features from a batch of states (states themselves).
+        """
+        return np.array(states), [True] * len(states)
 
     def get_parents(
         self,
@@ -415,3 +423,65 @@ class Grid(GFlowNetEnv):
         cax.set_title(title)
         plt.colorbar(ax_img, cax=cax, orientation="horizontal")
         cax.xaxis.set_ticks_position("top")
+
+    def text_to_img_fn(self, state: str) -> str:
+        """Text to image.
+
+        Convert a readable state to a base64 image of its position
+        in the first two dimensions.
+
+        Parameters
+        ----------
+        state : str
+            state as given by state_to_readable()
+        Returns
+        -------
+        str
+            Base64-encoded SVG image
+        """
+        state = list(map(int, state.strip("[]").split()))
+        if len(state) > self.n_dim:
+            raise ValueError("State dimensionality exceeds grid dimensionality")
+        x_dim = 0
+        y_dim = 1 if self.n_dim > 1 else None
+        grid_size = self.length + 1
+        if y_dim is not None:
+            grid = np.zeros((grid_size, grid_size))
+            x = state[x_dim]
+            y = state[y_dim] if len(state) > 1 else 0
+            grid[y, x] = 1
+        else:
+            grid = np.zeros((1, grid_size))
+            x = state[x_dim]
+            grid[0, x] = 1
+        fig, ax = plt.subplots(figsize=(4, 4))
+        ax.imshow(grid, cmap="gray_r", origin="lower")
+        ax.set_xticks(range(grid_size))
+        ax.set_yticks(range(grid.shape[0]))
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.grid(True)
+        buf = io.BytesIO()
+        plt.savefig(buf, format="svg", bbox_inches="tight")
+        plt.close(fig)
+        buf.seek(0)
+        svg_base64 = base64.b64encode(buf.read()).decode("utf-8")
+
+        return svg_base64
+
+    def state_aggregation_fn(self, states):
+        """Show most common state.
+
+        Usually Maximum Common Substructure of the states,
+        in this case simply most common state.
+
+        Parameters
+        ----------
+        states: list[str]
+            list of states in readable format
+
+        Returns
+        -------
+        Most common state
+        """
+        return max(set(states), key=states.count)

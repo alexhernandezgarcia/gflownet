@@ -43,6 +43,7 @@ class Logger:
         self,
         config: dict,
         do: dict,
+        vislogger: dict,
         project_name: str,
         logdir: dict,
         lightweight: bool,
@@ -129,6 +130,16 @@ class Logger:
         self.datadir.mkdir(parents=True, exist_ok=True)
         # Write wandb URL
         self.write_url_file()
+        # add vislogger if specified
+        self.usevislogger = vislogger["use"]
+        if self.usevislogger:
+            self.visloggerconfig = vislogger
+            from gflownet.utils.vislogger.logger import VisLogger
+
+            self.vislogger = VisLogger(
+                path=self.logdir / "visdata",
+                s0_included=False,
+            )
 
     def write_url_file(self):
         if self.wandb is not None:
