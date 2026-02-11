@@ -41,7 +41,7 @@ proxy:
   reward_function: sigmoid
   # Parameters of the reward function are such that, on energy distribution:
   # R(median) =~ 0.01
-  # R(q75) =~ 0.55
+  # R(q75) =~ 0.50
   # R(q90) =~ 0.99
   # R(q95+) = 1 -> ignore outliers
   reward_function_kwargs:
