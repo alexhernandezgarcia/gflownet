@@ -182,6 +182,12 @@ class FAIRY(Proxy):
             )
             self.cons_scale = self.cons_max - self.cons_min
 
+            self.cons_current = torch.addcmul(
+                self.cons_min,
+                self.context[:, self.var_CONS],
+                self.cons_scale,
+            )  # shape (1,)
+
             # Permutation index for reordering env techs -> proxy techs
             # Computed on first __call__ and cached
             self._permutation_idx: Optional[torch.Tensor] = None
@@ -291,5 +297,8 @@ class FAIRY(Proxy):
         # Extract and rescale consumption
         y = developments[:, self.var_CONS]
         y = torch.addcmul(self.cons_min, y, self.cons_scale)
+
+        # Compute delta
+        y = y - self.cons_current
 
         return y
