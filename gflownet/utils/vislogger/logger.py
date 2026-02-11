@@ -226,20 +226,20 @@ class VisLogger:
             elif isinstance(states, torch.Tensor):
                 self.current["states"] = states.detach().cpu()
             else:
-                self.current["states"] = self.__to_np__(states, np.float16)
+                self.current["states"] = self.__to_np__(states, np.float32)
         if total_reward is not None:
-            self.current["total_reward"] = self.__to_np__(total_reward, np.float16)
+            self.current["total_reward"] = self.__to_np__(total_reward, np.float32)
         if loss is not None:
-            self.current["loss"] = self.__to_np__(loss, np.float16)
+            self.current["loss"] = self.__to_np__(loss, np.float32)
         if iteration is not None:
             self.current["iteration"] = int(iteration)
         if logprobs_forward is not None:
             self.current["logprobs_forward"] = self.__to_np__(
-                logprobs_forward, np.float16
+                logprobs_forward, np.float32
             )
         if logprobs_backward is not None:
             self.current["logprobs_backward"] = self.__to_np__(
-                logprobs_backward, np.float16
+                logprobs_backward, np.float32
             )
         if metrics is not None:
             for i, r in enumerate(self.metrics):

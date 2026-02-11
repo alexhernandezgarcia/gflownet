@@ -10,7 +10,7 @@ import pandas as pd
 from dash import Input, Output, State, dash_table, dcc, html, no_update
 from dash.dash_table.Format import Format, Scheme
 
-from .plot_utils import Plotter
+from gflownet.utils.vislogger.plot_utils import Plotter
 
 
 def run_dashboard(
@@ -72,9 +72,31 @@ def run_dashboard(
         def image_fn(state):
             if state == "#":
                 return None
+            result = text_to_img_fn(state)
+            if isinstance(result, list):
+                return result
             return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
 
-    plotter = Plotter(data_path, image_fn, state_aggregation_fn, s0)
+    if state_aggregation_fn is None:
+        warnings.warn("No state-aggregation-function provided. ")
+
+        def agg_fn(states):
+            return None
+
+    else:
+
+        def agg_fn(states):
+            if len(states) == 0:
+                return None
+            elif len(states) == 1:
+                return image_fn(states[0])
+            else:
+                agg = state_aggregation_fn(states)
+                if isinstance(agg, str):
+                    return f"data:image/svg+xml;base64,{agg}"
+                return agg
+
+    plotter = Plotter(data_path, image_fn, agg_fn, s0)
 
     # get provided metrics and feature columns
     conn = sqlite3.connect(data_path)
@@ -1044,11 +1066,12 @@ def run_dashboard(
                 children = pd.merge(children_n, children_e, on="id")
 
                 def image_cell(id):
-                    """Image cell."""
-                    svg_b64 = image_fn(id)
-                    if not svg_b64:
+                    state = image_fn(id)
+                    if not state:
                         return ""
-                    return f'<img src="{svg_b64}" ' f'style="height:80px;" />'
+                    if type(state) is list:
+                        return "<br>".join(state)
+                    return f'<img src="{state}" ' f'style="height:80px;" />'
 
                 children["image"] = children["id"].apply(image_cell)
                 children["node_type"] = children["node_type"].eq("final")
@@ -1417,7 +1440,16 @@ def run_dashboard(
                 for fig in figures
                 if fig is not None
             ]
-            aggregation = plotter.state_aggregation_fn(texts)
+            aggregation = plotter.agg_fn(texts)
+            if isinstance(aggregation, list):
+                aggregation = [
+                    html.Div(i, style={"color": "black", "marginTop": "5px"})
+                    for i in aggregation
+                ]
+            elif isinstance(aggregation, str):
+                aggregation = html.Img(
+                    src=aggregation, style={"width": "150px", "height": "150px"}
+                )
 
             children = [
                 html.Div(
@@ -1425,14 +1457,7 @@ def run_dashboard(
                         *fig_graphs,
                         html.Div(
                             [
-                                html.Img(
-                                    src=plotter.image_fn(aggregation),
-                                    style={
-                                        "width": "150px",
-                                        "height": "150px",
-                                        "marginRight": "15px",
-                                    },
-                                ),
+                                html.Div(aggregation, style={"marginRight": "15px"}),
                                 html.Div(
                                     [
                                         html.Div(
@@ -1471,7 +1496,6 @@ def run_dashboard(
         else:
             _, iteration, metric_data, text = customdata
             metric_data = float("nan") if metric_data is None else metric_data
-            image_b64 = image_fn(text)
             if ss_style == "Hex Ratio":
                 texts = [
                     html.Div(f"Iteration: {iteration}", style={"color": "black"}),
@@ -1482,16 +1506,7 @@ def run_dashboard(
                     html.Div(f"{metric}: {metric_data:.4f}", style={"color": "black"}),
                 ]
 
-            children = [
-                html.Div(
-                    [
-                        html.Img(
-                            src=image_b64, style={"width": "150px", "height": "150px"}
-                        ),
-                        *texts,
-                    ]
-                )
-            ]
+            children = [html.Div([*plotter.html_from_imagefn(text), *texts])]
 
         return True, bbox, children
 
@@ -1515,14 +1530,11 @@ def run_dashboard(
 
         bbox = point["bbox"]
         _, rank, metric, text = point["customdata"]
-        image_b64 = image_fn(text)
 
         children = [
             html.Div(
                 [
-                    html.Img(
-                        src=image_b64, style={"width": "150px", "height": "150px"}
-                    ),
+                    *plotter.html_from_imagefn(text),
                     html.Div(f"Rank: {rank}", style={"color": "black"}),
                     html.Div(f"{fo_metric}: {metric:.4f}", style={"color": "black"}),
                 ]
@@ -1561,13 +1573,13 @@ def run_dashboard(
         conn.close()
 
         # make images
-        source_img = image_fn(source)
-        target_img = image_fn(target)
+        source_img = plotter.html_from_imagefn(source)
+        target_img = plotter.html_from_imagefn(target)
 
-        def make_img(svg_b64):
-            if svg_b64 is None:
+        def make_img(img):
+            if img is None:
                 return html.Div("s0")
-            return html.Img(src=svg_b64, style={"height": "100px"})
+            return img
 
         children = html.Div(
             [
@@ -1575,12 +1587,11 @@ def run_dashboard(
                 html.Div(
                     [
                         html.Div(
-                            [html.Div("Source:"), make_img(source_img)],
+                            [html.Div("Source:"), *make_img(source_img)],
                             style={
                                 "marginTop": "5px",
                                 "marginRight": "50px",
                                 "display": "flex",
-                                "textAlign": "center",
                                 "alignItems": "center",
                                 "flexDirection": "column",
                                 "minHeight": "80px",
@@ -1588,7 +1599,7 @@ def run_dashboard(
                             },
                         ),
                         html.Div(
-                            [html.Div("Target:"), make_img(target_img)],
+                            [html.Div("Target:"), *make_img(target_img)],
                             style={"marginTop": "5px"},
                         ),
                     ],
@@ -1609,7 +1620,6 @@ def run_dashboard(
                 "backgroundColor": "white",
                 "padding": "10px",
                 "height": "auto",
-                "width": "260px",
             },
         )
 

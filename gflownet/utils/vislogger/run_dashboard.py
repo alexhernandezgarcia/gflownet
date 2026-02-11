@@ -8,10 +8,10 @@ Arguments:
         expects the subfolder .hydra with config.yaml
         and the subfolder visdata with data.db
         By default the latest run in the logs/local folder is used.
-    --default_s0
+    --default-s0
         set flag if your env does not have env.source specified, the the default
         '#' of the dashboard is used
-    --debug-mode
+    --debug
         set flag to use debug mode
 """
 
@@ -87,8 +87,8 @@ def main():
 
     run_dashboard(
         data=str(path / "visdata"),
-        text_to_img_fn=env.text_to_img_fn,
-        state_aggregation_fn=env.state_aggregation_fn,
+        text_to_img_fn=env.vis_show_state,
+        state_aggregation_fn=env.vis_aggregation,
         s0=s0,
         debug_mode=args.debug,
     )

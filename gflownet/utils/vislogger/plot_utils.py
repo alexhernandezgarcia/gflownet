@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from dash import html
 from plotly.subplots import make_subplots
 from sklearn import manifold
 from umap import UMAP
@@ -16,10 +17,7 @@ class Plotter:
         self.data = data
         self.s0 = s0
         self.image_fn = image_fn
-        if state_aggregation_fn is None:
-            self.raw_state_aggregation_fn = self.longest_common_substring
-        else:
-            self.raw_state_aggregation_fn = state_aggregation_fn
+        self.agg_fn = state_aggregation_fn
 
         # colorscales
         self.cs_main = px.colors.sequential.YlGn
@@ -28,36 +26,20 @@ class Plotter:
         self.cs_diverging_edgechange = px.colors.diverging.PiYG
         self.cs_diverging_dir = px.colors.diverging.balance_r
 
-    def state_aggregation_fn(self, texts):
-        """Wrapper for the state aggregation to treat lists with <2 items."""
-        if len(texts) == 0:
-            return None
-        elif len(texts) == 1:
-            return texts[0]
-        else:
-            return self.raw_state_aggregation_fn(texts)
-
-    @staticmethod
-    def longest_common_substring(texts):
-        """Dummy state_aggregation_fn: If no function is provided, the longest common
-        substring of the texts is given.
-
-        Parameters
-        ----------
-        texts :
-            List of texts.
+    def html_from_imagefn(self, text):
         """
-        if not texts:
-            return ""
-        reference = min(texts, key=len)
-        longest = ""
-        for i in range(len(reference)):
-            for j in range(i + 1, len(reference) + 1):
-                substring = reference[i:j]
-                if all(substring in s for s in texts):
-                    if len(substring) > len(longest):
-                        longest = substring
-        return longest
+        Create the html for a hover when passing a text to the imagefn
+        :param text:
+        :return:
+        """
+        out = self.image_fn(text)
+        if type(out) is list:
+            out = [
+                html.Div(i, style={"color": "black", "marginTop": "5px"}) for i in out
+            ]
+        elif type(out) is str:
+            out = [html.Img(src=out, style={"width": "150px", "height": "150px"})]
+        return out
 
     def hex_distplot(self, data, testdata, name):
         """Plot the histogram for hover on hexbins."""
@@ -757,7 +739,9 @@ class Plotter:
         df_dp = logged.drop(columns=feature_cols)
 
         # Get testset data
-        if use_testset:
+        testset_hasdata = pd.read_sql_query("SELECT COUNT(*) FROM testset", conn)
+        testset_hasdata = testset_hasdata["COUNT(*)"].tolist()[0]
+        if use_testset and testset_hasdata:
             query = f"""
                 SELECT
                     id,
@@ -963,6 +947,12 @@ class Plotter:
         nodes = pd.read_sql_query(query, conn, params=build_ids)
 
         nodes["image"] = nodes["id"].apply(self.image_fn)
+        nodes["has_image"] = nodes["image"].apply(
+            lambda x: "str" if isinstance(x, str) else "list"
+        )
+        nodes["image"] = nodes["image"].apply(
+            lambda x: "\n".join(x) if isinstance(x, list) else x
+        )
 
         if add_handlers:
             # get number of children
@@ -1065,6 +1055,20 @@ class Plotter:
                     "border-color": "#000000",
                 },
             },
+            # default if no image available
+            {
+                "selector": 'node[has_image = "list"]',
+                "style": {
+                    "background-image": "none",
+                    "label": "data(image)",
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "text-wrap": "wrap",
+                    "text-max-width": "110px",
+                    "font-size": "8px",
+                    "width": "150px",
+                },
+            },
             # START node default "#" (keep text label)
             {
                 "selector": 'node[node_type = "start"]',
@@ -1090,12 +1094,7 @@ class Plotter:
                 "selector": 'node[node_type = "final"]',
                 "style": {
                     "background-color": "#fff",
-                    "background-image": "data(image)",
-                    "background-fit": "contain",
-                    "background-clip": "none",
-                    "shape": "round-rectangle",
-                    "width": "60px",
-                    "height": "45px",
+                    "height": "50px",
                     "border-width": "3px",
                     "border-color": "#000000",
                 },

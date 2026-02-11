@@ -1041,8 +1041,8 @@ class GFlowNetAgent:
 
             run_dashboard(
                 data=self.logger.logdir / "visdata",
-                text_to_img_fn=self.env.text_to_img_fn,
-                state_aggregation_fn=self.env.state_aggregation_fn,
+                text_to_img_fn=self.env.vis_show_state,
+                state_aggregation_fn=self.env.vis_aggregation,
                 s0=self.env.state2readable(self.env.source),
                 debug_mode=False,
             )
@@ -1190,7 +1190,7 @@ class GFlowNetAgent:
         # Log vislogger data if used
         if (
             self.logger.usevislogger
-            and self.it % self.logger.visloggerconfig["log_every_n"] == 0
+            and (self.it + 1) % self.logger.visloggerconfig["log_every_n"] == 0
         ):
             traj_indices = batch.get_trajectory_indices()
             order = sorted(range(len(traj_indices)), key=lambda i: traj_indices[i])
