@@ -350,36 +350,11 @@ class Stack(GFlowNetEnv):
         The mask of the stack environment is the mask of the current sub-environment,
         preceded by a one-hot encoding of the index of the subenv and padded with False
         up to mask_dim. Including only the relevant mask saves memory and computation.
-
-        If state is passed as an argument (not None) and the Stack has constraints, we
-        first set the state. This is necessary because otherwise the sub-environments
-        may not have the correct attributes necessary to calculate the mask.
         """
-        # Set the state if a state & done are provided, which are different from the
-        # environment's current ones, and the environment has constraints
-        env_was_set = False
-        env_original_state = None
-        env_original_done = None
-        if state is not None and self.has_constraints:
-            env_original_state = self._get_state(None)
-            env_original_done = self._get_done(None)
-
-            # Comparing the env state to the provided state is generally orders of
-            # magnitude faster compared to setting the env state so it is worth it to
-            # ensure that the env state is not set needlessly.
-            if not self.equal(state, env_original_state) or done != env_original_done:
-                self.set_state(state, done)
-                env_was_set = True
-
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done
         )
         mask = subenv.get_mask_invalid_actions_forward(state_subenv, done)
-
-        # If needed, set back the env to its original state
-        if env_was_set:
-            self.set_state(env_original_state, env_original_done)
-
         return self._format_mask(mask, stage, subenv.mask_dim)
 
     def get_mask_invalid_actions_backward(
@@ -402,36 +377,11 @@ class Stack(GFlowNetEnv):
               stage and the EOS action must come from itself, not the preceding subenv.
             - if the current stage is the first sub-environment, in which case there is
               no preceding stage.
-
-        If state is passed as an argument (not None) and the Stack has constraints, we
-        first set the state. This is necessary because otherwise the sub-environments
-        may not have the correct attributes necessary to calculate the mask.
         """
-        # Set the state if a state & done are provided, which are different from the
-        # environment's current ones, and the environment has constraints
-        env_was_set = False
-        env_original_state = None
-        env_original_done = None
-        if state is not None and self.has_constraints:
-            env_original_state = self._get_state(None)
-            env_original_done = self._get_done(None)
-
-            # Comparing the env state to the provided state is generally orders of
-            # magnitude compared to setting the env state so it is worth it to
-            # ensure that the env state is not set needlessly.
-            if not self.equal(state, env_original_state) or done != env_original_done:
-                self.set_state(state, done)
-                env_was_set = True
-
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done, is_backward=True
         )
         mask = subenv.get_mask_invalid_actions_backward(state_subenv, done)
-
-        # If needed, set back the env to its original state
-        if env_was_set:
-            self.set_state(env_original_state, env_original_done)
-
         return self._format_mask(mask, stage, subenv.mask_dim)
 
     # TODO: rethink whether padding should be True (invalid) instead.
