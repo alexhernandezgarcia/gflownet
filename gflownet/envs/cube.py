@@ -152,6 +152,7 @@ class CubeBase(GFlowNetEnv, ABC):
         states = tfloat(states, device=self.device, float_type=self.float)
         return 2.0 * torch.clip(states, min=0.0, max=CELL_MAX) - CELL_MAX
 
+    # TODO: Change value of ignored dimensions / source values
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_dim"]:
