@@ -662,6 +662,62 @@ class LatticeParameters(Stack):
         # If all checks are passed, return True
         return True
 
+    def get_grid_terminating_states(
+        self, n_states: int, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
+
+        This method uses the Cube's corresponding method to generate the Cube states,
+        and then creates LatticeParameters states from them.
+
+        Parameters
+        ----------
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
+        """
+        states_cube = self.cube.get_grid_terminating_states(n_states, kappa)
+        states = []
+        for state_cube in states_cube:
+            state = copy(self.source)
+            state = self._set_stage(self.stage_cube, state)
+            states.append(self._set_substate(self.stage_cube, state_cube, state))
+        return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        This method uses the Cube's corresponding method to generate the Cube states,
+        and then creates LatticeParameters states from them.
+
+        Parameters
+        ----------
+        n_states : int
+            Number of states in the returned list.
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
+        """
+        states_cube = self.cube.get_uniform_terminating_states(n_states, kappa)
+        states = []
+        for state_cube in states_cube:
+            state = copy(self.source)
+            state = self._set_stage(self.stage_cube, state)
+            states.append(self._set_substate(self.stage_cube, state_cube, state))
+        return states
+
 
 # TODO: Update as standard LatticeParameters
 class LatticeParametersSGCCG(ContinuousCube):
