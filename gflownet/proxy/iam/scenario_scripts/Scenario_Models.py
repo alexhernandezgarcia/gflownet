@@ -5,7 +5,13 @@ from typing import Tuple
 import torch
 import torch.nn as nn
 
-from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import witch_proc_data
+from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import (
+    download_file_from_gdrive, witch_proc_data)
+
+FAIRY_MODEL_CONFIG = {
+    "gdrive_id": "1mvFLaJ6ig89jQaiPqgV4mnVZg1CxOatR",
+    "local_path": "gflownet/proxy/iam/scenario_data/fairy_state_dict.pth",
+}
 
 
 def load_datasets(filename="datasets.pkl"):
@@ -139,12 +145,23 @@ class fairy_model(nn.Module):
 
 
 def initialize_fairy() -> Tuple[fairy_model, witch_proc_data]:
-    model_filename = "gflownet/proxy/iam/scenario_data/fairy_state_dict.pth"
+    model_filename = FAIRY_MODEL_CONFIG["local_path"]
     dataset_filename = (
         "gflownet/proxy/iam/scenario_data/witch_scenario_maxmin_dataset.pkl"
     )
 
-    scaling_type = "maxmin"  #
+    # Download model weights if not present locally
+    if not os.path.exists(model_filename):
+        print(
+            f"{model_filename} not found. Attempting to download from Google Drive..."
+        )
+        download_file_from_gdrive(
+            FAIRY_MODEL_CONFIG["gdrive_id"],
+            os.path.dirname(model_filename),
+            os.path.basename(model_filename),
+        )
+
+    scaling_type = "maxmin"
 
     if os.path.exists(dataset_filename):
         scen_data = load_datasets(dataset_filename)
