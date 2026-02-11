@@ -1,0 +1,76 @@
+# @package _global_
+# Investment (single) environment trained with the Uniform proxy and the TB loss
+
+defaults:
+   - override /env: iam/full_plan
+   - override /gflownet: trajectorybalance
+   - override /proxy: iam/fairy
+   - override /logger: wandb
+
+# Buffer
+buffer:
+  test:
+    type: uniform
+    n: 10000
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 16
+    lr: 0.0001
+    z_dim: 8
+    lr_z_mult: 100
+    n_train_steps: 20000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+
+# Proxy (eform)
+proxy:
+  reward_function: sigmoid
+  # Parameters of the reward function are such that, on energy distribution:
+  # R(median) =~ 0.01
+  # R(q75) =~ 0.55
+  # R(q90) =~ 0.99
+  # R(q95+) = 1 -> ignore outliers
+  reward_function_kwargs:
+    gamma: 1000.0
+    beta: -8.0
+    alpha: 1.0
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "iam-sigmoid-consumption"
+  run_name: "Plan Fairy TB"
+  tags:
+    - gflownet
+    - plan
+    - fairy
+    - sigmoid
+    - consumption
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 1000
+  n: 100
+  checkpoints_period: 5000
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/plan/uniform/${now:%Y-%m-%d_%H-%M-%S_%f}
