@@ -163,9 +163,7 @@ class Tetris(GFlowNetEnv):
         updated board (copied) and a boolean variable, which is True if the piece can
         be dropped onto the current and False otherwise.
         """
-        if state is None:
-            state = self.state.clone().detach()
-        board = state.clone().detach()
+        board = self._get_state(state, do_copy=True)
 
         piece_idx, rotation, col = action
         piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
@@ -246,10 +244,8 @@ class Tetris(GFlowNetEnv):
             - True if the forward action is invalid from the current state.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.clone().detach()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
@@ -378,10 +374,8 @@ class Tetris(GFlowNetEnv):
             List of actions that lead to state for each parent in parents
         """
 
-        if state is None:
-            state = self.state.clone().detach()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [self.eos]
         else:

@@ -99,10 +99,8 @@ class Torus(GFlowNetEnv):
         All actions except EOS are valid if the maximum number of actions has not been
         reached, and vice versa.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True for _ in range(self.action_space_dim)]
         if state[-1] >= self.length_traj:
@@ -230,10 +228,8 @@ class Torus(GFlowNetEnv):
             List of actions that lead to state for each parent in parents
         """
 
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [self.eos]
         # If source state

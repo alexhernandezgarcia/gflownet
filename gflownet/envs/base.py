@@ -204,25 +204,37 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
-    def _get_state(self, state: Union[List, TensorType["state_dims"]]):
+    def _get_state(
+        self, state: Union[List, TensorType["state_dims"]], do_copy: bool = False
+    ):
         """
-        A helper method for other methods to determine whether state should be taken
-        from the arguments or from the instance (self.state): if is None, it is taken
-        from the instance.
+        Returns the input state or ``self.state`` if it is None.
 
-        Args
-        ----
-        state : list or tensor or None
-            None, or a state in GFlowNet format.
+        This is meant to be used as a helper method for other methods to determine
+        whether the state should be taken from the arguments or from the environment
+        instance (``self.state``): if is None, it is taken from the environment.
+
+        If ``do_copy`` is True (False by default), the state is copied before returning
+        it.
+
+        Parameters
+        ----------
+        state : list or tensor or dict or None
+            A state in environment format, or None.
+        do_copy : bool
+            Whether to copy the state before returning it.
 
         Returns
         -------
-        state : list or tensor
+        state : list or tensor or dict or None
             The argument state, or self.state if state is None.
         """
         if state is None:
-            state = copy(self.state)
-        return state
+            state = self.state
+        if do_copy:
+            return copy(state)
+        else:
+            return state
 
     def _get_done(self, done: bool):
         """
@@ -370,10 +382,8 @@ class GFlowNetEnv:
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [(self.eos,)]
         parents = []
@@ -994,8 +1004,7 @@ class GFlowNetEnv:
         """
         Converts a state into human-readable representation.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return str(state)
 
     def readable2state(self, readable):
