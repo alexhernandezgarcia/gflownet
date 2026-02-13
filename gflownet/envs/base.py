@@ -1258,6 +1258,42 @@ class GFlowNetEnv:
             raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
 
+    def __eq__(self, other) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        # Check if other is not a GFlowNet environment
+        if not isinstance(other, GFlowNetEnv):
+            return False
+        # Obtain dictionary of attributes of the other instance and iterate over the
+        # dictionary of self to compare all attributes
+        other_dict = other.__dict__
+        for k, v in self.__dict__.items():
+            # Check if the attribute is not in the other dict
+            if k not in other_dict:
+                return False
+            v_other = other_dict[k]
+            # Compare the values with self.equal()
+            try:
+                if not self.equal(v, v_other):
+                    return False
+            except NotImplementedError:
+                # If the types are not handled by self.equal, then ignore this
+                # attribute for lack of means to determine whether the values are equal
+                continue
+        return True
+
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions
     ):
