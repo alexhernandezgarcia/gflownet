@@ -1159,7 +1159,7 @@ class GFlowNetEnv:
                 if not GFlowNetEnv.equal(sx, sy):
                     return False
         else:
-            raise NotImplementedError("Unknown type: {type(state_x)}")
+            raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
 
     @staticmethod
@@ -1255,7 +1255,7 @@ class GFlowNetEnv:
                 if not GFlowNetEnv.isclose(sx, sy):
                     return False
         else:
-            raise NotImplementedError("Unknown type: {type(state_x)}")
+            raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
 
     def get_trajectories(
