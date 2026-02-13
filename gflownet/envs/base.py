@@ -1120,6 +1120,9 @@ class GFlowNetEnv:
                     return False
                 return torch.equal(state_x[~x_nan], state_y[~y_nan])
             return torch.equal(state_x, state_y)
+        # Numpy
+        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
+            return np.array_equal(state_x, state_y, equal_nan=True)
         # Dictionaries
         elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
@@ -1213,6 +1216,9 @@ class GFlowNetEnv:
                     torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
                 )
             return torch.all(torch.isclose(state_x, state_y, atol=atol))
+        # Numpy
+        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
+            return np.allclose(state_x, state_y, equal_nan=True, atol=atol)
         # Dictionaries
         elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
