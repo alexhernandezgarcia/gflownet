@@ -1127,13 +1127,11 @@ class GFlowNetEnv:
         elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
                 return False
-            for (key_x, value_x), (key_y, value_y) in zip(
-                sorted(state_x.items()), sorted(state_y.items())
-            ):
-                if key_x != key_y:
+            for key_x, value_x in state_x.items():
+                if key_x not in state_y:
                     return False
                 # Recursive comparison of the values
-                if not GFlowNetEnv.equal(value_x, value_y):
+                if not GFlowNetEnv.equal(value_x, state_y[key_x]):
                     return False
             else:
                 return True
@@ -1223,13 +1221,11 @@ class GFlowNetEnv:
         elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
                 return False
-            for (key_x, value_x), (key_y, value_y) in zip(
-                sorted(state_x.items()), sorted(state_y.items())
-            ):
-                if key_x != key_y:
+            for key_x, value_x in state_x.items():
+                if key_x not in state_y:
                     return False
                 # Recursive comparison of the values
-                if not GFlowNetEnv.isclose(value_x, value_y):
+                if not GFlowNetEnv.isclose(value_x, state_y[key_x]):
                     return False
             else:
                 return True
