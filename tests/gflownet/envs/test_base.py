@@ -1,6 +1,8 @@
 from collections import Counter
 
+import numpy as np
 import pytest
+import torch
 
 from gflownet.envs.grid import Grid
 
@@ -135,6 +137,68 @@ def grid10x10x10():
         (
             [[0, 1], ["a", "b", -1, 0], 0.5],
             [[0, 1], ["a", "b", -1, 0], 1.5],
+            False,
+        ),
+        ### Tensors
+        (
+            torch.tensor([0.0, 1.0, -1.0]),
+            torch.tensor([0.0, 1.0, -1.0]),
+            True,
+        ),
+        (
+            torch.tensor([0.0, 1.0, -1.0]),
+            torch.tensor([0.0, 1.0, 1.0]),
+            False,
+        ),
+        (
+            torch.tensor([0.0, 1.0, -1.0, torch.nan]),
+            torch.tensor([0.0, 1.0, -1.0, torch.nan]),
+            True,
+        ),
+        (
+            torch.tensor([0.0, 1.0, -1.0, torch.nan]),
+            torch.tensor([0.0, 1.0, 1.0, torch.nan]),
+            False,
+        ),
+        (
+            torch.tensor([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            torch.tensor([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            True,
+        ),
+        (
+            torch.tensor([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            torch.tensor([[0.0, 1.0, -1.0], [1.0, 2.0, -1.00001]]),
+            False,
+        ),
+        ### Numpy
+        (
+            np.array([0.0, 1.0, -1.0]),
+            np.array([0.0, 1.0, -1.0]),
+            True,
+        ),
+        (
+            np.array([0.0, 1.0, -1.0]),
+            np.array([0.0, 1.0, 1.0]),
+            False,
+        ),
+        (
+            np.array([0.0, 1.0, -1.0, np.nan]),
+            np.array([0.0, 1.0, -1.0, np.nan]),
+            True,
+        ),
+        (
+            np.array([0.0, 1.0, -1.0, np.nan]),
+            np.array([0.0, 1.0, 1.0, np.nan]),
+            False,
+        ),
+        (
+            np.array([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            np.array([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            True,
+        ),
+        (
+            np.array([[0.0, 1.0, -1.0], [1.0, 2.0, -1.0]]),
+            np.array([[0.0, 1.0, -1.0], [1.0, 2.0, -1.00001]]),
             False,
         ),
         ### Dictionaries
