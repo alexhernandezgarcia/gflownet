@@ -385,3 +385,171 @@ def test__get_random_states__does_not_contain_the_source_if_exclude_source_is_tr
     assert len(states) == n_states
     # Check that the source state is not included
     assert all([not env.is_source(state) for state in states])
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        ("grid"),
+        ("grid5x5"),
+        ("grid10x10x10"),
+    ],
+)
+def test__eq__returns_true_for_copied_envs(env, request):
+    env = request.getfixturevalue(env)
+    env_copy = env.copy()
+    assert env == env_copy
+    # Changing id does not make environments not equal
+    env.set_id("banana")
+    assert env == env_copy
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        ("grid"),
+        ("grid5x5"),
+        ("grid10x10x10"),
+    ],
+)
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("continuous", True),
+        ("n_dim", 1),
+        ("state", [1]),
+        ("eos", (1, 2)),
+        ("source", []),
+        ("source", {"a": 1, "b": 2}),
+        ("state", torch.tensor([0.0, 1.0, -1.0])),
+        ("state", np.array([0.0, 1.0, -1.0])),
+    ],
+)
+def test__eq__returns_false_if_attribute_is_changed(env, key, value, request):
+    env = request.getfixturevalue(env)
+    env_copy = env.copy()
+    env.__dict__[key] = value
+    assert env != env_copy
+
+
+@pytest.mark.parametrize(
+    "env, subenv",
+    [
+        ("grid", "grid5x5"),
+        ("grid5x5", "grid"),
+        ("grid10x10x10", "grid5x5"),
+    ],
+)
+def test__eq__returns_true_for_copied_envs_with_nested_subenv(env, subenv, request):
+    env = request.getfixturevalue(env)
+    subenv = request.getfixturevalue(subenv)
+    env.__dict__["subenv_nested"] = subenv.copy().set_id(0)
+    env.__dict__["subenv_nested_list"] = [
+        subenv.copy().set_id(1),
+        subenv.copy().set_id(2),
+    ]
+    env.__dict__["subenv_nested_dict"] = {
+        11: subenv.copy().set_id(11),
+        22: subenv.copy().set_id(22),
+    }
+    env_copy = env.copy()
+    assert env == env_copy
+
+
+@pytest.mark.parametrize(
+    "env, subenv",
+    [
+        ("grid", "grid5x5"),
+        ("grid5x5", "grid"),
+        ("grid10x10x10", "grid5x5"),
+    ],
+)
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("continuous", True),
+        ("n_dim", 1),
+        ("state", [1]),
+        ("eos", (1, 2)),
+        ("source", []),
+        ("source", {"a": 1, "b": 2}),
+        ("state", torch.tensor([0.0, 1.0, -1.0])),
+        ("state", np.array([0.0, 1.0, -1.0])),
+    ],
+)
+def test__eq__returns_false_if_attribute_is_changed_in_nested_subenv(
+    env, subenv, key, value, request
+):
+    env = request.getfixturevalue(env)
+    subenv = request.getfixturevalue(subenv)
+    env.__dict__["subenv_nested"] = subenv
+    env_copy = env.copy()
+    env.subenv_nested.__dict__[key] = value
+    assert env != env_copy
+
+
+@pytest.mark.parametrize(
+    "env, subenv",
+    [
+        ("grid", "grid5x5"),
+        ("grid5x5", "grid"),
+        ("grid10x10x10", "grid5x5"),
+    ],
+)
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("continuous", True),
+        ("n_dim", 1),
+        ("state", [1]),
+        ("eos", (1, 2)),
+        ("source", []),
+        ("source", {"a": 1, "b": 2}),
+        ("state", torch.tensor([0.0, 1.0, -1.0])),
+        ("state", np.array([0.0, 1.0, -1.0])),
+    ],
+)
+def test__eq__returns_false_if_attribute_is_changed_in_nested_subenv_as_list(
+    env, subenv, key, value, request
+):
+    env = request.getfixturevalue(env)
+    subenv = request.getfixturevalue(subenv)
+    env.__dict__["subenv_nested"] = [subenv.copy().set_id(1), subenv.copy().set_id(2)]
+    env_copy = env.copy()
+    env.subenv_nested[0].__dict__[key] = value
+    assert env != env_copy
+
+
+@pytest.mark.parametrize(
+    "env, subenv",
+    [
+        ("grid", "grid5x5"),
+        ("grid5x5", "grid"),
+        ("grid10x10x10", "grid5x5"),
+    ],
+)
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        ("continuous", True),
+        ("n_dim", 1),
+        ("state", [1]),
+        ("eos", (1, 2)),
+        ("source", []),
+        ("source", {"a": 1, "b": 2}),
+        ("state", torch.tensor([0.0, 1.0, -1.0])),
+        ("state", np.array([0.0, 1.0, -1.0])),
+    ],
+)
+def test__eq__returns_false_if_attribute_is_changed_in_nested_subenv_as_dict(
+    env, subenv, key, value, request
+):
+    env = request.getfixturevalue(env)
+    subenv = request.getfixturevalue(subenv)
+    env.__dict__["subenv_nested"] = {
+        1: subenv.copy().set_id(1),
+        2: subenv.copy().set_id(2),
+    }
+    env_copy = env.copy()
+    env.subenv_nested[1].__dict__[key] = value
+    assert env != env_copy

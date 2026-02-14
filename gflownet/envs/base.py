@@ -1263,6 +1263,9 @@ class GFlowNetEnv:
         Checks whether the current environment instance is equal to the input
         environment instance.
 
+        The attribute ``self.id`` is ignored to determine whether the environments are
+        equal.
+
         Parameters
         ----------
         other : GFlowNetEnv
@@ -1280,10 +1283,41 @@ class GFlowNetEnv:
         # dictionary of self to compare all attributes
         other_dict = other.__dict__
         for k, v in self.__dict__.items():
+            # Ignore id
+            if k == "id":
+                continue
             # Check if the attribute is not in the other dict
             if k not in other_dict:
                 return False
             v_other = other_dict[k]
+            # Check if value types are different
+            if type(v_other) != type(v):
+                return False
+            # If the attribute is an environment, enter recursion to check the
+            # attributes of the sub-environment
+            if isinstance(v, GFlowNetEnv):
+                if not v.__eq__(v_other):
+                    return False
+            # If the attribute is a list / tuple / dict of environments, enter
+            # recursion to check the attributes of the sub-environment. This method
+            # does not catch differences in sub-environments that are not at the first
+            # level of a list, tuple or dict
+            elif isinstance(v, list) or isinstance(v, tuple):
+                for v_el, v_other_el in zip(v, v_other):
+                    if isinstance(v_el, GFlowNetEnv):
+                        if not v_el.__eq__(v_other_el):
+                            return False
+            elif isinstance(v, dict):
+                for (v_k, v_v), (v_other_k, v_other_v) in zip(
+                    v.items(), v_other.items()
+                ):
+                    if v_k != v_other_k:
+                        return False
+                    if isinstance(v_v, GFlowNetEnv):
+                        if not v_v.__eq__(v_other_v):
+                            return False
+            else:
+                pass
             # Compare the values with self.equal()
             try:
                 if not self.equal(v, v_other):
