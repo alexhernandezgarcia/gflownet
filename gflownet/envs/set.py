@@ -4,10 +4,9 @@ multiple sub-environments without any specific order.
 """
 
 import uuid
+from collections import Counter
 from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, Union
-
-from collections import Counter
 
 import numpy as np
 import torch
@@ -895,7 +894,9 @@ class BaseSet(CompositeBase):
                     actions.append(self._pad_action((idx,), -1))
                     parents.append(self._set_active_subenv(idx, parent))
                 else:
-                    parent, _ = self._get_permuted_parent_with_active_subenv(idx_unique, state)
+                    parent, _ = self._get_permuted_parent_with_active_subenv(
+                        idx_unique, state
+                    )
                     parents.append(parent)
                     actions.append(self._pad_action((idx_unique,), -1))
                     indices_unique_seen.add(idx_unique)
@@ -938,9 +939,7 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
-    def permute_subenvs(
-            self, idx_unique: int, state: Optional[Dict] = None
-    ) -> int:
+    def permute_subenvs(self, idx_unique: int, state: Optional[Dict] = None) -> int:
         """
         Randomly permutes the done sub-environments of a specific unique environment
         within the state.
@@ -964,7 +963,8 @@ class BaseSet(CompositeBase):
         dones = self._get_dones(state)
         # Find all done instances of the specified type
         done_instances_of_type = [
-            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            idx
+            for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
             if u_idx == idx_unique and done
         ]
 
@@ -1000,7 +1000,7 @@ class BaseSet(CompositeBase):
         return done_instances_of_type[-1]
 
     def _get_permuted_parent_with_active_subenv(
-            self, idx_unique: int, state: Dict
+        self, idx_unique: int, state: Dict
     ) -> Tuple[Dict, int]:
         """
         Creates a copy of the state with done sub-environments of the specified unique
@@ -1030,13 +1030,16 @@ class BaseSet(CompositeBase):
 
         # Find all done instances of the specified type
         done_instances_of_type = [
-            idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+            idx
+            for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
             if u_idx == idx_unique and done
         ]
 
         # Permute if there are multiple done instances
         if len(done_instances_of_type) >= 2:
-            substates = [self._get_substate(parent, idx) for idx in done_instances_of_type]
+            substates = [
+                self._get_substate(parent, idx) for idx in done_instances_of_type
+            ]
             permutation = np.random.permutation(len(substates))
             shuffled_substates = [substates[i] for i in permutation]
             for idx, substate in zip(done_instances_of_type, shuffled_substates):
@@ -1258,11 +1261,11 @@ class BaseSet(CompositeBase):
         return logprobs
 
     def _apply_permutation_correction(
-            self,
-            logprobs: TensorType["n_set_states"],
-            actions: TensorType["n_set_states", "action_dim"],
-            states_from: List,
-            is_set: TensorType["n_states"],
+        self,
+        logprobs: TensorType["n_set_states"],
+        actions: TensorType["n_set_states", "action_dim"],
+        states_from: List,
+        is_set: TensorType["n_states"],
     ) -> TensorType["n_set_states"]:
         """
         Applies the permutation correction to logprobs for backward toggle actions.
@@ -1270,9 +1273,9 @@ class BaseSet(CompositeBase):
         When going backward, the done sub-environments are randomly shuffled before
         activating one. This correction accounts for the number of unique permutations
         that result in distinct states. If all substates are identical, no correction
-        is needed since all permutations yield the same state. If substates differ,
-        the correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! * ...)
-        and mi are the multiplicities of identical substates.
+        is needed since all permutations yield the same state. If substates differ, the
+        correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! *
+        ...) and mi are the multiplicities of identical substates.
 
         Parameters
         ----------
@@ -1315,7 +1318,8 @@ class BaseSet(CompositeBase):
 
             # Find all done instances of this unique environment type
             done_instances_of_type = [
-                idx for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
+                idx
+                for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
                 if u_idx == idx_unique and done
             ]
 
@@ -1325,7 +1329,9 @@ class BaseSet(CompositeBase):
                 continue
 
             # Collect substates of done instances
-            substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+            substates = [
+                self._get_substate(state, idx) for idx in done_instances_of_type
+            ]
 
             # Count multiplicities by comparing substates using GFlowNetEnv.equal
             multiplicities = []
