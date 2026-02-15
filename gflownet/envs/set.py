@@ -711,7 +711,7 @@ class BaseSet(CompositeBase):
                 else:
                     # Permute the done subenvironments of the selected index, and
                     # activate the one in the last position
-                    idx_active_subenv = self.permute_subenvs(toggled_idx)
+                    _, idx_active_subenv = self._permute_subenvs(toggled_idx)
                     self._set_active_subenv(idx_active_subenv)
             else:
                 # Toggle the current subenv
@@ -939,10 +939,12 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
-    def permute_subenvs(self, idx_unique: int, state: Optional[Dict] = None) -> int:
+    def _permute_subenvs(
+        self, idx_unique: int, state: Optional[Dict] = None
+    ) -> Tuple[Dict, int]:
         """
-        Randomly permutes the done sub-environments of a specific unique environment
-        within the state.
+        Permutes the done sub-environments of a given unique environment.
+
         Parameters
         ----------
         idx_unique : int
@@ -953,7 +955,9 @@ class BaseSet(CompositeBase):
 
         Returns
         -------
-        int
+        state : dict
+            The updated state
+        idx : int
             The index of the last done instance of the specified type after permutation.
         """
         if state is None:
@@ -961,43 +965,44 @@ class BaseSet(CompositeBase):
 
         unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
         dones = self._get_dones(state)
-        # Find all done instances of the specified type
-        done_instances_of_type = [
+
+        # Find all done sub-environments of the relevant unique environment
+        indices_to_permute = [
             idx
-            for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
-            if u_idx == idx_unique and done
+            for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
+            if idx_u == idx_unique and done
         ]
 
-        # If fewer than 2 instances, no permutation needed
-        if len(done_instances_of_type) < 2:
-            if len(done_instances_of_type) == 1:
-                return done_instances_of_type[0]
-            else:
-                return -1  # No done instances of this type
+        # If there are not any indices to permute, return index -1
+        if len(indices_to_permute) == 0:
+            return state, -1
+        # If there is only one index to permute, do nothing and return the index
+        if len(indices_to_permute) == 1:
+            return state, indices_to_permute[0]
 
         # Collect the substates of done instances
-        substates = [self._get_substate(state, idx) for idx in done_instances_of_type]
+        substates = [self._get_substate(state, idx) for idx in indices_to_permute]
 
         # Shuffle the substates
         permutation = np.random.permutation(len(substates))
         shuffled_substates = [substates[i] for i in permutation]
 
         # Apply the shuffled substates back to the state
-        for idx, substate in zip(done_instances_of_type, shuffled_substates):
+        for idx, substate in zip(indices_to_permute, shuffled_substates):
             self._set_substate(idx, substate, state)
 
         if self.subenvs is not None:
             subenvs_list = list(self.subenvs)
-            subenvs_of_type = [subenvs_list[idx] for idx in done_instances_of_type]
+            subenvs_of_type = [subenvs_list[idx] for idx in indices_to_permute]
             shuffled_subenvs = [subenvs_of_type[i] for i in permutation]
-            for i, idx in enumerate(done_instances_of_type):
+            for i, idx in enumerate(indices_to_permute):
                 subenvs_list[idx] = shuffled_subenvs[i]
                 # Sync subenv internal state
                 shuffled_subenvs[i].set_state(shuffled_substates[i], done=True)
             self.subenvs = tuple(subenvs_list)
 
         # Return the index of the last done instance of this type
-        return done_instances_of_type[-1]
+        return state, indices_to_permute[-1]
 
     def _get_permuted_parent_with_active_subenv(
         self, idx_unique: int, state: Dict
