@@ -332,8 +332,15 @@ class BaseSet(CompositeBase):
 
         The mask is False-padded from the back up to mask_dim.
         """
+        do_constraints = state is not None and self.has_constraints
         state = self._get_state(state)
         done = self._get_done(done)
+
+        # Apply constraints based on the input state
+        if do_constraints:
+            # TODO: _apply_constraints could return a boolean variable if constraints
+            # are applied
+            self._apply_constraints(state=state)
 
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
@@ -441,6 +448,10 @@ class BaseSet(CompositeBase):
             mask = subenv.get_mask_invalid_actions_backward(state_subenv, done_subenv)
         else:
             raise RuntimeError("None of the possible backward cases is True")
+
+        # Reset constraints for self.state
+        if do_constraints:
+            self._apply_constraints(state=self.state)
 
         # Format mask and return
         return self._format_mask(mask, active_subenv)
