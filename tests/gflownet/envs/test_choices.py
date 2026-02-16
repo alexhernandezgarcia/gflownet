@@ -100,6 +100,140 @@ def test__trajectory_backwards_random__does_not_crash_and_reaches_source(env, re
 
 
 @pytest.mark.parametrize(
+    "env, state, mask_expected",
+    [
+        # Source state
+        (
+            "env_without_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [0],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                False, # Set actions
+                False, True, # Mask (EOS invalid)
+                False, False, False, False # Padding
+            ],
+            # fmt: on
+        ),
+        # Source -> active env
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [0],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                True, # Active unique env 0
+                False, False, False, False, False, True, # Mask of Choice: EOS invalid
+            ],
+            # fmt: on
+        ),
+        # Source -> active env -> choice selected
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [2],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                True, # Active unique env 0
+                True, True, True, True, True, False, # Mask of Choice: only EOS valid
+            ],
+            # fmt: on
+        ),
+        # Source -> active env -> choice selected and done
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [2],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                False, # Set actions
+                False, True, # Mask (EOS invalid)
+                False, False, False, False # Padding
+            ],
+            # fmt: on
+        ),
+        # One subenv is done
+        (
+            "env_without_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [2],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                False, # Set actions
+                False, True, # Mask (EOS invalid)
+                False, False, False, False # Padding
+            ],
+            # fmt: on
+        ),
+        # One subenv is done -> active env
+        (
+            "env_without_replacement",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                0: [2],
+                1: [0],
+                2: [0],
+            },
+            # fmt: off
+            [
+                True, # Active unique env 0
+                # Mask of Choice: Choice already selected and EOS invalid
+                False, True, False, False, False, True,
+            ],
+            # fmt: on
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_forward__returns_expected(
+    env, state, mask_expected, request
+):
+    env = request.getfixturevalue(env)
+    mask = env.get_mask_invalid_actions_forward(state, done=False)
+    assert mask == mask_expected
+    env.set_state(state)
+    mask = env.get_mask_invalid_actions_forward()
+    assert mask == mask_expected
+
+
+@pytest.mark.parametrize(
     "env, states, states_policy_exp",
     [
         (
