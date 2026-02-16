@@ -301,6 +301,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -321,6 +322,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -342,6 +344,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 1, 2],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -363,6 +366,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -374,6 +378,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1],
@@ -386,6 +391,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -408,6 +414,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -429,6 +436,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -450,6 +458,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -471,6 +480,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -493,6 +503,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [1, 1],
+                "_keys": [0, 1],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -515,6 +526,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 1, 2],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -537,6 +549,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 1, 2],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: torch.tensor(
                     [
@@ -559,6 +572,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -571,6 +585,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 1],
             },
@@ -583,6 +598,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -595,6 +611,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1],
@@ -608,6 +625,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 1],
                 "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1],
@@ -621,6 +639,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -634,6 +653,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -647,6 +667,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, [-1, -1], [0, 0]],
                 1: [0, [-1, -1], [0, 0]],
             },
@@ -659,6 +680,7 @@ def test__source_state_is_expected(env, source, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, [-1, -1], [0, 0]],
                 1: [0, [-1, -1], [0, 0]],
             },
@@ -854,6 +876,7 @@ def test__pad_depad_action__return_expected(env, action_set, action_subenv, requ
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -875,6 +898,7 @@ def test__pad_depad_action__return_expected(env, action_set, action_subenv, requ
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -896,6 +920,7 @@ def test__pad_depad_action__return_expected(env, action_set, action_subenv, requ
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -917,6 +942,7 @@ def test__pad_depad_action__return_expected(env, action_set, action_subenv, requ
                 "_toggle": 1,
                 "_dones": [0, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -938,6 +964,7 @@ def test__pad_depad_action__return_expected(env, action_set, action_subenv, requ
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -985,6 +1012,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1003,6 +1031,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1025,6 +1054,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1043,6 +1073,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1065,6 +1096,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1083,6 +1115,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1105,6 +1138,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -1123,6 +1157,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -1145,6 +1180,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1154,6 +1190,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1167,6 +1204,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1176,6 +1214,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1189,6 +1228,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1198,6 +1238,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1211,6 +1252,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1220,6 +1262,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1233,6 +1276,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1242,6 +1286,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1255,6 +1300,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1264,6 +1310,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1277,6 +1324,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1287,6 +1335,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1301,6 +1350,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1311,6 +1361,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1325,6 +1376,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1335,6 +1387,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1349,6 +1402,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1358,6 +1412,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1371,6 +1426,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1380,6 +1436,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1393,6 +1450,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -1402,6 +1460,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -1415,6 +1474,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -1424,6 +1484,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -1437,6 +1498,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1447,6 +1509,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1461,6 +1524,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1471,6 +1535,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1485,6 +1550,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1495,6 +1561,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.34, 0.25],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1509,6 +1576,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.34, 0.25],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1519,6 +1587,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.34, 0.25],
                 1: [-1, -1],
                 2: [0.17, 0.28, 0.39],
@@ -1533,6 +1602,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.34, 0.25],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1543,6 +1613,7 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.34, 0.25],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1587,6 +1658,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1605,6 +1677,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1627,6 +1700,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1645,6 +1719,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1667,6 +1742,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1685,6 +1761,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1707,6 +1784,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -1725,6 +1803,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -1747,6 +1826,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1756,6 +1836,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1769,6 +1850,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1778,6 +1860,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1791,6 +1874,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1800,6 +1884,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1813,6 +1898,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1822,6 +1908,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -1835,6 +1922,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1844,6 +1932,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1857,6 +1946,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1866,6 +1956,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [1, 0],
             },
@@ -1879,6 +1970,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1889,6 +1981,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -1903,6 +1996,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1913,6 +2007,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1927,6 +2022,7 @@ def test__step__works_as_expected(
                 "_toggle": 1,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1937,6 +2033,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [-1, -1],
                 2: [0.3, 0.2, 0.7],
@@ -1951,6 +2048,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1960,6 +2058,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -1973,6 +2072,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -1982,6 +2082,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -1995,6 +2096,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 0],
                 1: [0, 0],
             },
@@ -2004,6 +2106,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -2017,6 +2120,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -2026,6 +2130,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [0, 0],
             },
@@ -2039,6 +2144,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -2049,6 +2155,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -2063,6 +2170,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -2073,6 +2181,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -2087,6 +2196,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -2097,6 +2207,7 @@ def test__step__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 0, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -2136,6 +2247,7 @@ def test__step_backwards__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -2156,6 +2268,7 @@ def test__step_backwards__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 0],
             },
@@ -2167,6 +2280,7 @@ def test__step_backwards__works_as_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [0.15, 0.67],
                 2: [0.3, 0.2, 0.7],
@@ -2203,6 +2317,7 @@ def test__step__eos_action_valid_if_all_subenvs_are_done(env, state_from, reques
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: torch.tensor(
                     [
@@ -2223,6 +2338,7 @@ def test__step__eos_action_valid_if_all_subenvs_are_done(env, state_from, reques
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 0],
             },
@@ -2234,6 +2350,7 @@ def test__step__eos_action_valid_if_all_subenvs_are_done(env, state_from, reques
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.4, 0.6],
                 1: [0.15, 0.67],
                 2: [0.3, 0.2, 0.7],
@@ -2273,6 +2390,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2301,6 +2419,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2329,6 +2448,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2356,6 +2476,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2384,6 +2505,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2412,6 +2534,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2440,6 +2563,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -2458,6 +2582,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -2477,6 +2602,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -2495,6 +2621,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -2513,6 +2640,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -2531,6 +2659,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -2550,6 +2679,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -2569,6 +2699,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2589,6 +2720,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2609,6 +2741,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2628,6 +2761,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2648,6 +2782,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -2667,6 +2802,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -2686,6 +2822,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2706,6 +2843,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -2726,6 +2864,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 0, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -2746,6 +2885,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 1, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [-1, -1, -1],
@@ -2766,6 +2906,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -2799,6 +2940,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2827,6 +2969,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2855,6 +2998,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2883,6 +3027,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2911,6 +3056,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2939,6 +3085,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2967,6 +3114,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -2995,6 +3143,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3023,6 +3172,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -3041,6 +3191,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -3060,6 +3211,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -3078,6 +3230,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -3097,6 +3250,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -3116,6 +3270,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -3136,6 +3291,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -3155,6 +3311,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -3175,6 +3332,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [-1, -1, -1],
@@ -3195,6 +3353,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -3215,6 +3374,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -3248,6 +3408,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3276,6 +3437,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3320,6 +3482,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3349,6 +3512,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3378,6 +3542,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3650,6 +3815,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -3673,6 +3839,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -3691,6 +3858,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -3714,6 +3882,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -3732,6 +3901,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -3755,6 +3925,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3773,6 +3944,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: torch.tensor(
                         [
@@ -3790,6 +3962,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: torch.tensor(
                         [
@@ -3813,6 +3986,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3831,6 +4005,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: torch.tensor(
                         [
@@ -3854,6 +4029,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3872,6 +4048,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: torch.tensor(
                         [
@@ -3895,6 +4072,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: torch.tensor(
                     [
@@ -3913,6 +4091,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: torch.tensor(
                         [
@@ -3930,6 +4109,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 0],
                     1: torch.tensor(
                         [
@@ -3953,6 +4133,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [2, 1],
             },
@@ -3962,6 +4143,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [2, 1],
                 },
@@ -3970,6 +4152,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [2, 1],
                 },
@@ -3984,6 +4167,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [2, 1],
             },
@@ -3993,6 +4177,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [2, 1],
                 },
@@ -4001,6 +4186,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [2, 1],
                 },
@@ -4015,6 +4201,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [2, 1],
             },
@@ -4024,6 +4211,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: [2, 1],
                 },
@@ -4038,6 +4226,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: [0, 0],
             },
@@ -4047,6 +4236,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: [0, 0],
                 },
@@ -4061,6 +4251,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: [0, 0],
             },
@@ -4070,6 +4261,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: [0, 0],
                 },
@@ -4084,6 +4276,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [2, 1],
                 1: [1, 2],
             },
@@ -4093,6 +4286,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [2, 1],
                     1: [1, 2],
                 },
@@ -4107,6 +4301,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -4116,6 +4311,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: [0, 0],
                 },
@@ -4130,6 +4326,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [0, 0],
             },
@@ -4139,6 +4336,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [0, 0],
                 },
@@ -4153,6 +4351,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: [1, 1],
             },
@@ -4162,6 +4361,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: [1, 1],
                 },
@@ -4176,6 +4376,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, 1],
                 1: [1, 2],
             },
@@ -4185,6 +4386,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [1, 1],
                 },
@@ -4193,6 +4395,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [0, 2],
                 },
@@ -4207,6 +4410,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 1, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [0.44, 0.55],
                 2: [0.39, 0.28, 0.17],
@@ -4217,6 +4421,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.17, 0.32],
                     1: [0.44, 0.55],
                     2: [0.39, 0.28, 0.17],
@@ -4226,6 +4431,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.17, 0.32],
                     1: [0.44, 0.55],
                     2: [0.39, 0.28, 0.17],
@@ -4241,6 +4447,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -4251,6 +4458,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0, 1],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.17, 0.32],
                     1: [-1, -1],
                     2: [0.39, 0.28, 0.17],
@@ -4260,6 +4468,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0, 1],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.17, 0.32],
                     1: [-1, -1],
                     2: [0.39, 0.28, 0.17],
@@ -4275,6 +4484,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [0, 0, 1],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [-1, -1],
                 1: [-1, -1],
                 2: [0.39, 0.28, 0.17],
@@ -4285,6 +4495,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [0, 0, 1],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [-1, -1],
                     1: [-1, -1],
                     2: [0.39, 0.28, 0.17],
@@ -4300,6 +4511,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                 "_toggle": 0,
                 "_dones": [1, 0, 0],
                 "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
                 0: [0.17, 0.32],
                 1: [-1, -1],
                 2: [-1, -1, -1],
@@ -4310,6 +4522,7 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
                     "_toggle": 0,
                     "_dones": [1, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.17, 0.32],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4369,6 +4582,7 @@ def test__get_parents__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -4390,6 +4604,7 @@ def test__get_parents__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: [0, 0],
             },
@@ -4417,6 +4632,7 @@ def test__get_valid_actions__forward_returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -4439,6 +4655,7 @@ def test__get_valid_actions__forward_returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -4461,6 +4678,7 @@ def test__get_valid_actions__forward_returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -4483,6 +4701,7 @@ def test__get_valid_actions__forward_returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -4506,6 +4725,7 @@ def test__get_valid_actions__forward_returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, [0.5407, 0.4987], [1, 0]],
                 1: [1, [0.6297, 0.4120], [0, 0]],
             },
@@ -4533,6 +4753,7 @@ def test__get_valid_actions__backwards_returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -4554,6 +4775,7 @@ def test__get_valid_actions__backwards_returns_expected(
                 "_toggle": 1,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -4575,6 +4797,7 @@ def test__get_valid_actions__backwards_returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -4596,6 +4819,7 @@ def test__get_valid_actions__backwards_returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -4618,6 +4842,7 @@ def test__get_valid_actions__backwards_returns_expected(
                 "_toggle": 0,
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
+                "_keys": [0, 1],
                 0: [1, [0.5407, 0.4987], [1, 0]],
                 1: [1, [0.6297, 0.4120], [0, 0]],
             },
@@ -4674,6 +4899,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -4691,6 +4917,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -4714,6 +4941,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -4731,6 +4959,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -4748,6 +4977,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -4765,6 +4995,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -4782,6 +5013,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -4804,6 +5036,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: [0, 0],
                 },
@@ -4812,6 +5045,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: [0, 0],
                 },
@@ -4820,6 +5054,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: [0, 0],
                 },
@@ -4828,6 +5063,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [0, 0],
                 },
@@ -4836,6 +5072,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [0, 0],
                 },
@@ -4844,6 +5081,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [2, 1],
                 },
@@ -4852,6 +5090,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
                     0: [1, 1],
                     1: [2, 1],
                 },
@@ -4865,6 +5104,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [-1, -1],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4874,6 +5114,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [-1, -1],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4883,6 +5124,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [0, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4892,6 +5134,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4901,6 +5144,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4910,6 +5154,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [-1, -1],
                     2: [-1, -1, -1],
@@ -4919,6 +5164,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 0, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [0.2, 0.3],
                     2: [-1, -1, -1],
@@ -4928,6 +5174,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 1, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [0.2, 0.3],
                     2: [-1, -1, -1],
@@ -4937,6 +5184,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 1, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [0.2, 0.3],
                     2: [-1, -1, -1],
@@ -4951,6 +5199,7 @@ def test__get_valid_actions__is_consistent_regardless_of_inputs(env, state, requ
                     "_toggle": 0,
                     "_dones": [1, 1, 0],
                     "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
                     0: [0.1, 0.2],
                     1: [0.2, 0.3],
                     2: [-1, -1, -1],
@@ -4991,6 +5240,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -5008,6 +5258,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5031,6 +5282,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5048,6 +5300,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5065,6 +5318,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5082,6 +5336,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5099,6 +5354,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5145,6 +5401,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5162,6 +5419,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5185,6 +5443,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5202,6 +5461,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5219,6 +5479,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5236,6 +5497,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5253,6 +5515,7 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5306,6 +5569,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -5323,6 +5587,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5346,6 +5611,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5363,6 +5629,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5380,6 +5647,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5397,6 +5665,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5414,6 +5683,7 @@ def test__get_logprobs_forward__all_finite(env, states, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 0],
                     1: torch.tensor(
                         [
@@ -5464,6 +5734,7 @@ def test__get_logprobs_backward__all_finite(env, states, request):
                 "_toggle": 0,
                 "_dones": [0, 0],
                 "_envs_unique": [0, 1],
+                "_keys": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -5511,6 +5782,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5528,6 +5800,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5545,6 +5818,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5562,6 +5836,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5579,6 +5854,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5596,6 +5872,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5613,6 +5890,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5630,6 +5908,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5647,6 +5926,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5664,6 +5944,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5681,6 +5962,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5698,6 +5980,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5715,6 +5998,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5732,6 +6016,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5749,6 +6034,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5766,6 +6052,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5783,6 +6070,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5800,6 +6088,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5817,6 +6106,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5834,6 +6124,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5851,6 +6142,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5868,6 +6160,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5916,6 +6209,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -5933,6 +6227,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5950,6 +6245,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5967,6 +6263,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -5984,6 +6281,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6001,6 +6299,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6018,6 +6317,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6035,6 +6335,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6052,6 +6353,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6069,6 +6371,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6086,6 +6389,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6103,6 +6407,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6120,6 +6425,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 1],
                     1: torch.tensor(
                         [
@@ -6137,6 +6443,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 2],
                     1: torch.tensor(
                         [
@@ -6154,6 +6461,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 2],
                     1: torch.tensor(
                         [
@@ -6171,6 +6479,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 2],
                     1: torch.tensor(
                         [
@@ -6188,6 +6497,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6205,6 +6515,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6222,6 +6533,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6239,6 +6551,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6256,6 +6569,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6273,6 +6587,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 1,
                     "_dones": [0, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6290,6 +6605,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6307,6 +6623,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6324,6 +6641,7 @@ def test__get_logprobs_backward__is_finite(env, state, action, request):
                     "_toggle": 0,
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [2, 2],
                     1: torch.tensor(
                         [
@@ -6451,6 +6769,7 @@ def test__trajectory_bacwards_random__does_not_crash_and_reaches_source(env, req
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -6468,6 +6787,7 @@ def test__trajectory_bacwards_random__does_not_crash_and_reaches_source(env, req
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6485,6 +6805,7 @@ def test__trajectory_bacwards_random__does_not_crash_and_reaches_source(env, req
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6579,6 +6900,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [0, 0],
                     1: torch.tensor(
                         [
@@ -6596,6 +6918,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6613,6 +6936,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [
@@ -6632,6 +6956,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 0,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: torch.tensor([-1.0, -1.0], dtype=torch.float),
                     1: torch.tensor(
                         [
@@ -6649,6 +6974,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 1,
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: torch.tensor([0.0, 1.0], dtype=torch.float),
                     1: torch.tensor(
                         [
@@ -6666,6 +6992,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
                     "_toggle": 0,
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
+                    "_keys": [0, 1],
                     0: torch.tensor([0.0, 1.0], dtype=torch.float),
                     1: torch.tensor(
                         [

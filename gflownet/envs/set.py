@@ -160,6 +160,34 @@ class BaseSet(CompositeBase):
                 self._n_toggle_actions = self.n_unique_envs
         return self._n_toggle_actions
 
+    def _get_state_key(self, idx_subenv: int, state: Optional[Dict] = None) -> int:
+        """
+        Returns the the dictionary key of the state corresponding to the subenv with
+        index ``idx_subenv``.
+
+        In order to handle the permutations of states that would leave a Set state
+        invariant, Set states have a key called ``_keys`` which contains a list of the
+        dictionary keys that contain each sub-state. This list is initially sorted in
+        ascending order, for instance ``_keys: [0, 1, 2]``, but when the states are
+        permuted, instead of permuting the actual states in the dictionary, the keys
+        are permuted. This happens, for instance, in backward transitions. For example,
+        the keys could become ``_keys: [0, 2, 1]``. This would mean that the state with
+        index 1 (at ``_keys[1]``) is stored under the key ``2`` of the dictionary, and
+        the state with index 2 is stored under the key ``1``.
+
+        Parameters
+        ----------
+        idx_subenv : int
+            Index of a sub-environment (from 0 to ``self.max_elements``). Note that
+            this is the index of a subenv, not of the unique environments.
+        state : dict
+            A state of the Set environment.
+        """
+        if state is None:
+            state = self.state
+        assert idx_subenv < len(state["_keys"])
+        return state["_keys"][idx_subenv]
+
     # TODO: update by using super().get_action_space(), which will require changing
     # other methods to use the correct indexing of actions
     def get_action_space(self) -> List[Tuple]:
@@ -305,7 +333,9 @@ class BaseSet(CompositeBase):
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
             subenv = self._get_unique_env_of_subenv(active_subenv, state)
-            state_subenv = self._get_substate(state, active_subenv)
+            state_subenv = self._get_substate(
+                state, self._get_state_key(active_subenv, state)
+            )
             mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
         else:
             raise RuntimeError("None of the possible forward cases is True")
@@ -378,7 +408,9 @@ class BaseSet(CompositeBase):
                 case_d = True
             else:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(state, active_subenv)
+                state_subenv = self._get_substate(
+                    state, self._get_state_key(active_subenv, state)
+                )
                 if subenv.is_source(state_subenv):
                     # Case E: in the variant where sub-environments cannot alternate,
                     # the sub-environment is in the source state: the only valid action
@@ -414,7 +446,7 @@ class BaseSet(CompositeBase):
                     if not self.can_alternate_subenvs and not mask[idx_unique]:
                         continue
                     if not done and self._get_env_unique(idx_unique).is_source(
-                        self._get_substate(state, idx)
+                        self._get_substate(state, self._get_state_key(idx, state))
                     ):
                         continue
                     else:
@@ -443,7 +475,9 @@ class BaseSet(CompositeBase):
             # the state is passed.
             if subenv is None or state_subenv is None:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(state, active_subenv)
+                state_subenv = self._get_substate(
+                    state, self._get_state_key(active_subenv, state)
+                )
             done_subenv = dones[active_subenv]
             mask = subenv.get_mask_invalid_actions_backward(state_subenv, done_subenv)
         else:
@@ -866,7 +900,9 @@ class BaseSet(CompositeBase):
                 case_d = True
             else:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(state, active_subenv)
+                state_subenv = self._get_substate(
+                    state, self._get_state_key(active_subenv, state)
+                )
                 if subenv.is_source(state_subenv):
                     # Case E: in the variant where sub-environments cannot alternate,
                     # the sub-environment is in the source state: the only valid action
@@ -897,7 +933,7 @@ class BaseSet(CompositeBase):
                 if self.can_alternate_subenvs:
                     # Skip if the subenv is at the source and is not done
                     if not done and self._get_env_unique(idx_unique).is_source(
-                        self._get_substate(state, idx)
+                        self._get_substate(state, self._get_state_key(idx, state))
                     ):
                         continue
                 else:
@@ -942,7 +978,9 @@ class BaseSet(CompositeBase):
             assert toggle_flag == 0
             if subenv is None or state_subenv is None:
                 subenv = self.subenvs[active_subenv]
-                state_subenv = self._get_substate(state, active_subenv)
+                state_subenv = self._get_substate(
+                    state, self._get_state_key(active_subenv, state)
+                )
             done_subenv = bool(dones[active_subenv])
             parents_subenv, parent_actions_subenv = subenv.get_parents(
                 state_subenv, done_subenv
@@ -1762,6 +1800,7 @@ class SetFix(BaseSet):
             "_toggle": 0,
             "_dones": [0] * self.max_elements,
             "_envs_unique": self.unique_indices,
+            "_keys": list(range(self.max_elements)),
         }
         self.source.update(
             {idx: subenv.source for idx, subenv in enumerate(self.subenvs)}
