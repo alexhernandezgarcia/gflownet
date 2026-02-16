@@ -995,9 +995,7 @@ class Batch:
                 done=done,
                 action=action,
             )
-            assert (
-                self.readonly_env.action2representative(action) in parents_a
-            ), f"""
+            assert self.readonly_env.action2representative(action) in parents_a, f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
             """
