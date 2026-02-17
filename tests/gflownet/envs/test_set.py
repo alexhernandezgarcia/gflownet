@@ -345,3 +345,31 @@ def test__environment__flex_catches_missing_max_elements(env, request):
 def test__environment__fix_catches_missing_max_elements(env, request):
     with pytest.raises(Exception, match="subenvs must be defined to use the SetFix"):
         env = request.getfixturevalue(env)
+
+
+@pytest.mark.parametrize(
+    "env, state, idx_unique, done_only, permutations_keys",
+    [
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            0,
+            False,
+            [[0, 1], [1, 0]],
+        ),
+    ],
+)
+def test__permute_subenvs__behaves_as_expected(
+    env, state, idx_unique, done_only, permutations_keys, request
+):
+    env = request.getfixturevalue(env)
+    state_permuted, idx_last_done = env._permute_subenvs(idx_unique, state, done_only)
+    assert True

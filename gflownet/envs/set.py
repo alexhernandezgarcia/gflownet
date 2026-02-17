@@ -1006,38 +1006,55 @@ class BaseSet(CompositeBase):
         return parents, actions
 
     def _permute_subenvs(
-        self, idx_unique: int, state: Optional[Dict] = None
+        self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
     ) -> Tuple[Dict, int]:
         """
-        Permutes the done sub-environments of a given unique environment.
+        Permutes the sub-environments of a given unique environment.
+
+        The permutation is reflected only in the list stored in the key ``_keys`` of
+        the dictionary, which contains the actual keys where the states are stored.
+        Permuting the values of this list is more efficient than permuting the actual
+        states.
+
+        If ``done_only`` is True (default), then only the done sub-environments are
+        permuted.  Otherwise, all sub-environments of the specified unique environment
+        are permuted.
 
         Parameters
         ----------
         idx_unique : int
-            The index of the unique environment type whose done instances should be
+            The index of the unique environment type whose instances should be
             permuted.
         state : dict
             A state of the Set environment. If None, self.state is used.
+        done_only : bool
+            Whether to permute only the done sub-environments.
 
         Returns
         -------
         state : dict
             The updated state
-        idx : int
+        idx_last_done : int
             The index of the last done instance of the specified type after permutation.
         """
         if state is None:
             state = self.state
 
         unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
-        dones = self._get_dones(state)
+        keys = self._get_keys(state)
 
         # Find all done sub-environments of the relevant unique environment
-        indices_to_permute = [
-            idx
-            for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
-            if idx_u == idx_unique and done
-        ]
+        if done_only:
+            dones = self._get_dones(state)
+            indices_to_permute = [
+                idx
+                for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
+                if idx_u == idx_unique and done
+            ]
+        else:
+            indices_to_permute = [
+                idx for idx, idx_u in enumerate(unique_indices) if idx_u == idx_unique
+            ]
 
         # If there are not any indices to permute, return index -1
         if len(indices_to_permute) == 0:
@@ -1498,6 +1515,54 @@ class BaseSet(CompositeBase):
         if state is None:
             state = self.state
         state["_toggle"] = toggle_flag
+        return state
+
+    def _get_keys(self, state: Optional[Dict] = None) -> list:
+        """
+        Returns the list of state keys from the state.
+
+        If no state is passed, ``self.state`` is used.
+
+        The state keys are indicated in ``state["_keys"]``.
+
+        Parameters
+        ----------
+        state : dict
+            A state of the parent Set environment.
+
+        Returns
+        -------
+        list
+            The list of state keys in the state.
+        """
+        if state is None:
+            state = self.state
+        return state["_keys"]
+
+    def _set_keys(self, keys: list, state: Optional[Dict] = None) -> Dict:
+        """
+        Sets the state keys.
+
+        If no state is passed, ``self.state`` is used.
+
+        The state keys are set in ``state["_keys"]``.
+
+        Parameters
+        ----------
+        keys : list
+            The list of state keys to set in the state. Must be a permutation of the
+            integers from 0 to ``self.max_elements``.
+        state : dict
+            A state of the Set environment.
+
+        Returns
+        -------
+        The updated Set state.
+        """
+        assert set(keys) == set(range(self.max_elements))
+        if state is None:
+            state = self.state
+        state["_keys"] = keys
         return state
 
     def action2representative(self, action: Tuple) -> Tuple:
