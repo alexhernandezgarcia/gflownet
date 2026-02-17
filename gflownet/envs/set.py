@@ -182,6 +182,12 @@ class BaseSet(CompositeBase):
             this is the index of a subenv, not of the unique environments.
         state : dict
             A state of the Set environment.
+
+        Returns
+        -------
+        int
+            The key in the state dictionary containing the state with index
+            ``idx_subenv``.
         """
         if state is None:
             state = self.state
