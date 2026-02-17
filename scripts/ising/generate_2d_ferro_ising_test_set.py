@@ -272,7 +272,7 @@ if __name__ == "__main__":
         "--n_random_mid_high",
         type=int,
         default=10,
-        help="Number of  states with mid low energy.",
+        help="Number of  states with mid high energy.",
     )
     parser.add_argument(
         "--n_random", type=int, default=10, help="Number of  completely random states."
