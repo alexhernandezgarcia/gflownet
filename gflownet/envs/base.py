@@ -1007,6 +1007,12 @@ class GFlowNetEnv:
         state = self._get_state(state)
         return str(state)
 
+    def states2readables(self, states=None):
+        """
+        Converts a list of states into human-readable representations.
+        """
+        return [self.state2readable(s) for s in states]
+
     def readable2state(self, readable):
         """
         Converts a human-readable representation of a state into the standard format.
