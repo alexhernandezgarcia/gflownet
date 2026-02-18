@@ -9,7 +9,7 @@ import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -1075,12 +1075,43 @@ class GFlowNetEnv:
         return deepcopy(self)
 
     @staticmethod
-    def equal(state_x, state_y):
+    def equal(
+        state_x: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        state_y: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+    ) -> bool:
+        """
+        Checks whether the two input states are equal.
+
+        This method handles recursively multiple structure types: numbers, strings,
+        tensors, dictionaries, lists and tuples.
+
+        The result is only True if the content of the two input states is identical.
+
+        Parameters
+        ----------
+        state_x: number, str, tensor, dict, list, tuple
+            One of the states to be compared.
+        state_y: number, str, tensor, dict, list, tuple
+            The other state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+
+        Raises
+        ------
+        NotImplementedError
+            If the input types are not part of the explicitly handles types.
+        """
+        # Numbers and strings
         if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
             return state_x == state_y
-        if type(state_x) != type(state_y):
+        # Types
+        elif type(state_x) != type(state_y):
             return False
-        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+        # Tensors
+        elif torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
             if torch.any(x_nan):
@@ -1089,39 +1120,90 @@ class GFlowNetEnv:
                     return False
                 return torch.equal(state_x[~x_nan], state_y[~y_nan])
             return torch.equal(state_x, state_y)
-        if isinstance(state_x, dict) and isinstance(state_y, dict):
+        # Numpy
+        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
+            return np.array_equal(state_x, state_y, equal_nan=True)
+        # Dictionaries
+        elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
                 return False
-            return all(
-                [
-                    key_x == key_y and GFlowNetEnv.equal(value_x, value_y)
-                    for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
-                    )
-                ]
-            )
-        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
+            for key_x, value_x in state_x.items():
+                if key_x not in state_y:
+                    return False
+                # Recursive comparison of the values
+                if not GFlowNetEnv.equal(value_x, state_y[key_x]):
+                    return False
+            else:
+                return True
+        # Lists and tuples
+        elif (isinstance(state_x, list) and isinstance(state_y, list)) or (
             isinstance(state_x, tuple) and isinstance(state_y, tuple)
         ):
             if len(state_x) != len(state_y):
                 return False
             if len(state_x) == 0:
                 return True
+            # If all the elements of the list or tuple are numbers or strings,
+            # compare the list or tuple via state_x == state_y
             if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
                 value_type = type(state_x[0])
-                if all([isinstance(sx, value_type) for sx in state_x]) and all(
-                    [isinstance(sy, value_type) for sy in state_y]
-                ):
+                for sx, sy in zip(state_x, state_y):
+                    if not isinstance(sx, value_type):
+                        break
+                else:
                     return state_x == state_y
-        return all([GFlowNetEnv.equal(sx, sy) for sx, sy in zip(state_x, state_y)])
+            # Otherwise, iterate over the lists or tuples and compare them recursively
+            for sx, sy in zip(state_x, state_y):
+                if not GFlowNetEnv.equal(sx, sy):
+                    return False
+        else:
+            raise NotImplementedError(f"Unknown type: {type(state_x)}")
+        return True
 
     @staticmethod
-    def isclose(state_x, state_y, atol=1e-8):
+    def isclose(
+        state_x: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        state_y: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        atol: float = 1e-8,
+    ) -> bool:
+        """
+        Checks whether the two input states are close, according to a tolerance.
+
+        This method handles recursively multiple structure types: numbers, strings,
+        tensors, dictionaries, lists and tuples.
+
+        The result is only True if the content of the two input states is identical or
+        closer than the maximum tolerance threshold indicated by ``atol``, in the case
+        of numeric values.
+
+        Parameters
+        ----------
+        state_x: number, str, tensor, dict, list, tuple
+            One of the states to be compared.
+        state_y: number, str, tensor, dict, list, tuple
+            The other state to be compared.
+        atol : float
+            Maximum tolerance threshold for numeric values.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal or closer than the maximum
+            tolerance; False otherwise.
+
+        Raises
+        ------
+        NotImplementedError
+            If the input types are not part of the explicitly handles types.
+        """
+        # Numbers and strings
         if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
             return np.isclose(state_x, state_y, atol=atol)
-        if type(state_x) != type(state_y):
+        # Types
+        elif type(state_x) != type(state_y):
             return False
-        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+        # Tensors
+        elif torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
             if torch.any(x_nan):
@@ -1131,32 +1213,116 @@ class GFlowNetEnv:
                 return torch.all(
                     torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
                 )
-            return torch.equal(state_x, state_y)
-        if isinstance(state_x, dict) and isinstance(state_y, dict):
+            return torch.all(torch.isclose(state_x, state_y, atol=atol))
+        # Numpy
+        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
+            return np.allclose(state_x, state_y, equal_nan=True, atol=atol)
+        # Dictionaries
+        elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
                 return False
-            return all(
-                [
-                    key_x == key_y and GFlowNetEnv.isclose(value_x, value_y)
-                    for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
-                    )
-                ]
-            )
-        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
+            for key_x, value_x in state_x.items():
+                if key_x not in state_y:
+                    return False
+                # Recursive comparison of the values
+                if not GFlowNetEnv.isclose(value_x, state_y[key_x]):
+                    return False
+            else:
+                return True
+        # Lists and tuples
+        elif (isinstance(state_x, list) and isinstance(state_y, list)) or (
             isinstance(state_x, tuple) and isinstance(state_y, tuple)
         ):
             if len(state_x) != len(state_y):
                 return False
             if len(state_x) == 0:
                 return True
+            # If all the elements of the list or tuple are numbers or strings,
+            # compare the list or tuple via np.all(np.isclose(state_x == state_y))
             if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
                 value_type = type(state_x[0])
-                if all([isinstance(sx, value_type) for sx in state_x]) and all(
-                    [isinstance(sy, value_type) for sy in state_y]
-                ):
+                for sx, sy in zip(state_x, state_y):
+                    if not isinstance(sx, value_type):
+                        break
+                else:
                     return np.all(np.isclose(state_x, state_y, atol=atol))
-        return all([GFlowNetEnv.isclose(sx, sy) for sx, sy in zip(state_x, state_y)])
+            # Otherwise, iterate over the lists or tuples and compare them recursively
+            for sx, sy in zip(state_x, state_y):
+                if not GFlowNetEnv.isclose(sx, sy):
+                    return False
+        else:
+            raise NotImplementedError(f"Unknown type: {type(state_x)}")
+        return True
+
+    def __eq__(self, other) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        The attribute ``self.id`` is ignored to determine whether the environments are
+        equal.
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        # Check if other is not a GFlowNet environment
+        if not isinstance(other, GFlowNetEnv):
+            return False
+        # Obtain dictionary of attributes of the other instance and iterate over the
+        # dictionary of self to compare all attributes
+        other_dict = other.__dict__
+        for k, v in self.__dict__.items():
+            # Ignore id
+            if k == "id":
+                continue
+            # Check if the attribute is not in the other dict
+            if k not in other_dict:
+                return False
+            v_other = other_dict[k]
+            # Check if value types are different
+            if type(v_other) != type(v):
+                return False
+            # If the attribute is an environment, enter recursion to check the
+            # attributes of the sub-environment
+            if isinstance(v, GFlowNetEnv):
+                if not v.__eq__(v_other):
+                    return False
+            # If the attribute is a list / tuple / dict of environments, enter
+            # recursion to check the attributes of the sub-environment. This method
+            # does not catch differences in sub-environments that are not at the first
+            # level of a list, tuple or dict
+            elif isinstance(v, list) or isinstance(v, tuple):
+                for v_el, v_other_el in zip(v, v_other):
+                    if isinstance(v_el, GFlowNetEnv):
+                        if not v_el.__eq__(v_other_el):
+                            return False
+            elif isinstance(v, dict):
+                for (v_k, v_v), (v_other_k, v_other_v) in zip(
+                    v.items(), v_other.items()
+                ):
+                    if v_k != v_other_k:
+                        return False
+                    if isinstance(v_v, GFlowNetEnv):
+                        if not v_v.__eq__(v_other_v):
+                            return False
+            else:
+                pass
+            # Compare the values with self.equal()
+            try:
+                if not self.equal(v, v_other):
+                    return False
+            except NotImplementedError:
+                # If the types are not handled by self.equal, then ignore this
+                # attribute for lack of means to determine whether the values are equal
+                continue
+        return True
 
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions
