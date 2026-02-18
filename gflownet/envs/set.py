@@ -3,6 +3,7 @@ Classes implementing the family of Set meta-environments, which allow to combine
 multiple sub-environments without any specific order.
 """
 
+import random
 import uuid
 from collections import Counter
 from enum import Enum
@@ -1042,19 +1043,21 @@ class BaseSet(CompositeBase):
 
         unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
         keys = self._get_keys(state)
-
-        # Find all done sub-environments of the relevant unique environment
         if done_only:
             dones = self._get_dones(state)
-            indices_to_permute = [
-                idx
-                for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
+        else:
+            dones = [True] * len(keys)
+
+        # Find all done sub-environments of the relevant unique environment
+        indices_to_permute, keys_to_permute = zip(
+            *[
+                (idx, key)
+                for idx, (idx_u, key, done) in enumerate(
+                    zip(unique_indices, keys, dones)
+                )
                 if idx_u == idx_unique and done
             ]
-        else:
-            indices_to_permute = [
-                idx for idx, idx_u in enumerate(unique_indices) if idx_u == idx_unique
-            ]
+        )
 
         # If there are not any indices to permute, return index -1
         if len(indices_to_permute) == 0:
@@ -1063,29 +1066,14 @@ class BaseSet(CompositeBase):
         if len(indices_to_permute) == 1:
             return state, indices_to_permute[0]
 
-        # Collect the substates of done instances
-        substates = [self._get_substate(state, idx) for idx in indices_to_permute]
+        # Permute relevant keys and update keys of state
+        keys_to_permute = list(keys_to_permute)
+        random.shuffle(keys_to_permute)
+        for idx, key in zip(indices_to_permute, keys_to_permute):
+            keys[idx] = key
+        state = self._set_keys(keys, state)
 
-        # Shuffle the substates
-        permutation = np.random.permutation(len(substates))
-        shuffled_substates = [substates[i] for i in permutation]
-
-        # Apply the shuffled substates back to the state
-        for idx, substate in zip(indices_to_permute, shuffled_substates):
-            self._set_substate(idx, substate, state)
-
-        if self.subenvs is not None:
-            subenvs_list = list(self.subenvs)
-            subenvs_of_type = [subenvs_list[idx] for idx in indices_to_permute]
-            shuffled_subenvs = [subenvs_of_type[i] for i in permutation]
-            for i, idx in enumerate(indices_to_permute):
-                subenvs_list[idx] = shuffled_subenvs[i]
-                # Sync subenv internal state
-                shuffled_subenvs[i].set_state(shuffled_substates[i], done=True)
-            self.subenvs = tuple(subenvs_list)
-
-        # Return the index of the last done instance of this type
-        return state, indices_to_permute[-1]
+        return state, keys_to_permute[-1]
 
     def _get_permuted_parent_with_active_subenv(
         self, idx_unique: int, state: Dict

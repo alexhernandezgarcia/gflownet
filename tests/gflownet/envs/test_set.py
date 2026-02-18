@@ -347,6 +347,7 @@ def test__environment__fix_catches_missing_max_elements(env, request):
         env = request.getfixturevalue(env)
 
 
+@pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env, state, idx_unique, done_only, permutations_keys",
     [
@@ -371,5 +372,7 @@ def test__permute_subenvs__behaves_as_expected(
     env, state, idx_unique, done_only, permutations_keys, request
 ):
     env = request.getfixturevalue(env)
+    state_orig = copy(state)
     state_permuted, idx_last_done = env._permute_subenvs(idx_unique, state, done_only)
-    assert True
+    assert state_permuted["_keys"] in permutations_keys
+    assert env.equal(state_orig, state_permuted)
