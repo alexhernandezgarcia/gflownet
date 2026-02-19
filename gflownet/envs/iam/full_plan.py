@@ -165,6 +165,7 @@ class FullPlan(GFlowNetEnv):
         tags: Iterable = None,
         techs: Iterable = None,
         amounts: Iterable = None,
+        amount_values_mapping: List = [0.0, 0.75, 0.3, 0.1, 0.0],  # idx: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
         **kwargs,
     ):
         # Main attributes
@@ -190,6 +191,7 @@ class FullPlan(GFlowNetEnv):
         else:
             self.amounts = amounts
         self.n_amounts = len(self.amounts)
+        self.amount_values_mapping = amount_values_mapping
         # Dictionaries
         self.idx2token_choices = {
             idx + 1: token for idx, token in enumerate(self.choices)
@@ -711,7 +713,7 @@ class FullPlan(GFlowNetEnv):
 
         # Amount index to value mapping (index 0 = unassigned, 1-4 = HIGH/MED/LOW/NONE)
         amount_idx_to_value = torch.tensor(
-            [0.0, 0.75, 0.3, 0.1, 0.0],  # idx: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
+            self.amount_values_mapping,
             device=self.device,
             dtype=self.float,
         )

@@ -3,5 +3,13 @@ defaults:
 
 _target_: gflownet.proxy.iam.iam_proxies.FAIRY
 
-# Reward function: default
+# Context selection
+key_gdx: null
+key_year: null
+key_region: europe
+
+# Social cost of carbon
+SCC: null
+
+# Reward function
 reward_function: identity
