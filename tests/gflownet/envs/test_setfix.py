@@ -4539,36 +4539,14 @@ def test__get_parents__returns_expected(
 
     parents, parent_actions = env.get_parents(state, done=False)
 
-    # Create dictionaries of parent_action: parent for comparison
-    parents_actions_exp_dict = {}
-    for parent, action in zip(parents_exp, parent_actions_exp):
-        parents_actions_exp_dict[action] = tuple(
-            [(k, v) for k, v in parent.copy().items()]
-        )
-    parents_actions_dict = {}
-    for parent, action in zip(parents, parent_actions):
-        parents_actions_dict[action] = tuple([(k, v) for k, v in parent.copy().items()])
-
-    # Compare actions
-    assert all(
-        [
-            a == b
-            for a, b in zip(
-                sorted(parents_actions_exp_dict.keys()),
-                sorted(parents_actions_dict.keys()),
-            )
-        ]
-    )
-    # Compare states
-    assert all(
-        [
-            env.equal(a, b)
-            for a, b in zip(
-                sorted(parents_actions_exp_dict.values()),
-                sorted(parents_actions_dict.values()),
-            )
-        ]
-    )
+    assert len(parents) == len(parent_actions)
+    assert len(parents) == len(parents_exp)
+    for p, p_a in zip(parents, parent_actions):
+        if p_a not in parent_actions_exp:
+            assert False
+        idx = parent_actions_exp.index(p_a)
+        assert env.equal(p, parents_exp[idx])
+    assert True
 
 
 @pytest.mark.parametrize(
