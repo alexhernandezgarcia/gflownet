@@ -9,3 +9,4 @@ sectors: null
 tags: null
 techs: null
 amounts: null
+amount_values_mapping: [0.0, 0.75, 0.3, 0.1, 0.0]

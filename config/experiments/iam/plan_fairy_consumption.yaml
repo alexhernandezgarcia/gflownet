@@ -13,6 +13,10 @@ buffer:
     type: uniform
     n: 10000
 
+# Environment - region-tuned amount mapping
+env:
+  amount_values_mapping: [0.0, 0.0049, 0.0027, 0.0008, 0.0]
+
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
@@ -38,6 +42,8 @@ policy:
 
 # Proxy (eform)
 proxy:
+  key_region: europe
+  key_year: 2025
   reward_function: sigmoid
   # Parameters of the reward function are such that, on energy distribution:
   # R(median) =~ 0.01
@@ -45,8 +51,8 @@ proxy:
   # R(q90) =~ 0.99
   # R(q95+) = 1 -> ignore outliers
   reward_function_kwargs:
-    gamma: 1000.0
-    beta: -8.0
+    gamma: 8.3569
+    beta: -0.5498
     alpha: 1.0
 
 # WandB
@@ -54,7 +60,7 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-sigmoid-consumption"
+  project_name: "iam-eu25-consumption"
   run_name: "Plan Fairy TB"
   tags:
     - gflownet
