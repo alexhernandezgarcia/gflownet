@@ -10,8 +10,8 @@ defaults:
 # Buffer
 buffer:
   test:
-    type: csv
-    path: gflownet/proxy/iam/test_europe_2025.csv
+    type: pkl
+    path: gflownet/proxy/iam/test_europe_2025.pkl
 
 # Environment - region-tuned amount mapping
 env:

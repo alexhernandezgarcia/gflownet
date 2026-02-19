@@ -13,12 +13,12 @@ Output is saved to gflownet/proxy/iam/ by default (not tracked by git).
 Usage (from gflownet/proxy/iam/):
     python generate_test_set.py --region europe --year 2010
     python generate_test_set.py --region europe --year 2010 --n 20000
-    python generate_test_set.py --region usa --year 2025 --amount_values '{"HIGH":0.6,"MEDIUM":0.3,"LOW":0.1,"NONE":0.0}'
+    python generate_test_set.py --region usa --year 2025 --amount_values 0.6,0.3,0.1,0.0
 """
 
 import argparse
-import json
 import os
+import pickle
 import sys
 
 import numpy as np
@@ -76,21 +76,9 @@ def generate_test_set(subsidies_df, keys_df, mask, amount_values, n_total, seed=
     """
     Generate a test set of investment plans.
 
-    Parameters
-    ----------
-    subsidies_df : pd.DataFrame
-    keys_df : pd.DataFrame
-    mask : pd.Series
-        Boolean mask for the relevant subset.
-    amount_values : dict
-        {'HIGH': float, 'MEDIUM': float, 'LOW': float, 'NONE': float}
-    n_total : int
-        Total number of test samples. Half data-derived, half random.
-    seed : int
-
     Returns
     -------
-    pd.DataFrame with a 'state' column (JSON-encoded state dicts).
+    list of state dicts, each with 'partial' and 'plan' keys.
     """
     rng = np.random.RandomState(seed)
     n_data = n_total // 2
@@ -136,16 +124,16 @@ def generate_test_set(subsidies_df, keys_df, mask, amount_values, n_total, seed=
     all_plans = data_plans + random_plans
     rng.shuffle(all_plans)
 
-    rows = []
+    # Build state dicts matching the environment format
+    samples = []
     for plan in all_plans:
         state = {
             "partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0},
             "plan": plan,
         }
-        rows.append({"state": json.dumps(state)})
+        samples.append(state)
 
-    df = pd.DataFrame(rows)
-    return df, n_data, n_random
+    return samples, n_data, n_random
 
 
 def main():
@@ -161,7 +149,7 @@ def main():
     parser.add_argument("--amount_values", type=str, default=None,
                         help="Comma-separated HIGH,MEDIUM,LOW,NONE values, e.g. 0.6,0.3,0.1,0.0")
     parser.add_argument("--output", type=str, default=None,
-                        help="Output CSV path (default: ./test_{region}_{year}.csv)")
+                        help="Output pkl path (default: ./test_{region}_{year}.pkl)")
     parser.add_argument("--data_dir", type=str, default="scenario_data",
                         help="Path to scenario_data directory (default assumes running from gflownet/proxy/iam/)")
     parser.add_argument("--seed", type=int, default=42,
@@ -181,7 +169,7 @@ def main():
 
     # Output path
     if args.output is None:
-        args.output = f"test_{args.region}_{args.year}.csv"
+        args.output = f"test_{args.region}_{args.year}.pkl"
 
     print("Loading data...")
     subsidies_df, keys_df = load_raw_data(args.data_dir)
@@ -204,7 +192,7 @@ def main():
         n_total = args.n
 
     print(f"\nGenerating test set...")
-    test_df, n_data, n_random = generate_test_set(
+    samples, n_data, n_random = generate_test_set(
         subsidies_df=subsidies_df,
         keys_df=keys_df,
         mask=mask,
@@ -213,13 +201,15 @@ def main():
         seed=args.seed,
     )
 
-    test_df.to_csv(args.output, index=False)
+    # Save as pkl with {"samples": [...]} structure (same as Ising test sets)
+    with open(args.output, "wb") as f:
+        pickle.dump({"samples": samples}, f)
 
     print(f"\n{'=' * 50}")
     print(f"Test set saved to: {args.output}")
     print(f"  Data-derived samples: {n_data}")
     print(f"  Random samples:      {n_random}")
-    print(f"  Total size:          {len(test_df)}")
+    print(f"  Total size:          {len(samples)}")
     print(f"{'=' * 50}")
 
 
