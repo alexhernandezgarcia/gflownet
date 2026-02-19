@@ -774,7 +774,9 @@ class BaseSet(CompositeBase):
                 else:
                     # Permute the done subenvironments of the selected index, and
                     # activate the one in the last position
-                    _, idx_active_subenv = self._permute_subenvs(toggled_idx)
+                    self.state, idx_active_subenv = self._permute_substates(
+                        toggled_idx, self.state, done_only=True
+                    )
                     self._set_active_subenv(idx_active_subenv)
             else:
                 # Toggle the current subenv
@@ -1006,16 +1008,18 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
-    def _permute_subenvs(
+    # TODO: review whether returning index of last done is needed and if so check
+    # whether the implementation is correct
+    def _permute_substates(
         self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
     ) -> Tuple[Dict, int]:
         """
-        Permutes the sub-environments of a given unique environment.
+        Permutes the sub-states of a given unique environment.
 
         The permutation is reflected only in the list stored in the key ``_keys`` of
         the dictionary, which contains the actual keys where the states are stored.
         Permuting the values of this list is more efficient than permuting the actual
-        states.
+        sub-states.
 
         If ``done_only`` is True (default), then only the done sub-environments are
         permuted.  Otherwise, all sub-environments of the specified unique environment
