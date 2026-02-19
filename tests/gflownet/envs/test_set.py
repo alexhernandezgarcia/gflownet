@@ -655,6 +655,105 @@ def test__equal__of_set_behaves_as_expected(env, state_x, state_y, equal_exp, re
     assert env.equal(state_x, state_y) == equal_exp
 
 
+@pytest.mark.parametrize(
+    "env, state, idx_unique, done_only",
+    [
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            0,
+            False,
+        ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            0,
+            True,
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            0,
+            False,
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            False,
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 1, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            True,
+        ),
+    ],
+)
+def test__permute_substates__can_change_keys(
+    env, state, idx_unique, done_only, request
+):
+    env = request.getfixturevalue(env)
+    keys_orig = copy(state["_keys"])
+    while True:
+        state_permuted, idx_last_done = env._permute_substates(
+            idx_unique, state, done_only
+        )
+        keys_new = state_permuted["_keys"]
+        if keys_new != keys_orig:
+            assert True
+            break
+
+
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env, state, idx_unique, done_only, permutations_keys",
@@ -689,13 +788,89 @@ def test__equal__of_set_behaves_as_expected(env, state_x, state_y, equal_exp, re
             True,
             [[0, 1], [1, 0]],
         ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            0,
+            True,
+            [[0, 1]],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            0,
+            False,
+            [[0, 1, 2, 3, 4], [1, 0, 2, 3, 4]],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            False,
+            [
+                [0, 1, 2, 3, 4],
+                [0, 1, 2, 4, 3],
+                [0, 1, 3, 2, 4],
+                [0, 1, 3, 4, 2],
+                [0, 1, 4, 2, 3],
+                [0, 1, 4, 3, 2],
+            ],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 1, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            True,
+            [[0, 1, 2, 3, 4], [0, 1, 3, 2, 4]],
+        ),
     ],
 )
-def test__permute_substates__behaves_as_expected(
+def test__permute_substates__generates_correct_keys(
     env, state, idx_unique, done_only, permutations_keys, request
 ):
     env = request.getfixturevalue(env)
-    state_orig = copy(state)
     state_permuted, idx_last_done = env._permute_substates(idx_unique, state, done_only)
     assert state_permuted["_keys"] in permutations_keys
-    assert env.equal(state_orig, state_permuted)
+    # Check that key permutation is done in-place
+    assert id(state_permuted) == id(state)
