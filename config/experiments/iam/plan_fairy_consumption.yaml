@@ -26,7 +26,7 @@ gflownet:
     lr: 0.0001
     z_dim: 8
     lr_z_mult: 1000
-    n_train_steps: 20000
+    n_train_steps: 50000
 
 # Policy
 policy:
@@ -71,10 +71,10 @@ logger:
 
 # Evaluator
 evaluator:
-  first_it: True
-  period: 1000
+  first_it: False
+  period: 49999
   n: 100
-  checkpoints_period: 5000
+  checkpoints_period: 49999
 
 # Hydra
 hydra:
