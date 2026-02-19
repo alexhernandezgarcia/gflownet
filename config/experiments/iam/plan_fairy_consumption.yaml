@@ -25,7 +25,7 @@ gflownet:
       forward: 16
     lr: 0.0001
     z_dim: 8
-    lr_z_mult: 100
+    lr_z_mult: 1000
     n_train_steps: 20000
 
 # Policy
@@ -35,7 +35,7 @@ policy:
     n_hid: 256
     n_layers: 3
   backward:
-    shared_weights: True
+    shared_weights: False
     type: mlp
     n_hid: 256
     n_layers: 3
