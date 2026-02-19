@@ -1254,7 +1254,7 @@ class GFlowNetEnv:
             raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
 
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
         """
         Checks whether the current environment instance is equal to the input
         environment instance.
@@ -1266,6 +1266,9 @@ class GFlowNetEnv:
         ----------
         other : GFlowNetEnv
             The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
 
         Returns
         -------
@@ -1281,6 +1284,9 @@ class GFlowNetEnv:
         for k, v in self.__dict__.items():
             # Ignore id
             if k == "id":
+                continue
+            # Ignore keys in ignored_keys
+            if k in ignored_keys:
                 continue
             # Check if the attribute is not in the other dict
             if k not in other_dict:
