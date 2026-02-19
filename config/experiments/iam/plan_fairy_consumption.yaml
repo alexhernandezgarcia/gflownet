@@ -15,7 +15,7 @@ buffer:
 
 # Environment - region-tuned amount mapping
 env:
-  amount_values_mapping: [0.0, 0.0049, 0.0027, 0.0008, 0.0]
+  amount_values_mapping: [0.0, 0.694, 0.1208, 0.0028, 0.0]
 
 # GFlowNet hyperparameters
 gflownet:
@@ -51,8 +51,8 @@ proxy:
   # R(q90) =~ 0.99
   # R(q95+) = 1 -> ignore outliers
   reward_function_kwargs:
-    gamma: 8.3569
-    beta: -0.5498
+    gamma: 111.5094
+    beta: -1.2848
     alpha: 1.0
 
 # WandB
