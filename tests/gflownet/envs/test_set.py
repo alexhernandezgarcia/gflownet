@@ -192,6 +192,25 @@ def env_fix_cube_tetris_grid():
 
 
 @pytest.fixture
+def env_fix_tetris_grid_cube():
+    return make_set(
+        is_flexible=False,
+        subenvs=(
+            Tetris(
+                width=4,
+                height=5,
+                pieces=["I", "O"],
+                rotations=[0],
+                allow_eos_before_full=True,
+                device="cpu",
+            ),
+            Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+        ),
+    )
+
+
+@pytest.fixture
 def env_fix_two_grids():
     return make_set(
         is_flexible=False,
@@ -207,6 +226,20 @@ def env_fix_three_cubes():
     return make_set(
         is_flexible=False,
         subenvs=(
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+        ),
+    )
+
+
+@pytest.fixture
+def env_fix_two_grids_three_cubes():
+    return make_set(
+        is_flexible=False,
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
@@ -308,8 +341,10 @@ def test__environment__flex_initializes_properly(env, request):
         "env_fix_grid2d_tetrismini",
         "env_fix_cube_tetris",
         "env_fix_cube_tetris_grid",
+        "env_fix_tetris_grid_cube",
         "env_fix_two_grids",
         "env_fix_three_cubes",
+        "env_fix_two_grids_three_cubes",
         "env_fix_cube2d_cube3d",
         "env_fix_two_cubes2d_one_cube3d",
         "env_fix_stacks_equal",
@@ -345,6 +380,134 @@ def test__environment__flex_catches_missing_max_elements(env, request):
 def test__environment__fix_catches_missing_max_elements(env, request):
     with pytest.raises(Exception, match="subenvs must be defined to use the SetFix"):
         env = request.getfixturevalue(env)
+
+
+@pytest.mark.parametrize(
+    "env, state_x, state_y, equal_exp",
+    [
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            True,
+        ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            True,
+        ),
+        # Permute substates and keys
+        (
+            "env_fix_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            True,
+        ),
+        # Permute keys without permuting substates
+        (
+            "env_fix_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            False,
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            True,
+        ),
+    ],
+)
+def test__equal__of_set_behaves_as_expected(env, state_x, state_y, equal_exp, request):
+    env = request.getfixturevalue(env)
+    assert env.equal(state_x, state_y) == equal_exp
 
 
 @pytest.mark.repeat(10)

@@ -1799,6 +1799,75 @@ class BaseSet(CompositeBase):
             )
         )
 
+    @staticmethod
+    def equal(state_x: Dict, state_y: Dict) -> bool:
+        """
+        Checks whether the two input states are equal.
+
+        This method is overriden in order to account for the fact that states with
+        permuted substates must be considered equal if the permutations are indeed
+        equivalent. The permutatation of substates is not done by permuting the
+        substates directly bu by permuting the list of keys in ``state["_keys"]``.
+
+        Thus, this method returns True if all keys of the state dictionary are equal
+        (except ``_keys`` which is ignored) and the substates are equal, after
+        accounting for the permutation.
+
+        This method uses the parent method in order to compare the substates. If a
+        substate is a dictionary containing the key ``_keys``, then it is assumed it is
+        a Set state and the current method is used. If Set states appear deeper in the
+        substates, the comparison is not expected to behave as expected.
+
+        Parameters
+        ----------
+        state_x: dict
+            One of the Set states to be compared.
+        state_y: dict
+            The other Set state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+        """
+        # Compare keys of meta data
+        if "_active" not in state_x and "_active" not in state_y:
+            return False
+        if state_x["_active"] != state_y["_active"]:
+            return False
+        if "_toggle" not in state_x and "_toggle" not in state_y:
+            return False
+        if state_x["_toggle"] != state_y["_toggle"]:
+            return False
+        if "_dones" not in state_x and "_dones" not in state_y:
+            return False
+        if state_x["_dones"] != state_y["_dones"]:
+            return False
+        if "_envs_unique" not in state_x and "_envs_unique" not in state_y:
+            return False
+        if state_x["_envs_unique"] != state_y["_envs_unique"]:
+            return False
+        # Compare substates
+        if "_keys" not in state_x and "_keys" not in state_y:
+            return False
+        for key_x, key_y in zip(state_x["_keys"], state_y["_keys"]):
+            substate_x = state_x[key_x]
+            substate_y = state_y[key_y]
+            # If substates are dictionaries and have the key "_keys", compare using the
+            # Set's equal(). Otherwise, use the parent's equal()
+            if (
+                type(substate_x) == dict
+                and "_keys" in substate_x
+                and type(substate_y) == dict
+                and "_keys" in substate_y
+            ):
+                if not self.equal(substate_x, substate_y):
+                    return False
+            else:
+                if not GFlowNetEnv.equal(substate_x, substate_y):
+                    return False
+        return True
+
 
 class SetFix(BaseSet):
     """
