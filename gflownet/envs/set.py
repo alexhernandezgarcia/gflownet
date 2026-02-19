@@ -1710,17 +1710,27 @@ class BaseSet(CompositeBase):
         The policy output is the concatenation of the policy outputs corresponding to
         the Set actions (actions to activate a sub-environment and EOS) and the policy
         outputs of the unique environments.
+
+        Parameters
+        ----------
+        params : list
+            A list of distribution parameters. This list has as many elements as
+            there are sub-environments. However, the parameters of unique environments
+            are expected to be identical and only the parameters of one of the
+            sub-environments will be used to obtain the policy outputs of the
+            corresponding unique environment.
         """
         policy_outputs_set_actions = torch.ones(
             self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
-        policy_outputs_subenvs = torch.cat(
-            [
-                self._get_env_unique(idx).get_policy_output(params[idx])
-                for idx in range(self.n_unique_envs)
-            ]
-        )
-        return torch.cat((policy_outputs_set_actions, policy_outputs_subenvs))
+        envs_unique, _, unique_indices = self._get_unique_environments(self.subenvs)
+        policy_outputs_envs_unique = []
+        for idx, env in enumerate(envs_unique):
+            policy_outputs_envs_unique.append(
+                env.get_policy_output(params[unique_indices.index(idx)])
+            )
+        policy_outputs_envs_unique = torch.cat(policy_outputs_envs_unique)
+        return torch.cat((policy_outputs_set_actions, policy_outputs_envs_unique))
 
     def _get_policy_outputs_of_set_actions(
         self, policy_outputs: TensorType["n_states", "policy_output_dim"]
