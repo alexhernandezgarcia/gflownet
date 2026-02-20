@@ -9,17 +9,20 @@ implementations.
 
 from typing import List, Optional, Tuple, Union
 
-import numpy
+import numpy as np
 import torch
 from scipy.linalg import expm, logm
 from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.cube import ContinuousCube
-from gflownet.utils.common import copy, tfloat
+from gflownet.envs.dummy import Dummy
+from gflownet.envs.stack import Stack
+from gflownet.utils.common import copy, tfloat, tlong
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
+    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
@@ -27,23 +30,57 @@ from gflownet.utils.crystals.constants import (
     TRICLINIC,
 )
 
+LATTICE_SYSTEM_INDEX = {
+    lattice_system: idx for idx, lattice_system in enumerate(LATTICE_SYSTEMS)
+}
+
 LENGTH_PARAMETER_NAMES = ("a", "b", "c")
 ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
 PARAMETER_NAMES = LENGTH_PARAMETER_NAMES + ANGLE_PARAMETER_NAMES
 
+# Ignored dimensions for each lattice system
+IGNORED_DIMS = {
+    # CUBIC:
+    # a == b == c
+    # alpha == beta == gamma == 90.0
+    CUBIC: [False, True, True, True, True, True],
+    # HEXAGONAL:
+    # a == b != c
+    # alpha == beta == 90.0 and gamma == 120.0
+    HEXAGONAL: [False, True, False, True, True, True],
+    # MONOCLINIC:
+    # a != b and a != c and b != c
+    # alpha == gamma == 90.0 and beta != 90.0
+    MONOCLINIC: [False, False, False, True, False, True],
+    # ORTHORHOMBIC:
+    # a != b and a != c and b != c
+    # alpha == beta == gamma == 90.0
+    ORTHORHOMBIC: [False, False, False, True, True, True],
+    # RHOMBOHEDRAL:
+    # a == b == c
+    # alpha == beta == gamma != 90.0
+    RHOMBOHEDRAL: [False, True, True, False, True, True],
+    # TETRAGONAL:
+    # a == b != c
+    # alpha == beta == gamma == 90.0
+    TETRAGONAL: [False, True, False, True, True, True],
+    # TRICLINIC: no constraints
+    TRICLINIC: [False, False, False, False, False, False],
+}
+
 
 # Matrices used in the LatticeParametersSGCCG environment
-B1 = numpy.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
-B2 = numpy.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
-B3 = numpy.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
-B4 = numpy.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
-B5 = numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])
-B6 = numpy.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+B1 = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
+B2 = np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
+B3 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
+B4 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
+B5 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])
+B6 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
 
 
 # TODO: figure out a way to inherit the (discrete) LatticeParameters env or create a
 # common class for both discrete and continous with the common methods.
-class LatticeParameters(ContinuousCube):
+class LatticeParameters(Stack):
     """
     Continuous lattice parameters environment for crystal structures generation.
 
@@ -72,249 +109,434 @@ class LatticeParameters(ContinuousCube):
         **kwargs,
     ):
         """
-        Args
-        ----
+        Parameters
+        ----------
         lattice_system : str
             One of the seven lattice systems. By default, the triclinic lattice system
             is used, which has no constraints.
-
         min_length : float
             Minimum value of the lengths.
-
         max_length : float
             Maximum value of the lengths.
-
         min_angle : float
             Minimum value of the angles.
-
         max_angle : float
             Maximum value of the angles.
         """
         self.continuous = True
-        self.lattice_system = lattice_system
         self.min_length = min_length
         self.max_length = max_length
         self.length_range = self.max_length - self.min_length
         self.min_angle = min_angle
         self.max_angle = max_angle
         self.angle_range = self.max_angle - self.min_angle
-        super().__init__(n_dim=6, **kwargs)
-        # Setup constraints after the call of super to avoid getting the variable
-        # self.ignored_dims overriden by the Cube initialization
-        self._setup_constraints()
+        self.condition = Dummy(state=[LATTICE_SYSTEM_INDEX[lattice_system]])
+        self.stage_condition = 0
+        self.cube = ContinuousCube(n_dim=6, **kwargs)
+        self.stage_cube = 1
+        self.source_cube_value = self.cube.source[0]
+        super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
 
-    # TODO: if source, keep as is
-    def _statevalue2length(self, value):
-        return self.min_length + value * self.length_range
-
-    def _length2statevalue(self, length):
-        return (length - self.min_length) / self.length_range
-
-    # TODO: if source, keep as is
-    def _statevalue2angle(self, value):
-        return self.min_angle + value * self.angle_range
-
-    def _angle2statevalue(self, angle):
-        return (angle - self.min_angle) / self.angle_range
-
-    def _get_param(self, state, param):
-        if hasattr(self, param):
-            return getattr(self, param)
-        else:
-            if param in LENGTH_PARAMETER_NAMES:
-                return self._statevalue2length(state[self._get_index_of_param(param)])
-            elif param in ANGLE_PARAMETER_NAMES:
-                return self._statevalue2angle(state[self._get_index_of_param(param)])
-            else:
-                raise ValueError(f"{param} is not a valid lattice parameter")
-
-    def _set_param(self, state, param, value):
-        param_idx = self._get_index_of_param(param)
-        if param_idx is not None:
-            if param in LENGTH_PARAMETER_NAMES:
-                state[param_idx] = self._length2statevalue(value)
-            elif param in ANGLE_PARAMETER_NAMES:
-                state[param_idx] = self._angle2statevalue(value)
-            else:
-                raise ValueError(f"{param} is not a valid lattice parameter")
-        return state
-
-    def _get_index_of_param(self, param):
-        param_idx = f"{param}_idx"
-        if hasattr(self, param_idx):
-            return getattr(self, param_idx)
-        else:
-            return None
-
-    def set_lattice_system(self, lattice_system: str):
+    def get_lattice_system_idx(self, state: List) -> int:
         """
-        Sets the lattice system of the unit cell and updates the constraints.
-        """
-        self.lattice_system = lattice_system
-        self._setup_constraints()
-
-    def _setup_constraints(self):
-        """
-        Computes the mask of ignored dimensions, given the constraints imposed by the
-        lattice system. Sets self.ignored_dims.
-        """
-        # Lengths: a, b, c
-        # a == b == c
-        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
-            lengths_ignored_dims = [False, True, True]
-            self.a_idx = 0
-            self.b_idx = 0
-            self.c_idx = 0
-        # a == b != c
-        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
-            lengths_ignored_dims = [False, True, False]
-            self.a_idx = 0
-            self.b_idx = 0
-            self.c_idx = 2
-        # a != b and a != c and b != c
-        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
-            lengths_ignored_dims = [False, False, False]
-            self.a_idx = 0
-            self.b_idx = 1
-            self.c_idx = 2
-        else:
-            raise ValueError(f"{self.lattice_system} is not a valid lattice system")
-        # Angles: alpha, beta, gamma
-        # alpha == beta == gamma == 90.0
-        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
-            angles_ignored_dims = [True, True, True]
-            self.alpha_idx = None
-            self.alpha = 90.0
-            self.alpha_state = self._angle2statevalue(self.alpha)
-            self.beta_idx = None
-            self.beta = 90.0
-            self.beta_state = self._angle2statevalue(self.beta)
-            self.gamma_idx = None
-            self.gamma = 90.0
-            self.gamma_state = self._angle2statevalue(self.gamma)
-        #  alpha == beta == 90.0 and gamma == 120.0
-        elif self.lattice_system == HEXAGONAL:
-            angles_ignored_dims = [True, True, True]
-            self.alpha_idx = None
-            self.alpha = 90.0
-            self.alpha_state = self._angle2statevalue(self.alpha)
-            self.beta_idx = None
-            self.beta = 90.0
-            self.beta_state = self._angle2statevalue(self.beta)
-            self.gamma_idx = None
-            self.gamma = 120.0
-            self.gamma_state = self._angle2statevalue(self.gamma)
-        # alpha == gamma == 90.0 and beta != 90.0
-        elif self.lattice_system == MONOCLINIC:
-            angles_ignored_dims = [True, False, True]
-            self.alpha_idx = None
-            self.alpha = 90.0
-            self.alpha_state = self._angle2statevalue(self.alpha)
-            self.beta_idx = 4
-            self.gamma_idx = None
-            self.gamma = 90.0
-            self.gamma_state = self._angle2statevalue(self.gamma)
-        # alpha == beta == gamma != 90.0
-        elif self.lattice_system == RHOMBOHEDRAL:
-            angles_ignored_dims = [False, True, True]
-            self.alpha_idx = 3
-            self.beta_idx = 3
-            self.gamma_idx = 3
-        # alpha != beta, alpha != gamma, beta != gamma
-        elif self.lattice_system == TRICLINIC:
-            angles_ignored_dims = [False, False, False]
-            self.alpha_idx = 3
-            self.beta_idx = 4
-            self.gamma_idx = 5
-        else:
-            raise NotImplementedError
-        self.ignored_dims = lengths_ignored_dims + angles_ignored_dims
-
-    def _step(
-        self,
-        action: Tuple[float],
-        backward: bool,
-    ) -> Tuple[List[float], Tuple[float], bool]:
-        """
-        Updates the dimensions of the state corresponding to the ignored dimensions
-        after a call to the Cube's _step().
-        """
-        state, action, valid = super()._step(action, backward)
-        for idx, (param, is_ignored) in enumerate(
-            zip(PARAMETER_NAMES, self.ignored_dims)
-        ):
-            if not is_ignored:
-                continue
-            param_idx = self._get_index_of_param(param)
-            if param_idx is not None:
-                state[idx] = state[param_idx]
-            else:
-                state[idx] = getattr(self, f"{param}_state")
-        self.state = copy(state)
-        return self.state, action, valid
-
-    def _unpack_lengths_angles(
-        self, state: Optional[List[float]] = None
-    ) -> Tuple[Tuple, Tuple]:
-        """
-        Helper that 1) unpacks values coding lengths and angles from the state or from
-        the attributes of the instance and 2) converts them to actual edge lengths and
-        angles in the target units (angstroms or degrees).
-        """
-        state = self._get_state(state)
-
-        a, b, c, alpha, beta, gamma = [
-            self._get_param(state, p) for p in PARAMETER_NAMES
-        ]
-        return (a, b, c), (alpha, beta, gamma)
-
-    def parameters2state(
-        self, parameters: Tuple = None, lengths: Tuple = None, angles: Tuple = None
-    ) -> List[float]:
-        """Converts a set of lattice parameters in angstroms and degrees into an
-        environment state, with the parameters in the [0, 1] range.
-
-        The parameters may be passed as a single tuple parameters containing the six
-        parameters or via separate lengths and angles. If parameters is not None,
-        lengths and angles are ignored.
+        Returns the lattice system index, retrieved from the condition state.
 
         Parameters
         ----------
-        parameters : tuple (optional)
-            The six lattice parameters (a, b, c, alpha, beta, gamma) in target units
-            (angstroms and degrees).
-        lengths : tuple (optional)
-            A triplet of length lattice parameters (a, b, c) in angstroms. Ignored if
-            parameters is not None.
-        angles : tuple (optional)
-            A triplet of angle lattice parameters (alpha, beta, gamma) in degrees.
-            Ignored if parameters is not None.
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        int
+            The index of the lattice system contained in the condition state.
+        """
+        return self._get_substate(state, self.stage_condition)[0]
+
+    def get_lattice_system(self, state: List) -> str:
+        """
+        Returns the lattice system name, retrieved from the condition state.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        str
+            The name of the lattice system contained in the condition state.
+        """
+        return LATTICE_SYSTEMS[self._get_substate(state, self.stage_condition)[0]]
+
+    def set_lattice_system(
+        self, lattice_system: Union[int, str], state: Optional[List] = None
+    ) -> List:
+        """
+        Sets the lattice system of the unit cell as the condition of the environment.
+
+        If the input state is not None, it is updated with the given lattice system.
+        Otherwise ``self.state`` is updated.
+
+        Parameters
+        ----------
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+        state : list (optional)
+            A state in environment format.
 
         Returns
         -------
         state
-            A state in environment format.
+            The input state updated with the given lattice system. This is a state of
+            the LatticeParameters environment in environment format.
         """
-        if parameters is None:
-            if lengths is None or angles is None:
-                raise ValueError("Cannot determine all six parameters.")
-            parameters = lengths + angles
+        if state is None:
+            state = self.state
+            done_condition = self.condition.done
+        else:
+            done_condition = self._get_stage(state) > self.stage_condition
+        if isinstance(lattice_system, str):
+            lattice_system = LATTICE_SYSTEM_INDEX[lattice_system]
 
-        state = copy(self.source)
-        for param, value in zip(PARAMETER_NAMES, parameters):
-            state = self._set_param(state, param, value)
+        # Update state of condition sub-environment
+        self.condition.set_state([lattice_system], done_condition)
+        # Update self.state or input state
+        state = self._set_substate(self.stage_condition, self.condition.state, state)
+
         return state
+
+    @property
+    def lattice_system_idx(self) -> int:
+        """
+        Returns the lattice system index of the environment as per ``self.state``.
+
+        Returns
+        -------
+        int
+            The index of the lattice system contained in the condition state.
+        """
+        return self.get_lattice_system_idx(self.state)
+
+    @property
+    def lattice_system(self) -> str:
+        """
+        Returns the name of the lattice system of the environment as per ``self.state``.
+
+        Returns
+        -------
+        str
+            The name of the lattice system contained in the condition state.
+        """
+        return self.get_lattice_system(self.state)
+
+    def _statevalue2length(self, value: float) -> float:
+        """
+        Converts a state value into a length in angstroms.
+
+        Parameters
+        ----------
+        value : float
+            A Cube state value, in [0; 1].
+
+        Returns
+        -------
+        float
+            The value converted into angstroms, according to the minimum and maximum
+            lengths of the environment.
+        """
+        return self.min_length + value * self.length_range
+
+    def _length2statevalue(self, length: float) -> float:
+        """
+        Converts a length value in angstroms into a state value in [0; 1].
+
+        Parameters
+        ----------
+        value : float
+            A value in angstroms.
+
+        Returns
+        -------
+        float
+            The length converted into a Cube state value, in [0; 1], according to the
+            minimum and maximum lengths of the environment.
+        """
+        return (length - self.min_length) / self.length_range
+
+    def _statevalue2angle(self, value: float) -> float:
+        """
+        Converts a state value into an angle in degrees.
+
+        Parameters
+        ----------
+        value : float
+            A Cube state value, in [0; 1].
+
+        Returns
+        -------
+        float
+            The value converted into degrees, according to the minimum and maximum
+            angles of the environment.
+        """
+        return self.min_angle + value * self.angle_range
+
+    def _angle2statevalue(self, angle: float) -> float:
+        """
+        Converts an angle value in degrees into a state value in [0; 1].
+
+        Parameters
+        ----------
+        value : float
+            A value in degrees.
+
+        Returns
+        -------
+        float
+            The angle converted into a Cube state value, in [0; 1], according to the
+            minimum and maximum angles of the environment.
+        """
+        return (angle - self.min_angle) / self.angle_range
+
+    def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
+        """
+        Returns the lenths and angles of the state.
+
+        The Cube state is converted into actual edge lengths and angles in the target
+        units (angstroms or degrees) and the lattice system constraints are applied.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format
+
+        Returns
+        -------
+        a, b, c : float
+            Lattice lengths of the state, in angstroms.
+        alpha, beta, gamma : float
+            Lattice angles, in degrees.
+        """
+        state = self._get_state(state)
+        lattice_system = self._get_substate(state, self.stage_condition)[0]
+        state_cube = self._get_substate(state, self.stage_cube)
+        (a, b, c), (alpha, beta, gamma) = self.apply_lattice_constraints(
+            state_cube, lattice_system
+        )
+        return (a, b, c), (alpha, beta, gamma)
+
+    def apply_lattice_constraints(
+        self, state: List[float], lattice_system: Union[int, str]
+    ) -> Tuple[Tuple, Tuple]:
+        """
+        Applies lattice system constraints to a single cube state.
+
+        The input state is expected to be a state of the ContinuousCube in environment
+        format.
+
+        Parameters
+        ----------
+        state : list
+            A state of the ContinuousCube in environment format.
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+
+        Returns
+        -------
+        a, b, c : float
+            Lattice lengths of the state, in angstroms.
+        alpha, beta, gamma : float
+            Lattice angles, in degrees.
+        """
+        state = np.array(state, dtype=float)
+        is_source = state == self.source_cube_value
+        parameters = np.concatenate(
+            [
+                self._statevalue2length(state[:3]),
+                self._statevalue2angle(state[3:]),
+            ],
+        )
+        parameters[is_source] = self.source_cube_value
+        parameters = np.reshape(parameters, (1, -1))
+        parameters = self.apply_lattice_constraints_batch(
+            parameters, lattice_system
+        ).squeeze()
+        lengths = tuple(parameters[:3])
+        angles = tuple(parameters[3:])
+        return lengths, angles
+
+    def revert_lattice_constraints(
+        self, parameters: List[float], lattice_system: Union[int, str]
+    ) -> List[float]:
+        """
+        Reverts lattice system constraints to a set of lattice parameters.
+
+        The output is in the format of a ContinuousCube state in environment format,
+        with the parameters in the [0, 1] range.
+
+        Parameters
+        ----------
+        parameters : list
+            A list of lattice parameters in angstroms and degrees.
+        lattice_system : int or str
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+
+        Returns
+        -------
+        state : list
+            A ContinuousCube state in environment format.
+        """
+        if isinstance(lattice_system, int):
+            lattice_system = LATTICE_SYSTEMS[lattice_system]
+        parameters = np.array(parameters, dtype=float)
+        is_source = parameters == self.source_cube_value
+        is_ignored = np.array(IGNORED_DIMS[lattice_system])
+        state = np.concatenate(
+            [
+                self._length2statevalue(parameters[:3]),
+                self._angle2statevalue(parameters[3:]),
+            ],
+        )
+        state[is_source] = self.source_cube_value
+        state[is_ignored] = self.source_cube_value
+        return state.tolist()
+
+    # TODO: consider having less indices hard-coded
+    @staticmethod
+    def apply_lattice_constraints_batch(
+        states: TensorType["batch", "6"], lattice_system: Union[int, str]
+    ):
+        """
+        Applies lattice system constraints to a batch of states.
+
+        The input states are expected to be a tensor with values already mapped from
+        [0; 1] to `min_length`, `max_length`, `min_angle` and `max_angle`.
+
+        Depending on the lattice system passed as an input, the corresponding
+        constraints are applied to the entire batch.
+
+        states : tensor
+            A batch of ContinuousCube states (6D) in an intermediate format between the
+            environment states and the proxy format. The values of the states are
+            assumed to be already converted into lattice parameters with the correct
+            units (angstroms and angles), but no lattice system constraints.
+        lattice_system : int
+            The index of the lattice system, as stored in
+            :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
+            the string identifier.
+        """
+        if isinstance(lattice_system, str):
+            lattice_system = LATTICE_SYSTEM_INDEX[lattice_system]
+
+        if lattice_system == LATTICE_SYSTEM_INDEX[TRICLINIC]:
+            # TRICLINIC: no constraints
+            pass
+        elif lattice_system == LATTICE_SYSTEM_INDEX[CUBIC]:
+            # CUBIC:
+            # a == b == c
+            # alpha == beta == gamma == 90.0
+            states[:, 1] = states[:, 0]
+            states[:, 2] = states[:, 0]
+            states[:, 3:] = 90.0
+        elif lattice_system == LATTICE_SYSTEM_INDEX[HEXAGONAL]:
+            # HEXAGONAL:
+            # a == b != c
+            # alpha == beta == 90.0 and gamma == 120.0
+            states[:, 1] = states[:, 0]
+            states[:, 3] = 90.0
+            states[:, 4] = 90.0
+            states[:, 5] = 120.0
+        elif lattice_system == LATTICE_SYSTEM_INDEX[MONOCLINIC]:
+            # MONOCLINIC:
+            # a != b and a != c and b != c
+            # alpha == gamma == 90.0 and beta != 90.0
+            states[:, 3] = 90.0
+            states[:, 5] = 90.0
+        elif lattice_system == LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]:
+            # ORTHORHOMBIC:
+            # a != b and a != c and b != c
+            # alpha == beta == gamma == 90.0
+            states[:, 3:] = 90.0
+        elif lattice_system == LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]:
+            # RHOMBOHEDRAL:
+            # a == b == c
+            # alpha == beta == gamma != 90.0
+            states[:, 1] = states[:, 0]
+            states[:, 2] = states[:, 0]
+            states[:, 4] = states[:, 3]
+            states[:, 5] = states[:, 3]
+        elif lattice_system == LATTICE_SYSTEM_INDEX[TETRAGONAL]:
+            # TETRAGONAL:
+            # a == b != c
+            # alpha == beta == gamma == 90.0
+            states[:, 1] = states[:, 0]
+            states[:, 3:] = 90.0
+        else:
+            raise ValueError(f"{lattice_system} is not a valid lattice system index")
+        return states
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Union[List, torch.Tensor] = None,
+        dones: List[bool] = None,
+    ):
+        """
+        Applies constraints across sub-environments, when applicable, in the forward
+        direction.
+
+        This method simply applies the lattice system constraints from the condition
+        sub-environment (Dummy) onto the Cube.
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the LatticeParameters environment.
+        state : list or tensor (optional)
+            A state from the LatticeParameters environment.
+        dones : list
+            A list indicating the sub-environments that are done.
+        """
+        if self._do_constraints_for_stage(
+            self.stage_condition, action, is_backward=False
+        ):
+            self.cube.ignored_dims = IGNORED_DIMS[self.lattice_system]
+
+    def _check_has_constraints(self) -> bool:
+        """
+        Checks whether the Stack has constraints across sub-environments.
+
+        The environment always constraints.
+        Returns
+        -------
+        bool
+            True, indicating that the environment has intra-environment constraints.
+        """
+        return True
 
     def states2proxy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["height", "width", "batch"]:
         """
-        Prepares a batch of states in "environment format" for a proxy: states are
-        mapped from [0; 1] to edge lengths and angles using min_length, max_length,
-        min_angle and max_angle, via _statevalue2length() and _statevalue2angle().
+        Prepares a batch of states in environment format for a proxy.
 
-        Args
-        ----
+        The proxy representation is the Cube states, mapped from [0; 1] to edge lengths
+        and angles using min_length, max_length, min_angle and max_angle, via
+        _statevalue2length() and _statevalue2angle(). Furthermore, the lattice system
+        constraints are applied to the lenghts and angles.
+
+        The batch may contain states with different lattice systems (conditions). The
+        constraints are applied by taking the lattice system from the state (the Dummy
+        part of the Stack).
+
+        Paramters
+        ---------
         states : list or tensor
             A batch of states in environment format, either as a list of states or as a
             single tensor.
@@ -323,35 +545,95 @@ class LatticeParameters(ContinuousCube):
         -------
         A tensor containing all the states in the batch.
         """
+        n_states = len(states)
+        lattice_systems, states = zip(*[(state[1], state[2]) for state in states])
+        lattice_systems = tlong(lattice_systems, device=self.device).reshape(n_states)
         states = tfloat(states, device=self.device, float_type=self.float)
-        return torch.cat(
+        states = torch.cat(
             [
                 self._statevalue2length(states[:, :3]),
                 self._statevalue2angle(states[:, 3:]),
             ],
             dim=1,
         )
+        for lattice_system in torch.unique(lattice_systems):
+            indices_lattice_system = lattice_systems == lattice_system
+            states[indices_lattice_system] = self.apply_lattice_constraints_batch(
+                states[indices_lattice_system], lattice_system
+            )
+        return states
+
+    def states2policy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_policy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model.
+
+        The policy representation is identical to that of the Cube environment and it
+        is agnostic to the lattice system. Also, the action of the condition (Dummy)
+        environment is deterministic. Therefore, instead of using the Stack's
+        method, the Cube part of the states is first extracted and then the entire
+        batch is converted into the policy representation using the Cube environment.
+
+        Parameters
+        ---------
+        states : list
+            A batch of states in environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = [self._get_substate(state, self.stage_cube) for state in states]
+        return self.cube.states2policy(states)
 
     def state2readable(self, state: Optional[List[float]] = None) -> str:
         """
         Converts the state into a human-readable string in the format "(a, b, c),
         (alpha, beta, gamma)".
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        str
+            A human-readable version of the state.
         """
         state = self._get_state(state)
-
-        lengths, angles = self._unpack_lengths_angles(state)
-        return f"{lengths}, {angles}"
+        stage = self._get_stage(state)
+        state_cube = self._get_substate(state, self.stage_cube)
+        lattice_system = self.get_lattice_system(state)
+        lengths, angles = self.apply_lattice_constraints(state_cube, lattice_system)
+        return f"Stage {stage}; {lattice_system}; {lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[float]:
         """
         Converts a human-readable representation of a state into the standard format.
-        """
-        for c in ["(", ")", " "]:
-            readable = readable.replace(c, "")
-        values = readable.split(",")
-        values = [float(value) for value in values]
 
-        return self.parameters2state(values)
+        Parameters
+        ----------
+        readable : str
+            A human-readable version of a state.
+
+        Returns
+        -------
+        state : list
+            A state in environment format.
+        """
+        readables = readable.split("; ")
+        stage = int(readables[0][-1])
+        readable_cube = readables[2]
+        for c in ["(", ")", " "]:
+            readable_cube = readable_cube.replace(c, "")
+        values = readable_cube.split(",")
+        values = [float(value) for value in values]
+        state_cube = self.revert_lattice_constraints(values, self.lattice_system)
+        state = copy(self.source)
+        state = self._set_stage(stage, state)
+        return self._set_substate(self.stage_cube, state_cube, state)
 
     def is_valid(self, state: List) -> bool:
         """
@@ -370,7 +652,7 @@ class LatticeParameters(ContinuousCube):
             True if the state is valid according to the attributes of the environment;
             False otherwise.
         """
-        lengths, angles = self._unpack_lengths_angles(state)
+        lengths, angles = self._get_lengths_angles(state)
         # Check lengths
         if any([l < self.min_length or l > self.max_length for l in lengths]):
             return False
@@ -380,7 +662,64 @@ class LatticeParameters(ContinuousCube):
         # If all checks are passed, return True
         return True
 
+    def get_grid_terminating_states(
+        self, n_states: int, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
 
+        This method uses the Cube's corresponding method to generate the Cube states,
+        and then creates LatticeParameters states from them.
+
+        Parameters
+        ----------
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
+        """
+        states_cube = self.cube.get_grid_terminating_states(n_states, kappa)
+        states = []
+        for state_cube in states_cube:
+            state = copy(self.source)
+            state = self._set_stage(self.stage_cube, state)
+            states.append(self._set_substate(self.stage_cube, state_cube, state))
+        return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        This method uses the Cube's corresponding method to generate the Cube states,
+        and then creates LatticeParameters states from them.
+
+        Parameters
+        ----------
+        n_states : int
+            Number of states in the returned list.
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
+        """
+        states_cube = self.cube.get_uniform_terminating_states(n_states, kappa)
+        states = []
+        for state_cube in states_cube:
+            state = copy(self.source)
+            state = self._set_stage(self.stage_cube, state)
+            states.append(self._set_substate(self.stage_cube, state_cube, state))
+        return states
+
+
+# TODO: Update as standard LatticeParameters
 class LatticeParametersSGCCG(ContinuousCube):
     """
     Continuous lattice parameters environment for crystal structures generation.
@@ -443,6 +782,14 @@ class LatticeParametersSGCCG(ContinuousCube):
             One of the seven lattice systems. By default, the triclinic lattice system
             is used, which has no constraints.
         """
+        # Raise deprecation warning
+        raise DeprecationWarning(
+            "The environment that implements a projected version of the lattice "
+            "parameters is currently obsolete. It needs to be updated to properly "
+            "implement the lattice system constraints, similarly to the non-projected "
+            "version of the environment."
+        )
+
         self.continuous = True
         self.lattice_system = lattice_system
 
@@ -543,9 +890,9 @@ class LatticeParametersSGCCG(ContinuousCube):
         a = j[0, 0] ** 0.5
         b = j[1, 1] ** 0.5
         c = j[2, 2] ** 0.5
-        alpha = numpy.rad2deg(numpy.arccos(j[1, 2] / (b * c)))
-        beta = numpy.rad2deg(numpy.arccos(j[0, 2] / (a * c)))
-        gamma = numpy.rad2deg(numpy.arccos(j[0, 1] / (a * b)))
+        alpha = np.rad2deg(np.arccos(j[1, 2] / (b * c)))
+        beta = np.rad2deg(np.arccos(j[0, 2] / (a * c)))
+        gamma = np.rad2deg(np.arccos(j[0, 1] / (a * b)))
 
         return [a, b, c, alpha, beta, gamma]
 
@@ -570,11 +917,11 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         # Compute the matrix J from the values of the lattice parameters
         # (see Eq. 23 in the paper)
-        ab_cos_gamma = a * b * numpy.cos(numpy.deg2rad(gamma))
-        ac_cos_beta = a * c * numpy.cos(numpy.deg2rad(beta))
-        bc_cos_alpha = b * c * numpy.cos(numpy.deg2rad(alpha))
+        ab_cos_gamma = a * b * np.cos(np.deg2rad(gamma))
+        ac_cos_beta = a * c * np.cos(np.deg2rad(beta))
+        bc_cos_alpha = b * c * np.cos(np.deg2rad(alpha))
 
-        j = numpy.array(
+        j = np.array(
             [
                 [a**2, ab_cos_gamma, ac_cos_beta],
                 [ab_cos_gamma, b**2, bc_cos_alpha],
@@ -790,7 +1137,7 @@ class LatticeParametersSGCCG(ContinuousCube):
             # - a == b
             self.ignored_dims = [True, True, True, True, False, False]
             self.projection_tied_values = [None] * 6
-            self.projection_fixed_values = [-numpy.log(3) / 4, 0, 0, 0, None, None]
+            self.projection_fixed_values = [-np.log(3) / 4, 0, 0, 0, None, None]
             self.lattice_params_tied_values = [None, 0, None, None, None, None]
             self.lattice_params_fixed_values = [None, None, None, 90, 90, 120]
 
@@ -863,8 +1210,8 @@ class LatticeParametersSGCCG(ContinuousCube):
     def parameters2state(
         self, parameters: Tuple = None, lengths: Tuple = None, angles: Tuple = None
     ) -> List[float]:
-        """Converts a set of lattice parameters in angstroms and degrees into an
-        environment state, with the parameters in the [0, 1] range.
+        """Converts a set of lattice parameters in angstroms and degrees into a
+        ContinuousCube state, with the parameters in the [0, 1] range.
 
         The parameters may be passed as a single tuple parameters containing the six
         parameters or via separate lengths and angles. If parameters is not None,
