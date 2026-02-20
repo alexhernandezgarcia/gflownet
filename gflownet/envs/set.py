@@ -956,17 +956,16 @@ class BaseSet(CompositeBase):
                     if idx_unique in indices_unique_seen:
                         continue
                 # Add parent and action
+                parent = copy(state)
                 if self.can_alternate_subenvs:
-                    parent = copy(state)
                     actions.append(self._pad_action((idx,), -1))
-                    parents.append(self._set_active_subenv(idx, parent))
                 else:
-                    parent, _ = self._get_permuted_parent_with_active_subenv(
-                        idx_unique, state
+                    parent, _ = self._permute_substates(
+                        idx_unique, parent, done_only=True
                     )
-                    parents.append(parent)
                     actions.append(self._pad_action((idx_unique,), -1))
                     indices_unique_seen.add(idx_unique)
+                parents.append(self._set_active_subenv(idx, parent))
         elif case_c or case_e:
             # Case B: a sub-environment is active but only the corresponding toggle
             # action is valid: the only parent is the same state with inactive
@@ -1840,10 +1839,11 @@ class BaseSet(CompositeBase):
         bool
             True if the two input states are equal; False otherwise.
         """
-        # Compare keys of meta data
+        # Check if keys of meta data are present and that they contain the same
+        # elements
         if "_active" not in state_x and "_active" not in state_y:
             return False
-        if state_x["_active"] != state_y["_active"]:
+        if state_x["_active"] == -1 and state_y["_active"] != -1:
             return False
         if "_toggle" not in state_x and "_toggle" not in state_y:
             return False
@@ -1851,31 +1851,56 @@ class BaseSet(CompositeBase):
             return False
         if "_dones" not in state_x and "_dones" not in state_y:
             return False
-        if state_x["_dones"] != state_y["_dones"]:
+        if Counter(state_x["_dones"]) != Counter(state_y["_dones"]):
             return False
         if "_envs_unique" not in state_x and "_envs_unique" not in state_y:
             return False
-        if state_x["_envs_unique"] != state_y["_envs_unique"]:
+        if Counter(state_x["_envs_unique"]) != Counter(state_y["_envs_unique"]):
             return False
-        # Compare substates
         if "_keys" not in state_x and "_keys" not in state_y:
             return False
-        for key_x, key_y in zip(state_x["_keys"], state_y["_keys"]):
+        if set(state_x["_keys"]) != set(state_y["_keys"]):
+            return False
+        # Compare substates: the state is considered equal if the set of substates is
+        # the same, regardless of the order.
+        # For each substate in state_x, an equal substate must be found in state_y;
+        # otherwise the states are not equal. Each time a match is found in state_y, it
+        # gets excluded from future comparisons.
+        # Furthermore, the corresponding values of done and envs_unique must coincide.
+        # Finally, if the active flag is not -1, it must refer to the same substate in
+        # order to return True.
+        keys_y = state_y["_keys"].copy()
+        for idx_x, key_x in enumerate(state_x["_keys"]):
             substate_x = state_x[key_x]
-            substate_y = state_y[key_y]
-            # If substates are dictionaries and have the key "_keys", compare using the
-            # Set's equal(). Otherwise, use the parent's equal()
-            if (
-                type(substate_x) == dict
-                and "_keys" in substate_x
-                and type(substate_y) == dict
-                and "_keys" in substate_y
-            ):
-                if not self.equal(substate_x, substate_y):
-                    return False
+            substate_match = False
+            for key_y in keys_y:
+                substate_y = state_y[key_y]
+                # If substates are dictionaries and have the key "_keys", compare using
+                # the Set's equal(). Otherwise, use the parent's equal().
+                if (
+                    type(substate_x) == dict
+                    and "_keys" in substate_x
+                    and type(substate_y) == dict
+                    and "_keys" in substate_y
+                ):
+                    if self.equal(substate_x, substate_y):
+                        substate_match = True
+                else:
+                    if GFlowNetEnv.equal(substate_x, substate_y):
+                        substate_match = True
+                if substate_match:
+                    keys_y.remove(key_y)
+                    idx_y = state_y["_keys"].index(key_y)
+                    if idx_x == state_x["_active"] and idx_y != state_y["_active"]:
+                        return False
+                    if state_x["_dones"][idx_x] != state_y["_dones"][idx_y]:
+                        return False
+                    if state_x["_envs_unique"][idx_x] != state_y["_envs_unique"][idx_y]:
+                        return False
+                    break
             else:
-                if not GFlowNetEnv.equal(substate_x, substate_y):
-                    return False
+                # Return False if not match of substate is found in state_y
+                return False
         return True
 
 

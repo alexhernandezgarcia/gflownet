@@ -385,6 +385,7 @@ def test__environment__fix_catches_missing_max_elements(env, request):
 @pytest.mark.parametrize(
     "env, state_x, state_y, equal_exp",
     [
+        # Identical source states: True
         (
             "env_fix_two_grids",
             {
@@ -407,6 +408,7 @@ def test__environment__fix_catches_missing_max_elements(env, request):
             },
             True,
         ),
+        # Identical states: True
         (
             "env_fix_two_grids",
             {
@@ -452,7 +454,7 @@ def test__environment__fix_catches_missing_max_elements(env, request):
             },
             True,
         ),
-        # Permute keys without permuting substates
+        # Permute keys without permuting substates and everything else is the same
         (
             "env_fix_two_grids",
             {
@@ -475,6 +477,54 @@ def test__environment__fix_catches_missing_max_elements(env, request):
             },
             False,
         ),
+        # Permute keys without permuting substates, adjusting active but not dones
+        (
+            "env_fix_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            False,
+        ),
+        # Permute keys without permuting substates but adjusting active and dones
+        # accordingly
+        (
+            "env_fix_two_grids",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [2, 1],
+                1: [1, 2],
+            },
+            True,
+        ),
+        # Identical states
         (
             "env_fix_two_grids_three_cubes",
             {
@@ -644,6 +694,35 @@ def test__environment__fix_catches_missing_max_elements(env, request):
                 1: [2, 1],
                 2: [0.44, 0.55],
                 3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            False,
+        ),
+        # Permute substates and keys but active is different
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [1, 0, 3, 2, 4],
+                0: [2, 1],
+                1: [1, 2],
+                2: [0.33, 0.22],
+                3: [0.44, 0.55],
                 4: [-1, -1],
             },
             False,
