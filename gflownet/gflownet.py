@@ -116,8 +116,8 @@ class GFlowNetAgent:
             GPU. By default it is 0, so no garbage collection is performed. This is
             because it can incur a large time overhead unnecessarily.
         collect_reversed_logprobs: bool
-            If True, reversed logprobs will be computed and collected during sampling batches
-            for training
+            If True, reversed logprobs will be computed and collected during sampling
+            batches for training
 
         Raises
         ------
@@ -156,6 +156,16 @@ class GFlowNetAgent:
             )
         # Logging
         self.logger = logger
+        # If vislogger is used attach methods
+        if self.logger.usevislogger:
+            if self.logger.usevislogger:
+                self.logger.vislogger.attach_fns(
+                    fn_state_to_text=self.env.vis_states2text
+                )
+                if self.logger.visloggerconfig["use_env_feature_fn"]:
+                    self.logger.vislogger.attach_fns(
+                        fn_compute_features=self.env.vis_states2features
+                    )
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
@@ -1020,6 +1030,26 @@ class GFlowNetAgent:
         # Close logger
         if self.use_context is False:
             self.logger.end()
+        # Run dashboard if specified
+        # all of this could be moved to gflownet.end(), see #todo in train.py
+        if (
+            self.logger.usevislogger
+            and not self.logger.visloggerconfig["show_during_training"]
+        ):
+            self.logger.vislogger.compute_graph()
+        if (
+            self.logger.usevislogger
+            and self.logger.visloggerconfig["launch_after_training"]
+        ):
+            from gflownet.utils.vislogger.dashboard import run_dashboard
+
+            run_dashboard(
+                data=self.logger.logdir / "visdata",
+                text_to_img_fn=self.env.vis_show_state,
+                state_aggregation_fn=self.env.vis_aggregation,
+                s0="#",
+                debug_mode=False,
+            )
 
     @torch.no_grad()
     def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):
@@ -1160,6 +1190,43 @@ class GFlowNetAgent:
                     prefix="Replay buffer -",
                     use_context=self.use_context,
                 )
+
+        # Log vislogger data if used
+        if (
+            self.logger.usevislogger
+            and (self.it + 1) % self.logger.visloggerconfig["log_every_n"] == 0
+        ):
+            traj_indices = batch.get_trajectory_indices()
+            order = sorted(range(len(traj_indices)), key=lambda i: traj_indices[i])
+            done = [batch.get_done()[i] for i in order]
+            with torch.no_grad():
+                logging_loss = self.loss.compute_losses_of_batch(batch).flatten()
+                # Can be done better
+                # specify state/trajectory level in the loss classes? #TODO
+                if (
+                    self.loss.acronym == "FL"
+                    or self.loss.id == "FM"
+                    or self.loss.id == "DB"
+                ):
+                    logging_loss = logging_loss[done]
+                elif self.loss.acronym != "TB" and self.loss.acronym != "VG":
+                    raise NotImplementedError
+            self.logger.vislogger.log(
+                batch_idx=np.array([traj_indices[i] for i in order]),
+                states=[batch.get_states()[i] for i in order],
+                total_reward=np.array(rewards),
+                loss=np.array(logging_loss),
+                iteration=self.it,
+                logprobs_forward=np.array(
+                    [batch.get_logprobs(backward=False)[0][i] for i in order]
+                ),
+                logprobs_backward=np.array(
+                    [batch.get_logprobs(backward=True)[0][i] for i in order]
+                ),
+            )
+            self.logger.vislogger.write_to_db(
+                compute_graph=self.logger.visloggerconfig["show_during_training"]
+            )
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})

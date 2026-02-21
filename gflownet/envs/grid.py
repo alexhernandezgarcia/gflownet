@@ -2,12 +2,15 @@
 Classes to represent a hyper-grid environments
 """
 
+import base64
+import io
 import itertools
 from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+import plotly.graph_objects as go
 import torch
 from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -411,3 +414,113 @@ class Grid(GFlowNetEnv):
         cax.set_title(title)
         plt.colorbar(ax_img, cax=cax, orientation="horizontal")
         cax.xaxis.set_ticks_position("top")
+
+    def vis_states2features(self, states):
+        """
+        Compute the features used by the visualizations - Simply the states, all
+        are valid.
+        """
+        return np.array(states), [True] * len(states)
+
+    def vis_show_state(self, state):
+        """
+        Show a specific state. A 2d grid with <= 30 cells gets plotted as a grid,
+        otherwise a chart showing the values.
+
+        Parameters
+        ----------
+        state
+            The state to show in the text format saved by the db
+        """
+        state = self.vis_texts2states([state])[0]
+        buffer = io.BytesIO()
+
+        if self.n_dim == 2 and self.length <= 30:
+            # Grid
+            grid = np.ones((self.length, self.length))
+            x, y = state
+            grid[y, x] = 0
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.imshow(
+                grid,
+                cmap="gray",
+                vmin=0,
+                vmax=1,
+                extent=[-0.5, self.length - 0.5, -0.5, self.length - 0.5],
+                origin="lower",
+            )
+            for i in range(self.length + 1):
+                pos = i - 0.5
+                ax.axhline(pos, color="lightgrey", linewidth=1)
+                ax.axvline(pos, color="lightgrey", linewidth=1)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlim(-0.5, self.length - 0.5)
+            ax.set_ylim(-0.5, self.length - 0.5)
+            ax.set_aspect("equal")
+        else:
+            # bar plot of dimensions
+            dims = list(range(1, self.n_dim + 1))
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.barh(dims, state)
+            ax.axvline(x=self.length, linestyle="--", linewidth=2)
+            ax.set_ylabel("Dimension", fontsize=18)
+            ax.set_xlabel("Value", fontsize=18)
+            ax.tick_params(axis="both", labelsize=18)
+            ax.set_yticks(dims)
+            fig.tight_layout()
+
+        plt.savefig(buffer, format="svg", bbox_inches="tight")
+        plt.close(fig)
+        buffer.seek(0)
+        svg_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+        return svg_base64
+
+    def vis_aggregation(self, states):
+        """
+        State aggregation for the visualization. A 2d grid with <= 30 cells gets
+        plotted as a grid showing all states,
+        otherwise a chart showing the value distribution.
+        """
+        states = self.vis_texts2states(states)
+        buffer = io.BytesIO()
+
+        if self.n_dim == 2 and self.length <= 30:
+            # Grid
+            grid = np.ones((self.length, self.length))
+            for x, y in states:
+                grid[y, x] = 0
+            fig, ax = plt.subplots(figsize=(6, 6))
+            ax.imshow(
+                grid,
+                cmap="gray",
+                vmin=0,
+                vmax=1,
+                extent=[-0.5, self.length - 0.5, -0.5, self.length - 0.5],
+                origin="lower",
+            )
+            for i in range(self.length + 1):
+                pos = i - 0.5
+                ax.axhline(pos, color="lightgrey", linewidth=1)
+                ax.axvline(pos, color="lightgrey", linewidth=1)
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlim(-0.5, self.length - 0.5)
+            ax.set_ylim(-0.5, self.length - 0.5)
+            ax.set_aspect("equal")
+        else:
+            fig, ax = plt.subplots(figsize=(6, 6))
+            states_array = np.array(states)  # shape (num_states, n_dim)
+            ax.violinplot(states_array, vert=False)
+            ax.axvline(x=self.length, linestyle="--", linewidth=2)
+            ax.set_yticks(range(1, self.n_dim + 1))
+            ax.set_ylabel("Dimension", fontsize=18)
+            ax.set_xlabel("Value", fontsize=18)
+            ax.tick_params(axis="both", labelsize=18)
+            fig.tight_layout()
+
+        plt.savefig(buffer, format="svg", bbox_inches="tight")
+        plt.close(fig)
+        buffer.seek(0)
+        svg_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+        return svg_base64
