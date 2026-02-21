@@ -52,6 +52,10 @@ class Plotter:
             x_max = max(x_max, testdata.max())
         if x_min == np.inf:
             return None
+        if x_max == x_min:
+            delta = 0.5 if x_min == 0 else abs(x_min) * 0.05 or 0.5
+            x_min -= delta
+            x_max += delta
 
         fig = go.Figure()
         if len(data) > 0 and testdata is not None and len(testdata) > 0:
@@ -232,8 +236,9 @@ class Plotter:
                 go.Scatter(
                     x=loss_df["iteration"],
                     y=loss_df["mean"],
-                    mode="lines",
+                    mode="lines" if len(loss_df) > 1 else "markers",
                     line=dict(color=self.cs_diverging_testset[-1], width=2),
+                    marker=dict(size=8, color=self.cs_diverging_testset[-1]),
                     name="Mean",
                     showlegend=True,
                 )
@@ -248,8 +253,8 @@ class Plotter:
                 margin=dict(l=20, r=20, t=30, b=20),
                 xaxis=dict(nticks=4),
             )
-            lossfig.update_xaxes(range=[0, loss_df["iteration"].max()])
-            lossfig.update_yaxes(range=[0, loss_df["max"].max()])
+            lossfig.update_xaxes(range=[0, loss_df["iteration"].max() * 1.05])
+            lossfig.update_yaxes(range=[0, loss_df["max"].max() * 1.05])
 
         # create reward distribution
         if usetestset and len(rewards_testset) != 0:
@@ -715,9 +720,9 @@ class Plotter:
                     ) AS rn
                 FROM trajectories
                 WHERE iteration BETWEEN ? AND ?
+                AND final_object = 1
             )
             WHERE rn = 1
-              AND final_object = 1
         """
         logged = pd.read_sql_query(query, conn, params=iteration)
         logged = logged[logged["features_valid"] == 1]
@@ -772,7 +777,11 @@ class Plotter:
             df_dp = pd.concat([df_dp, testset], axis=0, ignore_index=True)
 
         # Downprojection
-        if method == "tsne":
+        if features.shape[1] <= 1:
+            raise ValueError("Not enough features")
+        elif features.shape[1] == 2:
+            proj_s = features
+        elif method == "tsne":
             proj_s = manifold.TSNE(
                 perplexity=min(param_value, features.shape[0] - 1),
                 init="pca",
@@ -1094,7 +1103,7 @@ class Plotter:
                 "selector": 'node[node_type = "final"]',
                 "style": {
                     "background-color": "#fff",
-                    "height": "50px",
+                    "height": "60px",
                     "border-width": "3px",
                     "border-color": "#000000",
                 },
@@ -1585,9 +1594,8 @@ class Plotter:
         selected_ids :
             List of final_ids to highlight.
         order :
-            ASC or DSC for highest/lowest rank.
+            highest/lowest rank.
         """
-
         df["iteration"] = pd.Categorical(
             df["iteration"], categories=sorted(df["iteration"].unique()), ordered=True
         )
@@ -1606,7 +1614,7 @@ class Plotter:
 
             # Compute ranks for all seen objects
             # Use text as tiebreaker to ensure stable ordering for equal rewards
-            asc = [False, True] if order == "DESC" else [True, True]
+            asc = [False, True] if order == "highest" else [True, True]
             tmp_rank = (
                 pd.DataFrame(
                     {

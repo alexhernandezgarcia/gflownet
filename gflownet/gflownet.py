@@ -160,11 +160,11 @@ class GFlowNetAgent:
         if self.logger.usevislogger:
             if self.logger.usevislogger:
                 self.logger.vislogger.attach_fns(
-                    fn_state_to_text=self.env.states2readables
+                    fn_state_to_text=self.env.vis_states2text
                 )
                 if self.logger.visloggerconfig["use_env_feature_fn"]:
                     self.logger.vislogger.attach_fns(
-                        fn_compute_features=self.env.features_from_states
+                        fn_compute_features=self.env.vis_states2features
                     )
         # Buffers
         self.replay_sampling = replay_sampling
@@ -1043,7 +1043,7 @@ class GFlowNetAgent:
                 data=self.logger.logdir / "visdata",
                 text_to_img_fn=self.env.vis_show_state,
                 state_aggregation_fn=self.env.vis_aggregation,
-                s0=self.env.state2readable(self.env.source),
+                s0="#",
                 debug_mode=False,
             )
 

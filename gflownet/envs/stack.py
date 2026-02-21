@@ -1144,3 +1144,64 @@ class Stack(GFlowNetEnv):
                 for stage, subenv in self.subenvs.items()
             ]
         )
+
+    def vis_states2features(self, states):
+        """
+        Compute the features used by the visualizations.
+        As default simply return the policy tensors.
+        All features are valid by default.
+
+        Parameters
+        ----------
+        states
+
+        Returns
+        -------
+        features
+            np.Ndarray or torch Tensor with features of size
+            (sum(trajectory_lengths), n_features)
+        features_valid
+            bool array or tensor of size (sum(trajectory_lengths),)
+            indicating if features are valid
+        """
+        features, features_valid = [
+            subenv.vis_states2features([state[stage + 1] for state in states])
+            for stage, subenv in self.subenvs.items()
+        ]
+        features = torch.cat(features, dim=1)
+        features_valid = torch.cat(features_valid, dim=1)
+
+        return features, features_valid
+
+    def vis_show_state(self, state):
+        """
+        Show a specific state. Expects either a list of strings or a base64 svg image
+        representing the state. Gives the state in a readable format by default but
+        consider implementing an image representation of the combinational environment
+        if possible.
+
+        Parameters
+        ----------
+        state
+            The state to show in the text format saved by the db
+
+        Returns
+        -------
+            state in readable format wrapped in list
+        """
+        return [self.state2readable(self.vis_texts2states([state])[0]).split("; ")]
+
+    def vis_aggregation(self, states):
+        """
+        State aggregation for the visualization. See the vislogger documentation how to
+        implement in your env.
+
+        Parameters
+        ----------
+        states
+            States in the text format saved by the db
+        """
+        return [
+            subenv.vis_aggregation([state[stage + 1] for state in states])
+            for stage, subenv in self.subenvs.items()
+        ]

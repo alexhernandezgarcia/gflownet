@@ -2,6 +2,7 @@
 Base class of GFlowNet environments
 """
 
+import ast
 import math
 import numbers
 import random
@@ -1604,3 +1605,77 @@ class GFlowNetEnv:
             A dictionary with metrics and their calculated values.
         """
         return {}
+
+    def vis_states2text(self, states: List):
+        """
+        Convert a list of states to a list of strings to be stored in
+        the db for the visualizations.
+
+        Parameters
+        ----------
+        states
+            A list of states in batch format.
+        """
+        return [repr(s) for s in states]
+
+    def vis_texts2states(self, states: List):
+        """
+        Convert a list of states in the format of the
+        visualization db to standard batch representation.
+
+        Parameters
+        ----------
+        states
+            A list of states in text format given by the vis db
+        """
+        return [ast.literal_eval(s) for s in states]
+
+    def vis_states2features(self, states):
+        """
+        Compute the features used by the visualizations.
+        As default simply return the policy tensors.
+        All features are valid by default.
+
+        Parameters
+        ----------
+        states
+
+        Returns
+        -------
+        features
+            np.Ndarray or torch Tensor with features of size
+            (sum(trajectory_lengths), n_features)
+        features_valid
+            bool array or tensor of size (sum(trajectory_lengths),)
+            indicating if features are valid
+        """
+        return self.states2policy(states), [True] * len(states)
+
+    def vis_show_state(self, state):
+        """
+        Show a specific state. Expects either a list of strings or a base64 svg image
+        representing the state. Gives the state in a readable format by default but
+        consider implementing an image representation if possible.
+
+        Parameters
+        ----------
+        state
+            The state to show in the text format saved by the db
+
+        Returns
+        -------
+            state in readable format wrapped in list
+        """
+        return [self.state2readable(self.vis_texts2states([state])[0])]
+
+    def vis_aggregation(self, states):
+        """
+        State aggregation for the visualization. See the vislogger documentation how to
+        implement in your env.
+
+        Parameters
+        ----------
+        states
+            States in the text format saved by the db
+        """
+        return None

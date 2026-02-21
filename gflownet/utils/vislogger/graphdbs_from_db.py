@@ -51,11 +51,11 @@ def truncate_graph(conn):
     cursor.execute("""
             CREATE TEMP TABLE IF NOT EXISTS removable_nodes AS
             WITH node_connections AS (
-                SELECT
+                SELECT 
                     n.id,
                     COUNT(DISTINCT e_in.source) as num_predecessors,
                     COUNT(DISTINCT e_out.target) as num_successors,
-                    n.node_type AS type
+                    node_type
                 FROM nodes n
                 LEFT JOIN edges e_in ON n.id = e_in.target
                 LEFT JOIN edges e_out ON n.id = e_out.source
@@ -63,7 +63,7 @@ def truncate_graph(conn):
             )
             SELECT id
             FROM node_connections
-            WHERE num_predecessors = 1 AND num_successors = 1 AND type != "final"
+            WHERE num_predecessors = 1 AND num_successors = 1 AND node_type != 'final'
         """)
 
     removable_count = cursor.execute("SELECT COUNT(*) FROM removable_nodes").fetchone()[
