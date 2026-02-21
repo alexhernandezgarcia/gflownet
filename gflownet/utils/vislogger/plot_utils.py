@@ -1526,28 +1526,27 @@ class Plotter:
 
         fig = go.Figure()
 
-        fig.add_trace(
-            go.Scatter(
-                x=df_normal["x"],
-                y=df_normal["y"],
-                mode="markers",
-                marker=dict(
-                    size=df_normal["metric_norm"],
-                    color=df_normal["iteration"],
-                    colorscale=self.cs_iteration,
-                    line=dict(color="black", width=1),
-                    showscale=True,
-                    colorbar=dict(title="Iteration", thickness=15, len=0.7),
-                    opacity=df_normal["opacity"],
-                ),
-                customdata=df_normal[["id", "iteration", metric, "text"]].values,
-                hoverinfo="none",
-                name="Samples",
+        if df_test.empty:
+            fig.add_trace(
+                go.Scatter(
+                    x=df_normal["x"],
+                    y=df_normal["y"],
+                    mode="markers",
+                    marker=dict(
+                        size=df_normal["metric_norm"],
+                        color=df_normal["iteration"],
+                        colorscale=self.cs_iteration,
+                        line=dict(color="white", width=1),
+                        showscale=True,
+                        colorbar=dict(title="Iteration", thickness=15, len=0.7),
+                        opacity=df_normal["opacity"],
+                    ),
+                    customdata=df_normal[["id", "iteration", metric, "text"]].values,
+                    hoverinfo="none",
+                    name="Samples",
+                )
             )
-        )
-
-        # Test set points in red
-        if not df_test.empty:
+        else:
             fig.add_trace(
                 go.Scatter(
                     x=df_test["x"],
@@ -1555,8 +1554,8 @@ class Plotter:
                     mode="markers",
                     marker=dict(
                         size=df_test["metric_norm"],
-                        color=self.cs_diverging_testset[-1],
-                        line=dict(color="black", width=1),
+                        color=self.cs_diverging_testset[0],
+                        line=dict(color="white", width=1),
                         opacity=df_test["opacity"],
                     ),
                     customdata=df_test[["id", "iteration", metric, "text"]].values,
@@ -1564,11 +1563,27 @@ class Plotter:
                     name="Test Set",
                 )
             )
+            fig.add_trace(
+                go.Scatter(
+                    x=df_normal["x"],
+                    y=df_normal["y"],
+                    mode="markers",
+                    marker=dict(
+                        size=df_normal["metric_norm"],
+                        color=self.cs_diverging_testset[-1],
+                        line=dict(color="white", width=1),
+                        opacity=df_normal["opacity"],
+                    ),
+                    customdata=df_normal[["id", "iteration", metric, "text"]].values,
+                    hoverinfo="none",
+                    name="Samples",
+                )
+            )
 
         fig.update_layout(
             autosize=True,
             title=(
-                f"State Space of Final Objects<br><sup>Size shows {metric}"
+                f"State Space of Final Objects<br><sup>Size shows {metric} "
                 "for the latest iteration the object occured"
             ),
             template="plotly_dark",

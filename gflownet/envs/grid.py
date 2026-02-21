@@ -204,12 +204,6 @@ class Grid(GFlowNetEnv):
         state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def features_from_states(self, states: Optional[List] = None):
-        """
-        Computes the features from a batch of states (states themselves).
-        """
-        return np.array(states), [True] * len(states)
-
     def get_parents(
         self,
         state: Optional[List] = None,

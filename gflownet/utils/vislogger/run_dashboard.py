@@ -10,7 +10,7 @@ Arguments:
         By default the latest run in the logs/local folder is used.
     --default-s0
         set flag if your env does not have env.source specified, the the default
-        '#' of the dashboard is used
+        source state '#' of the dashboard is used
     --debug
         set flag to use debug mode
 """

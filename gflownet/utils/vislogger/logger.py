@@ -504,6 +504,20 @@ class VisLogger:
         )
         table_exists = cur.fetchone() is not None
         if table_exists:
+            existing_cols = {
+                row[1] for row in cur.execute("PRAGMA table_info(testset)")
+            }
+            for col in df.columns:
+                if col not in existing_cols:
+                    dtype = df[col].dtype
+                    if pd.api.types.is_integer_dtype(dtype):
+                        sql_type = "INTEGER"
+                    elif pd.api.types.is_float_dtype(dtype):
+                        sql_type = "REAL"
+                    else:
+                        sql_type = "TEXT"
+                    cur.execute(f'ALTER TABLE testset ADD COLUMN "{col}" {sql_type}')
+            conn.commit()
             query = "SELECT COALESCE(MIN(id), 0) AS min FROM testset"
             offset = pd.read_sql_query(query, conn)["min"][0]
             df["id"] = df["id"] + offset
