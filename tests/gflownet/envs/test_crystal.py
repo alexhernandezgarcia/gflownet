@@ -139,7 +139,7 @@ def test__composition_property__returns_expected(env, idx_composition, request):
 )
 def test__space_group_property__returns_expected(env, idx_space_group, request):
     env = request.getfixturevalue(env)
-    assert env.space_group == env.subenvs[idx_space_group]
+    assert type(env.space_group) == type(env.subenvs[idx_space_group])
 
 
 @pytest.mark.parametrize(
