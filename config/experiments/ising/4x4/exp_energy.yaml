@@ -41,6 +41,12 @@ evaluator:
   top_k: 100
   top_k_period: -1
 
+# Buffer
+buffer:
+  test:
+    path : ${user.data.root}/ising/4x4/ising_ferro_testset_L4.pkl
+    type : "pkl"
+    
 # WandB
 logger:
   lightweight: True
