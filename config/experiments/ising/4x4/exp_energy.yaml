@@ -26,7 +26,7 @@ proxy:
   reward_function: exponential
   # Parameters of the reward function
   reward_function_kwargs:
-    beta: -1.0
+    beta: -0.44
     alpha: 1.0
 
 # Evaluator
