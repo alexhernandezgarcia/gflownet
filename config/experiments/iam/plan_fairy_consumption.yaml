@@ -79,4 +79,4 @@ evaluator:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/plan/uniform/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/plan/sigmoid_CONS_eu25_generic/${now:%Y-%m-%d_%H-%M-%S_%f}
