@@ -379,6 +379,9 @@ def generate_testset(
     categories.update(flipped_categories)
     return categories
 
+# ----------------------------
+# Plotting
+# ----------------------------
 
 def plot_examples(categories, L):
     # Filter out empty categories
