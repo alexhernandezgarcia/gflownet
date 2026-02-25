@@ -1,7 +1,10 @@
 # @package _global_
+# 4x4 Ising model with energy-based reward
 
 defaults:
   - override /env: ising
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
   - override /proxy: ising
   - override /logger: wandb
 
@@ -9,54 +12,82 @@ device: cpu
 
 # Environment
 env:
-  # Dimensions of hypergrid 
+  # Dimensions of hypergrid
   n_dim: 2
   # Number of cells per dimension
   length: 4
+
+# Buffer
+buffer:
+  replay_capacity: 100
+  check_diversity: True
+  test:
+    path : ${user.data.root}/ising/4x4/ising_ferro_testset_L4.pkl
+    type : "pkl"
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 8
+      backward_replay: 2
+      backward_dataset: 0
+    lr: 0.0001
+    lr_decay_period: 1000000
+    lr_z_mult: 50
+    z_dim: 16
+    n_train_steps: 20000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    shared_weights: True
+
+# Proxy
 proxy:
   # Number of dimensions
-  n_dim: 2 
+  n_dim: 2
   # Number of sites per dimension
   length: 4
   # Nearest-neighbor coupling
-  J_nn: 1.0 
+  J_nn: 1.0
   periodic: True
   # External field
-  h: 0 
+  h: 0
   reward_function: exponential
   # Parameters of the reward function
   reward_function_kwargs:
     beta: -0.44
     alpha: 1.0
 
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "ising-gfn"
+  run_name: "4x4 Energy"
+  tags:
+    - gflownet
+    - ising
+    - energy
+
 # Evaluator
 evaluator:
   first_it: False
-  period: -1
+  period: 1000
   checkpoints_period: 500
-  n_trajs_logprobs: 100
+  n_trajs_logprobs: 10
   logprobs_batch_size: 10
   n: 10
   n_top_k: 5000
   top_k: 100
   top_k_period: -1
-
-# Buffer
-buffer:
-  test:
-    path : ${user.data.root}/ising/4x4/ising_ferro_testset_L4.pkl
-    type : "pkl"
-    
-# WandB
-logger:
-  lightweight: True
-  project_name: "ising-gfn"
-  run_name: "4x4"
-  tags:
-    - gflownet
-    - ising
-  do:
-    online: true
 
 # Hydra
 hydra:

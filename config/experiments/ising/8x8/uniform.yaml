@@ -1,5 +1,5 @@
 # @package _global_
-# 4x4 Ising model with uniform reward
+# 8x8 Ising model with uniform reward
 
 defaults:
   - override /env: ising
@@ -15,7 +15,7 @@ env:
   # Dimensions of hypergrid
   n_dim: 2
   # Number of cells per dimension
-  length: 4
+  length: 8
 
 # Buffer
 buffer:
@@ -53,7 +53,7 @@ logger:
     online: False
   lightweight: True
   project_name: "ising-gfn"
-  run_name: "4x4 Unif"
+  run_name: "8x8 Unif"
   tags:
     - gflownet
     - ising

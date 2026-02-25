@@ -1,8 +1,9 @@
 # @package _global_
+# 8x8 Ising model with energy-based reward
 
 defaults:
   - override /env: ising
-  - override /gflownet: trajectorybalance  
+  - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
   - override /proxy: ising
   - override /logger: wandb
@@ -11,40 +12,15 @@ device: cpu
 
 # Environment
 env:
-  # Dimensions of hypergrid 
+  # Dimensions of hypergrid
   n_dim: 2
   # Number of cells per dimension
   length: 8
-proxy:
-  # Number of dimensions
-  n_dim: 2 
-  # Nuumber of sites per dimension
-  length: 8
-  # Nearest-neighbor coupling
-  J_nn: 1.0 
-  periodic: True
-  # external field
-  h: 0 
-  reward_function: exponential
-  # Parameters of the reward function
-  reward_function_kwargs:
-    beta: -0.44
-    alpha: 1.0
-
-# Evaluator
-evaluator:
-  first_it: False
-  period: -1
-  checkpoints_period: 500
-  n_trajs_logprobs: 100
-  logprobs_batch_size: 10
-  n: 10
-  n_top_k: 5000
-  top_k: 100
-  top_k_period: -1
 
 # Buffer
 buffer:
+  replay_capacity: 100
+  check_diversity: True
   test:
     path : ${user.data.root}/ising/8x8/ising_ferro_testset_L8.pkl
     type : "pkl"
@@ -54,11 +30,14 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 100
+      forward: 8
+      backward_replay: 2
+      backward_dataset: 0
     lr: 0.0001
+    lr_decay_period: 1000000
+    lr_z_mult: 50
     z_dim: 16
-    lr_z_mult: 100
-    n_train_steps: 5000
+    n_train_steps: 20000
 
 # Policy
 policy:
@@ -67,19 +46,48 @@ policy:
     n_hid: 256
     n_layers: 3
   backward:
-    shared_weights: True      
+    shared_weights: True
+
+# Proxy
+proxy:
+  # Number of dimensions
+  n_dim: 2
+  # Number of sites per dimension
+  length: 8
+  # Nearest-neighbor coupling
+  J_nn: 1.0
+  periodic: True
+  # External field
+  h: 0
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -0.44
+    alpha: 1.0
 
 # WandB
 logger:
+  do:
+    online: False
   lightweight: True
   project_name: "ising-gfn"
-  run_name: "8x8"
+  run_name: "8x8 Energy"
   tags:
     - gflownet
     - ising
-    - exp
-  do:
-    online: true
+    - energy
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: 1000
+  checkpoints_period: 500
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
 
 # Hydra
 hydra:

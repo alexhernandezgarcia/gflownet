@@ -47,7 +47,7 @@ logger:
   lightweight: True
   project_name: "ising"
   run_name: "10x10 Unif"
-  tags: 
+  tags:
     - gflownet
     - ising
     - uniform
