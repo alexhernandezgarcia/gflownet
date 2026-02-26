@@ -60,7 +60,7 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "iam-eu25-consumption"
+  project_name: "iameval-eu25-consumption"
   run_name: "Plan Fairy TB"
   tags:
     - gflownet
