@@ -159,7 +159,7 @@ class witch_proc_data(Dataset):
                     temp_mean = self.subsidies_df[col].mean()
                     temp_std = self.subsidies_df[col].std()
                     if temp_std == 0:
-                        print(col)
+                        print(f"  WARNING: zero std for subsidies column '{col}'")
                     self.precomputed_scaling_params[col] = {
                         "mean": temp_mean,
                         "std": temp_std,
@@ -176,21 +176,32 @@ class witch_proc_data(Dataset):
                     }
 
             if scaling_type == "normalization":
-                self.subsidies_df[col] = (
-                    self.subsidies_df[col]
-                    - self.precomputed_scaling_params[col]["mean"]
-                ) / self.precomputed_scaling_params[col]["std"]
+                std = self.precomputed_scaling_params[col]["std"]
+                if std == 0:
+                    self.subsidies_df[col] = 0.0
+                else:
+                    self.subsidies_df[col] = (
+                        self.subsidies_df[col]
+                        - self.precomputed_scaling_params[col]["mean"]
+                    ) / std
             elif scaling_type == "maxscale":
-                self.subsidies_df[col] = (
-                    self.subsidies_df[col] / self.precomputed_scaling_params[col]["max"]
-                )
+                mx = self.precomputed_scaling_params[col]["max"]
+                if mx == 0:
+                    self.subsidies_df[col] = 0.0
+                else:
+                    self.subsidies_df[col] = self.subsidies_df[col] / mx
             elif scaling_type == "maxmin":
-                self.subsidies_df[col] = (
-                    self.subsidies_df[col] - self.precomputed_scaling_params[col]["min"]
-                ) / (
+                denom = (
                     self.precomputed_scaling_params[col]["max"]
                     - self.precomputed_scaling_params[col]["min"]
                 )
+                if denom == 0:
+                    self.subsidies_df[col] = 0.0
+                else:
+                    self.subsidies_df[col] = (
+                        self.subsidies_df[col]
+                        - self.precomputed_scaling_params[col]["min"]
+                    ) / denom
 
         for col in self.variables_df.columns:
             if not use_computed:
@@ -198,7 +209,7 @@ class witch_proc_data(Dataset):
                     temp_mean = self.variables_df[col].mean()
                     temp_std = self.variables_df[col].std()
                     if temp_std == 0:
-                        print(col)
+                        print(f"  WARNING: zero std for variables column '{col}'")
                     self.precomputed_scaling_params[col] = {
                         "mean": temp_mean,
                         "std": temp_std,
@@ -215,21 +226,32 @@ class witch_proc_data(Dataset):
                     }
 
             if scaling_type == "normalization":
-                self.variables_df[col] = (
-                    self.variables_df[col]
-                    - self.precomputed_scaling_params[col]["mean"]
-                ) / self.precomputed_scaling_params[col]["std"]
+                std = self.precomputed_scaling_params[col]["std"]
+                if std == 0:
+                    self.variables_df[col] = 0.0
+                else:
+                    self.variables_df[col] = (
+                        self.variables_df[col]
+                        - self.precomputed_scaling_params[col]["mean"]
+                    ) / std
             elif scaling_type == "maxscale":
-                self.variables_df[col] = (
-                    self.variables_df[col] / self.precomputed_scaling_params[col]["max"]
-                )
+                mx = self.precomputed_scaling_params[col]["max"]
+                if mx == 0:
+                    self.variables_df[col] = 0.0
+                else:
+                    self.variables_df[col] = self.variables_df[col] / mx
             elif scaling_type == "maxmin":
-                self.variables_df[col] = (
-                    self.variables_df[col] - self.precomputed_scaling_params[col]["min"]
-                ) / (
+                denom = (
                     self.precomputed_scaling_params[col]["max"]
                     - self.precomputed_scaling_params[col]["min"]
                 )
+                if denom == 0:
+                    self.variables_df[col] = 0.0
+                else:
+                    self.variables_df[col] = (
+                        self.variables_df[col]
+                        - self.precomputed_scaling_params[col]["min"]
+                    ) / denom
 
         self.variables_names = cdc(self.variables_df.columns)
         self.subsidies_names = cdc(self.subsidies_df.columns)
