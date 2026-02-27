@@ -53,6 +53,7 @@ class FAIRY(Proxy):
         try:
             fairy, data = initialize_fairy()
             self.fairy = fairy
+            self.fairy_data = data  # Keep reference for external use
             self.precomputed_scaling_params = data.precomputed_scaling_params
 
             # Technology and variable names from the model

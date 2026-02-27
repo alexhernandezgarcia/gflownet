@@ -122,6 +122,31 @@ class witch_proc_data(Dataset):
         # Replace all NaNs with 0
         self.variables_df = self.variables_df.fillna(0)
 
+        # --- Remove blocks containing all-zero variable rows ---
+        # Identify rows where all variable values are zero
+        zero_row_mask = (self.variables_df == 0).all(axis=1)
+        if zero_row_mask.any():
+            zero_indices = self.variables_df.index[zero_row_mask]
+            # Get the (gdx, n) pairs for those rows — we drop ALL times for these blocks
+            bad_blocks = self.keys_df.loc[zero_indices, ["gdx", "n"]].drop_duplicates()
+            print(
+                f"Found {len(zero_indices)} all-zero variable rows in "
+                f"{len(bad_blocks)} (gdx, region) blocks. Removing entire blocks."
+            )
+            # Build a mask of ALL rows belonging to those (gdx, n) blocks
+            block_keys = set(zip(bad_blocks["gdx"], bad_blocks["n"]))
+            rows_to_drop = self.keys_df.apply(
+                lambda r: (r["gdx"], r["n"]) in block_keys, axis=1
+            )
+            keep_mask = ~rows_to_drop
+
+            self.variables_df = self.variables_df.loc[keep_mask].reset_index(drop=True)
+            self.subsidies_df = self.subsidies_df.loc[keep_mask].reset_index(drop=True)
+            self.keys_df = self.keys_df.loc[keep_mask].reset_index(drop=True)
+
+            print(f"  Rows remaining after block removal: {len(self.keys_df)}")
+        # --- End block removal ---
+
         if self.precomputed_scaling_params is None:
             use_computed = False
             self.precomputed_scaling_params = {}
