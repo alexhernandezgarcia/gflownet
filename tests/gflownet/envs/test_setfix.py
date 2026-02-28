@@ -6,6 +6,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
 from gflownet.envs.set import SetFix
@@ -152,6 +153,18 @@ def env_stacks_diff():
 def env_two_grids_cannot_alternate():
     return SetFix(
         subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+        ),
+        can_alternate_subenvs=False,
+    )
+
+
+@pytest.fixture
+def env_three_grids_cannot_alternate():
+    return SetFix(
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
@@ -4402,43 +4415,6 @@ def test__step_random__does_not_crash_and_reaches_done(env, request):
             ],
             [(0, 0, 1), (0, 1, 0)],
         ),
-        # All done
-        (
-            "env_two_cubes2d_one_cube3d_cannot_alternate",
-            {
-                "_active": -1,
-                "_toggle": 0,
-                "_dones": [1, 1, 1],
-                "_envs_unique": [0, 0, 1],
-                "_keys": [0, 1, 2],
-                0: [0.17, 0.32],
-                1: [0.44, 0.55],
-                2: [0.39, 0.28, 0.17],
-            },
-            [
-                {
-                    "_active": 1,
-                    "_toggle": 0,
-                    "_dones": [1, 1, 1],
-                    "_envs_unique": [0, 0, 1],
-                    "_keys": [0, 1, 2],
-                    0: [0.17, 0.32],
-                    1: [0.44, 0.55],
-                    2: [0.39, 0.28, 0.17],
-                },
-                {
-                    "_active": 2,
-                    "_toggle": 0,
-                    "_dones": [1, 1, 1],
-                    "_envs_unique": [0, 0, 1],
-                    "_keys": [0, 1, 2],
-                    0: [0.17, 0.32],
-                    1: [0.44, 0.55],
-                    2: [0.39, 0.28, 0.17],
-                },
-            ],
-            [(-1, 0, 0, 0, 0), (-1, 1, 0, 0, 0)],
-        ),
         # All done except one 2D Cube
         (
             "env_two_cubes2d_one_cube3d_cannot_alternate",
@@ -4546,6 +4522,239 @@ def test__get_parents__returns_expected(
             assert False
         idx = parent_actions_exp.index(p_a)
         assert env.equal(p, parents_exp[idx])
+    assert True
+
+
+@pytest.mark.parametrize(
+    "env, state, all_parents_perms, parent_actions_perms",
+    [
+        # All done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 1],
+                1: [1, 2],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 1],
+                    1: [1, 2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    "_keys": [1, 0],
+                    0: [1, 1],
+                    1: [1, 2],
+                },
+            ],
+            [(-1, 0, 0), (-1, 0, 0)],
+        ),
+        # All done
+        (
+            "env_three_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0, 1],
+                1: [0, 2],
+                2: [1, 1],
+            },
+            [
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [0, 2, 1],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [1, 0, 2],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [1, 2, 0],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [2, 0, 1],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [2, 1, 0],
+                    0: [0, 1],
+                    1: [0, 2],
+                    2: [1, 1],
+                },
+            ],
+            [(-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0), (-1, 0, 0)],
+        ),
+        # All done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0.17, 0.32],
+                    1: [0.44, 0.55],
+                    2: [0.39, 0.28, 0.17],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 1],
+                    "_keys": [1, 0, 2],
+                    0: [0.17, 0.32],
+                    1: [0.44, 0.55],
+                    2: [0.39, 0.28, 0.17],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0.17, 0.32],
+                    1: [0.44, 0.55],
+                    2: [0.39, 0.28, 0.17],
+                },
+            ],
+            [(-1, 0, 0, 0, 0), (-1, 0, 0, 0, 0), (-1, 1, 0, 0, 0)],
+        ),
+        # One of the two 2D Cubes is not done
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0.17, 0.32],
+                1: [-1, -1],
+                2: [0.39, 0.28, 0.17],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 1],
+                    "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0.17, 0.32],
+                    1: [-1, -1],
+                    2: [0.39, 0.28, 0.17],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 0, 1],
+                    "_envs_unique": [0, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0.17, 0.32],
+                    1: [-1, -1],
+                    2: [0.39, 0.28, 0.17],
+                },
+            ],
+            [(-1, 0, 0, 0, 0), (-1, 1, 0, 0, 0)],
+        ),
+    ],
+)
+def test__get_parents__with_permutations_can_return_all_possible_parents(
+    env, state, all_parents_perms, parent_actions_perms, request
+):
+    env = request.getfixturevalue(env)
+
+    parents_found = [False] * len(all_parents_perms)
+
+    # Keep obtaining parents until all possible expected parents are found at least
+    # once
+    count = 0
+    max_iters = 1e6
+    while not all(parents_found):
+        parents, parent_actions = env.get_parents(state, done=False)
+        for p, p_a in zip(parents, parent_actions):
+            for idx, (p_exp, p_a_exp) in enumerate(
+                zip(all_parents_perms, parent_actions_perms)
+            ):
+                # If a match is found between parents, the action must match too. Add
+                # the index to the found parents and break the inner loop to check the
+                # next actual parent
+                if GFlowNetEnv.equal(p, p_exp):
+                    assert p_a == p_a_exp
+                    parents_found[idx] = True
+                    break
+            else:
+                # If a parent is not among the expected parents, the test is failed
+                assert False
+        count += 1
+        if count > max_iters:
+            assert False
     assert True
 
 

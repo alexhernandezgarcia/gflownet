@@ -774,10 +774,10 @@ class BaseSet(CompositeBase):
                 else:
                     # Permute the done subenvironments of the selected index, and
                     # activate the one in the last position
-                    self.state, idx_active_subenv = self._permute_substates(
+                    self.state, indices_relevant = self._permute_substates(
                         toggled_idx, self.state, done_only=True
                     )
-                    self._set_active_subenv(idx_active_subenv)
+                    self._set_active_subenv(indices_relevant[-1])
             else:
                 # Toggle the current subenv
                 active_subenv = self._get_active_subenv(self.state)
@@ -839,7 +839,6 @@ class BaseSet(CompositeBase):
         self._apply_constraints(state=self.state, action=action, is_backward=True)
         return self.state, action, valid
 
-    # TODO: Think about the connection with permutation invariance
     def get_parents(
         self,
         state: Optional[Dict] = None,
@@ -959,13 +958,17 @@ class BaseSet(CompositeBase):
                 parent = copy(state)
                 if self.can_alternate_subenvs:
                     actions.append(self._pad_action((idx,), -1))
+                    idx_active_subenv = idx
                 else:
-                    parent, _ = self._permute_substates(
+                    # Permute the done subenvironments of the selected index, and
+                    # activate the one in the last position
+                    parent, indices_relevant = self._permute_substates(
                         idx_unique, parent, done_only=True
                     )
+                    idx_active_subenv = indices_relevant[-1]
                     actions.append(self._pad_action((idx_unique,), -1))
                     indices_unique_seen.add(idx_unique)
-                parents.append(self._set_active_subenv(idx, parent))
+                parents.append(self._set_active_subenv(idx_active_subenv, parent))
         elif case_c or case_e:
             # Case B: a sub-environment is active but only the corresponding toggle
             # action is valid: the only parent is the same state with inactive
@@ -1007,8 +1010,6 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
-    # TODO: review whether returning index of last done is needed and if so check
-    # whether the implementation is correct
     def _permute_substates(
         self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
     ) -> Tuple[Dict, int]:
@@ -1038,8 +1039,11 @@ class BaseSet(CompositeBase):
         -------
         state : dict
             The updated state
-        idx_last_done : int
-            The index of the last done instance of the specified type after permutation.
+        indices_relevant : int
+            The indices of the relevant elements whose keys are permuted, which
+            correspond to the indices of the specified type and (if ``done_only`` is
+            True) are also done. Note that the returned indices are the actual indices
+            and not the substate keys. These indices are not permuted.
         """
         if state is None:
             state = self.state
@@ -1052,7 +1056,7 @@ class BaseSet(CompositeBase):
             dones = [True] * len(keys)
 
         # Find all done sub-environments of the relevant unique environment
-        indices_to_permute, keys_to_permute = zip(
+        indices_relevant, keys_to_permute = zip(
             *[
                 (idx, key)
                 for idx, (idx_u, key, done) in enumerate(
@@ -1062,21 +1066,18 @@ class BaseSet(CompositeBase):
             ]
         )
 
-        # If there are not any indices to permute, return index -1
-        if len(indices_to_permute) == 0:
-            return state, -1
-        # If there is only one index to permute, do nothing and return the index
-        if len(indices_to_permute) == 1:
-            return state, indices_to_permute[0]
+        # If there are not any indices to permute, return immediately
+        if len(indices_relevant) <= 1:
+            return state, indices_relevant
 
         # Permute relevant keys and update keys of state
         keys_to_permute = list(keys_to_permute)
         random.shuffle(keys_to_permute)
-        for idx, key in zip(indices_to_permute, keys_to_permute):
+        for idx, key in zip(indices_relevant, keys_to_permute):
             keys[idx] = key
         state = self._set_keys(keys, state)
 
-        return state, keys_to_permute[-1]
+        return state, indices_relevant
 
     def _get_permuted_parent_with_active_subenv(
         self, idx_unique: int, state: Dict
