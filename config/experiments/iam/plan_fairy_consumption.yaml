@@ -51,8 +51,8 @@ proxy:
   # R(q90) =~ 0.99
   # R(q95+) = 1 -> ignore outliers
   reward_function_kwargs:
-    gamma: 111.5094
-    beta: -1.2848
+    gamma: 114.4651
+    beta: -1.2859
     alpha: 1.0
 
 # WandB
