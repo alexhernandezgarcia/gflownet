@@ -1280,8 +1280,10 @@ class BaseSet(CompositeBase):
             # Apply permutation correction for backward toggle actions
             # (not EOS, not when can_alternate_subenvs is True)
             if is_backward and not self.can_alternate_subenvs:
-                logprobs_set = self._apply_permutation_correction(
-                    logprobs_set, actions[is_set], states_from, is_set
+                logprobs_set = self._get_logprobs_of_permutations(
+                    logprobs_set,
+                    actions[is_set],
+                    [state for state, do_keep in zip(states_from, is_set) if do_keep],
                 )
 
         # Get the active sub-environment of each mask from the one-hot prefix
@@ -1340,22 +1342,31 @@ class BaseSet(CompositeBase):
         logprobs[is_active] = logprobs_subenvs
         return logprobs
 
-    def _apply_permutation_correction(
+    def _get_logprobs_of_permutations(
         self,
         logprobs: TensorType["n_set_states"],
         actions: TensorType["n_set_states", "action_dim"],
-        states_from: List,
-        is_set: TensorType["n_states"],
+        states: List,
     ) -> TensorType["n_set_states"]:
         """
-        Applies the permutation correction to logprobs for backward toggle actions.
+        Calculates the log-probabilities of transitions that involve permutations.
 
-        When going backward, the done sub-environments are randomly shuffled before
-        activating one. This correction accounts for the number of unique permutations
-        that result in distinct states. If all substates are identical, no correction
-        is needed since all permutations yield the same state. If substates differ, the
-        correction is -log(n_unique_perms) where n_unique_perms = n! / (m1! * m2! *
-        ...) and mi are the multiplicities of identical substates.
+        Certain transitions in the Set have a stochastic component. In particular, in
+        order to account for the fact that permutations of the substates correspond to
+        the same state, some transitions obtain one of these permutations with uniform
+        probability. In order to correctly assign the transition probabilities, we need
+        to calculate the log-probability of these transitions.
+
+        If all substates involved in the permutation are identical, the probability of
+        the transition is one. Otherwise, the log-probability is $-\log(P)$, where $P$
+        is the number of permutations. If all substates involved in the permutation are
+        different, the number of permutations is equal to $n!$, where $n$ is the number
+        of substates. However, if there exist subsets of the states that are identical,
+        the number of permutations is equal to $n! / (m_1! * m_2! * \ldots)$, where
+        $m_i$ are the multiplicities of identical subsets of substates.
+
+        This method applies a correction to the baseline probabilities by subtracting
+        it from the input logprobs.
 
         Parameters
         ----------
@@ -1366,25 +1377,19 @@ class BaseSet(CompositeBase):
             The actions corresponding to the set states. Toggle actions have the format
             (-1, idx_unique, 0, ...) and EOS actions have the format (-1, -1, -1, ...).
             Shape: (n_set_states, action_dim)
-        states_from : list
-            All states in the original batch, in environment format.
-        is_set : tensor
-            Boolean mask indicating which states in states_from correspond to set
-            actions (no active sub-environment). Shape: (n_states,)
+        states : list
+            A subset of states from the batch, corresponding to the states from which
+            the actions are initiated.
 
         Returns
         -------
         tensor
             The corrected log probabilities. Shape: (n_set_states,)
         """
-        # Extract only the states corresponding to set actions
-        is_set_list = is_set.tolist()
-        states_set = [s for s, is_s in zip(states_from, is_set_list) if is_s]
-
         # Initialize corrections to zero
         corrections = torch.zeros_like(logprobs)
 
-        for i, (state, action) in enumerate(zip(states_set, actions)):
+        for i, (state, action) in enumerate(zip(states, actions)):
             # Skip EOS actions (format: -1, -1, -1, ...)
             if action[0].item() == -1 and action[1].item() == -1:
                 continue
