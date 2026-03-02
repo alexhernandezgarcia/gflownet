@@ -414,7 +414,7 @@ def test__get_unique_idx_of_subenv__returns_expected(
 )
 def test__source_state_is_expected(env, source, request):
     env = request.getfixturevalue(env)
-    assert env.equal(env.source, source)
+    assert GFlowNetEnv.equal(env.source, source)
 
 
 @pytest.mark.parametrize(
@@ -999,11 +999,11 @@ def test__set_state__sets_state_and_dones(env, state, done, request):
     env.set_state(state, done)
 
     # Check global state
-    assert env.equal(env.state, state)
+    assert GFlowNetEnv.equal(env.state, state)
 
     # Check states of subenvs
     for idx, subenv in enumerate(env.subenvs):
-        assert env.equal(subenv.state, env._get_substate(state, idx))
+        assert subenv.equal(subenv.state, env._get_substate(state, idx))
 
     # Check parent done
     assert env.done == done
@@ -7199,7 +7199,7 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
 def test__states2proxy__returns_expected(env, states, states_proxy_exp, request):
     env = request.getfixturevalue(env)
     for state, state_proxy_exp in zip(states, states_proxy_exp):
-        assert env.equal(state_proxy_exp, env.state2proxy(state)[0])
+        assert GFlowNetEnv.equal(state_proxy_exp, env.state2proxy(state)[0])
 
 
 class TestSetFixGrid2DTetrisMini(common.BaseTestsDiscrete):
