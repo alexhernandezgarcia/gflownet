@@ -8,9 +8,13 @@ defaults:
   - override /proxy: uniform
   - override /logger: wandb
 
+device: cpu
+
 # Environment
 env:
+  # Dimensions of hypergrid
   n_dim: 2
+  # Number of cells per dimension
   length: 10
 
 # Buffer
@@ -26,9 +30,12 @@ gflownet:
   optimizer:
     batch_size:
       forward: 100
+      backward_replay: 0
+      backward_dataset: 0
     lr: 0.0001
+    lr_decay_period: 1000000
+    lr_z_mult: 50
     z_dim: 16
-    lr_z_mult: 100
     n_train_steps: 10000
 
 # Policy
@@ -45,9 +52,9 @@ logger:
   do:
     online: False
   lightweight: True
-  project_name: "ising"
+  project_name: "ising-gfn"
   run_name: "10x10 Unif"
-  tags: 
+  tags:
     - gflownet
     - ising
     - uniform
@@ -59,9 +66,14 @@ evaluator:
   n: 1000
   checkpoints_period: 500
   n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
 
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/isinggfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
