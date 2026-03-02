@@ -32,11 +32,37 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 
 def load_raw_data(data_dir):
-    """Load the raw (unscaled) parquet files."""
+    """
+    Load the raw (unscaled) parquet files and apply zero-block filtering,
+    matching the preprocessing in witch_proc_data.
+    """
     subsidies_df = pd.read_parquet(os.path.join(data_dir, "subsidies_df.parquet"))
     variables_df = pd.read_parquet(os.path.join(data_dir, "variables_df.parquet")).fillna(0)
     keys_df = pd.read_parquet(os.path.join(data_dir, "keys_df.parquet"))
     keys_df["year"] = keys_df["year"].astype(int)
+
+    # --- Remove blocks containing all-zero variable rows ---
+    zero_row_mask = (variables_df == 0).all(axis=1)
+    if zero_row_mask.any():
+        zero_indices = variables_df.index[zero_row_mask]
+        bad_blocks = keys_df.loc[zero_indices, ["gdx", "n"]].drop_duplicates()
+        print(
+            f"Found {len(zero_indices)} all-zero variable rows in "
+            f"{len(bad_blocks)} (gdx, region) blocks. Removing entire blocks."
+        )
+        block_keys = set(zip(bad_blocks["gdx"], bad_blocks["n"]))
+        rows_to_drop = keys_df.apply(
+            lambda r: (r["gdx"], r["n"]) in block_keys, axis=1
+        )
+        keep_mask = ~rows_to_drop
+
+        variables_df = variables_df.loc[keep_mask].reset_index(drop=True)
+        subsidies_df = subsidies_df.loc[keep_mask].reset_index(drop=True)
+        keys_df = keys_df.loc[keep_mask].reset_index(drop=True)
+
+        print(f"  Rows remaining after block removal: {len(keys_df)}")
+    # --- End block removal ---
+
     return subsidies_df, variables_df, keys_df
 
 
