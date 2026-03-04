@@ -1087,6 +1087,10 @@ class GFlowNetEnv:
 
         The result is only True if the content of the two input states is identical.
 
+        The core functionality is implemented in
+        :py:meth:`gflownet.envs.base.GFlowNetEnv.isclose` and this method simply calls
+        it with ``do_equal=True``.
+
         Parameters
         ----------
         state_x: number, str, tensor, dict, list, tuple
@@ -1104,61 +1108,7 @@ class GFlowNetEnv:
         NotImplementedError
             If the input types are not part of the explicitly handles types.
         """
-        # Numbers and strings
-        if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
-            return state_x == state_y
-        # Types
-        elif type(state_x) != type(state_y):
-            return False
-        # Tensors
-        elif torch.is_tensor(state_x) and torch.is_tensor(state_y):
-            # Check for nans because (torch.nan == torch.nan) == False
-            x_nan = torch.isnan(state_x)
-            if torch.any(x_nan):
-                y_nan = torch.isnan(state_y)
-                if not torch.equal(x_nan, y_nan):
-                    return False
-                return torch.equal(state_x[~x_nan], state_y[~y_nan])
-            return torch.equal(state_x, state_y)
-        # Numpy
-        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
-            return np.array_equal(state_x, state_y, equal_nan=True)
-        # Dictionaries
-        elif isinstance(state_x, dict) and isinstance(state_y, dict):
-            if len(state_x) != len(state_y):
-                return False
-            for key_x, value_x in state_x.items():
-                if key_x not in state_y:
-                    return False
-                # Recursive comparison of the values
-                if not GFlowNetEnv.equal(value_x, state_y[key_x]):
-                    return False
-            else:
-                return True
-        # Lists and tuples
-        elif (isinstance(state_x, list) and isinstance(state_y, list)) or (
-            isinstance(state_x, tuple) and isinstance(state_y, tuple)
-        ):
-            if len(state_x) != len(state_y):
-                return False
-            if len(state_x) == 0:
-                return True
-            # If all the elements of the list or tuple are numbers or strings,
-            # compare the list or tuple via state_x == state_y
-            if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
-                value_type = type(state_x[0])
-                for sx, sy in zip(state_x, state_y):
-                    if not isinstance(sx, value_type):
-                        break
-                else:
-                    return state_x == state_y
-            # Otherwise, iterate over the lists or tuples and compare them recursively
-            for sx, sy in zip(state_x, state_y):
-                if not GFlowNetEnv.equal(sx, sy):
-                    return False
-        else:
-            raise NotImplementedError(f"Unknown type: {type(state_x)}")
-        return True
+        return GFlowNetEnv.isclose(state_x, state_y, do_equal=True)
 
     @staticmethod
     def isclose(
@@ -1166,6 +1116,7 @@ class GFlowNetEnv:
         state_y: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
         rtol: float = 1e-5,
         atol: float = 1e-8,
+        do_equal: bool = False,
     ) -> bool:
         """
         Checks whether the two input states are close, according to a tolerance.
@@ -1174,6 +1125,11 @@ class GFlowNetEnv:
         the following formula:
 
         ``abs(x - y) <= rtol * abs(y) + atol``
+
+        This method is used as well by :py:meth:`gflownet.envs.base.GFlowNetEnv.equal`
+        in order to avoid code repetition. In this case, ``do_equal`` is True and
+        numpy's and torch's ``equal()`` methods are used. This is preferred over using
+        ``rtol`` and ``atol`` equal to 0.0 for efficiency reasons.
 
         This method handles recursively multiple structure types: numbers, strings,
         tensors, dictionaries, lists and tuples.
@@ -1192,6 +1148,9 @@ class GFlowNetEnv:
             Relative tolerance for numeric values.
         atol : float
             Maximum absolute tolerance threshold for numeric values.
+        do_equal : bool
+            If True, comparisons are by equality instead of closeness and ``rtol`` and
+            ``atol`` are ignored.
 
         Returns
         -------
@@ -1206,9 +1165,11 @@ class GFlowNetEnv:
         """
         # Strings
         if isinstance(state_x, str):
-            return np.equal(state_x, state_y)
+            return state_x == state_y
         # Numbers
         if isinstance(state_x, numbers.Number):
+            if do_equal:
+                return state_x == state_y
             return np.isclose(state_x, state_y, rtol=rtol, atol=atol)
         # Types
         elif type(state_x) != type(state_y):
@@ -1221,15 +1182,21 @@ class GFlowNetEnv:
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
+                if do_equal:
+                    return torch.equal(state_x[~x_nan], state_y[~y_nan])
                 return torch.all(
                     torch.isclose(
                         state_x[~x_nan], state_y[~y_nan], rtol=rtol, atol=atol
                     )
                 )
+            if do_equal:
+                return torch.equal(state_x, state_y)
             return torch.all(torch.isclose(state_x, state_y, rtol=rtol, atol=atol))
         # Numpy
         elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
-            return np.allclose(state_x, state_y, equal_nan=True, rtol=rtol, atol=atol)
+            if do_equal:
+                return np.array_equal(state_x, state_y, equal_nan=True)
+            return np.allclose(state_x, state_y, rtol=rtol, atol=atol, equal_nan=True)
         # Dictionaries
         elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
@@ -1238,10 +1205,14 @@ class GFlowNetEnv:
                 if key_x not in state_y:
                     return False
                 # Recursive comparison of the values
-                if not GFlowNetEnv.isclose(
-                    value_x, state_y[key_x], rtol=rtol, atol=atol
-                ):
-                    return False
+                if do_equal:
+                    if not GFlowNetEnv.equal(value_x, state_y[key_x]):
+                        return False
+                else:
+                    if not GFlowNetEnv.isclose(
+                        value_x, state_y[key_x], rtol=rtol, atol=atol
+                    ):
+                        return False
             else:
                 return True
         # Lists and tuples
@@ -1260,11 +1231,17 @@ class GFlowNetEnv:
                     if not isinstance(sx, value_type):
                         break
                 else:
+                    if do_equal:
+                        return state_x == state_y
                     return np.all(np.isclose(state_x, state_y, rtol=rtol, atol=atol))
             # Otherwise, iterate over the lists or tuples and compare them recursively
             for sx, sy in zip(state_x, state_y):
-                if not GFlowNetEnv.isclose(sx, sy, rtol=rtol, atol=atol):
-                    return False
+                if do_equal:
+                    if not GFlowNetEnv.equal(sx, sy):
+                        return False
+                else:
+                    if not GFlowNetEnv.isclose(sx, sy, rtol=rtol, atol=atol):
+                        return False
         else:
             raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
