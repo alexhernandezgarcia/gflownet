@@ -6944,7 +6944,7 @@ def test__get_logprobs_backward__one_batched_trajectory_all_finite(
             (-1, 0, 0),
             np.log(1.0 / 1),
         ),
-        # All done but both states are identical
+        # All done but both substates are identical
         (
             "env_two_grids_cannot_alternate",
             {
@@ -6958,6 +6958,109 @@ def test__get_logprobs_backward__one_batched_trajectory_all_finite(
             },
             (-1, 0, 0),
             np.log(1.0 / 1),
+        ),
+        # All done
+        (
+            "env_three_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0, 1],
+                1: [0, 2],
+                2: [1, 1],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 6),
+        ),
+        # All done but two substates are identical
+        (
+            "env_three_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0, 1],
+                1: [1, 1],
+                2: [1, 1],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 3),
+        ),
+        # All done, action actives env type with single substate
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 1, 0, 0, 0),
+            # Two unique envs can be activated but only one permutation of the env in
+            # the action
+            np.log(1.0 / 2) + np.log(1.0 / 1),
+        ),
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [1, 0, 2],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 1, 0, 0, 0),
+            # Two unique envs can be activated but only one permutation of the env in
+            # the action
+            np.log(1.0 / 2) + np.log(1.0 / 1),
+        ),
+        # All done, action actives env type with two substates
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0.17, 0.32],
+                1: [0.44, 0.55],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 0, 0, 0, 0),
+            # Two unique envs can be activated with two permutations of the env in
+            # the action
+            np.log(1.0 / 2) + np.log(1.0 / 2),
+        ),
+        # All done, action actives env type with two substates but they are identical
+        (
+            "env_two_cubes2d_one_cube3d_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0.17, 0.32],
+                1: [0.17, 0.32],
+                2: [0.39, 0.28, 0.17],
+            },
+            (-1, 0, 0, 0, 0),
+            # Two unique envs can be activated but only one permutation of the env in
+            # the action
+            np.log(1.0 / 2) + np.log(1.0 / 1),
         ),
     ],
 )

@@ -1231,8 +1231,7 @@ class BaseSet(CompositeBase):
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
                 is_stochastic = torch.zeros_like(is_set)
                 is_stochastic[is_set] = torch.any(actions[is_set] != eos_tensor, dim=1)
-                logprobs_set[is_stochastic] = self._get_logprobs_of_permutations(
-                    logprobs_set[is_stochastic],
+                logprobs_set[is_stochastic] -= self._get_logprobs_of_permutations(
                     actions[is_stochastic],
                     [
                         state
@@ -1299,7 +1298,6 @@ class BaseSet(CompositeBase):
 
     def _get_logprobs_of_permutations(
         self,
-        logprobs: TensorType["n_set_states"],
         actions: TensorType["n_set_states", "action_dim"],
         states: List,
     ) -> TensorType["n_set_states"]:
@@ -1320,15 +1318,8 @@ class BaseSet(CompositeBase):
         the number of permutations is equal to $n! / (m_1! * m_2! * \ldots)$, where
         $m_i$ are the multiplicities of identical subsets of substates.
 
-        This method applies a correction to the baseline probabilities by subtracting
-        it from the input logprobs.
-
         Parameters
         ----------
-        logprobs : tensor
-            The log probabilities of the set actions with a stochastic component
-            (toggle, not EOS) before correction.
-            Shape: (n_set_states,)
         actions : tensor
             The actions corresponding to the set states. Toggle actions have the format
             (-1, idx_unique, 0, ...).
@@ -1340,8 +1331,10 @@ class BaseSet(CompositeBase):
         Returns
         -------
         tensor
-            The corrected log probabilities. Shape: (n_set_states,)
+            The log probabilities of one uniform permutation for each of the input
+            states. Shape: (len(states),)
         """
+        logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
         for idx, (state, action) in enumerate(zip(states, actions)):
 
             # Get the unique environment index from the toggle action
@@ -1364,7 +1357,10 @@ class BaseSet(CompositeBase):
                 continue
 
             # Collect substates of done instances
-            substates = [self._get_substate(state, idx) for idx in indices_relevant]
+            substates = [
+                self._get_substate(state, self._get_state_key(idx, state))
+                for idx in indices_relevant
+            ]
 
             # Count multiplicities of each substate:
             # - All substates are initialized to present once
@@ -1414,10 +1410,7 @@ class BaseSet(CompositeBase):
             multiplicities = multiplicities[multiplicities > 0]
             multiplicities += 1
             log_denominator = torch.sum(torch.lgamma(multiplicities))
-            log_n_unique_perms = log_n_factorial - log_denominator
-
-            # Apply correction
-            logprobs[idx] -= log_n_unique_perms
+            logprobs[idx] = log_n_factorial - log_denominator
 
         return logprobs
 
