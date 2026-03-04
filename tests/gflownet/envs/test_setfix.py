@@ -2149,29 +2149,27 @@ def test__step__works_as_expected(
             },
             True,
         ),
-        # All done: active Cube 2D
+        # From intermediate state (active): grid action
         (
-            "env_two_cubes2d_one_cube3d_cannot_alternate",
-            {
-                "_active": -1,
-                "_toggle": 0,
-                "_dones": [1, 1, 1],
-                "_envs_unique": [0, 0, 1],
-                "_keys": [0, 1, 2],
-                0: [0.17, 0.32],
-                1: [0.44, 0.55],
-                2: [0.39, 0.28, 0.17],
-            },
-            (-1, 0, 0, 0, 0),
+            "env_two_grids_cannot_alternate",
             {
                 "_active": 1,
                 "_toggle": 0,
-                "_dones": [1, 1, 1],
-                "_envs_unique": [0, 0, 1],
-                "_keys": [0, 1, 2],
-                0: [0.17, 0.32],
-                1: [0.44, 0.55],
-                2: [0.39, 0.28, 0.17],
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [1, 1],
+                1: [1, 0],
+            },
+            (0, 0, 1),
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [1, 0],
+                1: [0, 0],
             },
             True,
         ),
@@ -2241,13 +2239,13 @@ def test__step_backwards__works_as_expected(
     # Perform step
     state_next, action_done, valid = env.step_backwards(action, skip_mask_check=True)
 
-    # Check end state
-    assert env.equal(env.state, state_next)
-    assert env.equal(env.state, state_next_exp)
-
     # Check action and valid
     assert action_done == action
     assert valid == valid_exp, (state_from, action)
+
+    # Check end state
+    assert env.equal(env.state, state_next)
+    assert env.equal(env.state, state_next_exp)
 
 
 @pytest.mark.parametrize(
@@ -3225,6 +3223,25 @@ def test__get_mask_invalid_actions_forward__returns_expected(
                 "_dones": [1, 1],
                 "_envs_unique": [0, 0],
                 "_keys": [0, 1],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            # fmt: off
+            [
+                True, # ACTIVE UNIQUE ENV
+                True, True, False, # MASK GRID
+            ]
+            # fmt: on
+        ),
+        # Grid 0 active but done - keys permuted
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
                 0: [1, 2],
                 1: [1, 1],
             },
