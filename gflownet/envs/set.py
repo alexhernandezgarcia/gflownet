@@ -1225,13 +1225,20 @@ class BaseSet(CompositeBase):
                 None,
                 is_backward,
             )
-            # Apply permutation correction for backward toggle actions
-            # (not EOS, not when can_alternate_subenvs is True)
+            # Apply permutation correction for backward toggle actions with a
+            # stochastic component (not EOS, not when can_alternate_subenvs is True)
             if is_backward and not self.can_alternate_subenvs:
-                logprobs_set = self._get_logprobs_of_permutations(
-                    logprobs_set,
-                    actions[is_set],
-                    [state for state, do_keep in zip(states_from, is_set) if do_keep],
+                eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+                is_stochastic = torch.zeros_like(is_set)
+                is_stochastic[is_set] = torch.any(actions[is_set] != eos_tensor, dim=1)
+                logprobs_set[is_stochastic] = self._get_logprobs_of_permutations(
+                    logprobs_set[is_stochastic],
+                    actions[is_stochastic],
+                    [
+                        state
+                        for state, do_keep in zip(states_from, is_stochastic)
+                        if do_keep
+                    ],
                 )
 
         # Get the active sub-environment of each mask from the one-hot prefix
@@ -1296,7 +1303,7 @@ class BaseSet(CompositeBase):
         actions: TensorType["n_set_states", "action_dim"],
         states: List,
     ) -> TensorType["n_set_states"]:
-        """
+        r"""
         Calculates the log-probabilities of transitions that involve permutations.
 
         Certain transitions in the Set have a stochastic component. In particular, in
@@ -1319,11 +1326,12 @@ class BaseSet(CompositeBase):
         Parameters
         ----------
         logprobs : tensor
-            The log probabilities of the set actions (toggle or EOS) before correction.
+            The log probabilities of the set actions with a stochastic component
+            (toggle, not EOS) before correction.
             Shape: (n_set_states,)
         actions : tensor
             The actions corresponding to the set states. Toggle actions have the format
-            (-1, idx_unique, 0, ...) and EOS actions have the format (-1, -1, -1, ...).
+            (-1, idx_unique, 0, ...).
             Shape: (n_set_states, action_dim)
         states : list
             A subset of states from the batch, corresponding to the states from which
@@ -1334,13 +1342,7 @@ class BaseSet(CompositeBase):
         tensor
             The corrected log probabilities. Shape: (n_set_states,)
         """
-        # Initialize corrections to zero
-        corrections = torch.zeros_like(logprobs)
-
-        for i, (state, action) in enumerate(zip(states, actions)):
-            # Skip EOS actions (format: -1, -1, -1, ...)
-            if action[0].item() == -1 and action[1].item() == -1:
-                continue
+        for idx, (state, action) in enumerate(zip(states, actions)):
 
             # Get the unique environment index from the toggle action
             idx_unique = int(action[1].item())
@@ -1392,9 +1394,9 @@ class BaseSet(CompositeBase):
             log_n_unique_perms = log_n_factorial - log_denominator
 
             # Apply correction
-            corrections[i] = -log_n_unique_perms
+            logprobs[idx] -= log_n_unique_perms
 
-        return logprobs + corrections
+        return logprobs
 
     def _compute_mask_dim(self) -> int:
         """

@@ -6897,6 +6897,92 @@ def test__get_logprobs_backward__one_batched_trajectory_all_finite(
     assert torch.all(torch.isfinite(logprobs))
 
 
+@pytest.mark.parametrize(
+    "env, state, action, logprob",
+    [
+        # All done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [1, 1],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 2),
+        ),
+        # Only one done
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 1],
+                1: [0, 0],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 1),
+        ),
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [1, 0],
+                0: [0, 0],
+                1: [1, 1],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 1),
+        ),
+        # All done but both states are identical
+        (
+            "env_two_grids_cannot_alternate",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [1, 2],
+            },
+            (-1, 0, 0),
+            np.log(1.0 / 1),
+        ),
+    ],
+)
+def test__get_logprobs_backward__calculates_permutations(
+    env, state, action, logprob, request
+):
+    env = request.getfixturevalue(env)
+    masks = torch.unsqueeze(
+        tbool(
+            env.get_mask_invalid_actions_backward(state, done=False), device=env.device
+        ),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=True,
+    )
+    assert torch.isclose(logprobs[0], torch.tensor(logprob).to(logprobs))
+
+
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env",
