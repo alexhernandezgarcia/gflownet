@@ -1345,52 +1345,75 @@ class BaseSet(CompositeBase):
         for idx, (state, action) in enumerate(zip(states, actions)):
 
             # Get the unique environment index from the toggle action
-            idx_unique = int(action[1].item())
+            idx_unique = action[1]
 
             # Get unique indices and done flags from state
             unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
             dones = self._get_dones(state)
 
             # Find all done instances of this unique environment type
-            done_instances_of_type = [
+            indices_relevant = [
                 idx
-                for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
-                if u_idx == idx_unique and done
+                for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
+                if idx_u == idx_unique and done
             ]
+            n_done = len(indices_relevant)
 
             # No correction needed if fewer than 2 done instances
-            n_done = len(done_instances_of_type)
             if n_done <= 1:
                 continue
 
             # Collect substates of done instances
-            substates = [
-                self._get_substate(state, idx) for idx in done_instances_of_type
-            ]
+            substates = [self._get_substate(state, idx) for idx in indices_relevant]
 
-            # Count multiplicities by comparing substates using GFlowNetEnv.equal
-            multiplicities = []
-            used = [False] * n_done
-            for j in range(n_done):
-                if used[j]:
-                    continue
-                count = 1
-                used[j] = True
-                for k in range(j + 1, n_done):
-                    if not used[k] and self.equal(substates[j], substates[k]):
-                        count += 1
-                        used[k] = True
-                multiplicities.append(count)
+            # Count multiplicities of each substate:
+            # - All substates are initialized to present once
+            # - We compare each substate with the other substates except with itself
+            # - If a substate has been already matched to another one, we skip the
+            # comparison
+            # - If two states are found to be equal, we increase by one the
+            # multiplicity of the first one and set to zero the multiplicity of the
+            # second one
+            multiplicities = [1] * n_done
+            matched_substates = [False] * n_done
+            for idx_x, substate_x in enumerate(substates):
+                for idx_y, substate_y in enumerate(substates):
+                    # Skip if the indices of both substates are the same
+                    if idx_x == idx_y:
+                        continue
+                    # Skip if the substates have already been matched to another state
+                    if matched_substates[idx_x] or matched_substates[idx_y]:
+                        continue
+                    # If a match is found, increase the multiplicity of the first
+                    # substate and set to zero the multiplicity of the second one
+                    # If substates are dictionaries and have the key "_keys", compare
+                    # using the Set's equal(). Otherwise, use the parent's equal().
+                    if (
+                        type(substate_x) == dict
+                        and "_keys" in substate_x
+                        and type(substate_y) == dict
+                        and "_keys" in substate_y
+                    ):
+                        substate_match = self.equal(substate_x, substate_y)
+                    else:
+                        substate_match = GFlowNetEnv.equal(substate_x, substate_y)
+                    if substate_match:
+                        multiplicities[idx_x] += 1
+                        multiplicities[idx_y] = 0
+                        matched_substates[idx_y] = True
+                matched_substates[idx_x] = True
 
             # Compute number of unique permutations: n! / (m1! * m2! * ...)
             # In log space: log(n!) - sum(log(mi!))
             log_n_factorial = torch.lgamma(
                 torch.tensor(n_done + 1, dtype=self.float, device=self.device)
             )
-            log_denominator = sum(
-                torch.lgamma(torch.tensor(m + 1, dtype=self.float, device=self.device))
-                for m in multiplicities
+            multiplicities = torch.tensor(
+                multiplicities, dtype=self.float, device=self.device
             )
+            multiplicities = multiplicities[multiplicities > 0]
+            multiplicities += 1
+            log_denominator = torch.sum(torch.lgamma(multiplicities))
             log_n_unique_perms = log_n_factorial - log_denominator
 
             # Apply correction
