@@ -107,10 +107,7 @@ class CompositeBase(GFlowNetEnv):
         """
         substates = []
         for idx in range(self.max_elements):
-            if idx in state:
-                substates.append(state[idx])
-            else:
-                break
+            substates.append(self._get_substate(state, idx))
         return substates
 
     def _set_substate(
