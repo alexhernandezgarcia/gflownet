@@ -189,11 +189,95 @@ class BaseSet(CompositeBase):
         int
             The key in the state dictionary containing the state with index
             ``idx_subenv``.
+
+        Raises
+        ------
+        ValueError
+            If ``index_subenv`` is not a valid sub-environment index because it is not
+            one of the keys of the state.
         """
         if state is None:
             state = self.state
-        assert idx_subenv < len(state["_keys"])
+        if idx_subenv not in state["_keys"]:
+            raise ValueError(
+                f"Index {idx_subenv} is not a valid sub-environment index."
+            )
         return state["_keys"][idx_subenv]
+
+    def _get_substate(self, state: Dict, idx_subenv: Optional[int] = None):
+        """
+        Returns the part of the state corresponding to the sub-environment indicated at
+        ``idx_subenv``.
+
+        This method is overriden to account for the potential permutation of the keys
+        of the substates.
+
+        Parameters
+        ----------
+        state : dict
+            A state of the composite environment.
+        idx_subenv : int
+            Index of the sub-environment of which the corresponding part of the state
+            is to be extracted. If None, the state of the active subenv is used. Note
+            that this is the index of a subenv, not of the unique environments, and
+            that the index may not correspond to the key of the substate as is stored
+            in the state. The actual key is obtained via
+            :py:meth:`~gflownet.envs.set.Set._get_state_key`
+
+        Returns
+        -------
+        The state of a sub-environment.
+
+        Raises
+        ------
+        ValueError
+            If ``index_subenv`` is not a valid sub-environment index because it is not
+            one of the keys of the state.
+        """
+        if idx_subenv is None:
+            idx_subenv = self._get_active_subenv(state)
+        key_substate = self._get_state_key(idx_subenv, state)
+        return super()._get_substate(state, key_substate)
+
+    def _set_substate(
+        self,
+        idx_subenv: int,
+        state_subenv: Union[List, TensorType, dict],
+        state: Optional[Dict] = None,
+    ) -> Dict:
+        """
+        Updates the global composite state by setting as substate of subenv
+        ``idx_subenv`` the current state of the sub-environment.
+
+        This method modifies ``self.state`` if ``state`` is None.
+
+        This method is overriden to account for the potential permutation of the keys
+        of the substates.
+
+        Parameters
+        ----------
+        idx_subenv : int
+            Index of the sub-environment of which to set the state. Note that this is
+            the index of a subenv and that the index may not correspond to the key of
+            the substate as is stored in the state. The actual key is obtained via
+            :py:meth:`~gflownet.envs.set.Set._get_state_key`
+        state_subenv : list or tensor or dict
+            The state of a sub-environment.
+        state : dict
+            A state of the global composite environment.
+
+        Returns
+        -------
+        The updated composite state.
+
+        Raises
+        ------
+        ValueError
+            If ``index_subenv`` is not a valid sub-environment index because it is not
+            one of the keys of the state.
+        """
+        key_substate = self._get_state_key(idx_subenv, state)
+        return super()._set_substate(key_substate, state_subenv, state)
 
     # TODO: update by using super().get_action_space(), which will require changing
     # other methods to use the correct indexing of actions
@@ -340,9 +424,7 @@ class BaseSet(CompositeBase):
             # depend on self.subenvs and can be computed without setting the subenvs if
             # the state is passed.
             subenv = self._get_unique_env_of_subenv(active_subenv, state)
-            state_subenv = self._get_substate(
-                state, self._get_state_key(active_subenv, state)
-            )
+            state_subenv = self._get_substate(state, active_subenv)
             mask = subenv.get_mask_invalid_actions_forward(state_subenv, False)
         else:
             raise RuntimeError("None of the possible forward cases is True")
@@ -415,9 +497,7 @@ class BaseSet(CompositeBase):
                 case_d = True
             else:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(
-                    state, self._get_state_key(active_subenv, state)
-                )
+                state_subenv = self._get_substate(state, active_subenv)
                 if subenv.is_source(state_subenv):
                     # Case E: in the variant where sub-environments cannot alternate,
                     # the sub-environment is in the source state: the only valid action
@@ -453,7 +533,7 @@ class BaseSet(CompositeBase):
                     if not self.can_alternate_subenvs and not mask[idx_unique]:
                         continue
                     if not done and self._get_env_unique(idx_unique).is_source(
-                        self._get_substate(state, self._get_state_key(idx, state))
+                        self._get_substate(state, idx)
                     ):
                         continue
                     else:
@@ -482,9 +562,7 @@ class BaseSet(CompositeBase):
             # the state is passed.
             if subenv is None or state_subenv is None:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(
-                    state, self._get_state_key(active_subenv, state)
-                )
+                state_subenv = self._get_substate(state, active_subenv)
             done_subenv = dones[active_subenv]
             mask = subenv.get_mask_invalid_actions_backward(state_subenv, done_subenv)
         else:
@@ -908,9 +986,7 @@ class BaseSet(CompositeBase):
                 case_d = True
             else:
                 subenv = self._get_unique_env_of_subenv(active_subenv, state)
-                state_subenv = self._get_substate(
-                    state, self._get_state_key(active_subenv, state)
-                )
+                state_subenv = self._get_substate(state, active_subenv)
                 if subenv.is_source(state_subenv):
                     # Case E: in the variant where sub-environments cannot alternate,
                     # the sub-environment is in the source state: the only valid action
@@ -941,7 +1017,7 @@ class BaseSet(CompositeBase):
                 if self.can_alternate_subenvs:
                     # Skip if the subenv is at the source and is not done
                     if not done and self._get_env_unique(idx_unique).is_source(
-                        self._get_substate(state, self._get_state_key(idx, state))
+                        self._get_substate(state, idx)
                     ):
                         continue
                 else:
@@ -989,9 +1065,7 @@ class BaseSet(CompositeBase):
             assert toggle_flag == 0
             if subenv is None or state_subenv is None:
                 subenv = self.subenvs[active_subenv]
-                state_subenv = self._get_substate(
-                    state, self._get_state_key(active_subenv, state)
-                )
+                state_subenv = self._get_substate(state, active_subenv)
             done_subenv = bool(dones[active_subenv])
             parents_subenv, parent_actions_subenv = subenv.get_parents(
                 state_subenv, done_subenv
@@ -1357,10 +1431,7 @@ class BaseSet(CompositeBase):
                 continue
 
             # Collect substates of done instances
-            substates = [
-                self._get_substate(state, self._get_state_key(idx, state))
-                for idx in indices_relevant
-            ]
+            substates = [self._get_substate(state, idx) for idx in indices_relevant]
 
             # Count multiplicities of each substate:
             # - All substates are initialized to present once
