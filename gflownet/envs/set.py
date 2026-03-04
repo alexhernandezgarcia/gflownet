@@ -326,6 +326,46 @@ class BaseSet(CompositeBase):
             )
         return action_space
 
+    def action_produces_permutation(
+        self, action: Tuple, is_backward: bool = False
+    ) -> bool:
+        """
+        Determines whether an action produces permutations in the resulting state.
+
+        The Set introduces actions that produce permutations, in particular in the key
+        ``_keys`` of the state. These actions are introduced if
+        ``self.can_alternate_subenvs`` is False.
+
+        In particular, the actions that produce permutations are backward actions that
+        toggle a sub-environment.
+
+        Note that this method does not check whether all relevant substates are
+        identical, in which case, there is effectively not more than one permutation.
+        Instead, True is returned if the action _could_ produce permutations in the
+        resulting state.
+
+        Parameters
+        ----------
+        action : tuple
+            An action of the environment.
+        is_backward : bool
+            Whether the transition to consider is backward (True) or forward (False).
+
+        Returns
+        -------
+        bool
+            Whether the input actions produces permutations in the resulting state, in
+            the direction indicated by ``is_backward``.
+        """
+        if (
+            not self.can_alternate_subenvs
+            and not is_backward
+            and action[0] == -1
+            and action != self.eos
+        ):
+            return True
+        return False
+
     # TODO: make mask prefix indicate the unique environment rather than active subenv
     def get_mask_invalid_actions_forward(
         self, state: Optional[Dict] = None, done: Optional[bool] = None

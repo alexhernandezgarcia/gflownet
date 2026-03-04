@@ -168,6 +168,40 @@ class GFlowNetEnv:
         """
         return action
 
+    def action_produces_permutation(
+        self, action: Tuple, is_backward: bool = False
+    ) -> bool:
+        """
+        Determines whether an action produces permutations in the resulting state.
+
+        Permutations can be introduced, for example, in environments that need to
+        incorporate permutation invariance, as in sets of elements. In these cases,
+        some actions may result in states with elements that are randomly permuted.
+
+        This method allows to identify these actions, which is useful, for instance, in
+        unit tests.
+
+        By default, actions do not produce permutations and the returned value of this
+        method is False.
+
+        Environments with actions that produce permutations should override this method
+        and properly identify such actions.
+
+        Parameters
+        ----------
+        action : tuple
+            An action of the environment.
+        is_backward : bool
+            Whether the transition to consider is backward (True) or forward (False).
+
+        Returns
+        -------
+        bool
+            Whether the input actions produces permutations in the resulting state, in
+            the direction indicated by ``is_backward``.
+        """
+        return False
+
     def action2index(self, action: Tuple) -> int:
         """
         Returns the index in the action space of the action passed as an argument, or
