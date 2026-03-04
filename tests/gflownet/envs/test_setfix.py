@@ -2169,7 +2169,7 @@ def test__step__works_as_expected(
                 "_envs_unique": [0, 0],
                 "_keys": [1, 0],
                 0: [1, 0],
-                1: [0, 0],
+                1: [1, 0],
             },
             True,
         ),
