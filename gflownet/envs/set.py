@@ -1305,14 +1305,17 @@ class BaseSet(CompositeBase):
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
                 is_stochastic = torch.zeros_like(is_set)
                 is_stochastic[is_set] = torch.any(actions[is_set] != eos_tensor, dim=1)
-                logprobs_set[is_stochastic] -= self._get_logprobs_of_permutations(
-                    actions[is_stochastic],
-                    [
-                        state
-                        for state, do_keep in zip(states_from, is_stochastic)
-                        if do_keep
-                    ],
-                )
+                if any(is_stochastic):
+                    logprobs_set[
+                        is_stochastic[is_set]
+                    ] -= self._get_logprobs_of_permutations(
+                        actions[is_stochastic],
+                        [
+                            state
+                            for state, do_keep in zip(states_from, is_stochastic)
+                            if do_keep
+                        ],
+                    )
 
         # Get the active sub-environment of each mask from the one-hot prefix
         indices_active = torch.where(mask[is_active, : self.n_toggle_actions])[1]
