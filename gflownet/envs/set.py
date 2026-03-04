@@ -1079,58 +1079,6 @@ class BaseSet(CompositeBase):
 
         return state, indices_relevant
 
-    def _get_permuted_parent_with_active_subenv(
-        self, idx_unique: int, state: Dict
-    ) -> Tuple[Dict, int]:
-        """
-        Creates a copy of the state with done sub-environments of the specified unique
-        type randomly permuted, and returns the state with the last done instance
-        activated.
-
-        Parameters
-        ----------
-        idx_unique : int
-            The index of the unique environment type whose done instances should be
-            permuted.
-        state : dict
-            A state of the Set environment.
-
-        Returns
-        -------
-        parent : dict
-            A copy of the state with permuted substates and the last done instance
-            of the specified type activated.
-        idx_activated : int
-            The index of the activated sub-environment.
-        """
-        parent = copy(state)
-
-        unique_indices = self._get_unique_indices(parent, exclude_nonpresent=False)
-        dones = self._get_dones(parent)
-
-        # Find all done instances of the specified type
-        done_instances_of_type = [
-            idx
-            for idx, (u_idx, done) in enumerate(zip(unique_indices, dones))
-            if u_idx == idx_unique and done
-        ]
-
-        # Permute if there are multiple done instances
-        if len(done_instances_of_type) >= 2:
-            substates = [
-                self._get_substate(parent, idx) for idx in done_instances_of_type
-            ]
-            permutation = np.random.permutation(len(substates))
-            shuffled_substates = [substates[i] for i in permutation]
-            for idx, substate in zip(done_instances_of_type, shuffled_substates):
-                self._set_substate(idx, substate, parent)
-
-        # Activate the last done instance of this type
-        idx_activated = done_instances_of_type[-1]
-        self._set_active_subenv(idx_activated, parent)
-
-        return parent, idx_activated
-
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
