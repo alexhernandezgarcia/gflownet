@@ -45,7 +45,7 @@ logger:
     online: False
   lightweight: True
   project_name: "choices"
-  run_name: "2 of 3 with repl."
+  run_name: "2 of 3 without repl."
   tags: 
     - gflownet
     - choices
