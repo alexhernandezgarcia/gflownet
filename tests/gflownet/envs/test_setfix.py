@@ -202,6 +202,21 @@ def env_two_cubes2d_one_cube3d_cannot_alternate():
     )
 
 
+@pytest.fixture
+def env_three_cubes2d_three_grids_cannot_alternate():
+    return SetFix(
+        subenvs=(
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+        ),
+        can_alternate_subenvs=False,
+    )
+
+
 @pytest.mark.parametrize(
     "env",
     [
@@ -217,6 +232,7 @@ def env_two_cubes2d_one_cube3d_cannot_alternate():
         "env_two_grids_cannot_alternate",
         "env_grid2d_tetrismini_cannot_alternate",
         "env_two_cubes2d_one_cube3d_cannot_alternate",
+        "env_three_cubes2d_three_grids_cannot_alternate",
     ],
 )
 def test__environment__initializes_properly(env, request):
@@ -239,6 +255,7 @@ def test__environment__initializes_properly(env, request):
         ("env_two_grids_cannot_alternate", 1),
         ("env_grid2d_tetrismini_cannot_alternate", 2),
         ("env_two_cubes2d_one_cube3d_cannot_alternate", 2),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 2),
     ],
 )
 def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
@@ -261,6 +278,7 @@ def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
         ("env_two_grids_cannot_alternate", False),
         ("env_grid2d_tetrismini_cannot_alternate", False),
         ("env_two_cubes2d_one_cube3d_cannot_alternate", True),
+        ("env_three_cubes2d_three_grids_cannot_alternate", True),
     ],
 )
 def test__environment__is_continuous(env, is_continuous, request):
@@ -295,6 +313,12 @@ def test__environment__is_continuous(env, is_continuous, request):
         ("env_two_cubes2d_one_cube3d_cannot_alternate", 0, 0),
         ("env_two_cubes2d_one_cube3d_cannot_alternate", 1, 0),
         ("env_two_cubes2d_one_cube3d_cannot_alternate", 2, 1),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 0, 0),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 1, 0),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 2, 0),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 3, 1),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 4, 1),
+        ("env_three_cubes2d_three_grids_cannot_alternate", 5, 1),
     ],
 )
 def test__get_unique_idx_of_subenv__returns_expected(
@@ -7723,12 +7747,12 @@ class TestSetFixStacksDiff(common.BaseTestsContinuous):
         }
 
 
-class TestSetFixTwoGridsCannotAlternate(common.BaseTestsDiscrete):
+class TestSetFixThreeGridsCannotAlternate(common.BaseTestsDiscrete):
     """Common tests for set of two Grids which cannot alternate."""
 
     @pytest.fixture(autouse=True)
-    def setup(self, env_two_grids_cannot_alternate):
-        self.env = env_two_grids_cannot_alternate
+    def setup(self, env_three_grids_cannot_alternate):
+        self.env = env_three_grids_cannot_alternate
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,
@@ -7764,6 +7788,41 @@ class TestSetFixTwoCubes2DOneCube3DCannotAlternate(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env_two_cubes2d_one_cube3d_cannot_alternate):
         self.env = env_two_cubes2d_one_cube3d_cannot_alternate
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 0,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestSetFixThreeCubes2DThreeGridsCannotAlternate(common.BaseTestsContinuous):
+    """Common tests for set of three 2D cubes and three grids which cannot alternate."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_three_cubes2d_three_grids_cannot_alternate):
+        self.env = env_three_cubes2d_three_grids_cannot_alternate
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,
