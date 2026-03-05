@@ -1205,14 +1205,10 @@ class GFlowNetEnv:
                 if key_x not in state_y:
                     return False
                 # Recursive comparison of the values
-                if do_equal:
-                    if not GFlowNetEnv.equal(value_x, state_y[key_x]):
-                        return False
-                else:
-                    if not GFlowNetEnv.isclose(
-                        value_x, state_y[key_x], rtol=rtol, atol=atol
-                    ):
-                        return False
+                if not GFlowNetEnv.isclose(
+                    value_x, state_y[key_x], rtol=rtol, atol=atol, do_equal=do_equal
+                ):
+                    return False
             else:
                 return True
         # Lists and tuples
@@ -1236,12 +1232,10 @@ class GFlowNetEnv:
                     return np.all(np.isclose(state_x, state_y, rtol=rtol, atol=atol))
             # Otherwise, iterate over the lists or tuples and compare them recursively
             for sx, sy in zip(state_x, state_y):
-                if do_equal:
-                    if not GFlowNetEnv.equal(sx, sy):
-                        return False
-                else:
-                    if not GFlowNetEnv.isclose(sx, sy, rtol=rtol, atol=atol):
-                        return False
+                if not GFlowNetEnv.isclose(
+                    sx, sy, rtol=rtol, atol=atol, do_equal=do_equal
+                ):
+                    return False
         else:
             raise NotImplementedError(f"Unknown type: {type(state_x)}")
         return True
