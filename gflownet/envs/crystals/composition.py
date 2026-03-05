@@ -253,10 +253,8 @@ class Composition(GFlowNetEnv):
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         if done:
             return [True for _ in range(self.action_space_dim)]
@@ -489,8 +487,7 @@ class Composition(GFlowNetEnv):
                 3: atomic number of Li
             output: H2Li1
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state_elements = {self.alphabet[el]: n for el, n in state.items()}
         formula = ""
         if "C" in state_elements:
@@ -561,10 +558,9 @@ class Composition(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
+
         if done:
             return [state], [self.eos]
         else:
@@ -664,8 +660,7 @@ class Composition(GFlowNetEnv):
         Helper that checks whether there is a configuration of oxidation states that
         can produce a neutral charge for the given state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
 
         nums_charges = [
             (num, self.oxidation_states[element]) for element, num in state.items()

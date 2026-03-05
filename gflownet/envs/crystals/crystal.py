@@ -22,7 +22,7 @@ from gflownet.envs.crystals.lattice_parameters import (
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy
-from gflownet.utils.crystals.constants import TRICLINIC
+from gflownet.utils.crystals.constants import LATTICE_SYSTEMS, TRICLINIC
 
 
 class Crystal(Stack):
@@ -295,9 +295,11 @@ class Crystal(Stack):
         action : tuple
             An action from the Crystal environment.
         """
-        # Revert the constraint space group -> lattice parameters
-        # Lattice system of LP subenv is set back to TRICLINIC
-        # Apply after (backward) EOS of SpaceGroup subenv
+        # Revert constraints:
+        # - space group -> lattice parameters: lattice system of LatticeParameters is
+        # set back to TRICLINIC
+        # - space group -> composition: space group of Composition is set back to None
+        # Apply constraint only if action is None or if it is the space group EOS
         if (
             self.do_spacegroup
             and self.do_sg_to_lp_constraints
@@ -306,6 +308,19 @@ class Crystal(Stack):
             )
         ):
             self.lattice_parameters.set_lattice_system(TRICLINIC)
+            self.composition.set_space_group(None)
+
+        # Revert constraints composition -> space group: The number of atoms is set
+        # back to None
+        # Apply constraint only if action is None or if it is the composition EOS
+        if (
+            self.do_composition_to_sg_constraints
+            and not self.do_sg_before_composition
+            and self._do_constraints_for_stage(
+                self.stage_composition, action, is_backward=True
+            )
+        ):
+            self.space_group.set_n_atoms_compatibility_dict(None)
 
     def states2proxy(
         self, states: List[List]
@@ -429,15 +444,34 @@ class Crystal(Stack):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
             state = {}
+            # Composition
             state[self.stage_composition] = self.subenvs[
                 self.stage_composition
             ].readable2state(row["Formulae"])
+            # Space group
             state[self.stage_spacegroup] = self.subenvs[
                 self.stage_spacegroup
             ]._set_constrained_properties([0, 0, row["Space Group"]])
-            state[self.stage_latticeparameters] = self.subenvs[
-                self.stage_latticeparameters
-            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
+            # Lattice parameters
+            lattice_system = self.space_group.get_lattice_system(
+                state[self.stage_spacegroup]
+            )
+            if lattice_system not in LATTICE_SYSTEMS:
+                lattice_system = TRICLINIC
+            state_lp = copy(self.lattice_parameters.source)
+            state_lp = self.lattice_parameters._set_stage(
+                self.lattice_parameters.stage_cube, state_lp
+            )
+            state_lp = self.lattice_parameters.set_lattice_system(
+                lattice_system, state_lp
+            )
+            state_cube = self.lattice_parameters.revert_lattice_constraints(
+                tuple(row[list(PARAMETER_NAMES)]), lattice_system
+            )
+            state[self.stage_latticeparameters] = self.lattice_parameters._set_substate(
+                self.lattice_parameters.stage_cube, state_cube, state_lp
+            )
+            # Check validity
             is_valid_subenvs = [
                 subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
             ]
@@ -452,8 +486,7 @@ class Crystal(Stack):
         """
         Prints a state in more human-readable format, for debugging purposes.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         for stage, subenv in self.subenvs.items():
             print(f"Stage {stage}")
             print(self._get_substate(state, stage))

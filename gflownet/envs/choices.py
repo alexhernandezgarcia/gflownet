@@ -219,8 +219,7 @@ class ChoicesBase:
         -------
         The set of options, as a tuple of integers.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         states = self._get_substates(state)
         return tuple([state[0] for state in states if state[0] != 0])
 

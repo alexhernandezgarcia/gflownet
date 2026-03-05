@@ -3,11 +3,11 @@
 # wandb: https://wandb.ai/alexhg/cube/runs/1du9iyr5
 
 defaults:
-   - override /env: ccube
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: uniform
-   - override /logger: wandb
+  - override /env: ccube
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
 
 # Environment
 env:

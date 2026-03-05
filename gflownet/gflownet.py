@@ -221,7 +221,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.corr_prob_traj_rewards = 0.0
+        self.corr_probs_rewards = 0.0
+        self.corr_logprobs_logrewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
         self.mean_logprobs_std = -1.0
@@ -859,13 +860,17 @@ class GFlowNetAgent:
                 device=self.device,
                 float_type=self.float,
             )
-            # Create an environment for each data point and trajectory and set the state
+            # Obtain the necessary env instances: one per trajectory in the batch
+            # WARNING : These instances must be reset before use.
+            n_trajectories_batch = (end_batch - init_batch) * n_trajectories
+            env_instances = self.get_env_instances(n_trajectories_batch)
+            # For each data point and trajectory, set the state on an environment
             envs = []
-            pbar2.reset((end_batch - init_batch) * n_trajectories)
+            pbar2.reset(n_trajectories_batch)
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
-                    env = self.env_maker().set_id(idx)
+                    env = env_instances.pop().reset(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
                     pbar2.update(1)
@@ -974,7 +979,6 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
-                    batch.zero_logprobs()
 
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models

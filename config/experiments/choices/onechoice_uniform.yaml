@@ -2,11 +2,11 @@
 # Choice (single) with uniform reward
 
 defaults:
-   - override /env: choice
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: uniform
-   - override /logger: wandb
+  - override /env: choice
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
 
 # Environment
 env:

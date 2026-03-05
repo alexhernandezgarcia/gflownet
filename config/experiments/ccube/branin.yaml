@@ -3,11 +3,11 @@
 # wandb: https://wandb.ai/alexhg/Branin/runs/xlxfdc6k
 
 defaults:
-   - override /env: ccube
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: box/branin
-   - override /logger: wandb
+  - override /env: ccube
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: box/branin
+  - override /logger: wandb
 
 # Environment
 env:

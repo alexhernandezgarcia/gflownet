@@ -1,11 +1,11 @@
 # @package _global_
 
 defaults:
-   - override /env: ctorus
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: torus
-   - override /logger: wandb
+  - override /env: ctorus
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: torus
+  - override /logger: wandb
 
 device: cpu
 

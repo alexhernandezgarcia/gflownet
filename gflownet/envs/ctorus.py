@@ -200,10 +200,8 @@ class ContinuousTorus(GFlowNetEnv):
           length, then only EOS is valid and the mask is True.
         - Otherwise, any continuous action is valid (except EOS) and the mask is False.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True] * 2
         elif state[-1] >= self.length_traj:
@@ -227,10 +225,8 @@ class ContinuousTorus(GFlowNetEnv):
             - True, if only the EOS action is valid, that is if done is True.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [False, True]
         elif state[-1] == 1:

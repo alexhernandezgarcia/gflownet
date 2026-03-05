@@ -34,8 +34,7 @@ class AlanineDipeptide(ContinuousTorus):
         self.sync_conformer_with_state()
 
     def sync_conformer_with_state(self, state: List = None):
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer

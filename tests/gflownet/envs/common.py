@@ -23,6 +23,22 @@ from gflownet.utils.policy import parse_policy_config
 
 
 class BaseTestsCommon:
+    def test__reset__reverts_all_attributes(self, n_repeat=10):
+        method_name = _get_current_method_name()
+
+        if hasattr(self, "repeats") and method_name in self.repeats:
+            n_repeat = self.repeats[method_name]
+
+        # Deep copy of the environment before changing it
+        env_orig = self.env.copy()
+
+        for _ in range(n_repeat):
+            # Sample a random trajectory
+            self.env.trajectory_random()
+            # Reset the environment
+            self.env.reset(self.env.id)
+            assert env_orig == self.env
+
     def test__set_state__sets_expected_state_and_creates_copy(
         self, n_repeat=1, n_states=3
     ):

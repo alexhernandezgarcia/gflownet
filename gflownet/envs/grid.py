@@ -108,10 +108,8 @@ class Grid(GFlowNetEnv):
             - True if the forward action is invalid from the current state.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
@@ -230,10 +228,8 @@ class Grid(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [self.eos]
         else:

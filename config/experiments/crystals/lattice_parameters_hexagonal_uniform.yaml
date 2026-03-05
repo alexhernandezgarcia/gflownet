@@ -1,17 +1,16 @@
 # @package _global_
-# A configuration that works well with the uniform proxy.
 
 defaults:
-  - override /env: hcube
-  - override /gflownet: trajectorybalance
-  - override /loss: trajectorybalance
-  - override /proxy: uniform
-  - override /logger: wandb
+   - override /env: crystals/lattice_parameters
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: uniform
+   - override /logger: wandb
 
 # Environment
 env:
+  lattice_system: hexagonal
   n_comp: 2
-  n_dim: 2
   beta_params_min: 0.1
   beta_params_max: 100.0
   min_incr: 0.1
@@ -27,6 +26,12 @@ env:
     beta_beta: 10.0
     bernoulli_eos_prob: 0.1
     bernoulli_bts_prob: 0.1
+
+# Buffer
+buffer:
+  test:
+    type: grid
+    n: 900
 
 # GFlowNet hyperparameters
 gflownet:
@@ -64,9 +69,10 @@ logger:
   tags: 
     - gflownet
     - continuous
-    - hcube
+    - latticeparameters
+    - ccube
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/hcube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S_%f}

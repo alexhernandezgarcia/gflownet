@@ -19,6 +19,8 @@ buffer:
 # Proxy
 proxy:
   vocabulary_check: True
+  reward_min: 1e-8
+  do_clip_rewards: True
 
 # GFlowNet hyperparameters
 gflownet:
@@ -29,7 +31,7 @@ gflownet:
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 10000
+    n_train_steps: 50000
 
 # Policy
 policy:

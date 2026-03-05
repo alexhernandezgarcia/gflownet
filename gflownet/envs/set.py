@@ -196,8 +196,7 @@ class BaseSet(CompositeBase):
             If ``index_subenv`` is not a valid sub-environment index because it is not
             one of the keys of the state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if idx_subenv not in state["_keys"]:
             raise ValueError(
                 f"Index {idx_subenv} is not a valid sub-environment index."
@@ -1157,9 +1156,7 @@ class BaseSet(CompositeBase):
             True) are also done. Note that the returned indices are the actual indices
             and not the substate keys. These indices are not permuted.
         """
-        if state is None:
-            state = self.state
-
+        state = self._get_state(state)
         unique_indices = self._get_unique_indices(state)
         keys = self._get_keys(state)
         if done_only:
@@ -1563,8 +1560,7 @@ class BaseSet(CompositeBase):
         state : dict
             A state of the parent Set environment.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state["_toggle"]
 
     def _set_toggle_flag(self, toggle_flag: int, state: Optional[Dict] = None) -> Dict:
@@ -1587,8 +1583,7 @@ class BaseSet(CompositeBase):
         The updated Set state.
         """
         assert toggle_flag in [0, 1]
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state["_toggle"] = toggle_flag
         return state
 
@@ -1610,8 +1605,7 @@ class BaseSet(CompositeBase):
         list
             The list of state keys in the state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state["_keys"]
 
     def _set_keys(self, keys: list, state: Optional[Dict] = None) -> Dict:
@@ -1634,8 +1628,7 @@ class BaseSet(CompositeBase):
         -------
         The updated Set state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state["_keys"] = keys
         return state
 
@@ -1987,6 +1980,26 @@ class BaseSet(CompositeBase):
                 return False
         return True
 
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        This method is overriden to ignore the keys:
+            - ``envs_unique_cache``
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        ignored_keys = ignored_keys + ["envs_unique_cache"]
+        return super().__eq__(other, ignored_keys=ignored_keys)
+
 
 class SetFix(BaseSet):
     """
@@ -2214,8 +2227,7 @@ class SetFix(BaseSet):
             else:
                 return ""
 
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         dones = self._get_dones(state)
         readable = (
             f"Active subenv {self._get_active_subenv(state)}; "
@@ -2779,8 +2791,7 @@ class SetFlex(BaseSet):
             else:
                 return ""
 
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         indices_unique = self._get_unique_indices(state)
         dones = self._get_dones(state)
         substates = self._get_substates(state)
@@ -2822,6 +2833,36 @@ class SetFlex(BaseSet):
             )
             self._set_subdone(idx, " | done" in readable, state)
         return state
+
+    # TODO: Try to find a better solution to this issue when sampling random subenvs
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        This method is overriden to ignore the keys:
+            - ``subenvs`` if ``self.do_random_subenvs`` is True, because in this case
+              resetting the environment will resample the sub-environments.
+            - ``state`` if ``self.do_random_subenvs`` is True, because in this case
+              resetting the environment will resample the sub-environments and set the
+              state accordingly.
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        if self.do_random_subenvs:
+            ignored_keys = ignored_keys + ["subenvs", "state"]
+        return super().__eq__(other, ignored_keys=ignored_keys)
 
 
 def make_set(
