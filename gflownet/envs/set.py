@@ -1464,6 +1464,30 @@ class BaseSet(GFlowNetEnv):
             )
         )
 
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        This method is overriden to ignore the keys:
+            - ``envs_unique_cache``
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        ignored_keys = ignored_keys + ["envs_unique_cache"]
+        return super().__eq__(other, ignored_keys=ignored_keys)
+
 
 class SetFix(BaseSet):
     """
@@ -2303,6 +2327,36 @@ class SetFlex(BaseSet):
             )
             self._set_subdone(idx, " | done" in readable, state)
         return state
+
+    # TODO: Try to find a better solution to this issue when sampling random subenvs
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        This method is overriden to ignore the keys:
+            - ``subenvs`` if ``self.do_random_subenvs`` is True, because in this case
+              resetting the environment will resample the sub-environments.
+            - ``state`` if ``self.do_random_subenvs`` is True, because in this case
+              resetting the environment will resample the sub-environments and set the
+              state accordingly.
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        if self.do_random_subenvs:
+            ignored_keys = ignored_keys + ["subenvs", "state"]
+        return super().__eq__(other, ignored_keys=ignored_keys)
 
 
 def make_set(

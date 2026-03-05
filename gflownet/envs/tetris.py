@@ -166,10 +166,10 @@ class Tetris(GFlowNetEnv):
         board = self._get_state(state, do_copy=True)
 
         piece_idx, rotation, col = action
-        piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
+        piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation].clone()
         piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][
             rotation
-        ]
+        ].clone()
         hp, wp = piece_mat.shape
 
         # Check if piece goes overboard horizontally

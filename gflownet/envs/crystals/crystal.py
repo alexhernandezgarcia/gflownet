@@ -295,9 +295,11 @@ class Crystal(Stack):
         action : tuple
             An action from the Crystal environment.
         """
-        # Revert the constraint space group -> lattice parameters
-        # Lattice system of LP subenv is set back to TRICLINIC
-        # Apply after (backward) EOS of SpaceGroup subenv
+        # Revert constraints:
+        # - space group -> lattice parameters: lattice system of LatticeParameters is
+        # set back to TRICLINIC
+        # - space group -> composition: space group of Composition is set back to None
+        # Apply constraint only if action is None or if it is the space group EOS
         if (
             self.do_spacegroup
             and self.do_sg_to_lp_constraints
@@ -306,6 +308,19 @@ class Crystal(Stack):
             )
         ):
             self.lattice_parameters.set_lattice_system(TRICLINIC)
+            self.composition.set_space_group(None)
+
+        # Revert constraints composition -> space group: The number of atoms is set
+        # back to None
+        # Apply constraint only if action is None or if it is the composition EOS
+        if (
+            self.do_composition_to_sg_constraints
+            and not self.do_sg_before_composition
+            and self._do_constraints_for_stage(
+                self.stage_composition, action, is_backward=True
+            )
+        ):
+            self.space_group.set_n_atoms_compatibility_dict(None)
 
     def states2proxy(
         self, states: List[List]

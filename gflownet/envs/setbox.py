@@ -229,8 +229,10 @@ class SetBox(Stack):
         if self._do_constraints_for_stage(
             self.stage_conditioning_grid, action, is_backward=True
         ):
-            # Reset source of Set and update global Stack state
+            # Reset source of Set, set subenvs of Set to None and update global Stack
+            # state
             self.set.state = copy(self.set.source)
+            self.set.subenvs = None
             self._set_substate(self.stage_set, self.set.state)
 
     def states2proxy(
