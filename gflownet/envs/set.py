@@ -1800,22 +1800,19 @@ class BaseSet(CompositeBase):
         ----------
         params : list
             A list of distribution parameters. This list has as many elements as
-            there are sub-environments. However, the parameters of unique environments
-            are expected to be identical and only the parameters of one of the
-            sub-environments will be used to obtain the policy outputs of the
-            corresponding unique environment.
+            there are unique environments, since all sub-environments of the same
+            environment type are expected to be identical.
         """
         policy_outputs_set_actions = torch.ones(
             self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
-        envs_unique, _, unique_indices = self._get_unique_environments(self.subenvs)
-        policy_outputs_envs_unique = []
-        for idx, env in enumerate(envs_unique):
-            policy_outputs_envs_unique.append(
-                env.get_policy_output(params[unique_indices.index(idx)])
-            )
-        policy_outputs_envs_unique = torch.cat(policy_outputs_envs_unique)
-        return torch.cat((policy_outputs_set_actions, policy_outputs_envs_unique))
+        policy_outputs_subenvs = torch.cat(
+            [
+                self._get_env_unique(idx).get_policy_output(params_env_unique)
+                for idx, params_env_unique in enumerate(params)
+            ]
+        )
+        return torch.cat((policy_outputs_set_actions, policy_outputs_subenvs))
 
     def _get_policy_outputs_of_set_actions(
         self, policy_outputs: TensorType["n_states", "policy_output_dim"]
@@ -1957,6 +1954,8 @@ class BaseSet(CompositeBase):
         # order to return True.
         keys_y = state_y["_keys"].copy()
         for idx_x, key_x in enumerate(state_x["_keys"]):
+            if key_x == -1:
+                continue
             substate_x = state_x[key_x]
             substate_match = False
             for key_y in keys_y:
@@ -2071,10 +2070,10 @@ class SetFix(BaseSet):
 
         # Policy distributions parameters
         kwargs["fixed_distr_params"] = [
-            subenv.fixed_distr_params for subenv in self.subenvs
+            env.fixed_distr_params for env in self.envs_unique
         ]
         kwargs["random_distr_params"] = [
-            subenv.random_distr_params for subenv in self.subenvs
+            env.random_distr_params for env in self.envs_unique
         ]
         # Base class init
         super().__init__(**kwargs)
@@ -2387,10 +2386,10 @@ class SetFlex(BaseSet):
 
         # Policy distributions parameters
         kwargs["fixed_distr_params"] = [
-            subenv.fixed_distr_params for subenv in self.envs_unique
+            env.fixed_distr_params for env in self.envs_unique
         ]
         kwargs["random_distr_params"] = [
-            subenv.random_distr_params for subenv in self.envs_unique
+            env.random_distr_params for env in self.envs_unique
         ]
         # Base class init
         super().__init__(**kwargs)
@@ -2477,13 +2476,14 @@ class SetFlex(BaseSet):
         unique_indices += [-1] * (self.max_elements - n_subenvs)
         # Set done of sub-environments to 0 and pad with 1's.
         dones = [0] * n_subenvs + [1] * (self.max_elements - n_subenvs)
+        keys = [*range(n_subenvs)] + [-1] * (self.max_elements - n_subenvs)
         # Set self.state
         self.state = {
             "_active": -1,
             "_toggle": 0,
             "_dones": dones,
             "_envs_unique": unique_indices,
-            "_keys": list(range(self.max_elements)),
+            "_keys": keys,
         }
         self.state.update({idx: subenv.source for idx, subenv in enumerate(subenvs)})
 
