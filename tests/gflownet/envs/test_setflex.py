@@ -14,6 +14,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.constant import Constant
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.dummy import Dummy
@@ -517,7 +518,7 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 "_toggle": 0,
                 "_dones": [0, 0, 1],
                 "_envs_unique": [1, 0, -1],
-                "_keys": [0, -1, -1],
+                "_keys": [0, 1, -1],
                 0: [0, 0],
                 1: [-1, -1],
             },
@@ -844,7 +845,7 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 "_toggle": 0,
                 "_dones": [0, 0, 1],
                 "_envs_unique": [1, 0, -1],
-                "_keys": [0, -1, -1],
+                "_keys": [0, 1, -1],
                 0: [0, 0],
                 1: [-1, -1],
             },
@@ -1296,7 +1297,13 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
 
     # Check states of subenvs
     for idx, subenv in enumerate(env.subenvs):
-        assert env.equal(subenv.state, env._get_substate(state, idx))
+        if not env.equal(subenv.state, env._get_substate(state, idx)):
+            # If substates are dictionaries and have the key "_keys", compare using
+            # the Set's equal(). Otherwise, use GFlowNetEnv's equal().
+            if type(subenv.state) == dict and "_keys" in subenv.state:
+                assert env.equal(subenv.state, env._get_substate(state, idx))
+            else:
+                assert GFlowNetEnv.equal(subenv.state, env._get_substate(state, idx))
 
     # Check global done
     assert env.done == done
