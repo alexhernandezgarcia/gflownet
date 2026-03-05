@@ -727,9 +727,7 @@ class BaseSet(CompositeBase):
                     self._set_toggle_flag(1)
                 else:
                     # Activate first non-done subenv of the toggled type
-                    indices_unique = self._get_unique_indices(
-                        self.state, exclude_nonpresent=False
-                    )
+                    indices_unique = self._get_unique_indices(self.state)
                     dones = self._get_dones(self.state)
                     subenv_to_activate = None
                     for idx, (idx_unique, done) in enumerate(
@@ -1049,7 +1047,7 @@ class BaseSet(CompositeBase):
             # If sub-environments cannot alternate, only the last done sub-environment
             # of each unique environment can be active in the parents.
             assert toggle_flag == 0
-            indices_unique = self._get_unique_indices(state, exclude_nonpresent=False)
+            indices_unique = self._get_unique_indices(state)
             indices_unique_seen = set()
             for idx, (idx_unique, done) in reversed(
                 list(enumerate(zip(indices_unique, dones)))
@@ -1162,7 +1160,7 @@ class BaseSet(CompositeBase):
         if state is None:
             state = self.state
 
-        unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+        unique_indices = self._get_unique_indices(state)
         keys = self._get_keys(state)
         if done_only:
             dones = self._get_dones(state)
@@ -1458,7 +1456,7 @@ class BaseSet(CompositeBase):
             idx_unique = action[1]
 
             # Get unique indices and done flags from state
-            unique_indices = self._get_unique_indices(state, exclude_nonpresent=False)
+            unique_indices = self._get_unique_indices(state)
             dones = self._get_dones(state)
 
             # Find all done instances of this unique environment type
