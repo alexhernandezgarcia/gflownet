@@ -508,6 +508,23 @@ class LatticeParameters(Stack):
         ):
             self.cube.ignored_dims = IGNORED_DIMS[self.lattice_system]
 
+    def _apply_constraints_backward(self, action: Tuple = None):
+        """
+        Applies constraints across sub-environments in the backward direction.
+
+        This method simply reverts the lattice system constraints by setting the
+        ignored dimensions as for the triclinic lattice system (no constraints).
+
+        Parameters
+        ----------
+        action : tuple
+            An action from the Stack environment.
+        """
+        if self._do_constraints_for_stage(
+            self.stage_condition, action, is_backward=True
+        ):
+            self.cube.ignored_dims = IGNORED_DIMS[TRICLINIC]
+
     def _check_has_constraints(self) -> bool:
         """
         Checks whether the Stack has constraints across sub-environments.
