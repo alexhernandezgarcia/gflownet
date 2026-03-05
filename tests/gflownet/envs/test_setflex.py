@@ -1133,6 +1133,34 @@ def test__is_source__returns_expected(env, subenvs, state, is_source, request):
 
 
 @pytest.mark.parametrize(
+    "env, subenvs, state",
+    [
+        (
+            "env_two_grids",
+            (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
+        ),
+    ],
+)
+def test__get_parents__returns_no_parents_in_initial_state(
+    env, subenvs, state, request
+):
+    env = request.getfixturevalue(env)
+    env.set_subenvs(subenvs)
+    assert env.is_source(state)
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
+@pytest.mark.parametrize(
     "env, state, done, subenvs",
     [
         (
