@@ -1634,7 +1634,6 @@ class BaseSet(CompositeBase):
         -------
         The updated Set state.
         """
-        assert set(keys) == set(range(self.max_elements))
         if state is None:
             state = self.state
         state["_keys"] = keys
@@ -1957,6 +1956,8 @@ class BaseSet(CompositeBase):
             substate_x = state_x[key_x]
             substate_match = False
             for key_y in keys_y:
+                if key_y == -1:
+                    continue
                 substate_y = state_y[key_y]
                 # If substates are dictionaries and have the key "_keys", compare using
                 # the Set's equal(). Otherwise, use the parent's equal().
@@ -2807,6 +2808,11 @@ class SetFlex(BaseSet):
         readables = readable.split(";")
         self._set_active_subenv(int(readables[0].split(" ")[-1]), state)
         self._set_toggle_flag(int(readables[1].split(" ")[-1]), state)
+        self._set_keys(
+            [*range(len(self.subenvs))]
+            + [-1] * (self.max_elements - len(self.subenvs)),
+            state,
+        )
         readables = [readable.strip() for readable in readables[2:]]
         for idx, (subenv, readable) in enumerate(zip(self.subenvs, readables)):
             idx_unique, readable = readable.split(": ")
