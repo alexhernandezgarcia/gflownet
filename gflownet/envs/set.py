@@ -2045,6 +2045,9 @@ class SetFix(BaseSet):
         #   - "_envs_unique": A list of indices identifying the unique environment
         #   corresponding to each subenv. -1 if there is no sub-environment in that
         #   position. All -1 in the source.
+        #   - "_keys": A list of unique integers containing the key at which each
+        #   substate is stored. The i-th substate is stored under the key at the i-th
+        #   position of this list.
         # - States of the sub-environments, with keys the indices of the subenvs.
         # The only meta-data key specific to the Set (not part of composite
         # environments by default) is "_toggle".
@@ -2347,6 +2350,9 @@ class SetFlex(BaseSet):
         #   is set to 1. In the source state, the list is set to all 1s.
         #   - "_envs_unique": A list of indices identifying the unique environment. -1
         #   if there is no sub-environment in that position. All -1 in the source.
+        #   - "_keys": A list of unique integers containing the key at which each
+        #   substate is stored. The i-th substate is stored under the key at the i-th
+        #   position of this list.
         # - States of the sub-environments, with keys the indices of the subenvs. In
         # the source state, there is not any.
         # The only meta-data key specific to the Set (not part of composite
@@ -2356,6 +2362,7 @@ class SetFlex(BaseSet):
             "_toggle": 0,
             "_dones": [1] * self.max_elements,
             "_envs_unique": [-1] * self.max_elements,
+            "_keys": list(range(self.max_elements)),
         }
 
         # Set sub-environments
@@ -2476,6 +2483,7 @@ class SetFlex(BaseSet):
             "_toggle": 0,
             "_dones": dones,
             "_envs_unique": unique_indices,
+            "_keys": list(range(self.max_elements)),
         }
         self.state.update({idx: subenv.source for idx, subenv in enumerate(subenvs)})
 
