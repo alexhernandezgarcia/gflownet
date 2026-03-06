@@ -42,7 +42,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
     eval_parser = subparsers.add_parser(
-        "evaluation", help="Evaluate a trained GFlowNet run."
+        "run_gfn_evaluation", help="Evaluate a trained GFlowNet run."
     )
     eval_parser.add_argument(
         "--rundir", type=str, required=True, help="Path to run (where .hydra/ is)."
@@ -66,7 +66,7 @@ def parse_args():
         help="Force re-sampling even if samples already exist",
     )
     theory_parser = subparsers.add_parser(
-        "theory", help="Compute theoretical Ising quantities."
+        "run_theory", help="Compute theoretical Ising quantities."
     )
     theory_parser.add_argument("--periodic", type=bool, default=True)
     theory_parser.add_argument(
@@ -403,10 +403,10 @@ def run_evaluation(args):
 def main():
     args = parse_args()
 
-    if args.command == "theory":
+    if args.command == "run_theory":
         run_theory(args)
 
-    elif args.command == "evaluation":
+    elif args.command == "run_gfn_evaluation":
         run_evaluation(args)
 
 
