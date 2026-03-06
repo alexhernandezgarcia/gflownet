@@ -1202,7 +1202,7 @@ class GFlowNetEnv:
         if isinstance(state_x, str):
             return state_x == state_y
         # Numbers
-        if isinstance(state_x, numbers.Number):
+        elif isinstance(state_x, numbers.Number):
             if do_equal:
                 return state_x == state_y
             return np.isclose(state_x, state_y, rtol=rtol, atol=atol)
@@ -1326,10 +1326,24 @@ class GFlowNetEnv:
             # does not catch differences in sub-environments that are not at the first
             # level of a list, tuple or dict
             elif isinstance(v, list) or isinstance(v, tuple):
+                if len(v) != len(v_other):
+                    return False
+                if len(v) == 0:
+                    return True
                 for v_el, v_other_el in zip(v, v_other):
                     if isinstance(v_el, GFlowNetEnv):
                         if not v_el.__eq__(v_other_el):
                             return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_el, v_other_el):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
             elif isinstance(v, dict):
                 for (v_k, v_v), (v_other_k, v_other_v) in zip(
                     v.items(), v_other.items()
@@ -1339,6 +1353,16 @@ class GFlowNetEnv:
                     if isinstance(v_v, GFlowNetEnv):
                         if not v_v.__eq__(v_other_v):
                             return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_v, v_other_v):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
             else:
                 # Compare the values with GFlowNet.equal()
                 try:
