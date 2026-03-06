@@ -303,7 +303,14 @@ def theoretical_logZ(beta, L):
 
     return logz
 
-
+def compute_theoretical_quantities(beta, length):
+    """
+    Compute all available theoretical quantities. For now, only includes logZ.
+    Analytical expressions in the thermodynamic limit of <|m|> and C can be added in the future.
+    """
+    return {
+        "logZ": theoretical_logZ(beta, length),
+    }
 # -----------------------------------------------------------
 # Run modes
 # -----------------------------------------------------------
@@ -325,10 +332,9 @@ def run_theory(args):
         raise ValueError(
             "Analytical logZ currently only supports periodic boundary conditions."
         )
-    logZ_th = theoretical_logZ(args.beta, args.length)
-
+    theory = compute_theoretical_quantities(args.beta, args.length)
     print("\nTheoretical quantities:")
-    print(f"log_Z (theoretical) = {logZ_th:.6f}")
+    print(f"log_Z (theoretical) = {theory['logZ']:.6f}")
 
 
 def run_gfn_evaluation(args):
@@ -352,7 +358,7 @@ def run_gfn_evaluation(args):
     samples, energies = load_samples_from_pkl(args.rundir)
 
     # Theoretical quantities
-    logZ_th = theoretical_logZ(beta, length)
+    theory = compute_theoretical_quantities(beta, length)
     # Estimated quantities
     m_abs_magnetization = mean_abs_magnetization(samples)
     m_susceptibility = mean_susceptibility(samples, beta)
@@ -375,7 +381,7 @@ def run_gfn_evaluation(args):
         "mean_susceptibility": m_susceptibility,
         "mean_energy": m_energy,
         "heat_capacity": C,
-        "logZ_theoretical": logZ_th,
+        "logZ_theoretical": theory["logZ"],
     }
 
     print("\nEstimated quantities from GFN run:")
@@ -386,7 +392,7 @@ def run_gfn_evaluation(args):
     print(f"  Heat capacity                  = {C:.6f}")
 
     print("\nTheoretical quantities:")
-    print(f"logZ (theoretical) = {logZ_th:.6f}")
+    print(f"logZ (theoretical) = {theory['logZ']:.6f}")
 
     # --- Save JSON ---
     out_dir = os.path.join(os.path.abspath(args.rundir), "eval", "samples")
