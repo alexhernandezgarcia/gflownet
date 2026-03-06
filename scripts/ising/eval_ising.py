@@ -331,7 +331,7 @@ def run_theory(args):
     print(f"log_Z (theoretical) = {logZ_th:.6f}")
 
 
-def run_evaluation(args):
+def run_gfn_evaluation(args):
     """Run trained GFN evaluation and theoretical comparaison"""
     n_dim, length, J_nn, beta_raw = load_ising_params(args.rundir)
     logZ_gfn = load_wandb_logZ(args.wandbdir)
@@ -407,7 +407,7 @@ def main():
         run_theory(args)
 
     elif args.command == "run_gfn_evaluation":
-        run_evaluation(args)
+        run_gfn_evaluation(args)
 
 
 if __name__ == "__main__":
