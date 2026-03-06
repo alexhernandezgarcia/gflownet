@@ -196,44 +196,6 @@ class Crystal(Stack):
             ]
         )
 
-    def _apply_constraints(
-        self,
-        action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-        is_backward: bool = False,
-    ):
-        """
-        Applies constraints across sub-environments, when applicable.
-
-        This method simply selects the corresponding forward or backward method to
-        apply the constraints.
-
-        Forward:
-        - composition -> space group (if composition is first)
-        - space group -> composition (if space group is first)
-        - space group -> lattice parameters
-        Backward:
-        - lattice parameters -> space group
-
-        This method is used in step() and set_state().
-
-        Parameters
-        ----------
-        action : tuple
-            An action from the Crystal environment.
-        state : list
-            A state from the Crystal environment.
-        dones : list
-            List of boolean values indicating the sub-environments that are done.
-        is_backward : bool
-            Boolean flag to indicate whether the action is in the backward direction.
-        """
-        if is_backward:
-            self._apply_constraints_backward(action)
-        else:
-            self._apply_constraints_forward(action, state, dones)
-
     def _apply_constraints_forward(
         self,
         action: Tuple = None,

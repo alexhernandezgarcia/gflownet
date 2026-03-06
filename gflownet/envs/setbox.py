@@ -140,41 +140,6 @@ class SetBox(Stack):
         """
         return True
 
-    def _apply_constraints(
-        self,
-        action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-        is_backward: bool = False,
-    ):
-        """
-        Applies constraints across sub-environments, when applicable.
-
-        This method sets up the Set of cubes and grids, once the first conditioning
-        environment (grid) of the Stack is done.
-
-        The first dimension (0) of the conditioning grid indicates the number of cubes
-        in the Set and the second dimension indicates the number of grids. If both are
-        zero, then the number of grids and cubes will be set at random.
-
-        This method is used in step() and set_state().
-
-        Parameters
-        ----------
-        action : tuple
-            An action from the SetBox environment.
-        state : list or tensor (optional)
-            A state from the SetBox environment.
-        is_backward : bool
-            Boolean flag to indicate whether the action is in the backward direction.
-        dones : list
-            A list indicating the sub-environments that are done.
-        """
-        if is_backward:
-            self._apply_constraints_backward(action)
-        else:
-            self._apply_constraints_forward(action, state, dones)
-
     def _apply_constraints_forward(
         self,
         action: Tuple = None,

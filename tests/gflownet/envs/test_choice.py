@@ -2,28 +2,28 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.options import Options
+from gflownet.envs.choice import Choice
 from gflownet.utils.common import tfloat
 
 
 @pytest.fixture
 def env():
-    return Options()
+    return Choice()
 
 
 @pytest.fixture
 def env_with_options():
-    return Options(options=["A", "B", "C", "D", "E"])
+    return Choice(options=["A", "B", "C", "D", "E"])
 
 
 @pytest.fixture
 def env_with_10_options():
-    return Options(n_options=10)
+    return Choice(n_options=10)
 
 
 @pytest.fixture
 def env_with_10_options_5avail():
-    return Options(n_options=10, options_available=[1, 3, 5, 7, 9])
+    return Choice(n_options=10, options_available=[1, 3, 5, 7, 9])
 
 
 @pytest.mark.parametrize(
@@ -254,8 +254,8 @@ def test__states2policy__returns_expected_tensor(env, batch, exp_tensor):
     )
 
 
-class TestOptionsDefault(common.BaseTestsDiscrete):
-    """Common tests for default Options environment"""
+class TestChoiceDefault(common.BaseTestsDiscrete):
+    """Common tests for default Choice environment"""
 
     @pytest.fixture(autouse=True)
     def setup(self, env):
@@ -282,8 +282,8 @@ class TestOptionsDefault(common.BaseTestsDiscrete):
         }
 
 
-class TestOptions5AvailableDefault(common.BaseTestsDiscrete):
-    """Common tests for Options environment 10 options but only 5 available"""
+class TestChoice5AvailableDefault(common.BaseTestsDiscrete):
+    """Common tests for Choice environment 10 options but only 5 available"""
 
     @pytest.fixture(autouse=True)
     def setup(self, env_with_10_options_5avail):

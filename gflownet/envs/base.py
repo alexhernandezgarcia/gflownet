@@ -167,6 +167,40 @@ class GFlowNetEnv:
         """
         return action
 
+    def action_produces_permutation(
+        self, action: Tuple, is_backward: bool = False
+    ) -> bool:
+        """
+        Determines whether an action produces permutations in the resulting state.
+
+        Permutations can be introduced, for example, in environments that need to
+        incorporate permutation invariance, as in sets of elements. In these cases,
+        some actions may result in states with elements that are randomly permuted.
+
+        This method allows to identify these actions, which is useful, for instance, in
+        unit tests.
+
+        By default, actions do not produce permutations and the returned value of this
+        method is False.
+
+        Environments with actions that produce permutations should override this method
+        and properly identify such actions.
+
+        Parameters
+        ----------
+        action : tuple
+            An action of the environment.
+        is_backward : bool
+            Whether the transition to consider is backward (True) or forward (False).
+
+        Returns
+        -------
+        bool
+            Whether the input actions produces permutations in the resulting state, in
+            the direction indicated by ``is_backward``.
+        """
+        return False
+
     def action2index(self, action: Tuple) -> int:
         """
         Returns the index in the action space of the action passed as an argument, or
@@ -1167,7 +1201,7 @@ class GFlowNetEnv:
         if isinstance(state_x, str):
             return state_x == state_y
         # Numbers
-        if isinstance(state_x, numbers.Number):
+        elif isinstance(state_x, numbers.Number):
             if do_equal:
                 return state_x == state_y
             return np.isclose(state_x, state_y, rtol=rtol, atol=atol)
@@ -1291,10 +1325,24 @@ class GFlowNetEnv:
             # does not catch differences in sub-environments that are not at the first
             # level of a list, tuple or dict
             elif isinstance(v, list) or isinstance(v, tuple):
+                if len(v) != len(v_other):
+                    return False
+                if len(v) == 0:
+                    return True
                 for v_el, v_other_el in zip(v, v_other):
                     if isinstance(v_el, GFlowNetEnv):
                         if not v_el.__eq__(v_other_el):
                             return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_el, v_other_el):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
             elif isinstance(v, dict):
                 for (v_k, v_v), (v_other_k, v_other_v) in zip(
                     v.items(), v_other.items()
@@ -1304,16 +1352,25 @@ class GFlowNetEnv:
                     if isinstance(v_v, GFlowNetEnv):
                         if not v_v.__eq__(v_other_v):
                             return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_v, v_other_v):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
             else:
-                pass
-            # Compare the values with self.equal()
-            try:
-                if not self.equal(v, v_other):
-                    return False
-            except NotImplementedError:
-                # If the types are not handled by self.equal, then ignore this
-                # attribute for lack of means to determine whether the values are equal
-                continue
+                # Compare the values with GFlowNet.equal()
+                try:
+                    if not GFlowNetEnv.equal(v, v_other):
+                        return False
+                except NotImplementedError:
+                    # If the types are not handled by self.equal, then ignore this
+                    # attribute for lack of means to determine whether the values are equal
+                    continue
         return True
 
     def get_trajectories(
