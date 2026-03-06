@@ -292,6 +292,12 @@ class ChoicesBase:
             if option_of_active_subenv != 0:
                 options_available.add(option_of_active_subenv)
             self.choice_env.set_available_options(options_available)
+        # If the state is source, reset the available options to the full set of
+        # options
+        # TODO: Design better solution for resetting the constraints when reset() is
+        # called
+        elif self.is_source(state):
+            self.choice_env.set_available_options(set(self.choice_env.options_indices))
 
     def states2policy(
         self, states: List[Dict]

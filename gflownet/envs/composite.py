@@ -518,6 +518,7 @@ class CompositeBase(GFlowNetEnv):
         super().reset(env_id=env_id)
 
         # Apply constraints across sub-environments, in case they apply.
+        # TODO: Design better solution for resetting the constraints from reset()
         self._apply_constraints(state=self.state, is_backward=True)
         return self
 
