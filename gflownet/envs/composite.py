@@ -623,7 +623,7 @@ class CompositeBase(GFlowNetEnv):
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_stage` may
+        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_subenv` may
         be used as a helper to determine whether the constraints imposed by a
         sub-environment should be applied depending on the action.
 
@@ -653,7 +653,7 @@ class CompositeBase(GFlowNetEnv):
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_stage` may
+        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_subenv` may
         be used as a helper to determine whether the constraints imposed by a
         sub-environment should be applied depending on the action.
 
