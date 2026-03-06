@@ -21,7 +21,6 @@ from torchtyping import TensorType
 
 from gflownet.utils.common import (
     copy,
-    mixsorteditems,
     set_device,
     set_float_precision,
     tbool,
