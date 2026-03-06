@@ -1340,15 +1340,14 @@ class GFlowNetEnv:
                         if not v_v.__eq__(v_other_v):
                             return False
             else:
-                pass
-            # Compare the values with self.equal()
-            try:
-                if not self.equal(v, v_other):
-                    return False
-            except NotImplementedError:
-                # If the types are not handled by self.equal, then ignore this
-                # attribute for lack of means to determine whether the values are equal
-                continue
+                # Compare the values with GFlowNet.equal()
+                try:
+                    if not GFlowNetEnv.equal(v, v_other):
+                        return False
+                except NotImplementedError:
+                    # If the types are not handled by self.equal, then ignore this
+                    # attribute for lack of means to determine whether the values are equal
+                    continue
         return True
 
     def get_trajectories(
