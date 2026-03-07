@@ -4,6 +4,9 @@ do:
   online: False
   times: False
 
+vislogger:
+  use: False
+
 project_name: "GFlowNet"
 
 # Log dir

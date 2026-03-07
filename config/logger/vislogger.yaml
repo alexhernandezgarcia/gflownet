@@ -1,0 +1,17 @@
+defaults:
+  - base
+
+vislogger:
+  use: True
+  # Logs the batch of the training batchsize every n iterations
+  log_every_n: 10
+  # If true expects the env to have a function vis_states2features(states)
+  use_env_feature_fn: True
+  # Shows the dashboard during training (not fully implemented yet)
+  show_during_training: False
+  # Launches the dashboard after training
+  launch_after_training: False
+
+
+tags:
+    - gflownet
