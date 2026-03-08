@@ -75,7 +75,7 @@ def run_dashboard(
             result = text_to_img_fn(state)
             if isinstance(result, list):
                 return result
-            return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
+            return f"data:image/png;base64,{text_to_img_fn(state)}"
 
     if state_aggregation_fn is None:
         warnings.warn("No state-aggregation-function provided. ")
@@ -812,7 +812,7 @@ def run_dashboard(
                 direction="right",
                 style={"zIndex": 999, "pointerEvents": "none", "overflow": "visible"},
             ),
-            dcc.Tooltip(id="image-tooltip3", direction="left"),
+            dcc.Tooltip(id="image-tooltip3", direction="bottom"),
             dcc.Tooltip(id="image-tooltip1", direction="top"),
         ],
         style={

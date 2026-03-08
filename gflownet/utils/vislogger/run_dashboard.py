@@ -83,7 +83,7 @@ def main():
 
     cfg = OmegaConf.load(path / ".hydra" / "config.yaml")
     env = instantiate(cfg.env)
-    s0 = "#" if args.default_s0 else env.state2readable(env.source)
+    s0 = "#" if args.default_s0 else env.vis_states2text([env.source])[0]
 
     run_dashboard(
         data=str(path / "visdata"),

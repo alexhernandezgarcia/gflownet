@@ -703,24 +703,27 @@ class Plotter:
                 pf,
                 features_valid
             FROM (
-                SELECT
-                    final_id,
-                    text,
-                    {", ".join(feature_cols)},
-                    {", ".join(metric_lists[0])},
-                    iteration,
-                    final_object,
-                    SUM(logprobs_forward) OVER (
-                        PARTITION BY final_id
-                    ) AS pf,
-                    features_valid,
+                SELECT *,
                     ROW_NUMBER() OVER (
                         PARTITION BY text
                         ORDER BY iteration DESC
                     ) AS rn
-                FROM trajectories
-                WHERE iteration BETWEEN ? AND ?
-                AND final_object = 1
+                FROM (
+                    SELECT
+                        final_id,
+                        text,
+                        {", ".join(feature_cols)},
+                        {", ".join(metric_lists[0])},
+                        iteration,
+                        final_object,
+                        SUM(logprobs_forward) OVER (
+                            PARTITION BY final_id
+                        ) AS pf,
+                        features_valid
+                    FROM trajectories
+                    WHERE iteration BETWEEN ? AND ?
+                ) t
+                WHERE final_object = 1
             )
             WHERE rn = 1
         """
@@ -1152,9 +1155,9 @@ class Plotter:
                         "background-fit": "contain",
                         "background-clip": "none",
                         "shape": "round-rectangle",
-                        "width": "60px",
+                        "width": "65px",
                         "height": "45px",
-                        "border-width": "5px",
+                        "border-width": "2px",
                         "border-color": "#BAEB9D",
                     },
                 },
@@ -1458,12 +1461,13 @@ class Plotter:
     def edge_hover_fig(self, edge_data):
         """Edge hover fig."""
         fig = go.Figure()
+        mode = "markers" if len(edge_data) == 1 else "lines"
 
         fig.add_trace(
             go.Scatter(
                 x=edge_data["iteration"],
                 y=edge_data["logprobs_forward"],
-                mode="lines+markers",
+                mode=mode,
                 name="forward",
                 line=dict(color=self.cs_diverging_dir[-3]),
                 marker=dict(color=self.cs_diverging_dir[-3]),
@@ -1474,7 +1478,7 @@ class Plotter:
             go.Scatter(
                 x=edge_data["iteration"],
                 y=edge_data["logprobs_backward"],
-                mode="lines+markers",
+                mode=mode,
                 name="backward",
                 line=dict(color=self.cs_diverging_dir[2]),
                 marker=dict(color=self.cs_diverging_dir[2]),
@@ -1658,7 +1662,7 @@ class Plotter:
         # Precompute marker sizes: circle if object was sampled in that iteration
         tmp["sampled"] = tmp.apply(
             lambda r: (
-                8
+                6
                 if (
                     (df["text"] == r["text"]) & (df["iteration"] == r["iteration"])
                 ).any()

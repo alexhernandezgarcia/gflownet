@@ -453,12 +453,10 @@ class Grid(GFlowNetEnv):
                 extent=[-0.5, self.length - 0.5, -0.5, self.length - 0.5],
                 origin="lower",
             )
-            for i in range(self.length + 1):
-                pos = i - 0.5
-                ax.axhline(pos, color="lightgrey", linewidth=1)
-                ax.axvline(pos, color="lightgrey", linewidth=1)
             ax.set_xticks([])
             ax.set_yticks([])
+            ax.set_xticks(np.arange(-0.5, self.length, 1), minor=True)
+            ax.set_yticks(np.arange(-0.5, self.length, 1), minor=True)
             ax.set_xlim(-0.5, self.length - 0.5)
             ax.set_ylim(-0.5, self.length - 0.5)
             ax.set_aspect("equal")
@@ -474,7 +472,7 @@ class Grid(GFlowNetEnv):
             ax.set_yticks(dims)
             fig.tight_layout()
 
-        plt.savefig(buffer, format="svg", bbox_inches="tight")
+        plt.savefig(buffer, format="png", dpi=100)
         plt.close(fig)
         buffer.seek(0)
         svg_base64 = base64.b64encode(buffer.read()).decode("utf-8")
