@@ -4,6 +4,7 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import (
     download_file_from_gdrive, witch_proc_data)
@@ -136,7 +137,10 @@ class fairy_model(nn.Module):
         mlp_out = self.net(stack)
 
         # Final output layer
-        variables_next = variables_current + self.variables_layer(mlp_out)
+        delta = self.variables_layer(mlp_out)
+        # Compress outlier deltas: linear in [-1,1], slope 0.1 outside
+        delta = F.hardtanh(delta) + 0.1 * (delta - F.hardtanh(delta))
+        variables_next = variables_current + delta
         if self.probabilistic:
             confidence = self.confidence_layer(mlp_out)
             return variables_next, confidence
