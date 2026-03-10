@@ -116,8 +116,8 @@ class GFlowNetAgent:
             GPU. By default it is 0, so no garbage collection is performed. This is
             because it can incur a large time overhead unnecessarily.
         collect_reversed_logprobs: bool
-            If True, reversed logprobs will be computed and collected during sampling batches
-            for training
+            If True, reversed logprobs will be computed and collected during sampling
+            batches for training
 
         Raises
         ------
@@ -156,6 +156,10 @@ class GFlowNetAgent:
             )
         # Logging
         self.logger = logger
+        self.logger.vis_attach_fns(
+            fn_state_to_text=self.env.vis_states2text,
+            fn_compute_features=self.env.vis_states2features,
+        )
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
@@ -1019,7 +1023,7 @@ class GFlowNetAgent:
         )
         # Close logger
         if self.use_context is False:
-            self.logger.end()
+            self.logger.end(self.env)
 
     @torch.no_grad()
     def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):
@@ -1160,6 +1164,8 @@ class GFlowNetAgent:
                     prefix="Replay buffer -",
                     use_context=self.use_context,
                 )
+
+        self.logger.vis_log(batch, rewards, self.loss, self.it)
 
         t1_log = time.time()
         times.update({"log": t1_log - t0_log})
