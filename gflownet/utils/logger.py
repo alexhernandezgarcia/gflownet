@@ -43,7 +43,6 @@ class Logger:
         self,
         config: dict,
         do: dict,
-        vislogger: dict,
         project_name: str,
         logdir: dict,
         lightweight: bool,
@@ -58,6 +57,7 @@ class Logger:
         entity: str = None,
         progressbar: dict = {"skip": False, "n_iters_mean": 100},
         is_resumed: bool = False,
+        vislogger: dict = None,
     ):
         self.config = config
         self.do = do
@@ -131,15 +131,7 @@ class Logger:
         # Write wandb URL
         self.write_url_file()
         # add vislogger if specified
-        self.usevislogger = vislogger["use"]
-        if self.usevislogger:
-            self.visloggerconfig = vislogger
-            from gflownet.utils.vislogger.logger import VisLogger
-
-            self.vislogger = VisLogger(
-                path=self.logdir / "visdata",
-                s0_included=False,
-            )
+        self.visloggerconfig = vislogger
 
     def write_url_file(self):
         if self.wandb is not None:
@@ -380,7 +372,19 @@ class Logger:
             times = {"time_{}".format(k): v for k, v in times.items()}
             self.log_metrics(times, use_context=use_context)
 
-    def end(self):
-        if not self.do.online:
-            return
-        self.wandb.finish()
+    def end(self, env):
+        if self.do.online:
+            self.wandb.finish()
+        self.vis_end(env)
+
+    def vis_attach_fns(self, fn_state_to_text, fn_compute_features):
+        """Dummy function for the vislogger, see gflownet.utils.vislogger.logger"""
+        pass
+
+    def vis_end(self, env):
+        """Dummy function for the vislogger, see gflownet.utils.vislogger.logger"""
+        pass
+
+    def vis_log(self, batch, rewards, loss, it):
+        """Dummy function for the vislogger, see gflownet.utils.vislogger.logger"""
+        pass

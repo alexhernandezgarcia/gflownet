@@ -33,72 +33,73 @@ import numpy as np
 import pandas as pd
 import torch
 
+from gflownet.utils.logger import Logger
+from gflownet.utils.vislogger.dashboard import run_dashboard
+
 from .graphdbs_from_db import create_graph_dbs
 
 
-class VisLogger:
-    """Logger class."""
+class VisLogger(Logger):
+    """Logger for the visualizations.
+
+    Parameters
+    ----------
+    path: str
+        path to a folder to save the data. If none creates one based on datetime
+        in root.
+    s0_included: bool
+        if True, the trajectories are expected to have the (empty)
+        start state included.
+        The start states will then be removed before writing to the database.
+        s0 will be specified as '#' in the visualizations.
+    fn_state_to_text: callable
+        Function to convert a batch of states to a list of readable strings to
+        identify a single state.
+        Neccessary, used to distinguish states.
+        Consecutive states with the same text will be merged (logprobs will be
+        added).
+        s0 will be specified as '#' in the visualizations,
+        make sure no state has the same identifier.
+    fn_compute_features: callable
+        Function to compute features from the states.
+        Should take the states in the same format as given (torch Tensor, np array
+        or list) and return a tuple consisting of:
+            1. A np array of size (sum(trajectory_lengths), n_features) containing
+            the features
+            2. A list(bool) that tells for each state if the feature computation was
+             successful.
+            Unsuccessful states are skipped in the trajectory visualizations
+        These will be used for the downprojections.
+        Additional features can also be logged with the features parameter
+    metrics: list[str]
+        Optional.
+        Names of additional metrics for final objects. Might be different losses or
+        rewards.
+        If the reward or loss function consists of multiple parts you can specify
+        all of them here (list of strings).
+        They will need to be logged each iteration.
+        Otherwise only the total reward and the loss will be logged.
+    features: list[str]
+        Optional.
+        If you want to log features, specify them here (list of strings).
+        They will need to be logged each iteration.
+        The features will be used for the downprojections.
+        If features can be calculated from the states you can additionally use the
+        fn_compute_features parameter.
+    """
 
     def __init__(
         self,
-        path: str | None = None,
-        s0_included: bool = True,
+        *args,
+        s0_included: bool = False,
         fn_state_to_text: Callable | None = None,
         fn_compute_features: Callable | None = None,
         metrics: list[str] | None = None,
         features: list[str] | None = None,
+        **kwargs,
     ):
-        """Logger for the visualizations.
-
-        Parameters
-        ----------
-        path: str
-            path to a folder to save the data. If none creates one based on datetime
-            in root.
-        s0_included: bool
-            if True, the trajectories are expected to have the (empty)
-            start state included.
-            The start states will then be removed before writing to the database.
-            s0 will be specified as '#' in the visualizations.
-        fn_state_to_text: callable
-            Function to convert a batch of states to a list of readable strings to
-            identify a single state.
-            Neccessary, used to distinguish states.
-            Consecutive states with the same text will be merged (logprobs will be
-            added).
-            s0 will be specified as '#' in the visualizations,
-            make sure no state has the same identifier.
-        fn_compute_features: callable
-            Function to compute features from the states.
-            Should take the states in the same format as given (torch Tensor, np array
-            or list) and return a tuple consisting of:
-                1. A np array of size (sum(trajectory_lengths), n_features) containing
-                the features
-                2. A list(bool) that tells for each state if the feature computation was
-                 successful.
-                Unsuccessful states are skipped in the trajectory visualizations
-            These will be used for the downprojections.
-            Additional features can also be logged with the features parameter
-        metrics: list[str]
-            Optional.
-            Names of additional metrics for final objects. Might be different losses or
-            rewards.
-            If the reward or loss function consists of multiple parts you can specify
-            all of them here (list of strings).
-            They will need to be logged each iteration.
-            Otherwise only the total reward and the loss will be logged.
-        features: list[str]
-            Optional.
-            If you want to log features, specify them here (list of strings).
-            They will need to be logged each iteration.
-            The features will be used for the downprojections.
-            If features can be calculated from the states you can additionally use the
-            fn_compute_features parameter.
-        """
-        if path:
-            self.path = path
-        else:
-            self.path = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        super().__init__(*args, **kwargs)
+        self.path = self.logdir / "visdata"
         os.makedirs(self.path)
 
         self.db = f"{self.path}/data.db"
@@ -140,7 +141,7 @@ class VisLogger:
         if self.features:
             self.current.update({"features_valid_provided": None})
 
-    def attach_fns(self, fn_state_to_text=None, fn_compute_features=None):
+    def vis_attach_fns(self, fn_state_to_text=None, fn_compute_features=None):
         """Attach the functions after initialization."""
         if fn_state_to_text is not None:
             self.fn_state_to_text = fn_state_to_text
@@ -528,3 +529,85 @@ class VisLogger:
             cur.execute("CREATE INDEX idx_testset_text ON testset(text)")
             cur.execute("CREATE INDEX idx_testset_reward ON testset(total_reward)")
         conn.close()
+
+    def vis_end(self, env):
+        """
+        Finalize the vislogger after training. If the graph db was not computed
+        during training it will be done now. Optionally launches the dashboard
+
+        Parameters
+        ----------
+        env: the gflownet environment. Needed for the vis functions
+        """
+        if not self.visloggerconfig.show_during_training:
+            self.compute_graph()
+        if self.visloggerconfig.launch_after_training:
+            run_dashboard(
+                data=self.db,
+                text_to_img_fn=env.vis_show_state,
+                state_aggregation_fn=env.vis_aggregation,
+                s0="#",
+                debug_mode=False,
+            )
+
+    def vis_log(self, batch, rewards, loss, it):
+        """
+        Prepares the data for the format expected by the vis database.
+
+        Parameters
+        ----------
+        batch: The current batch
+        rewards: The current rewards
+        loss: The gflownet loss instance to compute the loss for each trajectory
+        it: The current iteration
+        """
+        if self.should_log(it):
+            traj_indices = batch.get_trajectory_indices()
+            order = sorted(range(len(traj_indices)), key=lambda i: traj_indices[i])
+            with torch.no_grad():
+                logging_loss = loss.compute_losses_of_batch(batch).flatten()
+                if loss.acronym == "FL" or loss.acronym == "FM" or loss.acronym == "DB":
+                    # aggregate for trajectories for state level loss
+                    num_trajectories = traj_indices.max().item() + 1
+                    trajectory_loss_sum = torch.zeros(num_trajectories)
+                    trajectory_loss_sum.scatter_add_(0, traj_indices, logging_loss)
+                    logging_loss = trajectory_loss_sum
+                elif loss.acronym != "TB" and loss.acronym != "VG":
+                    raise NotImplementedError
+            self.log(
+                batch_idx=np.array([traj_indices[i] for i in order]),
+                states=[batch.get_states()[i] for i in order],
+                total_reward=np.array(rewards),
+                loss=np.array(logging_loss),
+                iteration=it,
+                logprobs_forward=np.array(
+                    [batch.get_logprobs(backward=False)[0][i] for i in order]
+                ),
+                logprobs_backward=np.array(
+                    [batch.get_logprobs(backward=True)[0][i] for i in order]
+                ),
+            )
+            self.write_to_db(compute_graph=self.visloggerconfig["show_during_training"])
+
+    def should_log(self, step):
+        """
+        Check if logging should be done. The decision is based on the
+        log_every_n_attribute of the vislogger.
+
+        Parameters
+        ----------
+        step : int
+            Current iteration step.
+
+        Returns
+        -------
+        bool
+            True if testing should be done at the current step, False otherwise.
+        """
+        if (
+            self.visloggerconfig.log_every_n is None
+            or self.visloggerconfig.log_every_n <= 0
+        ):
+            return False
+        else:
+            return (step + 1) % self.visloggerconfig.log_every_n == 0

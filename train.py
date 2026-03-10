@@ -63,7 +63,7 @@ def main(config):
 
     # Close logger
     # TODO: make it gflownet.end() - perhaps there are other things to end
-    gflownet.logger.end()
+    gflownet.logger.end(gflownet.env)
 
 
 def set_seeds(seed):
