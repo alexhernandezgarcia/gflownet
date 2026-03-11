@@ -109,9 +109,11 @@ class Grid(GFlowNetEnv):
         """
         Returns which actions are invalid (True) and which are not invalid (False).
 
-        This method makes use of ``self.actions_np``, defined in
-        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`, and operates with numpy
-        arrays in order to improve the efficiency of the operations.
+        A version of the code operation with numpy arrays is left commented out as a
+        potential alternative, for future reference. The numpy way makes use of
+        ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`.
+
 
         Parameters
         ----------
@@ -128,10 +130,18 @@ class Grid(GFlowNetEnv):
         done = self._get_done(done)
         if done:
             return [True] * self.mask_dim
-        dist_to_edge = (self.length - 1) * np.ones(self.n_dim, dtype=int) - np.array(
-            state
-        )
-        mask = np.any(dist_to_edge < self.actions_np, axis=1).tolist()
+        # Numpy way: less efficient at least with few dimensions
+        # dist_to_edge = (self.length - 1) * np.ones(self.n_dim, dtype=int) - np.array(
+        #     state
+        # )
+        # mask = np.any(dist_to_edge < self.actions_np, axis=1).tolist()
+        mask = [False] * self.mask_dim
+        max_val = self.length - 1
+        for idx, action in enumerate(self.action_space):
+            for s_dim, a_dim in zip(state, action):
+                if (max_val - s_dim) < a_dim:
+                    mask[idx] = True
+                    break
         return mask
 
     def get_mask_invalid_actions_backward(
@@ -146,9 +156,10 @@ class Grid(GFlowNetEnv):
         it is overwritten here to improve the efficiency and because it is used by
         :py:meth:`~gflownet.envs.grid.Grid.get_parents`.
 
-        This method makes use of ``self.actions_np``, defined in
-        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`, and operates with numpy
-        arrays in order to improve the efficiency of the operations.
+        A version of the code operation with numpy arrays is left commented out as a
+        potential alternative, for future reference. The numpy way makes use of
+        ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`.
 
         Parameters
         ----------
@@ -168,9 +179,18 @@ class Grid(GFlowNetEnv):
             mask = [True] * self.mask_dim
             mask[self.action2index(self.eos)] = False
             return mask
-        mask = np.any(self.actions_np > np.array(state), axis=1).tolist()
-        # Make EOS invalid, since the trajectory is not done
-        mask[self.action2index(self.eos)] = True
+        # Numpy way: less efficient at least with few dimensions
+        # mask = np.any(self.actions_np > np.array(state), axis=1).tolist()
+        # mask[self.action2index(self.eos)] = True
+        mask = [False] * self.mask_dim
+        for idx, action in enumerate(self.action_space):
+            if action == self.eos:
+                mask[idx] = True
+                continue
+            for s_dim, a_dim in zip(state, action):
+                if a_dim > s_dim:
+                    mask[idx] = True
+                    break
         return mask
 
     def get_parents(
@@ -207,7 +227,7 @@ class Grid(GFlowNetEnv):
         parents = []
         actions = []
         for action in actions_valid:
-            parent = list(np.array(state, dtype=int) - np.array(action))
+            parent = [s_dim - a_dim for s_dim, a_dim in zip(state, action)]
             parents.append(parent)
             actions.append(action)
         return parents, actions
