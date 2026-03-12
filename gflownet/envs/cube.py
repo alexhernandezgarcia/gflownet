@@ -15,7 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.envs.set import SetFix
+from gflownet.envs.composite.setfix import SetFix
 from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
 CELL_MIN = -1.0

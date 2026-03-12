@@ -20,7 +20,9 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.choice import Choice
-from gflownet.envs.set import SetFix, SetFlex, make_set
+from gflownet.envs.composite import make_set
+from gflownet.envs.composite.setfix import SetFix
+from gflownet.envs.composite.setflex import SetFlex
 from gflownet.utils.common import tfloat, tlong
 
 

@@ -7,10 +7,10 @@ import torch
 from torch import Tensor
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.composite.setfix import SetFix
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFix
-from gflownet.envs.stack import Stack
 from gflownet.envs.tetris import Tetris
 from gflownet.utils.common import copy, tbool
 

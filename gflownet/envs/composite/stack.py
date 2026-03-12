@@ -2,17 +2,14 @@
 Composite base class to stack multiple environments.
 """
 
-import json
 from collections import OrderedDict
-from enum import Enum
-from typing import Dict, List, Optional, OrderedDict, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
-from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tbool, tfloat, tlong
+from gflownet.utils.common import copy, tfloat
 
 
 class Stack(GFlowNetEnv):
@@ -26,8 +23,8 @@ class Stack(GFlowNetEnv):
     This class enables the incorporation of constraints across sub-environments via the
     :py:meth:`~gflownet.envs.stack.Stack._apply_constraints` method. In order to
     implement the application of constraints, Stack environments must override:.
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
+            - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_backward`
 
     For example, a new environment can be created by stacking the (continuous) Cube and
     the Tetris.
@@ -739,13 +736,14 @@ class Stack(GFlowNetEnv):
             - :py:meth:`~gflownet.envs.base.GFlowNetEnv.reset()`
 
         This method simply calls
-        :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward` and/or
-        :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`.
+        :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_forward`
+        and/or
+        :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_backward`.
 
         This method should in general not be overriden. Instead, classes inheriting the
         Stack class may override:
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
+            - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_backward`
 
         Parameters
         ----------
@@ -801,9 +799,9 @@ class Stack(GFlowNetEnv):
 
         Environments inheriting the Stack may override this method if constraints
         across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.stack.Stack._do_constraints_for_stage` may be used as
-        a helper to determine whether the constraints imposed by a sub-environment
-        should be applied depending on the action.
+        :py:meth:`~gflownet.envs.composite.stack.Stack._do_constraints_for_stage` may
+        be used as a helper to determine whether the constraints imposed by a
+        sub-environment should be applied depending on the action.
 
         Parameters
         ----------
@@ -829,9 +827,9 @@ class Stack(GFlowNetEnv):
 
         Environments inheriting the Stack may override this method if constraints
         across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.stack.Stack._do_constraints_for_stage` may be used as
-        a helper to determine whether the constraints imposed by a sub-environment
-        should be applied depending on the action.
+        :py:meth:`~gflownet.envs.composite.stack.Stack._do_constraints_for_stage` may
+        be used as a helper to determine whether the constraints imposed by a
+        sub-environment should be applied depending on the action.
 
         Parameters
         ----------
@@ -853,8 +851,8 @@ class Stack(GFlowNetEnv):
         whether the constraints are to be done or undone, and whether they would be
         triggered by a transition or by ``set_state()`` or ``reset()``. This method is
         meant to be called from:
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.stack.Stack._apply_constraints_backward`
+        - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_forward`
+        - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_backward`
 
         Additionally, Stack environments may include other speciic checks before
         setting inter-environment constraints, besides the output of this method.
@@ -961,7 +959,6 @@ class Stack(GFlowNetEnv):
             )
 
         # Stitch all actions in the right order, with the right padding
-        actions = []
         return [
             self._pad_action(actions_dict[stage].pop(0), stage) for stage in stages_int
         ]
