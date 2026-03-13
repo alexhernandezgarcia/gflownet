@@ -6,10 +6,12 @@ import pytest
 import torch
 from torch import Tensor
 
+from gflownet.envs.composite import make_set
+from gflownet.envs.composite.setfix import SetFix
+from gflownet.envs.composite.setflex import SetFlex
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFix, SetFlex, make_set
-from gflownet.envs.stack import Stack
 from gflownet.envs.tetris import Tetris
 from gflownet.utils.common import copy, tbool, tfloat
 

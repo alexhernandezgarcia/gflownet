@@ -15,9 +15,9 @@ from scipy.linalg import expm, logm
 from torch import Tensor
 from torchtyping import TensorType
 
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.dummy import Dummy
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tfloat, tlong
 from gflownet.utils.crystals.constants import (
     CUBIC,

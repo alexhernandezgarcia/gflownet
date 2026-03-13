@@ -4,16 +4,11 @@ Base class for composite environments.
 Composite environments are environments which consist of multiple environments.
 """
 
-import uuid
-from enum import Enum
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-import numpy as np
-import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tfloat, tlong
 
 
 class CompositeBase(GFlowNetEnv):
@@ -411,8 +406,8 @@ class CompositeBase(GFlowNetEnv):
         next or active.
 
         See:
-        - :py:meth:`~gflownet.envs.composite.CompositeBase._pad_action`
-        - :py:meth:`~gflownet.envs.composite.CompositeBase._depad_action`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._depad_action`
         """
         # EOS action
         action_space = [self.eos]
@@ -432,7 +427,7 @@ class CompositeBase(GFlowNetEnv):
         as padding.
 
         See:
-        - :py:meth:`~gflownet.envs.composite.CompositeBase.get_action_space`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase.get_action_space`
 
         Parameters
         ----------
@@ -455,7 +450,7 @@ class CompositeBase(GFlowNetEnv):
         the underlying environment.
 
         See:
-        - :py:meth:`~gflownet.envs.composite.CompositeBase._pad_action`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
 
         Parameters
         ----------
@@ -560,15 +555,15 @@ class CompositeBase(GFlowNetEnv):
         Applies constraints across sub-environments.
 
         This method is called from the methods that can modify the state, namely:
-            - :py:meth:`~gflownet.envs.composite.CompositeBase.step()`
-            - :py:meth:`~gflownet.envs.composite.CompositeBase.step_backwards()`
-            - :py:meth:`~gflownet.envs.composite.CompositeBase.set_state()`
-            - :py:meth:`~gflownet.envs.composite.CompositeBase.reset()`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase.step()`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase.step_backwards()`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase.set_state()`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase.reset()`
 
         This method simply calls
-        :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_forward`
+        :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
         and/or
-        :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_backward`.
+        :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`.
 
         This method should in general not be overriden. Instead, environments
         inheriting composite classes may override:
@@ -624,8 +619,8 @@ class CompositeBase(GFlowNetEnv):
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_subenv` may
-        be used as a helper to determine whether the constraints imposed by a
+        :py:meth:`~gflownet.envs.composite.base.CompositeBase._do_constraints_for_subenv`
+        may be used as a helper to determine whether the constraints imposed by a
         sub-environment should be applied depending on the action.
 
         Parameters
@@ -654,8 +649,8 @@ class CompositeBase(GFlowNetEnv):
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
-        :py:meth:`~gflownet.envs.composite.CompositeBase._do_constraints_for_subenv` may
-        be used as a helper to determine whether the constraints imposed by a
+        :py:meth:`~gflownet.envs.composite.base.CompositeBase._do_constraints_for_subenv`
+        may be used as a helper to determine whether the constraints imposed by a
         sub-environment should be applied depending on the action.
 
         Parameters
@@ -684,8 +679,8 @@ class CompositeBase(GFlowNetEnv):
         whether the constraints are to be done or undone, and whether they would be
         triggered by a transition or by ``set_state()`` or ``reset()``. This method is
         meant to be called from:
-            - :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.composite.CompositeBase._apply_constraints_backward`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
+            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`
 
         Additionally, composite environments may include other speciic checks before
         setting inter-environment constraints, besides the output of this method.

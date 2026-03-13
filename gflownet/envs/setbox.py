@@ -17,10 +17,10 @@ import torch
 from torchtyping import TensorType
 from tqdm import tqdm
 
+from gflownet.envs.composite.setflex import SetFlex
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFlex
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tfloat
 
 # Constants to identify the indices of the Cube and Grid unique environments

@@ -13,6 +13,7 @@ import torch
 from torchtyping import TensorType
 from tqdm import tqdm
 
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import (
     PARAMETER_NAMES,
@@ -20,7 +21,6 @@ from gflownet.envs.crystals.lattice_parameters import (
     LatticeParametersSGCCG,
 )
 from gflownet.envs.crystals.spacegroup import SpaceGroup
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy
 from gflownet.utils.crystals.constants import LATTICE_SYSTEMS, TRICLINIC
 

@@ -15,12 +15,12 @@ import torch
 from torch import Tensor
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.composite.setflex import SetFlex
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.constant import Constant
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.dummy import Dummy
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFlex
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tbool, tfloat
 
 
