@@ -21,8 +21,8 @@ class Stack(GFlowNetEnv):
     sub-environment in the stack reaches the final ("done") state.
 
     This class enables the incorporation of constraints across sub-environments via the
-    :py:meth:`~gflownet.envs.stack.Stack._apply_constraints` method. In order to
-    implement the application of constraints, Stack environments must override:.
+    :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints` method. In order
+    to implement the application of constraints, Stack environments must override:.
             - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_forward`
             - :py:meth:`~gflownet.envs.composite.stack.Stack._apply_constraints_backward`
 
