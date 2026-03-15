@@ -47,7 +47,7 @@ class Stack(CompositeBase):
             stacked.
         """
         self.subenvs = subenvs
-        self.n_subenvs = len(self.subenvs)
+        self.max_elements = len(self.subenvs)
 
         # Determine the unique environments
         (
@@ -115,7 +115,7 @@ class Stack(CompositeBase):
             The number of elements in the Stack masks.
         """
         mask_dim_envs_unique = [env.mask_dim for env in self.envs_unique]
-        return max(mask_dim_envs_unique) + self.n_subenvs
+        return max(mask_dim_envs_unique) + self.max_elements
 
     def _get_max_trajectory_length(self) -> int:
         """
@@ -285,9 +285,9 @@ class Stack(CompositeBase):
         idx_subenv : int
             The index of the sub-environment to be one-hot encoded.
         """
-        idx_onehot = [False] * self.n_subenvs
+        idx_onehot = [False] * self.max_elements
         idx_onehot[idx_subenv] = True
-        padding = [False] * (self.mask_dim - (len(mask) + self.n_subenvs))
+        padding = [False] * (self.mask_dim - (len(mask) + self.max_elements))
         return idx_onehot + mask + padding
 
     def get_valid_actions(
@@ -343,7 +343,7 @@ class Stack(CompositeBase):
         if mask is not None:
             # Extract the part of the mask corresponding to the sub-environment
             # TODO: consider writing a method to do this
-            mask = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
+            mask = mask[env.max_elements : env.max_elements + subenv.mask_dim]
 
         # Obtain valid actions
         valid_actions = [
@@ -374,7 +374,7 @@ class Stack(CompositeBase):
         subenv = self.subenvs[stage]
         # Extract the part of the mask corresponding to the sub-environment
         # TODO: consider writing a method to do this
-        mask = mask[self.n_subenvs : self.n_subenvs + subenv.mask_dim]
+        mask = mask[self.max_elements : self.max_elements + subenv.mask_dim]
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
@@ -801,7 +801,7 @@ class Stack(CompositeBase):
 
         # Set state and done of each sub-environment
         n_done = self._get_stage(state) + int(done)
-        dones = (True,) * n_done + (False,) * (self.n_subenvs - n_done)
+        dones = (True,) * n_done + (False,) * (self.max_elements - n_done)
         for (stage, subenv), done_subenv in zip(self.subenvs.items(), dones):
             subenv.set_state(self._get_substate(self.state, stage), done_subenv)
 
@@ -831,7 +831,7 @@ class Stack(CompositeBase):
         that correspond to the sub-environment.
         """
         # Get the relevant stage of each mask from the one-hot prefix
-        stages = torch.where(mask[:, : self.n_subenvs])[1]
+        stages = torch.where(mask[:, : self.max_elements])[1]
         stages_int = stages.tolist()
         states_dict = {stage: [] for stage in self.subenvs.keys()}
         """
@@ -850,7 +850,9 @@ class Stack(CompositeBase):
                 continue
             actions_dict[stage] = subenv.sample_actions_batch(
                 self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
-                mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
+                mask[
+                    stage_mask, self.max_elements : self.max_elements + subenv.mask_dim
+                ],
                 states_dict[stage],
                 is_backward,
                 random_action_prob,
@@ -892,7 +894,7 @@ class Stack(CompositeBase):
         actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
         # Get the relevant stage of each mask from the one-hot prefix
-        stages = torch.where(mask[:, : self.n_subenvs])[1]
+        stages = torch.where(mask[:, : self.max_elements])[1]
         stages_int = stages.tolist()
         states_dict = {stage: [] for stage in self.subenvs.keys()}
         """
@@ -912,7 +914,9 @@ class Stack(CompositeBase):
             logprobs[stage_mask] = subenv.get_logprobs(
                 self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
                 actions[stage_mask, 1 : 1 + len(subenv.eos)],
-                mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
+                mask[
+                    stage_mask, self.max_elements : self.max_elements + subenv.mask_dim
+                ],
                 states_dict[stage],
                 is_backward,
             )
