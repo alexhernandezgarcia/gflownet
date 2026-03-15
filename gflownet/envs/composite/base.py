@@ -6,6 +6,7 @@ Composite environments are environments which consist of multiple environments.
 
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -535,6 +536,71 @@ class CompositeBase(GFlowNetEnv):
         # TODO: Design better solution for resetting the constraints from reset()
         self._apply_constraints(state=self.state, is_backward=True)
         return self
+
+    def get_policy_output(self, params: list[dict]) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model.
+
+        By default, the policy output is the concatenation of the policy outputs of the
+        unique environments.
+
+        Sub-classes should override this method if the structure of the policy outputs
+        changes, for example, if meta-actions are added.
+
+        Parameters
+        ----------
+        params : list
+            A list of distribution parameters. This list has as many elements as
+            there are unique environments, since all sub-environments of the same
+            environment type are expected to be identical.
+        """
+        return torch.cat(
+            [
+                self._get_env_unique(idx).get_policy_output(params_env_unique)
+                for idx, params_env_unique in enumerate(params)
+            ]
+        )
+
+    def _get_policy_outputs_of_env_unique(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        idx_unique: int,
+    ):
+        """
+        Returns the columns of the policy outputs that correspond to the unique
+        environment indicated by idx_unique.
+
+        Since the policy outputs corresponding to each unique environment are
+        concatenated across the columns of the input tensor, the outputs of a
+        particular environment can be retrieved by iterating over the unique
+        environments and calculating their output dimensions. In order to avoid this
+        iteration at every request, the first call creates a dictionary of offsets as
+        an attribute of the environment.
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            A tensor containing a batch of policy outputs. It is assumed that all the
+            rows in the this tensor correspond to the same unique environment.
+        idx_unique : int
+            Index of the unique environment of which the corresponding columns of the
+            policy outputs are to be extracted.
+        """
+        if hasattr(self, "_policy_outputs_offset_of_unique_env"):
+            if idx_unique in self._policy_outputs_offset_of_unique_env:
+                init_col = self._policy_outputs_offset_of_unique_env[idx_unique]
+                end_col = init_col + self._get_env_unique(idx_unique).policy_output_dim
+                return policy_outputs[:, init_col:end_col]
+        else:
+            self._policy_outputs_offset_of_unique_env = {}
+
+        init_col = 0
+        for idx in range(self.n_unique_envs):
+            end_col = init_col + self._get_env_unique(idx).policy_output_dim
+            if idx == idx_unique:
+                self._policy_outputs_offset_of_unique_env[idx] = init_col
+                return policy_outputs[:, init_col:end_col]
+            init_col = end_col
 
     @property
     def has_constraints(self):

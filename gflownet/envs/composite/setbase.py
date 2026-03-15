@@ -1260,7 +1260,7 @@ class BaseSet(CompositeBase):
             if not torch.any(indices_unique_mask):
                 continue
             actions_subenvs_dict[idx] = subenv.sample_actions_batch(
-                self._get_policy_outputs_of_subenv(
+                self._get_policy_outputs_of_env_unique(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
                 self._extract_core_mask(
@@ -1388,7 +1388,7 @@ class BaseSet(CompositeBase):
             if not torch.any(indices_unique_mask):
                 continue
             logprobs_subenvs[indices_unique_mask] = subenv.get_logprobs(
-                self._get_policy_outputs_of_subenv(
+                self._get_policy_outputs_of_env_unique(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
                 actions[is_active][indices_unique_mask, 1 : 1 + len(subenv.eos)],
@@ -1779,6 +1779,9 @@ class BaseSet(CompositeBase):
         """
         Defines the structure of the output of the policy model.
 
+        This method is overriden to add the policy outputs corresponding to the Set
+        actions. These are concatenated to the policy outputs of the unique
+        environments, obtained from the parent's method.
         The policy output is the concatenation of the policy outputs corresponding to
         the Set actions (actions to activate a sub-environment and EOS) and the policy
         outputs of the unique environments.
@@ -1790,57 +1793,30 @@ class BaseSet(CompositeBase):
             there are unique environments, since all sub-environments of the same
             environment type are expected to be identical.
         """
+        policy_outputs_subenvs = super().get_policy_output(params)
         policy_outputs_set_actions = torch.ones(
             self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
-        policy_outputs_subenvs = torch.cat(
-            [
-                self._get_env_unique(idx).get_policy_output(params_env_unique)
-                for idx, params_env_unique in enumerate(params)
-            ]
-        )
-        return torch.cat((policy_outputs_set_actions, policy_outputs_subenvs))
+        return torch.cat((policy_outputs_subenvs, policy_outputs_set_actions))
 
     def _get_policy_outputs_of_set_actions(
         self, policy_outputs: TensorType["n_states", "policy_output_dim"]
     ):
         """
-        Returns the columns of the policy outputs that correspond to the Set actions:
-        toggle actions and EOS.
+        Returns the columns of the policy outputs that correspond to the Set actions.
 
-        Args
-        ----
+        Set actions are toggle actions and EOS.
+
+        It is assumed that the policy outputs of Set actions are stored on the last
+        ``self.n_toggle_actions + 1`` columns of the input tensor.
+
+        Parameters
+        ----------
         policy_outputs : tensor
             A tensor containing a batch of policy outputs. It is assumed that all the
             rows in the this tensor correspond to actions to activate a sub-environemnt.
         """
-        return policy_outputs[:, : self.n_toggle_actions + 1]
-
-    def _get_policy_outputs_of_subenv(
-        self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-        idx_unique: int,
-    ):
-        """
-        Returns the columns of the policy outputs that correspond to the
-        sub-environment indicated by idx_subenv.
-
-        Args
-        ----
-        policy_outputs : tensor
-            A tensor containing a batch of policy outputs. It is assumed that all the
-            rows in the this tensor correspond to the same unique environment.
-
-        idx_unique : int
-            Index of the unique environment of which the corresponding columns of the
-            policy outputs are to be extracted.
-        """
-        init_col = self.n_toggle_actions + 1
-        for idx in range(self.n_unique_envs):
-            end_col = init_col + self._get_env_unique(idx).policy_output_dim
-            if idx == idx_unique:
-                return policy_outputs[:, init_col:end_col]
-            init_col = end_col
+        return policy_outputs[:, -(self.n_toggle_actions + 1) :]
 
     def is_source(self, state: Optional[Dict] = None) -> bool:
         """
