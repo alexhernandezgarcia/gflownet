@@ -1558,10 +1558,6 @@ def test__step__works_as_expected(
 
     # Check end state
     assert env.equal(env.state, state_next)
-    if not env.equal(env.state, state_next_exp):
-        import ipdb
-
-        ipdb.set_trace()
     assert env.equal(env.state, state_next_exp)
 
     # Check action and valid
