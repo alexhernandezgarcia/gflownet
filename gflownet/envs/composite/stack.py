@@ -290,6 +290,24 @@ class Stack(CompositeBase):
         padding = [False] * (self.mask_dim - (len(mask) + self.max_elements))
         return idx_onehot + mask + padding
 
+    def _unformat_mask(self, mask: List[bool], idx_subenv: int):
+        """
+        Extracts the mask of the sub-environment from a Stack-formated mask.
+
+        This method removes the one-hot encoding of the index of the active
+        sub-environment that precedes the subenv mask, as well as the padding.
+
+        Parameters
+        ----------
+        mask : List[bool]
+            A Stack mask
+        idx_subenv : int
+            The index of the sub-environment whose mask is to be extracted.
+        """
+        return mask[
+            self.max_elements : self.max_elements + self.subenvs[idx_subenv].mask_dim
+        ]
+
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
@@ -342,8 +360,7 @@ class Stack(CompositeBase):
 
         if mask is not None:
             # Extract the part of the mask corresponding to the sub-environment
-            # TODO: consider writing a method to do this
-            mask = mask[env.max_elements : env.max_elements + subenv.mask_dim]
+            mask = self._unformat_mask(mask, relevant_subenv)
 
         # Obtain valid actions
         valid_actions = [
@@ -374,7 +391,7 @@ class Stack(CompositeBase):
         subenv = self.subenvs[stage]
         # Extract the part of the mask corresponding to the sub-environment
         # TODO: consider writing a method to do this
-        mask = mask[self.max_elements : self.max_elements + subenv.mask_dim]
+        mask = self._unformat_mask(mask, stage)
         env_cond = env_cond.subenvs[stage]
         mask = subenv.mask_conditioning(mask, env_cond, backward)
         return self._format_mask(mask, stage, subenv.mask_dim)
