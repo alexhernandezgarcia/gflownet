@@ -539,7 +539,7 @@ class Stack(CompositeBase):
             return self.state, action, False
 
         # Get active sub-environment, subenv and action of subenv
-        active_subenv = self._get_active_subenv(state)
+        active_subenv = self._get_active_subenv(self.state)
         subenv = self.subenvs[active_subenv]
         action_subenv = self._depad_action(action, active_subenv)
 
