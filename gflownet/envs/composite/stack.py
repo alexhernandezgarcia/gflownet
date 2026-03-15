@@ -66,7 +66,7 @@ class Stack(CompositeBase):
         # Note: "_dones" is not included because it can be inferred from the active
         # sub-environment.
         self.source = {
-            "_active": -1,
+            "_active": 0,
             "_envs_unique": self.unique_indices,
         }
         self.source.update(
