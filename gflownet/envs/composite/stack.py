@@ -268,23 +268,48 @@ class Stack(CompositeBase):
         padding = [False] * (self.mask_dim - (len(mask) + self.max_elements))
         return idx_onehot + mask + padding
 
-    def _unformat_mask(self, mask: List[bool], idx_subenv: int):
+    def _unformat_mask(
+        self,
+        mask: Union[List[bool], TensorType["batch_size", "mask_dim"]],
+        idx_subenv: int = None,
+        mask_dim: int = None,
+    ):
         """
-        Extracts the mask of the sub-environment from a Stack-formated mask.
+        Extracts the mask of the sub-environment from a Stack-formated mask or batch of
+        masks.
 
         This method removes the one-hot encoding of the index of the active
         sub-environment that precedes the subenv mask, as well as the padding.
 
         Parameters
         ----------
-        mask : List[bool]
-            A Stack mask
+        mask : List[bool] or tensor
+            A Stack mask or batch of masks
         idx_subenv : int
-            The index of the sub-environment whose mask is to be extracted.
+            The index of the sub-environment whose mask is to be extracted. If None,
+            ``mask_dim`` must be passed.
+        mask_dim : int
+            The dimensionality of the mask to be extracted. If None, ``idx_subenv``
+            must be passed. Ignored if ``idx_subenv`` is not None.
+
+        Raises
+        ------
+        ValueError
+            If ``idx_subenv`` and ``mask_dim`` are both None.
+        ValueError
+            If the mask is neither a list nor a tensor.
         """
-        return mask[
-            self.max_elements : self.max_elements + self.subenvs[idx_subenv].mask_dim
-        ]
+        if idx_subenv is not None:
+            mask_dim = self.subenvs[idx_subenv].mask_dim
+        elif mask_dim is None:
+            raise ValueError("idx_subenv and mask_dim cannot be both None")
+
+        if isinstance(mask, list):
+            return mask[self.max_elements : self.max_elements + mask_dim]
+        elif torch.is_tensor(mask):
+            return mask[:, self.max_elements : self.max_elements + mask_dim]
+        else:
+            raise ValueError("The input mask can only be a list or a tensor")
 
     def get_valid_actions(
         self,
@@ -855,7 +880,7 @@ class Stack(CompositeBase):
             env_mask = indices_unique == idx
             actions_dict[idx] = env.sample_actions_batch(
                 self._get_policy_outputs_of_env_unique(policy_outputs[env_mask], idx),
-                mask[env_mask, self.max_elements : self.max_elements + env.mask_dim],
+                self._unformat_mask(mask[env_mask, :], mask_dim=env.mask_dim),
                 states_dict[idx],
                 is_backward,
                 random_action_prob,
@@ -868,7 +893,6 @@ class Stack(CompositeBase):
             for idx in indices_relevant_int
         ]
 
-    # TODO: review
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -894,36 +918,44 @@ class Stack(CompositeBase):
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
+
+        Returns
+        -------
+        tensor
+            The log probabilities of the transitions.
         """
         actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
-        # Get the relevant stage of each mask from the one-hot prefix
-        stages = torch.where(mask[:, : self.max_elements])[1]
-        stages_int = stages.tolist()
-        states_dict = {stage: [] for stage in self.subenvs.keys()}
-        """
-        A dictionary with keys equal to Stage and the values are the list of states in
-        the stage of the key. The states are only the part corresponding to the
-        sub-environment.
-        """
-        for state, stage in zip(states_from, stages_int):
-            states_dict[stage].append(self._get_substate(state, stage))
+
+        # Get the indices of the relevant sub-environments from the one-hot prefix of
+        # the mask
+        indices_relevant = torch.where(mask[:, : self.max_elements])[1]
+        indices_relevant_int = indices_relevant.tolist()
+        indices_unique = torch.empty_like(indices_relevant)
+        indices_unique_int = []
+
+        # Create a dictionary with keys equal to the unique indices and the values are
+        # corresponding to the sub-environment.
+        # Additionally, update the tensor indices_unique, which contains the index of
+        # the unique environment corresponding to the relevant subenv and the list of
+        # unique indices
+        states_dict = {idx: [] for idx in self.unique_indices}
+        for state, idx_subenv in zip(states_from, indices_relevant_int):
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+            states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
+            indices_unique[indices_relevant == idx_subenv] = idx_unique
+            indices_unique_int.append(idx_unique)
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
-        for stage, subenv in self.subenvs.items():
-            stage_mask = stages == stage
-            if not torch.any(stage_mask):
-                continue
-            logprobs[stage_mask] = subenv.get_logprobs(
-                self._get_policy_outputs_of_env_unique(
-                    policy_outputs[stage_mask], stage
-                ),
-                actions[stage_mask, 1 : 1 + len(subenv.eos)],
-                mask[
-                    stage_mask, self.max_elements : self.max_elements + subenv.mask_dim
-                ],
-                states_dict[stage],
+        for idx in indices_unique_int:
+            env = self._get_env_unique(idx)
+            env_mask = indices_unique == idx
+            logprobs[env_mask] = env.get_logprobs(
+                self._get_policy_outputs_of_env_unique(policy_outputs[env_mask], idx),
+                self._depad_action_batch(actions[env_mask, :], idx),
+                self._unformat_mask(mask[env_mask, :], mask_dim=env.mask_dim),
+                states_dict[idx],
                 is_backward,
             )
         return logprobs
