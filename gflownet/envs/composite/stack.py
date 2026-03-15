@@ -367,7 +367,7 @@ class Stack(CompositeBase):
 
         # Obtain valid actions
         valid_actions = [
-            env._pad_action(action, relevant_subenv)
+            self._pad_action(action, relevant_subenv)
             for action in subenv.get_valid_actions(mask, state_subenv, done, backward)
         ]
 
@@ -450,12 +450,7 @@ class Stack(CompositeBase):
 
         # Change the relevant sub-environment and set done to True if the substate is
         # the source of an intermediate sub-environment
-        if (
-            backward
-            and active_subenv > 0
-            and not done
-            and subenv.is_source(state_subenv)
-        ):
+        if active_subenv > 0 and not done and subenv.is_source(state_subenv):
             relevant_subenv = active_subenv - 1
             state_subenv = self._get_substate(state, relevant_subenv)
             subenv = self._get_unique_env_of_subenv(relevant_subenv, state)
