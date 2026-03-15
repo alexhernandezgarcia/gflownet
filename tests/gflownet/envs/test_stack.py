@@ -197,7 +197,6 @@ def test__pad_depad_action__return_expected(env, action_stack, action_subenv, re
     "action_space",
     [
         [
-            # fmt: off
             # Grid
             (0, 0, 0, 0),
             (0, 1, 0, 0),
@@ -211,7 +210,6 @@ def test__pad_depad_action__return_expected(env, action_stack, action_subenv, re
             (1, 4, 0, 1),
             (1, 4, 0, 2),
             (1, -1, -1, -1),
-            # fmt: on
         ]
     ],
 )
@@ -257,15 +255,17 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -274,16 +274,18 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -292,15 +294,17 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
                 "_active": 0,
                 "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
         ),
@@ -320,15 +324,17 @@ def test__source_is_expected(env, source, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -338,16 +344,18 @@ def test__source_is_expected(env, source, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -357,15 +365,17 @@ def test__source_is_expected(env, source, request):
                 "_active": 0,
                 "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
             True,
@@ -376,15 +386,17 @@ def test__source_is_expected(env, source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
             False,
@@ -461,15 +473,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [False, False],
         ),
@@ -479,15 +493,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [True, False],
         ),
@@ -497,15 +513,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [False, False],
         ),
@@ -515,15 +533,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [True, False],
         ),
@@ -533,15 +553,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 400, 400, 000],
-                    [000, 400, 400, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 400, 400, 000],
+                        [000, 400, 400, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [True, False],
         ),
@@ -551,15 +573,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 400, 400, 000],
-                    [100, 400, 400, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 400, 400, 000],
+                        [100, 400, 400, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [True, False],
         ),
@@ -569,15 +593,17 @@ def test__is_source__returns_expected(env, state, is_source, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 401, 401],
-                    [100, 000, 401, 401],
-                    [100, 400, 400, 000],
-                    [100, 400, 400, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 401, 401],
+                        [100, 000, 401, 401],
+                        [100, 400, 400, 000],
+                        [100, 400, 400, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [True, True],
         ),
@@ -849,15 +875,17 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -866,15 +894,17 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -883,16 +913,18 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -901,16 +933,18 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 200],
-                    [000, 200],
-                    [200, 200],
-                    [300, 000],
-                    [300, 000],
-                    [300, 300],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 200],
+                        [000, 200],
+                        [200, 200],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -919,16 +953,18 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                 "_active": 2,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 200],
-                    [000, 200],
-                    [200, 200],
-                    [300, 000],
-                    [300, 000],
-                    [300, 300],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 200],
+                        [000, 200],
+                        [200, 200],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [1, 0, 2],
             },
         ),
@@ -958,15 +994,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -975,16 +1013,18 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         # Active subenv (2) is source
@@ -994,15 +1034,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                 "_active": 2,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 200, 000],
-                    [300, 000, 200, 000],
-                    [300, 200, 200, 000],
-                    [300, 300, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 200, 000],
+                        [300, 000, 200, 000],
+                        [300, 200, 200, 000],
+                        [300, 300, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
         ),
@@ -1013,15 +1055,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                 "_active": 1,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
         ),
@@ -1054,15 +1098,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [300, 000, 000, 000],
-                    [300, 000, 000, 000],
-                    [300, 300, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [300, 000, 000, 000],
+                        [300, 000, 000, 000],
+                        [300, 300, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         # Last substate is source (but done)
@@ -1072,15 +1118,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -1089,16 +1137,18 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [300, 000],
-                    [300, 000],
-                    [300, 300],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         # Last substate is source (but done)
@@ -1108,16 +1158,18 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -1126,15 +1178,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 2,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 200, 000],
-                    [300, 000, 200, 000],
-                    [300, 200, 200, 000],
-                    [300, 300, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 200, 000],
+                        [300, 000, 200, 000],
+                        [300, 200, 200, 000],
+                        [300, 300, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [1, 2, 0],
             },
         ),
@@ -1145,15 +1199,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
                 "_active": 2,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 200, 000],
-                    [300, 000, 200, 000],
-                    [300, 200, 200, 000],
-                    [300, 300, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 200, 000],
+                        [300, 000, 200, 000],
+                        [300, 200, 200, 000],
+                        [300, 300, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
         ),
@@ -1186,15 +1242,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -1203,16 +1261,18 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    [000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
         ),
         (
@@ -1221,15 +1281,17 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
                 "_active": 0,
                 "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
                 2: [0, 0, 0],
             },
         ),
@@ -1262,88 +1324,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            (0, 1, 0, 0),
-            {
-                "_active": 0,
-                "_envs_unique": [0, 1],
-                0: [1, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            True,
-        ),
-        (
-            "env_grid2d_tetrismini",
-            {
-                "_active": 0,
-                "_envs_unique": [0, 1],
-                0: [1, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            (0, 1, 0, 0),
-            {
-                "_active": 0,
-                "_envs_unique": [0, 1],
-                0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            True,
-        ),
-        # EOS action from Grid must increment stage
-        (
-            "env_grid2d_tetrismini",
-            {
-                "_active": 0,
-                "_envs_unique": [0, 1],
-                0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            (0, 0, 0, 0),
-            [
-                1,
-                [2, 0],
-                torch.tensor(
+                1: torch.tensor(
                     [
                         [000, 000, 000, 000],
                         [000, 000, 000, 000],
@@ -1354,7 +1335,99 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
                     dtype=torch.int16,
                     device="cpu",
                 ),
-            ],
+            },
+            (0, 1, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        (
+            "env_grid2d_tetrismini",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (0, 1, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # EOS action from Grid must increment stage
+        (
+            "env_grid2d_tetrismini",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
             True,
         ),
         (
@@ -1363,30 +1436,34 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, 1, 0, 0),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1396,30 +1473,34 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, 4, 0, 2),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 400, 400],
-                    [100, 000, 400, 400],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 400, 400],
+                        [100, 000, 400, 400],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1430,30 +1511,34 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 401, 401, 000],
-                    [100, 401, 401, 000],
-                    [100, 000, 400, 400],
-                    [100, 000, 400, 400],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 401, 401, 000],
+                        [100, 401, 401, 000],
+                        [100, 000, 400, 400],
+                        [100, 000, 400, 400],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, -1, -1, -1),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 401, 401, 000],
-                    [100, 401, 401, 000],
-                    [100, 000, 400, 400],
-                    [100, 000, 400, 400],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 401, 401, 000],
+                        [100, 401, 401, 000],
+                        [100, 000, 400, 400],
+                        [100, 000, 400, 400],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1473,6 +1558,10 @@ def test__step__works_as_expected(
 
     # Check end state
     assert env.equal(env.state, state_next)
+    if not env.equal(env.state, state_next_exp):
+        import ipdb
+
+        ipdb.set_trace()
     assert env.equal(env.state, state_next_exp)
 
     # Check action and valid
@@ -1493,30 +1582,34 @@ def test__step__works_as_expected(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (0, 1, 0, 0),
             {
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [1, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1526,30 +1619,34 @@ def test__step__works_as_expected(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, 1, 0, 0),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1559,30 +1656,34 @@ def test__step__works_as_expected(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, 4, 0, 2),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    [100, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                        [100, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             False,
         ),
@@ -1593,30 +1694,34 @@ def test__step__works_as_expected(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [1, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (0, 1, 0, 0),
             {
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1627,30 +1732,34 @@ def test__step__works_as_expected(
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (0, 1, 0, 0),
             {
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             False,
         ),
@@ -1661,30 +1770,34 @@ def test__step__works_as_expected(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (0, 0, 0, 0),
             {
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1695,30 +1808,34 @@ def test__step__works_as_expected(
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 401, 401, 000],
-                    [100, 401, 401, 000],
-                    [100, 000, 400, 400],
-                    [100, 000, 400, 400],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 401, 401, 000],
+                        [100, 401, 401, 000],
+                        [100, 000, 400, 400],
+                        [100, 000, 400, 400],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             (1, -1, -1, -1),
             {
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [100, 401, 401, 000],
-                    [100, 401, 401, 000],
-                    [100, 000, 400, 400],
-                    [100, 000, 400, 400],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [100, 401, 401, 000],
+                        [100, 401, 401, 000],
+                        [100, 000, 400, 400],
+                        [100, 000, 400, 400],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             True,
         ),
@@ -1794,15 +1911,17 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [],
             [],
@@ -1814,30 +1933,34 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
                 "_active": 0,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [
                 {
                     "_active": 0,
                     "_envs_unique": [0, 1],
                     0: [0, 2],
-                    # fmt: off
-                    1: torch.tensor([
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        ], dtype=torch.int16, device="cpu"),
-                    # fmt: on
+                    1: torch.tensor(
+                        [
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                        ],
+                        dtype=torch.int16,
+                        device="cpu",
+                    ),
                 },
                 [
                     0,
@@ -1864,30 +1987,34 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
                 "_active": 1,
                 "_envs_unique": [0, 1],
                 0: [1, 2],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                1: torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             },
             [
                 {
                     "_active": 0,
                     "_envs_unique": [0, 1],
                     0: [1, 2],
-                    # fmt: off
-                    1: torch.tensor([
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        ], dtype=torch.int16, device="cpu"),
-                    # fmt: on
+                    1: torch.tensor(
+                        [
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                        ],
+                        dtype=torch.int16,
+                        device="cpu",
+                    ),
                 },
             ],
             [(0, 0, 0, 0)],
