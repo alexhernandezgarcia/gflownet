@@ -253,53 +253,56 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_cube_tetris",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1.0, -1.0],
                 # fmt: off
-                0,
-                [-1.0, -1.0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1, 2],
+                0: [-1.0, -1.0],
                 # fmt: off
-                0,
-                [-1.0, -1.0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                [0, 0, 0],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [0, 0, 0],
+            },
         ),
     ],
 )
@@ -313,83 +316,86 @@ def test__source_is_expected(env, source, request):
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_cube_tetris",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1.0, -1.0],
                 # fmt: off
-                0,
-                [-1.0, -1.0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1, 2],
+                0: [-1.0, -1.0],
                 # fmt: off
-                0,
-                [-1.0, -1.0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                [0, 0, 0],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [0, 0, 0],
+            },
             True,
         ),
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1, 2],
+                0: [-1.0, -1.0],
                 # fmt: off
-                1,
-                [-1.0, -1.0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                [0, 0, 0],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [0, 0, 0],
+            },
             False,
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                0,
-                [-1, -1],
-                # fmt: on
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1, -1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -398,17 +404,16 @@ def test__source_is_expected(env, source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             True,
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                1,
-                [-1, -1],
-                # fmt: on
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [-1, -1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -417,17 +422,16 @@ def test__source_is_expected(env, source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             False,
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                0,
-                [0.0, 0.0],
-                # fmt: on
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0.0, 0.0],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -436,7 +440,7 @@ def test__source_is_expected(env, source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             False,
         ),
     ],
@@ -453,131 +457,137 @@ def test__is_source__returns_expected(env, state, is_source, request):
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [False, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                1,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                0,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [False, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                1,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                1,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 400, 400, 000],
                     [000, 400, 400, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                1,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 400, 400, 000],
                     [100, 400, 400, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                1,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 401, 401],
                     [100, 000, 401, 401],
                     [100, 400, 400, 000],
                     [100, 400, 400, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, True],
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                0,
-                [-1, -1],
-                # fmt: on
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1, -1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -586,17 +596,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             [False, False],
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                0,
-                [0.3, 0.7],
-                # fmt: on
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -605,17 +614,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             [False, False],
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                1,
-                [0.3, 0.7],
-                # fmt: on
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -624,17 +632,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                1,
-                [0.3, 0.7],
-                # fmt: on
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": 0,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -643,17 +650,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [1, 0],
                     1: [0, 0],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_cube_setgrids",
-            [
-                # fmt: off
-                1,
-                [0.3, 0.7],
-                # fmt: on
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -662,15 +668,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [1, 2],
                     1: [1, 1],
                 },
-            ],
+            },
             [True, True],
         ),
         (
             "env_cube_setstacks",
-            [
-                0,
-                [-1, -1],
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1, -1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -679,15 +686,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, [-1.0, -1.0], [0, 0]],
                     1: [0, [0, 0], [-1.0, -1.0]],
                 },
-            ],
+            },
             [False, False],
         ),
         (
             "env_cube_setstacks",
-            [
-                0,
-                [0.3, 0.7],
-                {
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -696,15 +704,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, [-1.0, -1.0], [0, 0]],
                     1: [0, [0, 0], [-1.0, -1.0]],
                 },
-            ],
+            },
             [False, False],
         ),
         (
             "env_cube_setstacks",
-            [
-                1,
-                [0.3, 0.7],
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -713,15 +722,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, [-1.0, -1.0], [0, 0]],
                     1: [0, [0, 0], [-1.0, -1.0]],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_cube_setstacks",
-            [
-                1,
-                [0.3, 0.7],
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": 0,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -730,15 +740,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [0, [0.1, 0.2], [0, 0]],
                     1: [0, [0, 0], [-1.0, -1.0]],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_cube_setstacks",
-            [
-                1,
-                [0.3, 0.7],
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 0],
@@ -747,15 +758,16 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [1, [0.1, 0.2], [2, 1]],
                     1: [0, [0, 0], [-1.0, -1.0]],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_cube_setstacks",
-            [
-                1,
-                [0.3, 0.7],
-                {
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -764,7 +776,7 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     0: [1, [0.1, 0.2], [2, 1]],
                     1: [0, [1, 2], [0.3, 0.8]],
                 },
-            ],
+            },
             [True, True],
         ),
     ],
@@ -794,87 +806,92 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                0,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_cube_tetris",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
                 # fmt: off
-                0,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_cube_tetris",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
                 # fmt: off
-                1,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 200],
                     [000, 200],
                     [200, 200],
                     [300, 000],
                     [300, 000],
                     [300, 300],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
         ),
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 2,
+                "_envs_unique": [0, 1, 2],
+                0: [0.3, 0.7],
                 # fmt: off
-                2,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 200],
                     [000, 200],
                     [200, 200],
                     [300, 000],
                     [300, 000],
                     [300, 300],
-                ], dtype=torch.int16, device="cpu"),
-                [1, 0, 2],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [1, 0, 2],
+            },
         ),
     ],
 )
@@ -903,113 +920,119 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
         # Tetris source, Tetris not done
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         # Tetris source, Tetris done (only valid action is Tetris EOS)
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, True],
         ),
         # Global source
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [False, False],
         ),
         (
             "env_cube_tetris",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
                 # fmt: off
-                1,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
                     [000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [True, False],
         ),
         # Last stage is source but done
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 2,
+                "_envs_unique": [0, 1, 2],
+                0: [0.3, 0.7],
                 # fmt: off
-                2,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 200],
                     [000, 200],
                     [200, 200],
                     [300, 000],
                     [300, 000],
                     [300, 300],
-                ], dtype=torch.int16, device="cpu"),
-                [0, 0, 0],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [0, 0, 0],
+            },
             [True, True, True],
         ),
         # Last stage is source, but not done
         (
             "env_cube_tetris_grid",
-            [
+            {
+                "_active": 2,
+                "_envs_unique": [0, 1, 2],
+                0: [0.3, 0.7],
                 # fmt: off
-                2,
-                [0.3, 0.7],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 200],
                     [000, 200],
                     [200, 200],
                     [300, 000],
                     [300, 000],
                     [300, 300],
-                ], dtype=torch.int16, device="cpu"),
-                [0, 0, 0],
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+                2: [0, 0, 0],
+            },
             [True, True, False],
         ),
     ],
@@ -1044,190 +1067,203 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 1, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
                 # fmt: off
-                0,
-                [1, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
                 # fmt: off
-                0,
-                [1, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 1, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                0,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         # EOS action from Grid must increment stage
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                0,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 0, 0, 0),
             [
-                # fmt: off
                 1,
                 [2, 0],
-                torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                # fmt: on
+                torch.tensor(
+                    [
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
             ],
             True,
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, 1, 0, 0),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, 4, 0, 2),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 400, 400],
                     [100, 000, 400, 400],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         # EOS from last stage
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
                     [100, 401, 401, 000],
                     [100, 000, 400, 400],
                     [100, 000, 400, 400],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, -1, -1, -1),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
                     [100, 401, 401, 000],
                     [100, 000, 400, 400],
                     [100, 000, 400, 400],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
     ],
@@ -1262,223 +1298,237 @@ def test__step__works_as_expected(
     [
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                0,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 1, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
                 # fmt: off
-                0,
-                [1, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, 1, 0, 0),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, 4, 0, 2),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
                     [100, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             False,
         ),
         # Back to source
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 0],
                 # fmt: off
-                0,
-                [1, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 1, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         # Action from source must be invalid
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 1, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             False,
         ),
         # Grid EOS from Tetris
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (0, 0, 0, 0),
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                0,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
         # Global EOS
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
                     [100, 401, 401, 000],
                     [100, 000, 400, 400],
                     [100, 000, 400, 400],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             (1, -1, -1, -1),
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
                 # fmt: off
-                1,
-                [2, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
                     [100, 401, 401, 000],
                     [100, 000, 400, 400],
                     [100, 000, 400, 400],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             True,
         ),
     ],
@@ -1549,64 +1599,69 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
         # Source
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
                 # fmt: off
-                0,
-                [0, 0],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
+                    ], dtype=torch.int16, device="cpu"),
                 # fmt: on
-            ],
+            },
             [],
             [],
         ),
         # Intermediate grid
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                0,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            ],
-            [
-                [
-                    # fmt: off
-                    0,
-                    [0, 2],
-                    torch.tensor([
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
                     ], dtype=torch.int16, device="cpu"),
-                    # fmt: on
-                ],
-                [
+                # fmt: on
+            },
+            [
+                {
+                    "_active": 0,
+                    "_envs_unique": [0, 1],
+                    0: [0, 2],
                     # fmt: off
+                    1: torch.tensor([
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        ], dtype=torch.int16, device="cpu"),
+                    # fmt: on
+                },
+                [
                     0,
                     [1, 1],
-                    torch.tensor([
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                    # fmt: on
+                    torch.tensor(
+                        [
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                            [000, 000, 000, 000],
+                        ],
+                        dtype=torch.int16,
+                        device="cpu",
+                    ),
                 ],
             ],
             [(0, 1, 0, 0), (0, 0, 1, 0)],
@@ -1614,33 +1669,35 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
         # Source Tetris
         (
             "env_grid2d_tetrismini",
-            [
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [1, 2],
                 # fmt: off
-                1,
-                [1, 2],
-                torch.tensor([
+                1: torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
-                ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            ],
-            [
-                [
-                    # fmt: off
-                    0,
-                    [1, 2],
-                    torch.tensor([
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
-                        [000, 000, 000, 000],
                     ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+            [
+                {
+                    "_active": 0,
+                    "_envs_unique": [0, 1],
+                    0: [1, 2],
+                    # fmt: off
+                    1: torch.tensor([
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        [000, 000, 000, 000],
+                        ], dtype=torch.int16, device="cpu"),
                     # fmt: on
-                ],
+                },
             ],
             [(0, 0, 0, 0)],
         ),
