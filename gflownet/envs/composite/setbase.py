@@ -1391,7 +1391,9 @@ class BaseSet(CompositeBase):
                 self._get_policy_outputs_of_env_unique(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
-                actions[is_active][indices_unique_mask, 1 : 1 + len(subenv.eos)],
+                self._depad_action_batch(
+                    actions[is_active][indices_unique_mask, :], idx
+                ),
                 self._extract_core_mask(
                     mask[is_active][indices_unique_mask], idx_unique=idx
                 ),

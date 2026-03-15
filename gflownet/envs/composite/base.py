@@ -492,6 +492,38 @@ class CompositeBase(GFlowNetEnv):
             return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
         return (action[1],)
 
+    def _depad_action_batch(
+        self,
+        actions: TensorType["batch_size", "action_dim"],
+        idx_unique: int,
+    ) -> TensorType["batch_size", "action_dim_subenv"]:
+        """
+        Reverses the padding operation for a batch of actions.
+
+        It is assumed that all actions correspond to the same unique environment or
+        that all of them are meta-actions.
+
+        See:
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._depad_action`
+
+        Parameters
+        ----------
+        actions : tensor
+            The batch of actions to be depadded.
+        idx_unique : int
+            The index of the unique environment or -1 for meta-actions (EOS and other
+            actions of the composite environment)
+
+        Returns
+        -------
+        tensor
+            The depadded batch of actions. If idx_unique is -1 (meta-action), then the
+            returned batch is a single-column tensor with the sub-environment index.
+        """
+        if idx_unique != -1:
+            return actions[:, 1 : 1 + len(self._get_env_unique(idx_unique).eos)]
+        return actions[:, 1]
+
     def set_state(self, state: Dict, done: Optional[bool] = False):
         """
         Sets a state and done.
