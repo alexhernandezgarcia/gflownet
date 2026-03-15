@@ -1044,7 +1044,7 @@ class Stack(CompositeBase):
         )
         return state
 
-    # TODO: review
+    # TODO: review if this could be moved to CompositeBase
     def action2representative(self, action: Tuple) -> int:
         """
         Replaces the part of the action associated with a sub-environment by its
@@ -1061,8 +1061,7 @@ class Stack(CompositeBase):
         representative = self._pad_action(representative_subenv, relevant_subenv)
         return representative
 
-    # TODO: review
-    def is_source(self, state: Optional[List] = None) -> bool:
+    def is_source(self, state: Optional[Dict] = None) -> bool:
         """
         Returns True if the environment's state or the state passed as parameter (if
         not None) is the source state of the environment.
@@ -1073,7 +1072,7 @@ class Stack(CompositeBase):
 
         Parameters
         ----------
-        state : list
+        state : Dict
             None, or a state in environment format.
 
         Returns
@@ -1082,9 +1081,11 @@ class Stack(CompositeBase):
             Whether the state is the source state of the environment
         """
         state = self._get_state(state)
-        return self._get_stage(state) == 0 and all(
-            [
-                subenv.is_source(self._get_substate(state, stage))
-                for stage, subenv in self.subenvs.items()
-            ]
-        )
+        active_subenv = self._get_active_subenv(state)
+        if active_subenv != 0:
+            return False
+        for idx, subenv in enumerate(self.subenvs):
+            if not subenv.is_source(self._get_substate(state, idx)):
+                return False
+        else:
+            return True
