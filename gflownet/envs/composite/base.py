@@ -17,9 +17,9 @@ class CompositeBase(GFlowNetEnv):
 
     The states of composite environments are dictionaries. Keys with integers, starting
     from 0, are reserved to contain the states at the position indicated by the key.
-    Additionally, the dictionary includes keys with meta-data about the state of the
-    composite environment. The following keys and values are expected to be included in
-    all composite environments:
+    Additionally, the dictionary may includes keys with meta-data about the state of
+    the composite environment. The following keys and values are supported by default
+    by the base composite environment:
         - ``_active``: The index of the currently active sub-environment, or -1 if none
           is active.
         - ``_dones``: A list of flags indicating whether the sub-environments are done
@@ -32,7 +32,9 @@ class CompositeBase(GFlowNetEnv):
           particular the type of environment at index 1 in ``self.envs_unique``; the
           sub-environment at index 2 is of the type at index 0 in ``self.envs_unique``.
           If the environment type at a position is unknown, it contains -1.
-    Composite environments may include additional meta-data as needed.
+
+    Not all supported keys need to be included in the states of sub-classes and new
+    keys may be included as needed.
 
     Attributes
     ----------
@@ -288,12 +290,26 @@ class CompositeBase(GFlowNetEnv):
     def n_unique_envs(self) -> int:
         """
         Returns the number of unique environments.
+
+        Returns
+        -------
+        int
+            The number of unique environments.
+
+        Raises
+        ------
+        RuntimeError
+            If ``self.subenvs`` is not an attribute of the environment.
         """
         if hasattr(self, "_n_unique_envs"):
             return self._n_unique_envs
         if not hasattr(self, "envs_unique"):
+            if not hasattr(self, "subenvs"):
+                raise RuntimeError("The environment does not contain self.subenvs")
             envs_unique, _, _ = self._get_unique_environments(self.subenvs)
             self._n_unique_envs = len(envs_unique)
+        else:
+            self._n_unique_envs = len(self.envs_unique)
         return self._n_unique_envs
 
     def _get_env_unique(self, idx_unique: int) -> GFlowNetEnv:
