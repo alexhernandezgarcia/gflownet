@@ -815,7 +815,7 @@ class Stack(CompositeBase):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: List = None,
+        states_from: List[Dict] = None,
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
@@ -898,7 +898,7 @@ class Stack(CompositeBase):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "mask_dim"],
-        states_from: List,
+        states_from: List[Dict],
         is_backward: bool,
     ) -> TensorType["batch_size"]:
         """
@@ -961,7 +961,7 @@ class Stack(CompositeBase):
         return logprobs
 
     def states2policy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_policy_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: simply
@@ -984,7 +984,7 @@ class Stack(CompositeBase):
             dim=1,
         )
 
-    def states2proxy(self, states: List[List]) -> List[List]:
+    def states2proxy(self, states: List[Dict]) -> List[List]:
         """
         Prepares a batch of states in "environment format" for a proxy: simply a
         concatenation of the proxy-format states of the sub-environments.
@@ -1009,35 +1009,40 @@ class Stack(CompositeBase):
             )
         return states_proxy
 
-    # TODO: review
-    def state2readable(self, state: Optional[List[int]] = None) -> str:
+    def state2readable(self, state: Optional[Dict] = None) -> str:
         """
         Converts a state into human-readable representation. It concatenates the
         readable representations of each sub-environment, separated by "; " and
         preceded by "Stage {stage}; ".
         """
         state = self._get_state(state)
-        readable = f"Stage {self._get_stage(state)}; " + "".join(
+        readable = f"Active: {self._get_active_subenv(state)}; " + "".join(
             [
-                subenv.state2readable(self._get_substate(state, stage)) + "; "
-                for stage, subenv in self.subenvs.items()
+                subenv.state2readable(self._get_substate(state, idx)) + "; "
+                for idx, subenv in enumerate(self.subenvs)
             ]
         )
         readable = readable[:-2]
         return readable
 
-    # TODO: review
     def readable2state(self, readable: str) -> List[int]:
         """
         Converts a human-readable representation of a state into the standard format.
         """
         readables = readable.split("; ")
-        stage = int(readables[0][-1])
+        active_subenv = int(readables[0][-1])
         readables = readables[1:]
-        return [stage] + [
-            subenv.readable2state(readables[stage])
-            for stage, subenv in self.subenvs.items()
-        ]
+        state = {
+            "_active": active_subenv,
+            "_envs_unique": self.unique_indices,
+        }
+        state.update(
+            {
+                idx: subenv.readable2state(readables[idx])
+                for idx, subenv in enumerate(self.subenvs)
+            }
+        )
+        return state
 
     # TODO: review
     def action2representative(self, action: Tuple) -> int:
