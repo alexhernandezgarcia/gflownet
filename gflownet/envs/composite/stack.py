@@ -967,8 +967,8 @@ class Stack(CompositeBase):
         Prepares a batch of states in "environment format" for the policy model: simply
         a concatenation of the policy-format states of the sub-environments.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list
             A batch of states in environment format.
 
@@ -984,14 +984,13 @@ class Stack(CompositeBase):
             dim=1,
         )
 
-    # TODO: review
     def states2proxy(self, states: List[List]) -> List[List]:
         """
         Prepares a batch of states in "environment format" for a proxy: simply a
         concatenation of the proxy-format states of the sub-environments.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list
             A batch of states in environment format.
 
@@ -1005,7 +1004,7 @@ class Stack(CompositeBase):
             states_proxy.append(
                 [
                     subenv.state2proxy(self._get_substate(state, idx))[0]
-                    for idx, subenv in self.subenvs.items()
+                    for idx, subenv in enumerate(self.subenvs)
                 ]
             )
         return states_proxy
