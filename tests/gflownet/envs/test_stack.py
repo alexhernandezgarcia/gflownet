@@ -683,8 +683,18 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [0, [-1.0, -1.0], [0, 0]],
-                    1: [0, [0, 0], [-1.0, -1.0]],
+                    0: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [-1.0, -1.0],
+                        1: [0, 0],
+                    },
+                    1: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [0, 0],
+                        1: [-1.0, -1.0],
+                    },
                 },
             },
             [False, False],
@@ -701,8 +711,18 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [0, [-1.0, -1.0], [0, 0]],
-                    1: [0, [0, 0], [-1.0, -1.0]],
+                    0: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [-1.0, -1.0],
+                        1: [0, 0],
+                    },
+                    1: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [0, 0],
+                        1: [-1.0, -1.0],
+                    },
                 },
             },
             [False, False],
@@ -719,8 +739,18 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [0, [-1.0, -1.0], [0, 0]],
-                    1: [0, [0, 0], [-1.0, -1.0]],
+                    0: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [-1.0, -1.0],
+                        1: [0, 0],
+                    },
+                    1: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [0, 0],
+                        1: [-1.0, -1.0],
+                    },
                 },
             },
             [True, False],
@@ -737,8 +767,13 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [0, [0.1, 0.2], [0, 0]],
-                    1: [0, [0, 0], [-1.0, -1.0]],
+                    0: {"_active": 0, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [0, 0]},
+                    1: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [0, 0],
+                        1: [-1.0, -1.0],
+                    },
                 },
             },
             [True, False],
@@ -755,8 +790,13 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [1, [0.1, 0.2], [2, 1]],
-                    1: [0, [0, 0], [-1.0, -1.0]],
+                    0: {"_active": 1, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [2, 1]},
+                    1: {
+                        "_active": 0,
+                        "_envs_unique": [0, 1],
+                        0: [0, 0],
+                        1: [-1.0, -1.0],
+                    },
                 },
             },
             [True, False],
@@ -773,8 +813,8 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: [1, [0.1, 0.2], [2, 1]],
-                    1: [0, [1, 2], [0.3, 0.8]],
+                    0: {"_active": 1, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [2, 1]},
+                    1: {"_active": 0, "_envs_unique": [0, 1], 0: [1, 2], 1: [0.3, 0.8]},
                 },
             },
             [True, True],
@@ -792,11 +832,11 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
     assert env.equal(env.state, state)
 
     # Check states of subenvs
-    for stage, subenv in env.subenvs.items():
-        assert env.equal(subenv.state, env._get_substate(state, stage))
+    for idx, subenv in enumerate(env.subenvs):
+        assert env.equal(subenv.state, env._get_substate(state, idx))
 
     # Check dones
-    for subenv, done in zip(env.subenvs.values(), dones):
+    for subenv, done in zip(env.subenvs, dones):
         assert subenv.done == done
 
 

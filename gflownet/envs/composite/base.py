@@ -504,15 +504,18 @@ class CompositeBase(GFlowNetEnv):
         done : bool
             Whether the trajectory of the environment is done or not.
         """
-        # If done is True, then the done flags in the set should all be 1
-        dones = [bool(el) for el in self._get_dones(state)]
+        # If done is True, then all sub-environments must be done
         if done:
-            assert all(dones)
+            dones = [True] * self.max_elements
+        else:
+            dones = self._get_dones(state)
 
+        # Set state and done
         super().set_state(state, done)
+
         # Set state and done of each sub-environment
         for idx, (subenv, done_subenv) in enumerate(zip(self.subenvs, dones)):
-            subenv.set_state(self._get_substate(self.state, idx), done_subenv)
+            subenv.set_state(self._get_substate(self.state, idx), bool(done_subenv))
 
         # Apply constraints across sub-environments, in case they apply.
         self._apply_constraints(state=state, is_backward=None)

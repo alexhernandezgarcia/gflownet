@@ -98,6 +98,30 @@ class Stack(CompositeBase):
         # The stack is continuous if any subenv is continuous
         self.continuous = any([subenv.continuous for subenv in self.subenvs])
 
+    def _get_dones(self, state: Optional[Dict] = None) -> List[int]:
+        """
+        Returns a list indicating which sub-environments are done (1) or not done (0).
+
+        This method is overriden because Stack states do not contain the key
+        ``"_dones"``, since this information can be inferred from the active subenv.
+
+        Parameters
+        ----------
+        state : Dict
+            A state of the Stack environment.
+
+        Returns
+        -------
+        The list of dones as integer flags (0 or 1).
+        """
+        try:
+            active_subenv = self._get_active_subenv(state)
+        except:
+            import ipdb
+
+            ipdb.set_trace()
+        return [1] * active_subenv + [0] * (self.max_elements - active_subenv)
+
     def _compute_mask_dim(self):
         """
         Calculates the mask dimensionality of the Stack environment.
@@ -806,26 +830,6 @@ class Stack(CompositeBase):
         # Forward constraints could only be applied if the sub-environment is done
         else:
             return subenv.done
-
-    # TODO: review
-    def set_state(self, state: List, done: Optional[bool] = False):
-        """
-        Sets a state and done.
-
-        The correct state and done of each sub-environment are set too.
-        """
-        super().set_state(state, done)
-
-        # Set state and done of each sub-environment
-        n_done = self._get_stage(state) + int(done)
-        dones = (True,) * n_done + (False,) * (self.max_elements - n_done)
-        for (stage, subenv), done_subenv in zip(self.subenvs.items(), dones):
-            subenv.set_state(self._get_substate(self.state, stage), done_subenv)
-
-        # Apply constraints
-        self._apply_constraints(state=state, dones=dones, is_backward=None)
-
-        return self
 
     # TODO: review
     def sample_actions_batch(
