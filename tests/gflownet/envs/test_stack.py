@@ -800,7 +800,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         assert subenv.done == done
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "env, state",
     [
@@ -899,19 +898,14 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
     env, state, request
 ):
     env = request.getfixturevalue(env)
-    stage = env._get_stage(state)
+    active_subenv = env._get_active_subenv(state)
+    subenv = env.subenvs[active_subenv]
     mask = env.get_mask_invalid_actions_backward(state, done=False)
-    for stg, subenv in env.subenvs.items():
-        if stg == stage:
-            # Mask of state if stage is current stage in state
-            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                env._get_substate(state, stg)
-            )
-        else:
-            # Dummy mask (all True) if stage is other than current stage in state
-            mask_subenv_expected = [True] * subenv.mask_dim
-        mask_subenv = env._get_mask_of_subenv(mask, stg)
-        assert mask_subenv == mask_subenv_expected, state
+    mask_subenv = env._unformat_mask(mask, active_subenv)
+    mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+        env._get_substate(state, active_subenv)
+    )
+    assert mask_subenv == mask_subenv_expected, state
 
 
 @pytest.mark.parametrize(
@@ -1041,7 +1035,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
     env, state, dones, request
 ):
     env = request.getfixturevalue(env)
-    stage = env._get_stage(state)
+    stage = env._get_active_subenv(state)
     subenv = env.subenvs[stage]
     state_subenv = env._get_substate(state, stage)
     done = dones[-1]
