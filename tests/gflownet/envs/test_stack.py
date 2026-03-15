@@ -223,14 +223,14 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
 @pytest.mark.parametrize(
     "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
 )
-def test__action_space__contains_actions_of_all_subenvs(env, request):
+def test__action_space__contains_actions_of_all_unique_envs(env, request):
     env = request.getfixturevalue(env)
     action_space = env.action_space
-    for stage, subenv in env.subenvs.items():
+    for idx_unique, env_unique in zip(env.unique_indices, env.envs_unique):
         assert all(
             [
-                env._pad_action(action, stage) in action_space
-                for action in subenv.action_space
+                env._pad_action(action, idx_unique) in action_space
+                for action in env_unique.action_space
             ]
         )
 
