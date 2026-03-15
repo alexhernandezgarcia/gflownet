@@ -909,9 +909,9 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
 
 
 @pytest.mark.parametrize(
-    "env, state, dones",
+    "env, state",
     [
-        # Tetris source, Tetris not done
+        # Tetris source
         (
             "env_grid2d_tetrismini",
             {
@@ -928,45 +928,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                     ], dtype=torch.int16, device="cpu"),
                 # fmt: on
             },
-            [True, False],
-        ),
-        # Tetris source, Tetris done (only valid action is Tetris EOS)
-        (
-            "env_grid2d_tetrismini",
-            {
-                "_active": 1,
-                "_envs_unique": [0, 1],
-                0: [2, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            [True, True],
-        ),
-        # Global source
-        (
-            "env_grid2d_tetrismini",
-            {
-                "_active": 0,
-                "_envs_unique": [0, 1],
-                0: [0, 0],
-                # fmt: off
-                1: torch.tensor([
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    [000, 000, 000, 000],
-                    ], dtype=torch.int16, device="cpu"),
-                # fmt: on
-            },
-            [False, False],
         ),
         (
             "env_cube_tetris",
@@ -985,9 +946,8 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                     ], dtype=torch.int16, device="cpu"),
                 # fmt: on
             },
-            [True, False],
         ),
-        # Last stage is source but done
+        # Active subenv (2) is source
         (
             "env_cube_tetris_grid",
             {
@@ -996,62 +956,224 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
                 0: [0.3, 0.7],
                 # fmt: off
                 1: torch.tensor([
-                    [000, 200],
-                    [000, 200],
-                    [200, 200],
-                    [300, 000],
-                    [300, 000],
-                    [300, 300],
+                    [000, 000, 000, 000],
+                    [000, 000, 200, 000],
+                    [300, 000, 200, 000],
+                    [300, 200, 200, 000],
+                    [300, 300, 000, 000],
                     ], dtype=torch.int16, device="cpu"),
                 # fmt: on
                 2: [0, 0, 0],
             },
-            [True, True, True],
         ),
-        # Last stage is source, but not done
+        # Active subenv (1) is source
         (
             "env_cube_tetris_grid",
             {
-                "_active": 2,
+                "_active": 1,
                 "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 # fmt: off
                 1: torch.tensor([
-                    [000, 200],
-                    [000, 200],
-                    [200, 200],
-                    [300, 000],
-                    [300, 000],
-                    [300, 300],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
                     ], dtype=torch.int16, device="cpu"),
                 # fmt: on
                 2: [0, 0, 0],
             },
-            [True, True, False],
         ),
     ],
 )
 def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
-    env, state, dones, request
+    env, state, request
 ):
     env = request.getfixturevalue(env)
-    stage = env._get_active_subenv(state)
-    subenv = env.subenvs[stage]
-    state_subenv = env._get_substate(state, stage)
-    done = dones[-1]
-    # If it is not the initial stage, the env is not done and the state of the subenv
-    # is the source, then the relevant mask is the one from the previous subenv
-    if stage > 0 and not done and subenv.equal(state_subenv, subenv.source):
-        stage -= 1
-        subenv = env.subenvs[stage]
-        state_subenv = env._get_substate(state, stage)
-        done = True
-    # Get the global mask and extract the relenvant part
-    mask = env.get_mask_invalid_actions_backward(state, done=dones[-1])
-    mask_subenv = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
-    # Get expected mask of the subenv
+    active_subenv = env._get_active_subenv(state)
+    relevant_subenv = active_subenv - 1
+    subenv = env.subenvs[relevant_subenv]
+    state_subenv = env._get_substate(state, relevant_subenv)
+    # Get the global mask and extract the relevant part
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    mask_subenv = env._unformat_mask(mask, relevant_subenv)
+    # Get expected mask of the relevant subenv
     mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-        env._get_substate(state, stage), done=done
+        state_subenv, done=True
+    )
+    assert mask_subenv == mask_subenv_expected, state
+
+
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        (
+            "env_grid2d_tetrismini",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [300, 000, 000, 000],
+                    [300, 000, 000, 000],
+                    [300, 300, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+        # Last substate is source (but done)
+        (
+            "env_grid2d_tetrismini",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [2, 0],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+        (
+            "env_cube_tetris",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [300, 000],
+                    [300, 000],
+                    [300, 300],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+        # Last substate is source (but done)
+        (
+            "env_cube_tetris",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 1],
+                0: [0.3, 0.7],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+        (
+            "env_cube_tetris_grid",
+            {
+                "_active": 2,
+                "_envs_unique": [0, 1, 2],
+                0: [0.3, 0.7],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 200, 000],
+                    [300, 000, 200, 000],
+                    [300, 200, 200, 000],
+                    [300, 300, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+                2: [1, 2, 0],
+            },
+        ),
+        # Last substate is source (but done)
+        (
+            "env_cube_tetris_grid",
+            {
+                "_active": 2,
+                "_envs_unique": [0, 1, 2],
+                0: [0.3, 0.7],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 200, 000],
+                    [300, 000, 200, 000],
+                    [300, 200, 200, 000],
+                    [300, 300, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+                2: [0, 0, 0],
+            },
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__returns_expected_global_done(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    active_subenv = env._get_active_subenv(state)
+    relevant_subenv = active_subenv
+    subenv = env.subenvs[relevant_subenv]
+    state_subenv = env._get_substate(state, relevant_subenv)
+    # Get the global mask and extract the relevant part
+    mask = env.get_mask_invalid_actions_backward(state, done=True)
+    mask_subenv = env._unformat_mask(mask, relevant_subenv)
+    # Get expected mask of the relevant subenv
+    mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+        state_subenv, done=True
+    )
+    assert mask_subenv == mask_subenv_expected, state
+
+
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        # Global source
+        (
+            "env_grid2d_tetrismini",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [0, 0],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__returns_expected_global_source(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    active_subenv = 0
+    relevant_subenv = active_subenv
+    subenv = env.subenvs[relevant_subenv]
+    state_subenv = env._get_substate(state, relevant_subenv)
+    # Get the global mask and extract the relevant part
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    mask_subenv = env._unformat_mask(mask, relevant_subenv)
+    # Get expected mask of the relevant subenv
+    mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+        state_subenv, done=False
     )
     assert mask_subenv == mask_subenv_expected, state
 
