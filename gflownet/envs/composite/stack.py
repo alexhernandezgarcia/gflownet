@@ -113,12 +113,7 @@ class Stack(CompositeBase):
         -------
         The list of dones as integer flags (0 or 1).
         """
-        try:
-            active_subenv = self._get_active_subenv(state)
-        except:
-            import ipdb
-
-            ipdb.set_trace()
+        active_subenv = self._get_active_subenv(state)
         return [1] * active_subenv + [0] * (self.max_elements - active_subenv)
 
     def _compute_mask_dim(self):
