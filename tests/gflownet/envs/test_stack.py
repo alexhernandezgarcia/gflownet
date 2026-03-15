@@ -1140,7 +1140,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
 @pytest.mark.parametrize(
     "env, state",
     [
-        # Global source
         (
             "env_grid2d_tetrismini",
             {
@@ -1156,6 +1155,42 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
                     [000, 000, 000, 000],
                     ], dtype=torch.int16, device="cpu"),
                 # fmt: on
+            },
+        ),
+        (
+            "env_cube_tetris",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1],
+                0: [-1.0, -1.0],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            },
+        ),
+        (
+            "env_cube_tetris_grid",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 1, 2],
+                0: [-1.0, -1.0],
+                # fmt: off
+                1: torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+                2: [0, 0, 0],
             },
         ),
     ],
