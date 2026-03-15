@@ -83,13 +83,12 @@ class Stack(CompositeBase):
             self.subenvs[-1].eos, idx_unique=self.unique_indices[-1]
         )
 
-        # TODO: review
         # Policy distributions parameters
         kwargs["fixed_distr_params"] = [
-            subenv.fixed_distr_params for subenv in self.subenvs
+            env.fixed_distr_params for env in self.envs_unique
         ]
         kwargs["random_distr_params"] = [
-            subenv.random_distr_params for subenv in self.subenvs
+            env.random_distr_params for env in self.envs_unique
         ]
         # Base class init
         super().__init__(**kwargs)
@@ -152,46 +151,6 @@ class Stack(CompositeBase):
             The maximum trajectory length.
         """
         return sum([subenv.max_traj_length for subenv in self.subenvs])
-
-    # TODO: review
-    def get_policy_output(self, params: list[dict]) -> TensorType["policy_output_dim"]:
-        """
-        Defines the structure of the output of the policy model.
-
-        The policy output is the concatenation of the policy outputs of all the
-        sub-environments.
-        """
-        return torch.cat(
-            [
-                subenv.get_policy_output(params_subenv)
-                for subenv, params_subenv in zip(self.subenvs, params)
-            ]
-        )
-
-    # TODO: review
-    def _get_policy_outputs_of_subenv(
-        self, policy_outputs: TensorType["n_states", "policy_output_dim"], stage: int
-    ):
-        """
-        Returns the columns of the policy outputs that correspond to the
-        sub-environment indicated by stage.
-
-        Args
-        ----
-        policy_outputs : tensor
-            A tensor containing a batch of policy outputs. It is assumed that all the
-            rows in the this tensor correspond to the same stage.
-
-        stage : int
-            Index of the sub-environment of which the corresponding columns of the
-            policy outputs are to be extracted.
-        """
-        init_col = 0
-        for stg, subenv in self.subenvs.items():
-            end_col = init_col + subenv.policy_output_dim
-            if stg == stage:
-                return policy_outputs[:, init_col:end_col]
-            init_col = end_col
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[Dict] = None, done: Optional[bool] = None
@@ -649,7 +608,7 @@ class Stack(CompositeBase):
             self._apply_constraints(action=action, is_backward=True)
 
         # Update substate
-        self._set_substate(active_subenv, subenv.state)
+        self._set_substate(relevant_subenv, subenv.state)
         self._set_active_subenv(relevant_subenv)
         return self.state, action, valid
 
@@ -831,7 +790,7 @@ class Stack(CompositeBase):
         else:
             return subenv.done
 
-    # TODO: review
+    # TODO: review if random action probability works
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -840,41 +799,69 @@ class Stack(CompositeBase):
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+    ) -> Tuple[List[Tuple]]:
         """
         Samples a batch of actions from a batch of policy outputs.
 
-        This method calls the sample_actions_batch() method of the sub-environment
+        This method calls the ``sample_actions_batch()`` method of the sub-environment
         corresponding to each state in the batch.
 
         Note that in order to call sample_actions_batch() of the sub-environments, we
         need to first extract the part of the policy outputs, the masks and the states
         that correspond to the sub-environment.
-        """
-        # Get the relevant stage of each mask from the one-hot prefix
-        stages = torch.where(mask[:, : self.max_elements])[1]
-        stages_int = stages.tolist()
-        states_dict = {stage: [] for stage in self.subenvs.keys()}
-        """
-        A dictionary with keys equal to the stage indices and the values are the list
-        of states in the stage of the key. The states are only the part corresponding
-        to the sub-environment.
-        """
-        for state, stage in zip(states_from, stages_int):
-            states_dict[stage].append(self._get_substate(state, stage))
 
-        # Sample actions from each sub-environment
+        Parameters
+        ----------
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+        mask : tensor
+            The mask of invalid actions, formatted as in
+            :py:meth:`gflownet.envs.composite.stack.Stack._format_mask`
+        states_from : list
+            The states originating the actions, in environment format.
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+        random_action_prob : float, optional
+            The probability of sampling a random action. If larger than one, the model
+            outputs will be replaced by a random policy vector with probability
+            `random_action_prob`, according to Bernoulli distribution.
+        temperature_logits : float, optional
+            A scalar by which the model outputs are divided to temper the sampling
+            distribution.
+
+        Returns
+        -------
+        actions : list
+            The list of sampled actions.
+        """
+        # Get the indices of the relevant sub-environments from the one-hot prefix of
+        # the mask
+        indices_relevant = torch.where(mask[:, : self.max_elements])[1]
+        indices_relevant_int = indices_relevant.tolist()
+        indices_unique = torch.empty_like(indices_relevant)
+        indices_unique_int = []
+
+        # Create a dictionary with keys equal to the unique indices and the values are
+        # corresponding to the sub-environment.
+        # Additionally, update the tensor indices_unique, which contains the index of
+        # the unique environment corresponding to the relevant subenv and the list of
+        # unique indices
+        states_dict = {idx: [] for idx in self.unique_indices}
+        for state, idx_subenv in zip(states_from, indices_relevant_int):
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+            states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
+            indices_unique[indices_relevant == idx_subenv] = idx_unique
+            indices_unique_int.append(idx_unique)
+
+        # Sample actions from each unique environment
         actions_dict = {}
-        for stage, subenv in self.subenvs.items():
-            stage_mask = stages == stage
-            if not torch.any(stage_mask):
-                continue
-            actions_dict[stage] = subenv.sample_actions_batch(
-                self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
-                mask[
-                    stage_mask, self.max_elements : self.max_elements + subenv.mask_dim
-                ],
-                states_dict[stage],
+        for idx in indices_unique_int:
+            env = self._get_env_unique(idx)
+            env_mask = indices_unique == idx
+            actions_dict[idx] = env.sample_actions_batch(
+                self._get_policy_outputs_of_env_unique(policy_outputs[env_mask], idx),
+                mask[env_mask, self.max_elements : self.max_elements + env.mask_dim],
+                states_dict[idx],
                 is_backward,
                 random_action_prob,
                 temperature_logits,
@@ -882,7 +869,8 @@ class Stack(CompositeBase):
 
         # Stitch all actions in the right order, with the right padding
         return [
-            self._pad_action(actions_dict[stage].pop(0), stage) for stage in stages_int
+            self._pad_action(actions_dict[idx].pop(0), idx)
+            for idx in indices_relevant_int
         ]
 
     # TODO: review
@@ -933,7 +921,9 @@ class Stack(CompositeBase):
             if not torch.any(stage_mask):
                 continue
             logprobs[stage_mask] = subenv.get_logprobs(
-                self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
+                self._get_policy_outputs_of_env_unique(
+                    policy_outputs[stage_mask], stage
+                ),
                 actions[stage_mask, 1 : 1 + len(subenv.eos)],
                 mask[
                     stage_mask, self.max_elements : self.max_elements + subenv.mask_dim
