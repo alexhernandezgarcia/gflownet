@@ -153,10 +153,8 @@ class SetBox(Stack):
         ----------
         action : tuple
             An action from the SetBox environment.
-        state : list or tensor (optional)
+        state : dict
             A state from the SetBox environment.
-        dones : list
-            A list indicating the sub-environments that are done.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_conditioning_grid, action, is_backward=False
@@ -191,6 +189,8 @@ class SetBox(Stack):
         ----------
         action : tuple
             An action from the SetBox environment.
+        state : dict
+            A state from the SetBox environment.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_conditioning_grid, action, is_backward=True
@@ -202,7 +202,7 @@ class SetBox(Stack):
             self._set_substate(self.idx_set, self.set.state)
 
     def states2proxy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy.
