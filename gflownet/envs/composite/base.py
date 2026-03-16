@@ -468,6 +468,9 @@ class CompositeBase(GFlowNetEnv):
         See:
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
 
+        If idx_unique does not match the prefix of the action, the action is returned
+        as is.
+
         Parameters
         ----------
         action : tuple
@@ -486,7 +489,9 @@ class CompositeBase(GFlowNetEnv):
         if idx_unique is None:
             idx_unique = action[0]
         else:
-            assert idx_unique == action[0]
+            # If idx_unique does not match the action prefix, return the action as is
+            if idx_unique != action[0]:
+                return action
         if idx_unique != -1:
             return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
         return (action[1],)
@@ -830,13 +835,14 @@ class CompositeBase(GFlowNetEnv):
         # If the action is not None, get the unique environment and depad the action
         if action is not None:
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
-            env_unique = self._get_env_unique(idx_unique)
             action = self._depad_action(action, idx_unique)
 
         # For constraints to be applied, either the action is None (meaning the call of
         # this method was initiated by set_state() or reset(), or the action is EOS
-        if action is not None and action != env_unique.eos:
-            return False
+        if action is not None:
+            env_unique = self._get_env_unique(idx_unique)
+            if action != env_unique.eos:
+                return False
 
         subenv_is_done = self._get_dones(state)[idx_subenv]
         # Backward constraints could only be applied if the sub-environment is not done
