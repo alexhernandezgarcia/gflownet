@@ -113,6 +113,7 @@ class Stack(CompositeBase):
         -------
         The list of dones as integer flags (0 or 1).
         """
+        state = self._get_state(state)
         active_subenv = self._get_active_subenv(state)
         return [1] * active_subenv + [0] * (self.max_elements - active_subenv)
 
@@ -610,13 +611,14 @@ class Stack(CompositeBase):
             assert action == self.eos
             self.done = False
 
+        # Update substate
+        self._set_substate(relevant_subenv, subenv.state)
+        self._set_active_subenv(relevant_subenv)
+
         # If action is EOS of subenv, apply backward constraints
         if action_subenv == subenv.eos:
             self._apply_constraints(action=action, is_backward=True)
 
-        # Update substate
-        self._set_substate(relevant_subenv, subenv.state)
-        self._set_active_subenv(relevant_subenv)
         return self.state, action, valid
 
     # TODO: review if random action probability works
