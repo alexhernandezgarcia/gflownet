@@ -854,7 +854,7 @@ class Stack(CompositeBase):
         indices_relevant = torch.where(mask[:, : self.max_elements])[1]
         indices_relevant_int = indices_relevant.tolist()
         indices_unique = torch.empty_like(indices_relevant)
-        indices_unique_int = []
+        indices_unique_int = set()
 
         # Create a dictionary with keys equal to the unique indices and the values are
         # corresponding to the sub-environment.
@@ -866,7 +866,7 @@ class Stack(CompositeBase):
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
             states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
             indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.append(idx_unique)
+            indices_unique_int.add(idx_unique)
 
         # Sample actions from each unique environment
         actions_dict = {}
@@ -927,7 +927,7 @@ class Stack(CompositeBase):
         indices_relevant = torch.where(mask[:, : self.max_elements])[1]
         indices_relevant_int = indices_relevant.tolist()
         indices_unique = torch.empty_like(indices_relevant)
-        indices_unique_int = []
+        indices_unique_int = set()
 
         # Create a dictionary with keys equal to the unique indices and the values are
         # corresponding to the sub-environment.
@@ -939,7 +939,7 @@ class Stack(CompositeBase):
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
             states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
             indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.append(idx_unique)
+            indices_unique_int.add(idx_unique)
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)

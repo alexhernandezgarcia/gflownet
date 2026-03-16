@@ -215,6 +215,7 @@ def test__pad_depad_action__return_expected(env, action_stack, action_subenv, re
 )
 def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space):
     env = env_grid2d_tetrismini
+    assert len(action_space) == len(env.action_space)
     assert set(action_space) == set(env.action_space)
 
 

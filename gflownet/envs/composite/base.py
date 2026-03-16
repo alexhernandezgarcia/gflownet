@@ -402,12 +402,13 @@ class CompositeBase(GFlowNetEnv):
         """
         Constructs a list with all possible actions, including EOS.
 
-        By default, the action space of a Composite environment consists of:
-            - The concatenation of the actions of all unique environments.
-            - The EOS action.
+        By default, the action space of a Composite environment consists of the
+        concatenation of the actions of all unique environments.
 
         Certain composite environments may make use of additional actions, for example
         to toggle specific sub-environments.
+
+        Sub-classes with additional actions should override this method.
 
         In order to make all actions the same length (required to construct batches of
         actions as a tensor), the actions are zero-padded from the back.
@@ -426,9 +427,7 @@ class CompositeBase(GFlowNetEnv):
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._depad_action`
         """
-        # EOS action
-        action_space = [self.eos]
-        # Action space of each unique environment
+        action_space = []
         for idx in range(self.n_unique_envs):
             action_space.extend(
                 [
