@@ -43,6 +43,13 @@ dev = [
     "pytest-repeat >=0.9.1",
 ]
 
+vis = [
+    "dash >=4.0.0",
+    "dash-bootstrap-components>=2.0.4",
+    "dash_cytoscape >=1.0.2",
+    "umap-learn >=0.5.11",
+]
+
 # TODO: Consider relaxing the == dependency of pymatgen. As of Feb 2025, the latest version
 # is problematic. ==2024.3.1 is the minimum version required by pyxtal.
 materials = [

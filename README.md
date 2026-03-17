@@ -343,6 +343,30 @@ proxy.rewards(env.states2proxy(batch.states))
 >>> tensor([ 6., 19., 39.])
 ```
 
+## Advanced visualisation
+
+Thanks to the contribution of [Florian Holeczek](https://github.com/florianholeczek), from the [Visual Data Science Lab](https://jku-vds-lab.at/), it is possible to access advanced visualisation tools to analyse the training of a GFlowNet.
+
+In order to use this feature, you have to enable the VisLogger during training. For example:
+
+```bash
+python train.py +experiments=grid/corners logger=vislogger
+```
+
+You may want to adjust the logging period with, for instance, `vislogger.log_every_n=100`.
+
+After training, you can launch the visualisation dashboard with the following command:
+
+```bash
+python gflownet/utils/vislogger/run_dashboard.py --path path/to/run/directory
+```
+
+Note that in order to launch the dashboard, you have to install the necessary dependencies, which are packaged in the `vis` extra:
+
+```bash
+python -m pip install .[vis]
+```
+
 ## Contributors
 
 Many wonderful scientists and developers have contributed to this repository: [Alex Hernandez-Garcia](https://github.com/alexhernandezgarcia), [Nikita Saxena](https://github.com/nikita-0209), [Alexandra Volokhova](https://github.com/AlexandraVolokhova), [Michał Koziarski](https://github.com/michalkoziarski), [Divya Sharma](https://github.com/sh-divya), [Pierre Luc Carrier](https://github.com/carriepl) and [Victor Schmidt](https://github.com/vict0rsch).
