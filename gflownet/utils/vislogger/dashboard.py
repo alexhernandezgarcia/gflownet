@@ -142,7 +142,7 @@ def run_dashboard(
     conn.commit()
     conn.close()
 
-    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
+    app = dash.Dash(__name__)
 
     # Load extra layouts for cytoscape
     cyto.load_extra_layouts()
@@ -717,7 +717,7 @@ def run_dashboard(
                                                             "flex": "1",
                                                             "height": "100%",
                                                             "width": "0px",
-                                                            "background-color": "#222222",
+                                                            "background-color": "#FFFFFF",
                                                         },
                                                         elements=[],
                                                         stylesheet=[],
@@ -780,10 +780,10 @@ def run_dashboard(
                                         markdown_options={"html": True},
                                         style_cell={
                                             "fontFamily": "Arial",
-                                            "backgroundColor": "#222222",
+                                            "backgroundColor": "#FFFFFF",
                                         },
                                         style_header={
-                                            "backgroundColor": "#222222",
+                                            "backgroundColor": "#FFFFFF",
                                             "fontWeight": "bold",
                                         },
                                         style_table={

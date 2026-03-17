@@ -20,11 +20,19 @@ class Plotter:
         self.agg_fn = state_aggregation_fn
 
         # colorscales
-        self.cs_main = px.colors.sequential.YlGn
-        self.cs_iteration = px.colors.sequential.Teal
-        self.cs_diverging_testset = px.colors.diverging.PRGn
-        self.cs_diverging_edgechange = px.colors.diverging.PiYG
+        """
+        self.cs_main = px.colors.sequential.Blugrn
+        self.cs_iteration = px.colors.sequential.Sunset
+        self.cs_diverging_testset = px.colors.diverging.Fall_r
+        self.cs_diverging_edgechange = px.colors.diverging.Temps
         self.cs_diverging_dir = px.colors.diverging.balance_r
+        """
+        self.cs_main = px.colors.sequential.speed
+        self.cs_iteration = px.colors.sequential.solar
+        self.cs_diverging_testset = px.colors.diverging.RdYlGn  # Earth
+        self.cs_diverging_edgechange = px.colors.diverging.RdYlBu_r
+        self.cs_diverging_dir = px.colors.diverging.BrBG
+        self.plotly_template = "plotly_white"
 
     def html_from_imagefn(self, text):
         """
@@ -550,7 +558,7 @@ class Plotter:
             ),
             margin=dict(l=40, r=40, t=40, b=40),
             autosize=True,
-            template="plotly_dark",
+            template=self.plotly_template,
             title=title,
             modebar_remove=["lasso2d", "select2d"],
         )
@@ -1023,7 +1031,7 @@ class Plotter:
             vmin, vmax = -10, 0
             colorscale = self.cs_main
         elif metric == "variance":
-            vmin, vmax = -3, 3
+            vmin, vmax = -2.5, 2.5
             colorscale = self.cs_diverging_edgechange
         elif metric == "frequency":
             vmin, vmax = 0, max_freq
@@ -1085,7 +1093,7 @@ class Plotter:
             {
                 "selector": 'node[node_type = "start"]',
                 "style": {
-                    "background-color": "#BAEB9D",
+                    "background-color": "#0e5a2c",
                     "background-image": "none",  # No image for start node
                     "label": "data(id)",
                     "text-valign": "center",
@@ -1158,7 +1166,7 @@ class Plotter:
                         "width": "65px",
                         "height": "45px",
                         "border-width": "2px",
-                        "border-color": "#BAEB9D",
+                        "border-color": "#0e5a2c",
                     },
                 },
             )
@@ -1383,7 +1391,7 @@ class Plotter:
 
         if metric == "variance":
             color_scale = self.cs_diverging_edgechange
-            zmin, zmax, zmid = -3, 3, 0
+            zmin, zmax, zmid = -2.5, 2.5, 0
             title = (
                 f"Edge Heatmap<br><sup>Difference: {direction.capitalize()}"
                 "Logprobability - Mean of Edge</sup>"
@@ -1424,7 +1432,7 @@ class Plotter:
         ticks = 10 * (np.arange(15) + 1) + (150 * page)
         fig.update_layout(
             autosize=True,
-            template="plotly_dark",
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40),
             dragmode="select",
             title=dict(
@@ -1590,7 +1598,7 @@ class Plotter:
                 f"State Space of Final Objects<br><sup>Size shows {metric} "
                 "for the latest iteration the object occured"
             ),
-            template="plotly_dark",
+            template=self.plotly_template,
             legend=dict(
                 itemsizing="constant",  # ensures marker size is not scaled
             ),
@@ -1762,7 +1770,7 @@ class Plotter:
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
-            template="plotly_dark",
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40),
         )
 
@@ -1830,7 +1838,7 @@ class Plotter:
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
-            template="plotly_dark",
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40),
         )
 
