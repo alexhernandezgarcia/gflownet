@@ -48,6 +48,7 @@ class Stack(CompositeBase):
         """
         self.subenvs = subenvs
         self.max_elements = len(self.subenvs)
+        # TODO: Create self.n_subenvs (and use it)
 
         # Determine the unique environments
         (
