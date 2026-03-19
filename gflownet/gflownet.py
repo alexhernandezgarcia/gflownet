@@ -639,8 +639,8 @@ class GFlowNetAgent:
         if n_train > 0 and self.buffer.train is not None:
             envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
             x_train = self.buffer.select(
-                self.buffer.train, n_train, self.train_sampling, self.rng
-            )["samples"].values.tolist()
+                self.buffer.train, n_train, self.train_sampling, self.rng, n_duplicates=3 
+            )["samples"].values.tolist() #TODO find a way to not hardcode n_duplicates! 
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
         else:

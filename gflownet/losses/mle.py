@@ -6,6 +6,7 @@ The MLE loss or objective was defined by Zhang et al. (2023):
     .. _a link: https://arxiv.org/pdf/2209.02606
 """
 
+import torch
 from torchtyping import TensorType
 
 from gflownet.losses.base import BaseLoss
@@ -81,9 +82,10 @@ class MLE(BaseLoss):
     def compute_losses_of_batch(
         self,
         batch: Batch,
-        batch_cons: Batch = None,
-        use_consistency_loss: bool = False,
+        use_consistency_loss: bool = True,
         alpha: float = 1,
+        n_trajs_per_terminal_state: int=1,
+        n_duplicates: int=3 #TODO find a way to not hardcode this! 
     ) -> TensorType["batch_size"]:
         """
         Computes the MLE loss for each trajectory of the input batch.
@@ -117,33 +119,20 @@ class MLE(BaseLoss):
             if logprobs_b.requires_grad
             else -(logprobs_f - logprobs_b)
         )
-        # mle_loss =  - ( logprobs_f - logprobs_b)
 
         # Optional: consistency loss to train P_B
+        consistency_loss = 0
+        bs = len(logprobs_f)
         if use_consistency_loss:
-            assert (
-                batch_cons is not None
-            ), "Error: no consistency batch provided for consistency loss!"
-            logprobs_f_cons = compute_logprobs_trajectories(
-                batch_cons, forward_policy=self.forward_policy, backward=False
-            )
-            logprobs_f_cons = compute_logprobs_trajectories(
-                batch_cons, backward_policy=self.backward_policy, backward=True
-            )
+            #TODO add a test that we effectively have n_trajs_per_terminal_state trajectories per terminal state
+            #assert ( ), "Error: we don't have many trajectories per terminal state"
+            logprobs_f_cons = logprobs_f.reshape(bs // n_duplicates, n_duplicates)
+            logprobs_b_cons = logprobs_b.reshape(bs // n_duplicates, n_duplicates)
             if logprobs_f.requires_grad:
-                consistency_loss = torch.pow(
-                    (logprobs_f.detach() - logprobs_b)
-                    - (logprobs_f_cons.detach() - logprobs_b_cons),
-                    2,
-                )
+                consistency_loss = torch.var(logprobs_f_cons.detach() - logprobs_b_cons, dim = 1) 
             else:
-                consistency_loss = torch.pow(
-                    (logprobs_f - logprobs_b) - (logprobs_f_cons - logprobs_b_cons), 2
-                )
-        else:
-            consistency_loss = 0
+                consistency_loss = torch.var(logprobs_f_cons - logprobs_b_cons, dim = 1) 
 
-        # import ipdb; ipdb.set_trace()
         return mle_loss + alpha * consistency_loss
 
     def aggregate_losses_of_batch(
