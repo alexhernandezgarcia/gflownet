@@ -776,8 +776,13 @@ class Stack(CompositeBase):
         self, states: List[Dict]
     ) -> TensorType["batch", "state_policy_dim"]:
         """
-        Prepares a batch of states in "environment format" for the policy model: simply
-        a concatenation of the policy-format states of the sub-environments.
+        Prepares a batch of states in environment format for the policy model.
+
+        The default policy representation is a concatenation of the policy-format
+        states of the sub-environments.
+
+        There is only one call of ``subenv.states2policy()`` for each sub-environment,
+        on all the corresponding substates in the batch.
 
         Parameters
         ----------
@@ -790,15 +795,15 @@ class Stack(CompositeBase):
         """
         return torch.cat(
             [
-                env.states2policy([state[idx] for state in states])
-                for idx, env in enumerate(self.envs_unique)
+                subenv.states2policy([state[idx] for state in states])
+                for idx, subenv in enumerate(self.subenvs)
             ],
             dim=1,
         )
 
     def states2proxy(self, states: List[Dict]) -> List[List]:
         """
-        Prepares a batch of states in "environment format" for a proxy: simply a
+        Prepares a batch of states in environment format for a proxy: simply a
         concatenation of the proxy-format states of the sub-environments.
 
         Parameters
