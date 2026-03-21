@@ -1374,7 +1374,6 @@ def test__is_source_returns_expected(
     assert env.is_source(state_to_compare) == is_source
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "env, state",
     [
@@ -4030,8 +4029,6 @@ def test__get_logprobs_forward__returns_valid_actions(
     assert torch.all(torch.isfinite(logprobs))
 
 
-#
-#
 @pytest.mark.parametrize(
     "states, actions",
     [
@@ -4304,8 +4301,6 @@ def test__get_logprobs_backward__returns_valid_actions(
     assert torch.all(torch.isfinite(logprobs))
 
 
-#
-#
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env",
@@ -4322,12 +4317,9 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     assert True
 
 
-#
-#
 class TestMiniCrystalCompFirst(common.BaseTestsContinuous):
     """Common tests for a mini crystal stack with composition first environment."""
 
-    #
     @pytest.fixture(autouse=True)
     def setup(self, env_mini_comp_first):
         self.env = env_mini_comp_first
@@ -4360,12 +4352,9 @@ class TestMiniCrystalCompFirst(common.BaseTestsContinuous):
         }
 
 
-#
-#
 class TestCrystalSGFirst(common.BaseTestsContinuous):
     """Common tests for crystal stack with space group first."""
 
-    #
     @pytest.fixture(autouse=True)
     def setup(self, env_sg_first):
         self.env = env_sg_first
@@ -4398,13 +4387,10 @@ class TestCrystalSGFirst(common.BaseTestsContinuous):
         }
 
 
-#
-#
 @pytest.mark.skip(reason="LatticeParameters with SGCCG project is obsolete")
 class TestCrystalLPSGCCG(common.BaseTestsContinuous):
     """Common tests for crystal stack with SGCCG lattice parameters."""
 
-    #
     @pytest.fixture(autouse=True)
     def setup(self, env_lpsgccg):
         self.env = env_lpsgccg
