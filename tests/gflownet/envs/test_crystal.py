@@ -418,7 +418,6 @@ def test__states2policy__is_concatenation_of_subenv_states(env, states, request)
     assert torch.all(torch.eq(states_policy, states_policy_expected))
 
 
-@pytest.mark.skip(reason="skip until revised")
 @pytest.mark.parametrize(
     "env, states",
     [
@@ -594,7 +593,7 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             states_dict[idx].append(env._get_substate(state, idx))
     states_proxy_dict = {
         idx: subenv.states2proxy(states_dict[idx])
-        for idx, subenv in env.subenvs.items()
+        for idx, subenv in enumerate(env.subenvs)
     }
     states_proxy_expected = torch.cat([el for el in states_proxy_dict.values()], dim=1)
     # Get proxy states from env.states2proxy

@@ -298,17 +298,20 @@ class Crystal(Stack):
             self.space_group.set_n_atoms_compatibility_dict(None)
 
     def states2proxy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "environment format" for a proxy: simply a
-        concatenation of the proxy-format states of the sub-environments.
+        Prepares a batch of states in environment format for the proxies.
 
-        This method is overriden so as to account for the space group before
-        composition case, since the proxy expects composition first regardless.
+        The output is the concatenation of the proxy-format states of the
+        sub-environments.
 
-        Args
-        ----
+        This method is overriden to improve the efficiency, to create a tensor as an
+        output and to account for the space group before composition case, since the
+        proxy expects composition first regardless.
+
+        Parameters
+        ----------
         states : list
             A batch of states in environment format.
 
@@ -316,17 +319,16 @@ class Crystal(Stack):
         -------
         A tensor containing all the states in the batch.
         """
-        if not self.do_sg_before_composition:
-            return super().states2proxy(states)
-        idxs_composition_first = [
+        indices_subenvs_proxy = [
             self.idx_composition,
             self.idx_spacegroup,
             self.idx_latticeparameters,
         ]
         return torch.cat(
             [
-                self.subenvs[stage].states2proxy([state[stage + 1] for state in states])
-                for stage in stages_composition_first
+                self.subenvs[idx].states2proxy([state[idx] for state in states])
+                for idx in indices_subenvs_proxy
+                if idx is not None
             ],
             dim=1,
         )
