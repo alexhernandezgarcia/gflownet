@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from gflownet.envs.choices import Choices
-from gflownet.utils.common import tfloat
+from gflownet.utils.common import tbool, tfloat
 
 
 @pytest.fixture
@@ -558,6 +558,201 @@ def test__get_mask_invalid_actions_forward__returns_expected(
 def test__states2policy__returns_expected(env, states, states_policy_exp, request):
     env = request.getfixturevalue(env)
     assert torch.equal(states_policy_exp, env.states2policy(states))
+
+
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0],
+                1: [0],
+                2: [0],
+            },
+            (0, 3),
+        ),
+    ],
+)
+def test__get_logprobs_forward__is_finite_state_explicit(env, state, action, request):
+    env = request.getfixturevalue(env)
+    masks = torch.unsqueeze(
+        tbool(
+            env.get_mask_invalid_actions_forward(state, done=False), device=env.device
+        ),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=False,
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0],
+                1: [0],
+                2: [0],
+            },
+            (0, 3),
+        ),
+    ],
+)
+def test__get_logprobs_forward__is_finite_state_implicit(env, state, action, request):
+    env = request.getfixturevalue(env)
+    env.set_state(state, done=False)
+    masks = torch.unsqueeze(
+        tbool(env.get_mask_invalid_actions_forward(), device=env.device),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=False,
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [3],
+                1: [0],
+                2: [0],
+            },
+            (0, 3),
+        ),
+    ],
+)
+def test__get_logprobs_backward__is_finite_state_explicit(env, state, action, request):
+    env = request.getfixturevalue(env)
+    masks = torch.unsqueeze(
+        tbool(
+            env.get_mask_invalid_actions_backward(state, done=False), device=env.device
+        ),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=True,
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        (
+            "env_without_replacement",
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [3],
+                1: [0],
+                2: [0],
+            },
+            (0, 3),
+        ),
+    ],
+)
+def test__get_logprobs_backward__is_finite_state_implicit(env, state, action, request):
+    env = request.getfixturevalue(env)
+    env.set_state(state, done=False)
+    masks = torch.unsqueeze(
+        tbool(env.get_mask_invalid_actions_backward(), device=env.device),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=True,
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+@pytest.mark.parametrize(
+    "env, state_a, options_avail_a, state_b, options_avail_b",
+    [
+        (
+            "env_without_replacement",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [3],
+                1: [4],
+                2: [0],
+            },
+            {1, 2, 5},
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [0],
+                1: [0],
+                2: [0],
+            },
+            {1, 2, 3, 4, 5},
+        ),
+    ],
+)
+def test__set_state__sets_expected_constraints(
+    env, state_a, options_avail_a, state_b, options_avail_b, request
+):
+    env = request.getfixturevalue(env)
+    assert env.choice_env.options_available == {1, 2, 3, 4, 5}
+    env.set_state(state_a, done=False)
+    assert env.choice_env.options_available == options_avail_a
+    env.set_state(state_b, done=False)
+    assert env.choice_env.options_available == options_avail_b
 
 
 class TestChoicesDefault(common.BaseTestsDiscrete):
