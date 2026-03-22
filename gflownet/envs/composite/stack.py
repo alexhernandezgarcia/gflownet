@@ -691,11 +691,9 @@ class Stack(CompositeBase):
         # environment corresponding to the relevant subenv and the list of unique
         # indices
         indices_unique = torch.empty_like(indices_relevant)
-        indices_unique_int = set()
-        for idx_subenv in indices_relevant.unique():
+        for idx_subenv in set(indices_relevant_int):
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
             indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.add(idx_unique)
         indices_unique_int = indices_unique.tolist()
 
         # Create a dictionary with keys equal to the unique indices and the values are
@@ -708,7 +706,7 @@ class Stack(CompositeBase):
 
         # Sample actions from each unique environment
         actions_dict = {}
-        for idx in indices_unique_int:
+        for idx in set(indices_unique_int):
             env = self._get_env_unique(idx)
             env_mask = indices_unique == idx
             actions_dict[idx] = env.sample_actions_batch(
@@ -769,11 +767,9 @@ class Stack(CompositeBase):
         # environment corresponding to the relevant subenv and the list of unique
         # indices
         indices_unique = torch.empty_like(indices_relevant)
-        indices_unique_int = set()
-        for idx_subenv in indices_relevant.unique():
+        for idx_subenv in set(indices_relevant_int):
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
             indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.add(idx_unique)
         indices_unique_int = indices_unique.tolist()
 
         # Create a dictionary with keys equal to the unique indices and the values are
@@ -786,7 +782,7 @@ class Stack(CompositeBase):
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
-        for idx in indices_unique_int:
+        for idx in set(indices_unique_int):
             env = self._get_env_unique(idx)
             env_mask = indices_unique == idx
             logprobs[env_mask] = env.get_logprobs(
