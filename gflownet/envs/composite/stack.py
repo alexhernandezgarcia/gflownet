@@ -686,20 +686,25 @@ class Stack(CompositeBase):
         # the mask
         indices_relevant = torch.where(mask[:, : self.max_elements])[1]
         indices_relevant_int = indices_relevant.tolist()
+
+        # Create the tensor indices_unique, which contains the index of the unique
+        # environment corresponding to the relevant subenv and the list of unique
+        # indices
         indices_unique = torch.empty_like(indices_relevant)
         indices_unique_int = set()
+        for idx_subenv in indices_relevant.unique():
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
+            indices_unique[indices_relevant == idx_subenv] = idx_unique
+            indices_unique_int.add(idx_unique)
+        indices_unique_int = indices_unique.tolist()
 
         # Create a dictionary with keys equal to the unique indices and the values are
         # corresponding to the sub-environment.
-        # Additionally, update the tensor indices_unique, which contains the index of
-        # the unique environment corresponding to the relevant subenv and the list of
-        # unique indices
         states_dict = {idx: [] for idx in self.unique_indices}
-        for state, idx_subenv in zip(states_from, indices_relevant_int):
-            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+        for state, idx_subenv, idx_unique in zip(
+            states_from, indices_relevant_int, indices_unique_int
+        ):
             states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
-            indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.add(idx_unique)
 
         # Sample actions from each unique environment
         actions_dict = {}
@@ -759,20 +764,25 @@ class Stack(CompositeBase):
         # the mask
         indices_relevant = torch.where(mask[:, : self.max_elements])[1]
         indices_relevant_int = indices_relevant.tolist()
+
+        # Create the tensor indices_unique, which contains the index of the unique
+        # environment corresponding to the relevant subenv and the list of unique
+        # indices
         indices_unique = torch.empty_like(indices_relevant)
         indices_unique_int = set()
+        for idx_subenv in indices_relevant.unique():
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
+            indices_unique[indices_relevant == idx_subenv] = idx_unique
+            indices_unique_int.add(idx_unique)
+        indices_unique_int = indices_unique.tolist()
 
         # Create a dictionary with keys equal to the unique indices and the values are
         # corresponding to the sub-environment.
-        # Additionally, update the tensor indices_unique, which contains the index of
-        # the unique environment corresponding to the relevant subenv and the list of
-        # unique indices
         states_dict = {idx: [] for idx in self.unique_indices}
-        for state, idx_subenv in zip(states_from, indices_relevant_int):
-            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+        for state, idx_subenv, idx_unique in zip(
+            states_from, indices_relevant_int, indices_unique_int
+        ):
             states_dict[idx_unique].append(self._get_substate(state, idx_subenv))
-            indices_unique[indices_relevant == idx_subenv] = idx_unique
-            indices_unique_int.add(idx_unique)
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
