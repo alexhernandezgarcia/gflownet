@@ -184,15 +184,13 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None
         state = self._get_state(state)
         done = self._get_done(done)
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
@@ -235,15 +233,13 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None
         state = self._get_state(state)
         done = self._get_done(done)
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
@@ -353,15 +349,13 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None
         state = self._get_state(state)
         done = self._get_done(done)
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
@@ -451,7 +445,7 @@ class Stack(CompositeBase):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -461,9 +455,7 @@ class Stack(CompositeBase):
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
@@ -494,6 +486,10 @@ class Stack(CompositeBase):
         parent_actions = [
             self._pad_action(action, relevant_subenv) for action in parent_actions
         ]
+
+        # Reset constraints for self.state
+        if do_constraints:
+            self._apply_constraints(state=self.state)
 
         return parents, parent_actions
 

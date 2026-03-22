@@ -144,7 +144,7 @@ class SetBox(Stack):
         self,
         action: Tuple = None,
         state: Dict = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -155,6 +155,11 @@ class SetBox(Stack):
             An action from the SetBox environment.
         state : dict
             A state from the SetBox environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_conditioning_grid, action, is_backward=False
@@ -177,10 +182,13 @@ class SetBox(Stack):
                 )
             # Update global Stack state with state of Set
             self._set_substate(self.idx_set, self.set.state)
+            return True
+        else:
+            return False
 
     def _apply_constraints_backward(
         self, action: Tuple = None, state: Optional[Dict] = None
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the backward
         direction.
@@ -191,6 +199,11 @@ class SetBox(Stack):
             An action from the SetBox environment.
         state : dict
             A state from the SetBox environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_conditioning_grid, action, is_backward=True
@@ -200,6 +213,9 @@ class SetBox(Stack):
             self.set.state = copy(self.set.source)
             self.set.subenvs = None
             self._set_substate(self.idx_set, self.set.state)
+            return True
+        else:
+            return False
 
     def states2proxy(
         self, states: List[Dict]

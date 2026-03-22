@@ -229,7 +229,7 @@ class ChoicesBase:
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the forward direction.
 
@@ -247,18 +247,26 @@ class ChoicesBase:
             is initiated by ``set_state()``, then ``action`` is None.
         state : dict (optional)
             A state of the global set environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         idx_subenv = self._get_active_subenv(state)
         if self._do_constraints_for_subenv(state, idx_subenv, action, False):
             options = set(self.get_options(state))
             options_available = set(self.choice_env.options_indices).difference(options)
             self.choice_env.set_available_options(options_available)
+            return True
+        else:
+            return False
 
     def _apply_constraints_backward(
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the backward direction.
 
@@ -281,9 +289,16 @@ class ChoicesBase:
             An action from the global composite environment.
         state : dict (optional)
             A state of the global composite environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         idx_subenv = self._get_active_subenv(state)
+        applied_constraints = False
         if self._do_constraints_for_subenv(state, idx_subenv, action, True):
+            applied_constraints = True
             options = set(self.get_options(state))
             options_available = set(self.choice_env.options_indices).difference(options)
             # Add option of currently active sub-environment since its option is
@@ -299,7 +314,10 @@ class ChoicesBase:
         # TODO: Design better solution for resetting the constraints when reset() is
         # called
         elif self.is_source(state):
+            applied_constraints = True
             self.choice_env.set_available_options(set(self.choice_env.options_indices))
+
+        return applied_constraints
 
     def states2policy(
         self, states: List[Dict]

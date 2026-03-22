@@ -200,7 +200,7 @@ class Crystal(Stack):
         self,
         action: Optional[Tuple] = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -215,7 +215,13 @@ class Crystal(Stack):
             An action from the Crystal environment or None.
         state : dict (optional)
             A state from the Crystal environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
+        applied_constraints = False
         # Apply constraints composition -> space group
         # Apply constraint only if action is None or if it is the composition EOS
         if (
@@ -225,6 +231,7 @@ class Crystal(Stack):
                 state, self.idx_composition, action, is_backward=False
             )
         ):
+            applied_constraints = True
             state = self._get_state(state)
             composition_substate = self._get_substate(state, self.idx_composition)
             n_atoms_per_element = self.composition.get_n_atoms_per_element(
@@ -239,6 +246,7 @@ class Crystal(Stack):
         if self._do_constraints_for_subenv(
             state, self.idx_spacegroup, action, is_backward=False
         ):
+            applied_constraints = True
             state = self._get_state(state)
             spacegroup_substate = self._get_substate(state, self.idx_spacegroup)
             if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
@@ -253,9 +261,11 @@ class Crystal(Stack):
                     self.idx_latticeparameters, self.lattice_parameters.state, state
                 )
 
+        return applied_constraints
+
     def _apply_constraints_backward(
         self, action: Optional[Tuple] = None, state: Optional[Dict] = None
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the backward
         direction.
@@ -266,7 +276,13 @@ class Crystal(Stack):
             An action from the Crystal environment or None.
         state : dict (optional)
             A state from the Crystal environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
+        applied_constraints = False
         # Revert constraints:
         # - space group -> lattice parameters: lattice system of LatticeParameters is
         # set back to TRICLINIC
@@ -279,6 +295,7 @@ class Crystal(Stack):
                 state, self.idx_spacegroup, action, is_backward=True
             )
         ):
+            applied_constraints = True
             self.lattice_parameters.set_lattice_system(TRICLINIC)
             self._set_substate(
                 self.idx_latticeparameters, self.lattice_parameters.state, state
@@ -295,7 +312,10 @@ class Crystal(Stack):
                 state, self.idx_composition, action, is_backward=True
             )
         ):
+            applied_constraints = True
             self.space_group.set_n_atoms_compatibility_dict(None)
+
+        return applied_constraints
 
     def states2proxy(
         self, states: List[Dict]

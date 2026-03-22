@@ -483,7 +483,7 @@ class LatticeParameters(Stack):
 
     def _apply_constraints_forward(
         self, action: Optional[Tuple] = None, state: Optional[Dict] = None
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -497,15 +497,23 @@ class LatticeParameters(Stack):
             An action from the LatticeParameters environment or None.
         state : dict (optional)
             A state from the LatticeParameters environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_condition, action, is_backward=False
         ):
             self.cube.ignored_dims = IGNORED_DIMS[self.lattice_system]
+            return True
+        else:
+            return False
 
     def _apply_constraints_backward(
         self, action: Optional[Tuple] = None, state: Optional[Dict] = None
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the backward direction.
 
@@ -518,11 +526,19 @@ class LatticeParameters(Stack):
             An action from the LatticeParameters environment or None.
         state : dict (optional)
             A state from the LatticeParameters environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if self._do_constraints_for_subenv(
             state, self.idx_condition, action, is_backward=True
         ):
             self.cube.ignored_dims = IGNORED_DIMS[TRICLINIC]
+            return True
+        else:
+            return False
 
     def _check_has_constraints(self) -> bool:
         """

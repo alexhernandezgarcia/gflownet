@@ -689,7 +689,7 @@ class CompositeBase(GFlowNetEnv):
         action: Tuple = None,
         state: Optional[Dict] = None,
         is_backward: bool = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments.
 
@@ -727,9 +727,16 @@ class CompositeBase(GFlowNetEnv):
             constraint (if initiated by ``step()``). If the call of the method is
             initiated by ``set_state()``, then the value is None, since the constraints
             may be applied in any direction, depending on the current state.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if not self.has_constraints:
-            return
+            return False
+
+        applied_constraints = False
 
         # Forward constraints are applied if the call method is initiated by
         # set_state() (action is None and is_backward is not True) or by step() (action
@@ -737,20 +744,22 @@ class CompositeBase(GFlowNetEnv):
         if (action is None and is_backward is not True) or (
             action is not None and is_backward is False
         ):
-            self._apply_constraints_forward(action, state)
+            applied_constraints = self._apply_constraints_forward(action, state)
         # Backward constraints are applied if the call method is initiated by
         # set_state() or reset() (action is None and is_backward is not False) or by
         # step_backward() (action is not None and is_backward is True)
         if (action is None and is_backward is not False) or (
             action is not None and is_backward is True
         ):
-            self._apply_constraints_backward(action, state)
+            applied_constraints = self._apply_constraints_backward(action, state)
+
+        return applied_constraints
 
     def _apply_constraints_forward(
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the forward direction.
 
@@ -769,14 +778,19 @@ class CompositeBase(GFlowNetEnv):
             is initiated by ``set_state()``, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        pass
+        return False
 
     def _apply_constraints_backward(
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the backward direction.
 
@@ -798,8 +812,13 @@ class CompositeBase(GFlowNetEnv):
             An action from the global composite environment.
         state : dict (optional)
             A state of the global composite environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        pass
+        return False
 
     def _do_constraints_for_subenv(
         self,
