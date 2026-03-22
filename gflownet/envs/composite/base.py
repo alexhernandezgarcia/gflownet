@@ -239,7 +239,7 @@ class CompositeBase(GFlowNetEnv):
         True if the sub-environment at ``idx_subenv`` is done; False otherwise.
         """
         assert idx_subenv in range(self.max_elements)
-        return self._get_dones(state)[idx_subenv]
+        return bool(self._get_dones(state)[idx_subenv])
 
     def _set_unique_index(
         self, idx_subenv: int, idx_unique: int, state: Optional[Dict] = None
