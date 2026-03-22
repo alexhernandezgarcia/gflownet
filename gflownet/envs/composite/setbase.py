@@ -1843,7 +1843,7 @@ class BaseSet(CompositeBase):
             self._get_active_subenv(state) == -1
             and self._get_toggle_flag(state) == 0
             and self._get_dones(state) == [0] * n_subenvs + [1] * n_left
-            and self._get_unique_indices(state, False)[n_subenvs:] == [-1] * n_left
+            and self._get_unique_indices(state)[n_subenvs:] == [-1] * n_left
             and all(
                 [
                     self._get_unique_env_of_subenv(idx, state).is_source(substate)
