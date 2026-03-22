@@ -555,7 +555,7 @@ class CompositeBase(GFlowNetEnv):
             subenv.set_state(self._get_substate(self.state, idx), bool(done_subenv))
 
         # Apply constraints across sub-environments, in case they apply.
-        self._apply_constraints(state=state, is_backward=None)
+        self._apply_constraints(state=self.state, is_backward=None)
 
         return self
 
