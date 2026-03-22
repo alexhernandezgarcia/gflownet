@@ -612,6 +612,41 @@ class SetFlex(BaseSet):
             self._set_subdone(idx, " | done" in readable, state)
         return state
 
+    def is_source(self, state: Optional[Dict] = None) -> bool:
+        """
+        Returns True if the environment's state or the state passed as parameter (if
+        not None) is the source state of the environment.
+
+        This method is overriden to check the meta-data about non-present states, which
+        is special of the SetFlex..
+
+        Parameters
+        ----------
+        state : dict
+            None, or a state in environment format.
+
+        Returns
+        -------
+        bool
+            Whether the state is the source state of the environment
+        """
+        # First, check if the state is source, considering the generic SetBase metadata
+        if not super().is_source(state):
+            return False
+
+        # Otherwise, check the SetFlex specific metadata
+        state = self._get_state(state)
+        n_subenvs = 0
+        for idx in range(self.max_elements):
+            if idx in state:
+                n_subenvs += 1
+        n_left = self.max_elements - n_subenvs
+        if self._get_dones(state) != [0] * n_subenvs + [1] * n_left:
+            return False
+        if self._get_unique_indices(state, False)[n_subenvs:] != [-1] * n_left:
+            return False
+        return True
+
     # TODO: Try to find a better solution to this issue when sampling random subenvs
     def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
         """

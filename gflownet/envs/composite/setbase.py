@@ -1838,19 +1838,16 @@ class BaseSet(CompositeBase):
         state = self._get_state(state)
         substates = self._get_substates(state)
         n_subenvs = len(substates)
-        n_left = self.max_elements - n_subenvs
-        return (
-            self._get_active_subenv(state) == -1
-            and self._get_toggle_flag(state) == 0
-            and self._get_dones(state) == [0] * n_subenvs + [1] * n_left
-            and self._get_unique_indices(state)[n_subenvs:] == [-1] * n_left
-            and all(
-                [
-                    self._get_unique_env_of_subenv(idx, state).is_source(substate)
-                    for idx, substate in enumerate(substates)
-                ]
-            )
-        )
+        if self._get_active_subenv(state) != -1:
+            return False
+        if self._get_toggle_flag(state) != 0:
+            return False
+        if self._get_dones(state)[:n_subenvs] != [0] * n_subenvs:
+            return False
+        for idx, substate in enumerate(substates):
+            if not self._get_unique_env_of_subenv(idx, state).is_source(substate):
+                return False
+        return True
 
     def equal(self, state_x: Dict, state_y: Dict) -> bool:
         """
