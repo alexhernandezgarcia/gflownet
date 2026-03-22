@@ -392,9 +392,7 @@ class CompositeBase(GFlowNetEnv):
         """
         return self._get_env_unique(self._get_unique_idx_of_subenv(idx_subenv, state))
 
-    def _get_unique_indices(
-        self, state: Optional[Dict] = None, exclude_nonpresent: bool = True
-    ) -> int:
+    def _get_unique_indices(self, state: Optional[Dict] = None) -> int:
         """
         Returns the part of the state containing the unique indices.
 
@@ -405,15 +403,9 @@ class CompositeBase(GFlowNetEnv):
         ----------
         state : dict
             A state of the global composite environment.
-        exclude_nonpresent : bool
-            If True, return only the indices of sub-environments that are present in
-            the state, that is exclude indices with -1.
         """
         state = self._get_state(state)
-        unique_indices = state["_envs_unique"]
-        if exclude_nonpresent:
-            return [idx for idx in unique_indices if idx != -1]
-        return unique_indices
+        return state["_envs_unique"]
 
     def get_action_space(self) -> List[Tuple]:
         """

@@ -164,6 +164,28 @@ class SetFlex(BaseSet):
         # The set is continuous if any subenv is continuous
         self.continuous = any([subenv.continuous for subenv in self.envs_unique])
 
+    def _get_unique_indices(
+        self, state: Optional[Dict] = None, exclude_nonpresent: bool = True
+    ) -> int:
+        """
+        Returns the part of the state containing the unique indices.
+
+        This method is overriden to include the option to exclude the indices of
+        non-present sub-environments.
+
+        Parameters
+        ----------
+        state : dict
+            A state of the global composite environment.
+        exclude_nonpresent : bool
+            If True, return only the indices of sub-environments that are present in
+            the state, that is exclude indices with -1.
+        """
+        unique_indices = super()._get_unique_indices(state)
+        if exclude_nonpresent:
+            return [idx for idx in unique_indices if idx != -1]
+        return unique_indices
+
     def _compute_unique_indices_of_subenvs(
         self, subenvs: Iterable[GFlowNetEnv]
     ) -> List[int]:
