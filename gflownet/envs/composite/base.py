@@ -223,6 +223,24 @@ class CompositeBase(GFlowNetEnv):
         state["_dones"][idx_subenv] = int(done)
         return state
 
+    def _get_subdone(self, idx_subenv: int, state: Optional[Dict] = None) -> bool:
+        """
+        Returns whether if the sub-environment at ``idx_subenv`` is done.
+
+        Parameters
+        ----------
+        idx_subenv : int
+            Index of the sub-environment to query.
+        state : dict
+            A state of the composite environment.
+
+        Returns
+        -------
+        True if the sub-environment at ``idx_subenv`` is done; False otherwise.
+        """
+        assert idx_subenv in range(self.max_elements)
+        return self._get_dones(state)[idx_subenv]
+
     def _set_unique_index(
         self, idx_subenv: int, idx_unique: int, state: Optional[Dict] = None
     ) -> Dict:
@@ -844,7 +862,7 @@ class CompositeBase(GFlowNetEnv):
             if action != env_unique.eos:
                 return False
 
-        subenv_is_done = self._get_dones(state)[idx_subenv]
+        subenv_is_done = self._get_subdone(idx_subenv, state)
         # Backward constraints could only be applied if the sub-environment is not done
         if is_backward:
             return not subenv_is_done

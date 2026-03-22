@@ -118,6 +118,26 @@ class Stack(CompositeBase):
         active_subenv = self._get_active_subenv(state)
         return [1] * active_subenv + [0] * (self.max_elements - active_subenv)
 
+    def _get_subdone(self, idx_subenv: int, state: Optional[Dict] = None) -> bool:
+        """
+        Returns whether if the sub-environment at ``idx_subenv`` is done.
+
+        This method is overriden for efficiency.
+
+        Parameters
+        ----------
+        idx_subenv : int
+            Index of the sub-environment to query.
+        state : dict
+            A state of the composite environment.
+
+        Returns
+        -------
+        True if the sub-environment at ``idx_subenv`` is done; False otherwise.
+        """
+        assert idx_subenv in range(self.max_elements)
+        return self._get_active_subenv(state) > idx_subenv
+
     def _compute_mask_dim(self):
         """
         Calculates the mask dimensionality of the Stack environment.
