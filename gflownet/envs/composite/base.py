@@ -83,7 +83,7 @@ class CompositeBase(GFlowNetEnv):
         """
         if idx_subenv is None:
             idx_subenv = self._get_active_subenv(state)
-        if idx_subenv not in range(self.max_elements):
+        if idx_subenv >= self.max_elements:
             raise ValueError(
                 f"Index {idx_subenv} is not a valid sub-environment index."
             )
@@ -134,7 +134,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv < self.max_elements
         state = self._get_state(state)
         state[idx_subenv] = state_subenv
         return state
@@ -174,7 +174,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements) or idx_subenv == -1
+        assert idx_subenv < self.max_elements or idx_subenv == -1
         state = self._get_state(state)
         state["_active"] = idx_subenv
         return state
@@ -218,7 +218,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv < self.max_elements
         state = self._get_state(state)
         state["_dones"][idx_subenv] = int(done)
         return state
@@ -238,7 +238,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         True if the sub-environment at ``idx_subenv`` is done; False otherwise.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv < self.max_elements
         return bool(self._get_dones(state)[idx_subenv])
 
     def _set_unique_index(
@@ -261,8 +261,8 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
-        assert idx_unique in range(self.n_unique_envs)
+        assert idx_subenv < self.max_elements
+        assert idx_unique < self.n_unique_envs
         state = self._get_state(state)
         state["_envs_unique"][idx_subenv] = idx_unique
         return state
@@ -372,8 +372,7 @@ class CompositeBase(GFlowNetEnv):
         state : dict
             A state of the global composite environment.
         """
-        assert idx_subenv in range(self.max_elements)
-        state = self._get_state(state)
+        assert idx_subenv < self.max_elements
         return self._get_unique_indices(state)[idx_subenv]
 
     def _get_unique_env_of_subenv(
