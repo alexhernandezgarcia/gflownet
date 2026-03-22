@@ -201,8 +201,13 @@ class LatticeParameters(Stack):
         if isinstance(lattice_system, str):
             lattice_system = LATTICE_SYSTEM_INDEX[lattice_system]
 
-        # Update state of condition sub-environment
-        self.condition.set_state([lattice_system], done_condition)
+        # Update state of condition sub-environment - check if needed because set_state
+        # is expensive
+        if (
+            self.condition.state != [lattice_system]
+            or self.condition.done != done_condition
+        ):
+            self.condition.set_state([lattice_system], done_condition)
         # Update self.state or input state
         state = self._set_substate(self.idx_condition, self.condition.state, state)
 
