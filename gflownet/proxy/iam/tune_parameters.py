@@ -5,18 +5,19 @@ Computes:
   1. Amount values (HIGH/MEDIUM/LOW/NONE) from the local subsidy distribution
      in maxmin-scaled [0,1] space (matching what states2proxy feeds the proxy)
   2. Sigmoid reward parameters calibrated to the distribution of 5-year
-     consumption deltas in original units (matching FAIRY proxy output)
+     target variable deltas in original units (matching FAIRY proxy output)
 
 The raw parquet files contain UNSCALED values. The witch_proc_data Dataset
 applies maxmin scaling at load time. We replicate that scaling here for
 subsidies so amount values are in the correct space.
 
-For the sigmoid, the FAIRY proxy output is delta_consumption in ORIGINAL units
+For the sigmoid, the FAIRY proxy output is delta_<target> in ORIGINAL units
 (it rescales internally via addcmul), so sigmoid targets use raw deltas.
 
 Usage (from gflownet/proxy/iam/):
     python tune_parameters.py --region europe --year 2025
     python tune_parameters.py --region europe --year 2025 --year_window 1 --margin 0.3
+    python tune_parameters.py --region europe --year 2025 --target_variable EMI_total_CO2
 """
 
 import argparse
@@ -100,15 +101,33 @@ def get_subset_mask(keys_df, region, center_year, year_window):
 
 
 # ---------------------------------------------------------------------------
-# 3. Compute 5-year consumption deltas (original units)
+# 3. Compute 5-year target variable deltas (original units)
 # ---------------------------------------------------------------------------
 
-def compute_consumption_deltas(variables_df, keys_df, mask):
+def compute_variable_deltas(variables_df, keys_df, mask, target_variable):
     """
-    Compute the distribution of 5-year consumption deltas for the filtered subset.
-    This matches what the FAIRY proxy outputs: consumption(t+5) - consumption(t)
-    in ORIGINAL (unscaled) units.
+    Compute the distribution of 5-year deltas for `target_variable` in the
+    filtered subset. Matches what the FAIRY proxy outputs:
+        target(t+5) - target(t)  in ORIGINAL (unscaled) units.
+
+    Parameters
+    ----------
+    variables_df : pd.DataFrame
+        Raw (unscaled) variables dataframe.
+    keys_df : pd.DataFrame
+        Keys dataframe with gdx, year, n columns.
+    mask : pd.Series
+        Boolean mask for the relevant subset.
+    target_variable : str
+        Column name in variables_df to compute deltas for (e.g. "CONSUMPTION",
+        "EMI_total_CO2").
     """
+    if target_variable not in variables_df.columns:
+        raise ValueError(
+            f"Target variable '{target_variable}' not found in variables_df. "
+            f"Available: {list(variables_df.columns)}"
+        )
+
     index_map = {
         (keys_df.loc[i, "gdx"], int(keys_df.loc[i, "year"]), keys_df.loc[i, "n"]): i
         for i in keys_df.index
@@ -126,10 +145,10 @@ def compute_consumption_deltas(variables_df, keys_df, mask):
         if next_idx is None:
             continue
 
-        cons_current = float(variables_df.loc[idx, "CONSUMPTION"])
-        cons_next = float(variables_df.loc[next_idx, "CONSUMPTION"])
-        deltas.append(cons_next - cons_current)
-        baseline_values.append(cons_current)
+        val_current = float(variables_df.loc[idx, target_variable])
+        val_next = float(variables_df.loc[next_idx, target_variable])
+        deltas.append(val_next - val_current)
+        baseline_values.append(val_current)
 
     if len(deltas) == 0:
         return None
@@ -180,22 +199,9 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
     - MEDIUM = median of non-zero subsidies
     - LOW    = 25th percentile of non-zero subsidies
     - NONE   = 0.0
-
-    This reflects realistic investment levels for the region/period,
-    excluding the dominant zeros that would otherwise skew everything.
-
-    Parameters
-    ----------
-    subsidies_scaled : pd.DataFrame
-        Maxmin-scaled subsidies (full dataset).
-    mask : pd.Series
-        Boolean mask for the relevant subset.
-    margin : float
-        Fraction to extend HIGH beyond the 90th percentile.
     """
     sub = subsidies_scaled.loc[mask]
 
-    # Flatten all subsidy values in the subset and exclude zeros
     all_vals = sub.values.flatten()
     nonzero_vals = all_vals[all_vals > 1e-9]
 
@@ -219,7 +225,6 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
         "NONE": 0.0,
     }
 
-    # Per-tech breakdown for context
     per_tech_stats = sub.describe().T[["min", "max", "mean", "std"]]
 
     info = {
@@ -242,36 +247,57 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
 # 6. Derive sigmoid reward parameters from delta distribution
 # ---------------------------------------------------------------------------
 
-def suggest_sigmoid_params(delta_stats, margin=0.2):
+def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2):
     """
-    Fit sigmoid to the 5-year consumption delta distribution (original units).
+    Fit sigmoid to the 5-year delta distribution (original units).
 
-    Calibration:
-      R(q75)  = 0.50   (center)
-      R(q95)  ≈ 0.99   (flattens to 1)
+    For maximized variables (e.g. CONSUMPTION):
+        R(q75) = 0.50  (center at 75th percentile)
+        R(q95) ≈ 0.99  (saturates at 95th percentile)
+
+    For minimized variables (e.g. EMI_total_CO2):
+        The proxy returns delta = val(t+5) - val(t), so LOWER (more negative)
+        is better. We flip the sign convention:
+        R(q25) = 0.50  (center at 25th percentile — lower emissions rewarded)
+        R(q05) ≈ 0.99
 
     R(x) = alpha / (1 + exp(-gamma * (x + beta)))
 
-    Solving:
-      beta  = -q75
-      gamma = ln(99) / (q95 - q75)
+    Flipping for minimized variables is achieved by negating gamma and beta,
+    which reflects the sigmoid around zero.
     """
-    x_mid = delta_stats["q75"]
-    x_high = delta_stats["q95"]
+    # Detect whether this variable should be minimized.
+    # Convention: variables whose name contains "EMI" or "COST" are minimized.
+    MINIMIZED_KEYWORDS = ("EMI", "COST", "emission", "carbon")
+    minimize = any(kw.lower() in target_variable.lower() for kw in MINIMIZED_KEYWORDS)
+
+    if minimize:
+        x_mid = delta_stats["q25"]   # reward center: lower delta is better
+        x_high = delta_stats["q05"]  # reward saturation at most-negative delta
+        print(f"\n  [{target_variable}] Minimization mode (lower delta = better reward)")
+        print(f"  Sigmoid fitting targets (5-year Δ{target_variable}, original units):")
+        print(f"    x_mid  (q25) = {x_mid:.6f}  → R = 0.50")
+        print(f"    x_high (q05) = {x_high:.6f} → R ≈ 0.99")
+    else:
+        x_mid = delta_stats["q75"]
+        x_high = delta_stats["q95"]
+        print(f"\n  [{target_variable}] Maximization mode (higher delta = better reward)")
+        print(f"  Sigmoid fitting targets (5-year Δ{target_variable}, original units):")
+        print(f"    x_mid  (q75) = {x_mid:.6f}  → R = 0.50")
+        print(f"    x_high (q95) = {x_high:.6f} → R ≈ 0.99")
 
     spread = x_high - x_mid
-
-    print(f"\n  Sigmoid fitting targets (5-year Δconsumption, original units):")
-    print(f"    x_mid  (q75) = {x_mid:.6f}  → R = 0.50")
-    print(f"    x_high (q95) = {x_high:.6f} → R ≈ 0.99")
-    print(f"    spread (q95-q75) = {spread:.6f}")
+    print(f"    spread = {spread:.6f}")
 
     if abs(spread) < 1e-10:
-        print("  WARNING: q95 ≈ q75, using fallback spread.")
-        spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
+        print("  WARNING: x_high ≈ x_mid, using fallback spread.")
+        if minimize:
+            spread = (delta_stats["q50"] - delta_stats["min"]) * 0.25
+        else:
+            spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
 
     beta = -x_mid
-    gamma = 4.595 / spread  # ln(99) / (q95 - q75)
+    gamma = 4.595 / spread  # ln(99) / spread
     alpha = 1.0
 
     def R(x):
@@ -295,12 +321,12 @@ def suggest_sigmoid_params(delta_stats, margin=0.2):
 # ---------------------------------------------------------------------------
 
 def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, round_decimals=1):
+                  sigmoid_params, sigmoid_diag, target_variable, round_decimals=1):
     print("\n" + "=" * 70)
     print("TUNING RESULTS")
     print("=" * 70)
 
-    print("\n--- 5-Year Consumption Delta Distribution (original units) ---")
+    print(f"\n--- 5-Year Δ{target_variable} Distribution (original units) ---")
     for k, v in delta_stats.items():
         print(f"  {k:>20s}: {v}")
 
@@ -319,14 +345,13 @@ def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
     for level, val in amounts.items():
         print(f"  {level:>8s}: {val}")
 
-    print(f"\n--- Suggested Sigmoid Reward Parameters ---")
+    print(f"\n--- Suggested Sigmoid Reward Parameters (target: {target_variable}) ---")
     for k, v in sigmoid_params.items():
         print(f"  {k}: {v}")
     print(f"  Verification (exact params):")
     for k, v in sigmoid_diag.items():
         print(f"    {k}: {v}")
 
-    # Rounded version
     gamma_r = round(sigmoid_params["gamma"], round_decimals)
     beta_r = round(sigmoid_params["beta"], round_decimals)
     alpha = sigmoid_params["alpha"]
@@ -334,7 +359,7 @@ def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
     for q in ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]:
         dx = delta_stats[q]
         rv = alpha / (1.0 + np.exp(-gamma_r * (dx + beta_r)))
-        print(f"  R(Δcons={dx:+.6f}) at {q} = {rv:.4f}")
+        print(f"  R(Δ{target_variable}={dx:+.6f}) at {q} = {rv:.4f}")
 
     print("\n--- Suggested YAML config overrides ---")
     print(f"""
@@ -342,12 +367,47 @@ env:
   amount_values_mapping: [0.0, {amounts['HIGH']}, {amounts['MEDIUM']}, {amounts['LOW']}, {amounts['NONE']}]
 
 proxy:
+  target_variable: {target_variable}
   reward_function: sigmoid
   reward_function_kwargs:
     gamma: {sigmoid_params['gamma']}
     beta: {sigmoid_params['beta']}
     alpha: {sigmoid_params['alpha']}
 """)
+
+
+def get_tuning_results(region, year, year_window, margin, target_variable, data_dir):
+    """
+    Programmatic entry point — returns (amounts, sigmoid_params) dict for use
+    by the pipeline runner without re-parsing CLI args.
+    """
+    subsidies_df, variables_df, keys_df = load_raw_data(data_dir)
+    subsidies_scaled, _ = maxmin_scale_subsidies(subsidies_df)
+    mask = get_subset_mask(keys_df, region, year, year_window)
+
+    if mask.sum() == 0:
+        raise RuntimeError(
+            f"No data found for region={region}, year={year}, window={year_window}.\n"
+            f"  Available regions: {sorted(keys_df['n'].unique())}\n"
+            f"  Available years:   {sorted(keys_df['year'].unique())}"
+        )
+
+    delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
+    if delta_stats is None:
+        raise RuntimeError(
+            f"No valid (t, t+5) pairs found. Try --year_window 1 or check year."
+        )
+
+    sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
+    amounts, amount_info, sub_stats = suggest_amount_values(
+        subsidies_scaled, mask, margin=margin)
+    sigmoid_params, sigmoid_diag = suggest_sigmoid_params(
+        delta_stats, target_variable, margin=margin)
+
+    print_summary(delta_stats, sub_stats, amounts, amount_info,
+                  sigmoid_params, sigmoid_diag, target_variable)
+
+    return amounts, sigmoid_params
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +426,10 @@ def main():
     parser.add_argument("--data_dir", type=str, default="scenario_data")
     parser.add_argument("--round_decimals", type=int, default=1,
                         help="Decimals to round gamma/beta in quantile printout")
+    parser.add_argument("--target_variable", type=str, default="CONSUMPTION",
+                        help="Variable to tune sigmoid for (default: CONSUMPTION). "
+                             "Variables with 'EMI' or 'COST' in their name are "
+                             "treated as minimization targets.")
 
     args = parser.parse_args()
 
@@ -384,8 +448,9 @@ def main():
         print(f"  Available years: {sorted(keys_df['year'].unique())}")
         sys.exit(1)
 
-    print("Computing 5-year consumption deltas (original units)...")
-    delta_stats = compute_consumption_deltas(variables_df, keys_df, mask)
+    print(f"Computing 5-year Δ{args.target_variable} (original units)...")
+    delta_stats = compute_variable_deltas(
+        variables_df, keys_df, mask, args.target_variable)
     if delta_stats is None:
         print("ERROR: No valid (t, t+5) pairs. Try --year_window 1 or check year.")
         sys.exit(1)
@@ -398,10 +463,12 @@ def main():
         subsidies_scaled, mask, margin=args.margin)
 
     print("Suggesting sigmoid parameters...")
-    sigmoid_params, sigmoid_diag = suggest_sigmoid_params(delta_stats, margin=args.margin)
+    sigmoid_params, sigmoid_diag = suggest_sigmoid_params(
+        delta_stats, args.target_variable, margin=args.margin)
 
     print_summary(delta_stats, sub_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, round_decimals=args.round_decimals)
+                  sigmoid_params, sigmoid_diag, args.target_variable,
+                  round_decimals=args.round_decimals)
 
 
 if __name__ == "__main__":

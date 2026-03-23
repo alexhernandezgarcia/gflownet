@@ -15,7 +15,7 @@ class FAIRY(Proxy):
         key_gdx=None,
         key_year=None,
         key_region=None,
-        SCC=None,
+        target_variable="CONSUMPTION",
         device="cpu",
         **kwargs,
     ):
@@ -41,8 +41,6 @@ class FAIRY(Proxy):
             Region name for context selection. If None, defaults to "europe".
             Valid regions: europe, mexico, laca, brazil, southafrica, ssa, seasia,
             oceania, te, jpnkor, india, mena, usa, indonesia, canada, china, sasia
-        SCC : float, optional
-            Social cost of carbon (Trillion USD / GtCO2). If None, estimated from data.
         device : str or torch.device, optional
             Device to run on ('cpu', 'cuda', 'cuda:0', etc.). Default 'cpu'.
         """
@@ -130,29 +128,6 @@ class FAIRY(Proxy):
                 f"  Context: gdx={self.key_gdx}, year={self.key_year}, region={self.key_region}"
             )
 
-            # Social cost of carbon
-            if SCC is None:
-                late_year = self.key_year if self.key_year > 2050 else 2075
-                index = data.index_map.get((self.key_gdx, late_year, self.key_region))
-                SCC_guess = data.variables_df[
-                    index, self.variables_names.index("SHADOWPRICE_carbon")
-                ]
-                self.SCC = (
-                    SCC_guess
-                    * (
-                        self.precomputed_scaling_params["SHADOWPRICE_carbon"]["max"]
-                        - self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
-                    )
-                    + self.precomputed_scaling_params["SHADOWPRICE_carbon"]["min"]
-                )
-            else:
-                self.SCC = (
-                    torch.tensor(SCC) if not isinstance(SCC, torch.Tensor) else SCC
-                )
-
-            self.SCC = self.SCC.to(self.device)
-            self.SCC = torch.clamp(self.SCC, 1e-3, 1)
-
             # Load context vector
             context_index = data.index_map.get(
                 (self.key_gdx, self.key_year, self.key_region)
@@ -168,26 +143,22 @@ class FAIRY(Proxy):
             # Set model to eval mode (required for BatchNorm with batch_size=1)
             self.fairy.eval()
 
-            # Output variable indices
-            self.var_CONS = self.variables_names.index("CONSUMPTION")
-            self.var_EMI = self.variables_names.index("EMI_total_CO2")
+            self.target_variable = target_variable
+            self.var_target = self.variables_names.index(target_variable)
 
-            # Cached scaling parameters as tensors for efficient rescaling
-            self.cons_min = torch.tensor(
-                self.precomputed_scaling_params["CONSUMPTION"]["min"],
-                device=self.device,
+            self.target_min = torch.tensor(
+                self.precomputed_scaling_params[target_variable]["min"], device=self.device
             )
-            self.cons_max = torch.tensor(
-                self.precomputed_scaling_params["CONSUMPTION"]["max"],
-                device=self.device,
+            self.target_max = torch.tensor(
+                self.precomputed_scaling_params[target_variable]["max"], device=self.device
             )
-            self.cons_scale = self.cons_max - self.cons_min
+            self.target_scale = self.target_max - self.target_min
 
-            self.cons_current = torch.addcmul(
-                self.cons_min,
-                self.context[:, self.var_CONS],
-                self.cons_scale,
-            )  # shape (1,)
+            self.target_current = torch.addcmul(
+                self.target_min,
+                self.context[:, self.var_target],
+                self.target_scale,
+            )
 
             # Permutation index for reordering env techs -> proxy techs
             # Computed on first __call__ and cached
@@ -250,10 +221,9 @@ class FAIRY(Proxy):
         self.device = device
         self.fairy = self.fairy.to(device)
         self.context = self.context.to(device)
-        self.SCC = self.SCC.to(device)
-        self.cons_min = self.cons_min.to(device)
-        self.cons_max = self.cons_max.to(device)
-        self.cons_scale = self.cons_scale.to(device)
+        self.target_min = self.target_min.to(device)
+        self.target_max = self.target_max.to(device)
+        self.target_scale = self.target_scale.to(device)
 
         if self._permutation_idx is not None:
             self._permutation_idx = self._permutation_idx.to(device)
@@ -296,10 +266,8 @@ class FAIRY(Proxy):
         developments = self.fairy(contexts, plan)
 
         # Extract and rescale consumption
-        y = developments[:, self.var_CONS]
-        y = torch.addcmul(self.cons_min, y, self.cons_scale)
-
-        # Compute delta
-        y = y - self.cons_current
+        y = developments[:, self.var_target]
+        y = torch.addcmul(self.target_min, y, self.target_scale)
+        y = y - self.target_current
 
         return y

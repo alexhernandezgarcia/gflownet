@@ -14,6 +14,7 @@ Usage (from gflownet/proxy/iam/):
     python generate_test_set.py --region europe --year 2010
     python generate_test_set.py --region europe --year 2010 --n 20000
     python generate_test_set.py --region usa --year 2025 --amount_values 0.6,0.3,0.1,0.0
+    python generate_test_set.py --region europe --year 2025 --target_variable EMI_total_CO2
 """
 
 import argparse
@@ -164,6 +165,19 @@ def generate_test_set(subsidies_df, keys_df, mask, amount_values, n_total, seed=
     return samples, n_data, n_random
 
 
+def build_output_path(output_arg, region, year, target_variable):
+    """
+    Derive the output path from CLI arg or auto-generate from context.
+    Target variable is included in the filename so test sets for different
+    variables don't collide.
+    """
+    if output_arg is not None:
+        return output_arg
+    # Sanitize target_variable for use in filename (replace / and spaces)
+    safe_var = target_variable.replace("/", "_").replace(" ", "_")
+    return f"test_{region}_{year}_{safe_var}.pkl"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate region-aware test set for GFN investment plans")
     parser.add_argument("--region", type=str, default="europe",
@@ -177,11 +191,14 @@ def main():
     parser.add_argument("--amount_values", type=str, default=None,
                         help="Comma-separated HIGH,MEDIUM,LOW,NONE values, e.g. 0.6,0.3,0.1,0.0")
     parser.add_argument("--output", type=str, default=None,
-                        help="Output pkl path (default: ./test_{region}_{year}.pkl)")
+                        help="Output pkl path (default: ./test_{region}_{year}_{target_variable}.pkl)")
     parser.add_argument("--data_dir", type=str, default="scenario_data",
                         help="Path to scenario_data directory (default assumes running from gflownet/proxy/iam/)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed (default: 42)")
+    parser.add_argument("--target_variable", type=str, default="CONSUMPTION",
+                        help="Target variable name — used only for output filename disambiguation "
+                             "(default: CONSUMPTION). Pass the same value you used in tune_parameters.py.")
 
     args = parser.parse_args()
 
@@ -195,9 +212,8 @@ def main():
     else:
         amount_values = DEFAULT_AMOUNT_VALUES
 
-    # Output path
-    if args.output is None:
-        args.output = f"test_{args.region}_{args.year}.pkl"
+    # Output path — includes target_variable to avoid collisions
+    output_path = build_output_path(args.output, args.region, args.year, args.target_variable)
 
     print("Loading data...")
     subsidies_df, keys_df = load_raw_data(args.data_dir)
@@ -219,7 +235,7 @@ def main():
     else:
         n_total = args.n
 
-    print(f"\nGenerating test set...")
+    print(f"\nGenerating test set (target_variable={args.target_variable})...")
     samples, n_data, n_random = generate_test_set(
         subsidies_df=subsidies_df,
         keys_df=keys_df,
@@ -229,12 +245,13 @@ def main():
         seed=args.seed,
     )
 
-    # Save as pkl with {"samples": [...]} structure (same as Ising test sets)
-    with open(args.output, "wb") as f:
-        pickle.dump({"samples": samples}, f)
+    # Save as pkl with {"samples": [...], "target_variable": ...} structure
+    with open(output_path, "wb") as f:
+        pickle.dump({"samples": samples, "target_variable": args.target_variable}, f)
 
     print(f"\n{'=' * 50}")
-    print(f"Test set saved to: {args.output}")
+    print(f"Test set saved to: {output_path}")
+    print(f"  Target variable:     {args.target_variable}")
     print(f"  Data-derived samples: {n_data}")
     print(f"  Random samples:      {n_random}")
     print(f"  Total size:          {len(samples)}")
