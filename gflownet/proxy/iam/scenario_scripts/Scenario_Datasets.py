@@ -87,6 +87,9 @@ class witch_proc_data(Dataset):
         if data_config is None:
             data_config = DATA_CONFIG.copy()
 
+        for config in data_config.values():
+            os.makedirs(os.path.dirname(config["local_path"]), exist_ok=True)
+
         # Override default paths with provided input paths
         data_config["subsidies_df"]["local_path"] = subsidies_parquet
         data_config["variables_df"]["local_path"] = variables_parquet
