@@ -38,7 +38,7 @@ def download_file_from_gdrive(file_id, output_path, filename):
     print(f"Downloading {filename}...")
     try:
         gdown.download(
-            f"https://drive.google.com/uc?id={file_id}&confirm=t",
+            f"https://drive.google.com/file/d/{file_id}/view",
             file_full_path,
             quiet=False,
             fuzzy=True,
