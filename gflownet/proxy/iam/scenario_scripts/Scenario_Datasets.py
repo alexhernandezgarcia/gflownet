@@ -31,13 +31,15 @@ def download_file_from_gdrive(file_id, output_path, filename):
         output_path: Directory to save the file
         filename: Name of the file
     """
-    os.makedirs(output_path, exist_ok=True)
     file_full_path = os.path.join(output_path, filename)
 
     print(f"Downloading {filename}...")
     try:
         gdown.download(
-            f"https://drive.google.com/uc?id={file_id}", file_full_path, quiet=False
+            f"https://drive.google.com/uc?id={file_id}&confirm=t",
+            file_full_path,
+            quiet=False,
+            fuzzy=True,
         )
         print(f"✓ Successfully downloaded {filename}")
         return file_full_path
