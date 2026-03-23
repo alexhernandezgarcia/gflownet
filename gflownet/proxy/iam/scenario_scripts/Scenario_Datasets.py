@@ -33,6 +33,8 @@ def download_file_from_gdrive(file_id, output_path, filename):
     """
     file_full_path = os.path.join(output_path, filename)
 
+    os.makedirs(output_path, exist_ok=True)
+
     print(f"Downloading {filename}...")
     try:
         gdown.download(
@@ -86,9 +88,6 @@ class witch_proc_data(Dataset):
         # Use provided data_config or fall back to default
         if data_config is None:
             data_config = DATA_CONFIG.copy()
-
-        for config in data_config.values():
-            os.makedirs(os.path.dirname(config["local_path"]), exist_ok=True)
 
         # Override default paths with provided input paths
         data_config["subsidies_df"]["local_path"] = subsidies_parquet
