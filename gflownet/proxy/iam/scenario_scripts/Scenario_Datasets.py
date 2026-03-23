@@ -8,15 +8,15 @@ from torch.utils.data import Dataset
 
 DATA_CONFIG = {
     "subsidies_df": {
-        "gdrive_id": "1d_xJc1xaG3fYkwXa5rzGTdfpLwIgjAfd",
+        "gdrive_id": "11wRzmzbioo6qS_sD4-O_VQ_Ba2W7F2dN",
         "local_path": "scenario_data/subsidies_df.parquet",
     },
     "variables_df": {
-        "gdrive_id": "1mvFLaJ6ig89jQaiPqgV4mnVZg1CxOatR",
+        "gdrive_id": "1OCL91eYvACBVd4JXinCDETPgFFw1qCQd",
         "local_path": "scenario_data/variables_df.parquet",
     },
     "keys_df": {
-        "gdrive_id": "1ADcM9cIek1fIoNO4ceOgWgzCDFPPKMWC",
+        "gdrive_id": "1gquXWgUEcw9s8rxoASuG6ZmCO70S7kuu",
         "local_path": "scenario_data/keys_df.parquet",
     },
 }

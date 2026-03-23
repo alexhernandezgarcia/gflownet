@@ -10,7 +10,7 @@ from gflownet.proxy.iam.scenario_scripts.Scenario_Datasets import (
     download_file_from_gdrive, witch_proc_data)
 
 FAIRY_MODEL_CONFIG = {
-    "gdrive_id": "1w5xY5AI_ZmqS4XVVMfmxNAijybIFGC8r",
+    "gdrive_id": "15TFTm1TAFv0TwKaLAGb3UfsZl3lj-9GL",
     "local_path": "gflownet/proxy/iam/scenario_data/fairy_state_dict.pth",
 }
 
