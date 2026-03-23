@@ -22,33 +22,44 @@ DATA_CONFIG = {
 }
 
 
-def download_file_from_gdrive(file_id, output_path, filename):
+def download_file_from_gdrive(file_id, output_path, filename, backup_root="backup_iam_data"):
     """
     Download a file from Google Drive using gdown.
-
-    Args:
-        file_id: Google Drive file ID
-        output_path: Directory to save the file
-        filename: Name of the file
+    Falls back to a local backup directory if the download fails.
     """
     file_full_path = os.path.join(output_path, filename)
-
     os.makedirs(output_path, exist_ok=True)
+
+    # Check backup first
+    backup_path = os.path.join(backup_root, filename)
+    if os.path.exists(backup_path):
+        print(f"Found {filename} in backup directory, copying...")
+        import shutil
+        shutil.copy2(backup_path, file_full_path)
+        print(f"✓ Successfully copied {filename} from backup")
+        return file_full_path
 
     print(f"Downloading {filename}...")
     try:
         gdown.download(
-            f"https://drive.google.com/uc?id={file_id}&export=download&confirm=t",
+            f"https://drive.google.com/uc?id={file_id}&confirm=t",
             file_full_path,
             quiet=False,
             fuzzy=True,
-            use_cookies=False,
         )
         print(f"✓ Successfully downloaded {filename}")
         return file_full_path
     except Exception as e:
         print(f"✗ Failed to download {filename}: {e}")
-        raise
+        print(f"  Trying backup at {backup_path}...")
+        if os.path.exists(backup_path):
+            import shutil
+            shutil.copy2(backup_path, file_full_path)
+            print(f"✓ Successfully copied {filename} from backup")
+            return file_full_path
+        raise RuntimeError(
+            f"Could not obtain {filename}: GDrive failed and no backup found at {backup_path}"
+        ) from e
 
 
 def ensure_data_files_exist(data_config):
