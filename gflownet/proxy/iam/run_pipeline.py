@@ -82,6 +82,9 @@ def main():
                         help="Margin fraction for amount/sigmoid fitting (default: 0.2)")
     parser.add_argument("--round_decimals", type=int, default=1,
                         help="Decimal places to round gamma/beta printout (default: 1)")
+    parser.add_argument("--sigma_window", type=int, nargs=2,
+                        metavar=("CENTER_PCT", "SAT_PCT"), default=None,
+                        help="Override sigmoid percentiles e.g. '--sigma_window 50 10'")
 
     # --- Test-set args ---
     parser.add_argument("--n", type=int, default=None,
@@ -137,6 +140,7 @@ def main():
             margin=args.margin,
             target_variable=args.target_variable,
             data_dir=args.data_dir,
+            sigma_window=tuple(args.sigma_window) if args.sigma_window else None,
         )
 
         print("\n  ✓ Tuning complete.")
