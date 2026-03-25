@@ -184,7 +184,7 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -233,7 +233,7 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -349,7 +349,7 @@ class Stack(CompositeBase):
         thereafter. This is necessary because otherwise the sub-environments may not
         have the correct attributes necessary to calculate the mask.
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -445,7 +445,7 @@ class Stack(CompositeBase):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
