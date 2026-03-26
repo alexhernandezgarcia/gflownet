@@ -247,61 +247,72 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
 # 6. Derive sigmoid reward parameters from delta distribution
 # ---------------------------------------------------------------------------
 
-def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2):
+def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
+                           sigma_window=None):
     """
     Fit sigmoid to the 5-year delta distribution (original units).
 
     For maximized variables (e.g. CONSUMPTION):
         R(q75) = 0.50  (center at 75th percentile)
-        R(q95) ≈ 0.99  (saturates at 95th percentile)
+        R(q95) approx 0.99  (saturates at 95th percentile)
 
     For minimized variables (e.g. EMI_total_CO2):
-        The proxy returns delta = val(t+5) - val(t), so LOWER (more negative)
-        is better. We flip the sign convention:
-        R(q25) = 0.50  (center at 25th percentile — lower emissions rewarded)
-        R(q05) ≈ 0.99
+        spread = q05 - q25 < 0, so gamma = ln(99)/spread < 0.
+        The sigmoid naturally assigns higher reward to more negative deltas.
 
     R(x) = alpha / (1 + exp(-gamma * (x + beta)))
 
-    Flipping for minimized variables is achieved by negating gamma and beta,
-    which reflects the sigmoid around zero.
+    Parameters
+    ----------
+    sigma_window : tuple(int, int) or None
+        Override (center_pct, saturation_pct), e.g. (50, 10) for a wider
+        minimization span. Must be in {5, 10, 25, 50, 75, 90, 95}.
+        When None defaults are chosen from minimize/maximize mode.
     """
-    # Detect whether this variable should be minimized.
-    # Convention: variables whose name contains "EMI" or "COST" are minimized.
     MINIMIZED_KEYWORDS = ("EMI", "COST", "emission", "carbon")
     minimize = any(kw.lower() in target_variable.lower() for kw in MINIMIZED_KEYWORDS)
 
-    if minimize:
-        x_mid = delta_stats["q25"]   # reward center: lower delta is better
-        x_high = delta_stats["q05"]  # reward saturation at most-negative delta
-        print(f"\n  [{target_variable}] Minimization mode (lower delta = better reward)")
-        print(f"  Sigmoid fitting targets (5-year Δ{target_variable}, original units):")
-        print(f"    x_mid  (q25) = {x_mid:.6f}  → R = 0.50")
-        print(f"    x_high (q05) = {x_high:.6f} → R ≈ 0.99")
+    PCT_TO_KEY = {5: "q05", 10: "q10", 25: "q25", 50: "q50",
+                  75: "q75", 90: "q90", 95: "q95"}
+
+    if sigma_window is not None:
+        center_pct, sat_pct = sigma_window
+        x_mid = delta_stats[PCT_TO_KEY[center_pct]]
+        x_high = delta_stats[PCT_TO_KEY[sat_pct]]
+        mode_label = f"custom window ({center_pct}th center, {sat_pct}th saturation)"
+    elif minimize:
+        x_mid = delta_stats["q25"]
+        x_high = delta_stats["q05"]
+        mode_label = "minimization (q25 center, q05 saturation)"
     else:
         x_mid = delta_stats["q75"]
         x_high = delta_stats["q95"]
-        print(f"\n  [{target_variable}] Maximization mode (higher delta = better reward)")
-        print(f"  Sigmoid fitting targets (5-year Δ{target_variable}, original units):")
-        print(f"    x_mid  (q75) = {x_mid:.6f}  → R = 0.50")
-        print(f"    x_high (q95) = {x_high:.6f} → R ≈ 0.99")
+        mode_label = "maximization (q75 center, q95 saturation)"
 
+    print(f"\n  [{target_variable}] Mode: {mode_label}")
+    print(f"  Sigmoid fitting targets (5-year delta, original units):")
+    print(f"    x_mid  = {x_mid:.6f}  -> R = 0.50")
+    print(f"    x_high = {x_high:.6f} -> R approx 0.99")
+
+    # spread is negative for minimization (q05 < q25), giving gamma < 0
     spread = x_high - x_mid
     print(f"    spread = {spread:.6f}")
 
     if abs(spread) < 1e-10:
-        print("  WARNING: x_high ≈ x_mid, using fallback spread.")
+        print("  WARNING: x_high approx x_mid, using fallback spread.")
         if minimize:
-            spread = (delta_stats["q50"] - delta_stats["min"]) * 0.25
+            spread = (delta_stats["min"] - delta_stats["q50"]) * 0.25  # negative
         else:
             spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
 
     beta = -x_mid
-    gamma = 4.595 / spread  # ln(99) / spread
+    gamma = 4.595 / spread  # ln(99)/spread -- negative when spread < 0
+
     alpha = 1.0
 
     def R(x):
-        return alpha / (1.0 + np.exp(-gamma * (x + beta)))
+        exp_arg = np.clip(-gamma * (x + beta), -500, 500)
+        return alpha / (1.0 + np.exp(exp_arg))
 
     params = {
         "gamma": round(float(gamma), 4),
@@ -313,15 +324,12 @@ def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2):
     for q in ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]:
         diagnostics[f"R({q})"] = round(R(delta_stats[q]), 4)
 
-    return params, diagnostics
+    # Return R closure so print_summary can reuse it without re-computing
+    return params, diagnostics, R
 
-
-# ---------------------------------------------------------------------------
-# 7. Summary & config generation
-# ---------------------------------------------------------------------------
 
 def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, target_variable, round_decimals=1):
+                  sigmoid_params, sigmoid_diag, target_variable, R_func=None, round_decimals=1):
     print("\n" + "=" * 70)
     print("TUNING RESULTS")
     print("=" * 70)
@@ -376,7 +384,8 @@ proxy:
 """)
 
 
-def get_tuning_results(region, year, year_window, margin, target_variable, data_dir):
+def get_tuning_results(region, year, year_window, margin, target_variable, data_dir,
+                      sigma_window=None):
     """
     Programmatic entry point — returns (amounts, sigmoid_params) dict for use
     by the pipeline runner without re-parsing CLI args.
@@ -401,11 +410,11 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
     sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
     amounts, amount_info, sub_stats = suggest_amount_values(
         subsidies_scaled, mask, margin=margin)
-    sigmoid_params, sigmoid_diag = suggest_sigmoid_params(
+    sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
         delta_stats, target_variable, margin=margin)
 
     print_summary(delta_stats, sub_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, target_variable)
+                  sigmoid_params, sigmoid_diag, target_variable, R_func=R_func)
 
     return amounts, sigmoid_params
 
@@ -430,6 +439,12 @@ def main():
                         help="Variable to tune sigmoid for (default: CONSUMPTION). "
                              "Variables with 'EMI' or 'COST' in their name are "
                              "treated as minimization targets.")
+    parser.add_argument("--sigma_window", type=int, nargs=2,
+                        metavar=("CENTER_PCT", "SAT_PCT"),
+                        default=None,
+                        help="Override sigmoid fitting percentiles, e.g. "
+                             "'--sigma_window 50 10' for a wider minimization span. "
+                             "Values must be in {5,10,25,50,75,90,95}.")
 
     args = parser.parse_args()
 
@@ -463,12 +478,13 @@ def main():
         subsidies_scaled, mask, margin=args.margin)
 
     print("Suggesting sigmoid parameters...")
-    sigmoid_params, sigmoid_diag = suggest_sigmoid_params(
-        delta_stats, args.target_variable, margin=args.margin)
+    sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
+        delta_stats, args.target_variable, margin=args.margin,
+        sigma_window=tuple(args.sigma_window) if args.sigma_window else None)
 
     print_summary(delta_stats, sub_stats, amounts, amount_info,
                   sigmoid_params, sigmoid_diag, args.target_variable,
-                  round_decimals=args.round_decimals)
+                  R_func=R_func, round_decimals=args.round_decimals)
 
 
 if __name__ == "__main__":

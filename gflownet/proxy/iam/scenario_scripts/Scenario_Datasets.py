@@ -6,6 +6,8 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
+from pathlib import Path
+
 DATA_CONFIG = {
     "subsidies_df": {
         "gdrive_id": "11wRzmzbioo6qS_sD4-O_VQ_Ba2W7F2dN",
@@ -21,6 +23,14 @@ DATA_CONFIG = {
     },
 }
 
+def find_repo_root(marker=".git") -> Path:
+    """Walk up from this file's location until we find the repo root marker."""
+    current = Path(__file__).resolve().parent
+    for parent in [current, *current.parents]:
+        if (parent / marker).exists():
+            return parent
+    raise RuntimeError(f"Could not find repo root (no '{marker}' found)")
+
 
 def download_file_from_gdrive(file_id, output_path, filename, backup_root="backup_iam_data"):
     """
@@ -31,7 +41,8 @@ def download_file_from_gdrive(file_id, output_path, filename, backup_root="backu
     os.makedirs(output_path, exist_ok=True)
 
     # Check backup first
-    backup_path = os.path.join(backup_root, filename)
+    repo_root = find_repo_root()
+    backup_path = os.path.join(repo_root, backup_root, filename)
     if os.path.exists(backup_path):
         print(f"Found {filename} in backup directory, copying...")
         import shutil

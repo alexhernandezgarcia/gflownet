@@ -41,8 +41,13 @@ except ImportError:
     )
 
 
-TEMPLATE_PATH = "config/experiments/iam/plan_fairy_consumption.yaml"
-CONFIG_DIR = "config/experiments/iam"
+# Paths are anchored to the repo root (3 levels above this script's directory:
+# gflownet/proxy/iam/ -> gflownet/proxy/ -> gflownet/ -> repo root)
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "..", ".."))
+
+TEMPLATE_PATH = os.path.join(_REPO_ROOT, "config", "experiments", "iam", "plan_fairy_consumption.yaml")
+CONFIG_DIR = os.path.join(_REPO_ROOT, "config", "experiments", "iam")
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +178,76 @@ def _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params):
 # Public API
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Skeleton builder — used when no template YAML exists on disk
+# ---------------------------------------------------------------------------
+
+def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
+    """
+    Build a minimal config dict matching the structure of the consumption
+    template, filled with the provided tuned values.
+    """
+    slug = _var_to_slug(target_variable)
+    return {
+        "defaults": [
+            {"override /env": "iam/full_plan"},
+            {"override /gflownet": "trajectorybalance"},
+            {"override /proxy": "iam/fairy"},
+            {"override /logger": "wandb"},
+        ],
+        "buffer": {
+            "test": {
+                "type": "pkl",
+                "path": _test_pkl_path(region, year, target_variable),
+            }
+        },
+        "env": {
+            "amount_values_mapping": _amount_list(amounts),
+        },
+        "gflownet": {
+            "random_action_prob": 0.1,
+            "optimizer": {
+                "batch_size": {"forward": 16},
+                "lr": 0.0001,
+                "z_dim": 8,
+                "lr_z_mult": 1000,
+                "n_train_steps": 100000,
+            },
+        },
+        "policy": {
+            "forward": {"type": "mlp", "n_hid": 256, "n_layers": 3},
+            "backward": {"shared_weights": False, "type": "mlp", "n_hid": 256, "n_layers": 3},
+        },
+        "proxy": {
+            "key_region": region,
+            "key_year": year,
+            "target_variable": target_variable,
+            "reward_function": "sigmoid",
+            "reward_function_kwargs": {
+                "gamma": sigmoid_params["gamma"],
+                "beta": sigmoid_params["beta"],
+                "alpha": sigmoid_params["alpha"],
+            },
+        },
+        "logger": {
+            "do": {"online": False},
+            "lightweight": True,
+            "project_name": _project_name(region, year, target_variable),
+            "run_name": _run_name(),
+            "tags": _tags(target_variable),
+        },
+        "evaluator": {
+            "first_it": False,
+            "period": 100000,
+            "n": 100,
+            "checkpoints_period": 100000,
+        },
+        "hydra": {
+            "run": {"dir": _hydra_dir(region, year, target_variable)}
+        },
+    }
+
+
 def write_or_update_config(
     region: str,
     year: int,
@@ -211,21 +286,30 @@ def write_or_update_config(
         source_path = template_path
         action = "create" if not is_consumption else "update"
     else:
-        raise FileNotFoundError(
-            f"Template not found at '{template_path}'. "
-            "Please ensure the consumption config exists at that path."
-        )
+        source_path = None
+        action = "create (from scratch)"
 
     print(f"\n  Config {action}: {target_path}")
-    print(f"  Source: {source_path}")
-
-    # Load
-    if _RUAMEL:
-        doc, ryaml = _load_ruamel(source_path)
+    if source_path:
+        print(f"  Source: {source_path}")
     else:
-        doc = _load_pyyaml(source_path)
+        print(f"  (Template not found at {template_path!r} — generating from scratch)")
 
-    # Apply tuned fields
+    # Load or build skeleton
+    if source_path is not None:
+        if _RUAMEL:
+            doc, ryaml = _load_ruamel(source_path)
+        else:
+            doc = _load_pyyaml(source_path)
+    else:
+        doc = _build_skeleton(region, year, target_variable, amounts, sigmoid_params)
+        if _RUAMEL:
+            from ruamel.yaml import YAML
+            ryaml = YAML()
+            ryaml.preserve_quotes = True
+
+    # Apply tuned fields (no-op for skeleton since it was already built with them,
+    # but harmless and keeps the logic uniform)
     _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params)
 
     if dry_run:
