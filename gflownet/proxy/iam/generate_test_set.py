@@ -75,8 +75,6 @@ def load_raw_data(data_dir):
         keys_df = keys_df.loc[keep_mask].reset_index(drop=True)
 
         print(f"  Rows remaining after block removal: {len(keys_df)}")
-    # --- End block removal ---
-
     return subsidies_df, keys_df
 
 
