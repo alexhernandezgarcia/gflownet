@@ -341,7 +341,9 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
         # geometric spacing: MEDIUM = HIGH/2, LOW = HIGH/4.
         # This ensures the GFN always has 4 meaningfully distinct levels.
         geometric_fallback = False
-        if p_medium <= 1e-9 or p_low <= 1e-9:
+        # Check rounded values — raw percentiles may be tiny but nonzero
+        # (e.g. 3e-5 passes the nonzero filter but rounds to 0.0 at 4dp)
+        if round(p_medium, 4) <= 0.0 or round(p_low, 4) <= 0.0:
             geometric_fallback = True
             medium_val = round(high_val / 2.0, 4)
             low_val    = round(high_val / 4.0, 4)
