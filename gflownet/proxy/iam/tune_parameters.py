@@ -27,6 +27,19 @@ import sys
 import numpy as np
 import pandas as pd
 
+# Sector->tech mapping (mirrors full_plan.py; duplicated to avoid circular import)
+ALLOWED_SECTOR2TECH = {
+    "POWER": ["power_COAL_noccs","power_COAL_ccs","power_NUCLEAR","power_OIL",
+              "power_GAS_noccs","power_GAS_ccs","power_HYDRO","power_BIOMASS_noccs",
+              "power_BIOMASS_ccs","power_WIND_onshore","power_WIND_offshore","power_SOLAR"],
+    "ENERGY": ["thermal_SOLAR","enduse_COAL_ccs"],
+    "VEHICLES": ["CARS_trad","CARS_hybrid","CARS_electric","CARS_fuelcell",
+                 "HEAVYDUTY_trad","HEAVYDUTY_hybrid","HEAVYDUTY_electric","HEAVYDUTY_fuelcell"],
+    "STORAGE": ["power_STORAGE","production_HYDROGEN","refueling_station_HYDROGEN","pipelines_HYDROGEN"],
+    "DAC": ["DAC_liquid_sorbents","DAC_solid_sorbents","DAC_calcium_oxide"],
+}
+
+
 
 # ---------------------------------------------------------------------------
 # 1. Data loading
@@ -190,15 +203,35 @@ def compute_subsidy_stats(subsidies_scaled, mask):
 # 5. Derive amount mappings
 # ---------------------------------------------------------------------------
 
-def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
+def suggest_amount_values(subsidies_scaled, mask, margin=0.0,
+                          high_pct=90, medium_pct=50, low_pct=25):
     """
     Suggest HIGH/MEDIUM/LOW/NONE from the actual distribution of non-zero
     subsidies in the subset (maxmin-scaled [0,1] space).
 
-    - HIGH   = 90th percentile of non-zero subsidies (+ margin)
-    - MEDIUM = median of non-zero subsidies
-    - LOW    = 25th percentile of non-zero subsidies
+    - HIGH   = high_pct percentile of non-zero subsidies (* (1 + margin))
+    - MEDIUM = medium_pct percentile of non-zero subsidies
+    - LOW    = low_pct percentile of non-zero subsidies
     - NONE   = 0.0
+
+    Defaults are conservative (margin=0.0) to keep the GFN within the
+    proxy's training distribution and avoid out-of-distribution extrapolation
+    that produces unrealistically large energy values.
+
+    Parameters
+    ----------
+    margin : float
+        Fractional upward extension of HIGH beyond the high_pct value.
+        Default 0.0 (no extension — stay within observed distribution).
+        Use small values like 0.1 only if you want to allow modest exploration
+        beyond the training data.
+    high_pct : int
+        Percentile of non-zero subsidies to use as HIGH. Default 90.
+        Lower values (e.g. 75) further restrict the maximum allowed investment.
+    medium_pct : int
+        Percentile for MEDIUM. Default 50 (median).
+    low_pct : int
+        Percentile for LOW. Default 25.
     """
     sub = subsidies_scaled.loc[mask]
 
@@ -210,19 +243,19 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
         return {"HIGH": 0.75, "MEDIUM": 0.3, "LOW": 0.1, "NONE": 0.0}, {
             "warning": "all zeros", "n_nonzero": 0}
 
-    p25 = float(np.percentile(nonzero_vals, 25))
-    p50 = float(np.percentile(nonzero_vals, 50))
-    p75 = float(np.percentile(nonzero_vals, 75))
-    p90 = float(np.percentile(nonzero_vals, 90))
-    p_max = float(np.max(nonzero_vals))
+    p_low    = float(np.percentile(nonzero_vals, low_pct))
+    p_medium = float(np.percentile(nonzero_vals, medium_pct))
+    p_75     = float(np.percentile(nonzero_vals, 75))
+    p_high   = float(np.percentile(nonzero_vals, high_pct))
+    p_max    = float(np.max(nonzero_vals))
 
-    high_val = min(1.0, p90 * (1.0 + margin))
+    high_val = min(1.0, p_high * (1.0 + margin))
 
     amounts = {
-        "HIGH": round(high_val, 4),
-        "MEDIUM": round(p50, 4),
-        "LOW": round(p25, 4),
-        "NONE": 0.0,
+        "HIGH":   round(high_val, 4),
+        "MEDIUM": round(p_medium, 4),
+        "LOW":    round(p_low, 4),
+        "NONE":   0.0,
     }
 
     per_tech_stats = sub.describe().T[["min", "max", "mean", "std"]]
@@ -231,16 +264,124 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.2):
         "n_nonzero": int(len(nonzero_vals)),
         "n_total": int(len(all_vals)),
         "frac_nonzero": round(len(nonzero_vals) / len(all_vals), 4),
-        "nonzero_p25": round(p25, 4),
-        "nonzero_p50 (MEDIUM)": round(p50, 4),
-        "nonzero_p75": round(p75, 4),
-        "nonzero_p90": round(p90, 4),
-        "nonzero_max": round(p_max, 4),
-        "margin": margin,
-        "HIGH (p90+margin)": round(high_val, 4),
+        f"nonzero_p{low_pct} (LOW)":    round(p_low, 4),
+        f"nonzero_p{medium_pct} (MEDIUM)": round(p_medium, 4),
+        "nonzero_p75":                  round(p_75, 4),
+        f"nonzero_p{high_pct} (HIGH)":  round(p_high, 4),
+        "nonzero_max":                  round(p_max, 4),
+        "margin":                       margin,
+        f"HIGH (p{high_pct}*(1+margin))": round(high_val, 4),
     }
 
     return amounts, info, per_tech_stats
+
+
+
+# ---------------------------------------------------------------------------
+# 5b. Per-sector amount mappings
+# ---------------------------------------------------------------------------
+
+def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
+                                     margin=0.0, high_pct=90,
+                                     medium_pct=50, low_pct=25):
+    """
+    Compute per-sector amount mappings (HIGH/MEDIUM/LOW/NONE) from the
+    non-zero subsidy distribution of each sector's techs separately.
+
+    Sectors with no non-zero subsidies in the filtered subset are flagged
+    and filled with the values from the sector that has the lowest HIGH value
+    (most conservative observed sector), to avoid feeding the proxy
+    out-of-distribution inputs.
+
+    Returns
+    -------
+    per_tech_mapping : dict {tech_name: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]}
+        One 5-element list per tech, in the amount_values_mapping index order:
+        index 0 = unset (always 0.0), 1 = HIGH, 2 = MEDIUM, 3 = LOW, 4 = NONE.
+    sector_amounts : dict {sector: {"HIGH": float, "MEDIUM": float, "LOW": float}}
+    sector_info : dict {sector: info_dict}  diagnostic information
+    empty_sectors : list[str]  sectors with no non-zero data in subset
+    """
+    sub = subsidies_scaled.loc[mask]
+    sector_amounts = {}
+    sector_info = {}
+    empty_sectors = []
+
+    for sector, techs in ALLOWED_SECTOR2TECH.items():
+        # Collect columns for this sector's techs
+        cols = [f"SUBS_{t}" for t in techs if f"SUBS_{t}" in sub.columns]
+        if not cols:
+            empty_sectors.append(sector)
+            sector_amounts[sector] = None
+            sector_info[sector] = {"warning": "no columns found"}
+            continue
+
+        sector_vals = sub[cols].values.flatten()
+        nonzero_vals = sector_vals[sector_vals > 1e-9]
+
+        if len(nonzero_vals) == 0:
+            print(f"  WARNING: Sector {sector!r} has no non-zero subsidies in "
+                  f"the subset. Will be filled with fallback values.")
+            empty_sectors.append(sector)
+            sector_amounts[sector] = None
+            sector_info[sector] = {
+                "warning": "all zeros in subset",
+                "n_total": int(len(sector_vals)),
+                "n_nonzero": 0,
+            }
+            continue
+
+        p_low    = float(np.percentile(nonzero_vals, low_pct))
+        p_medium = float(np.percentile(nonzero_vals, medium_pct))
+        p_high   = float(np.percentile(nonzero_vals, high_pct))
+        p_max    = float(np.max(nonzero_vals))
+        high_val = min(1.0, p_high * (1.0 + margin))
+
+        sector_amounts[sector] = {
+            "HIGH":   round(high_val, 4),
+            "MEDIUM": round(p_medium, 4),
+            "LOW":    round(p_low, 4),
+            "NONE":   0.0,
+        }
+        sector_info[sector] = {
+            "n_nonzero":   int(len(nonzero_vals)),
+            "n_total":     int(len(sector_vals)),
+            "frac_nonzero": round(len(nonzero_vals) / len(sector_vals), 4),
+            f"p{low_pct} (LOW)":    round(p_low, 4),
+            f"p{medium_pct} (MEDIUM)": round(p_medium, 4),
+            f"p{high_pct} (HIGH)":  round(p_high, 4),
+            "max":         round(p_max, 4),
+            "margin":      margin,
+        }
+
+    # Fill empty sectors with the most conservative non-empty sector
+    # (lowest HIGH value = least likely to push proxy OOD)
+    non_empty = {s: v for s, v in sector_amounts.items() if v is not None}
+    if non_empty:
+        fallback_sector = min(non_empty, key=lambda s: non_empty[s]["HIGH"])
+        fallback_amounts = non_empty[fallback_sector]
+        print(f"  Fallback sector for empty sectors: {fallback_sector!r} "
+              f"(HIGH={fallback_amounts['HIGH']})")
+    else:
+        # No sector has any data — use hardcoded conservative fallback
+        fallback_amounts = {"HIGH": 0.1, "MEDIUM": 0.05, "LOW": 0.01, "NONE": 0.0}
+        print("  WARNING: No sector has non-zero data. Using hardcoded fallback.")
+
+    for sector in empty_sectors:
+        sector_amounts[sector] = fallback_amounts.copy()
+        sector_info[sector]["fallback_from"] = fallback_sector if non_empty else "hardcoded"
+
+    # Build per-tech mapping dict
+    # Format: {tech_name: [0.0, HIGH, MEDIUM, LOW, NONE]}
+    # Index order matches amount_values_mapping: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
+    per_tech_mapping = {}
+    for sector, techs in ALLOWED_SECTOR2TECH.items():
+        amts = sector_amounts[sector]
+        row = [0.0, amts["HIGH"], amts["MEDIUM"], amts["LOW"], amts["NONE"]]
+        for tech in techs:
+            per_tech_mapping[tech] = row
+
+    return per_tech_mapping, sector_amounts, sector_info, empty_sectors
 
 
 # ---------------------------------------------------------------------------
@@ -384,8 +525,48 @@ proxy:
 """)
 
 
+
+def print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable):
+    """Print sigmoid params block (shared between global and per-sector paths)."""
+    print(f"\n--- Suggested Sigmoid Reward Parameters (target: {target_variable}) ---")
+    for k, v in sigmoid_params.items():
+        print(f"  {k}: {v}")
+    print("  Verification (exact params):")
+    for k, v in sigmoid_diag.items():
+        print(f"    {k}: {v}")
+
+
+def print_summary_per_sector(sector_amounts, sector_info, empty_sectors):
+    """Print per-sector amount calibration results."""
+    print("\n" + "=" * 70)
+    print("PER-SECTOR AMOUNT CALIBRATION")
+    print("=" * 70)
+    for sector, amts in sector_amounts.items():
+        flagged = " [FALLBACK]" if sector in empty_sectors else ""
+        print(f"\n  {sector}{flagged}:")
+        info = sector_info.get(sector, {})
+        if "warning" in info:
+            print(f"    WARNING: {info['warning']}")
+        if "fallback_from" in info:
+            print(f"    Filled from: {info['fallback_from']!r}")
+        for k, v in info.items():
+            if k not in ("warning", "fallback_from"):
+                print(f"    {k}: {v}")
+        print(f"    -> HIGH={amts['HIGH']}, MEDIUM={amts['MEDIUM']}, "
+              f"LOW={amts['LOW']}, NONE={amts['NONE']}")
+
+    print("\n--- Suggested YAML config overrides (per-sector) ---")
+    print("env:")
+    print("  amount_values_mapping:")
+    for sector, amts in sector_amounts.items():
+        for tech_name in ALLOWED_SECTOR2TECH[sector]:
+            row = [0.0, amts["HIGH"], amts["MEDIUM"], amts["LOW"], amts["NONE"]]
+            print(f"    {tech_name}: {row}")
+
+
 def get_tuning_results(region, year, year_window, margin, target_variable, data_dir,
-                      sigma_window=None):
+                      sigma_window=None, high_pct=90, medium_pct=50, low_pct=25,
+                      per_sector_amounts=False):
     """
     Programmatic entry point — returns (amounts, sigmoid_params) dict for use
     by the pipeline runner without re-parsing CLI args.
@@ -408,13 +589,25 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
         )
 
     sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
-    amounts, amount_info, sub_stats = suggest_amount_values(
-        subsidies_scaled, mask, margin=margin)
+
+    if per_sector_amounts:
+        per_tech_mapping, sector_amounts, sector_info, empty_sectors = \
+            suggest_amount_values_per_sector(
+                subsidies_scaled, keys_df, mask, margin=margin,
+                high_pct=high_pct, medium_pct=medium_pct, low_pct=low_pct)
+        amounts = per_tech_mapping
+        print_summary_per_sector(sector_amounts, sector_info, empty_sectors)
+    else:
+        amounts, amount_info, sub_stats = suggest_amount_values(
+            subsidies_scaled, mask, margin=margin,
+            high_pct=high_pct, medium_pct=medium_pct, low_pct=low_pct)
+        print_summary(delta_stats, sub_stats, amounts, amount_info,
+                      sigmoid_params=None, sigmoid_diag=None,
+                      target_variable=target_variable, R_func=None)
+
     sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
         delta_stats, target_variable, margin=margin)
-
-    print_summary(delta_stats, sub_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, target_variable, R_func=R_func)
+    print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable)
 
     return amounts, sigmoid_params
 
@@ -430,8 +623,19 @@ def main():
     parser.add_argument("--year", type=int, default=2025)
     parser.add_argument("--year_window", type=int, default=0,
                         help="5-year steps on each side (default: 0 = exact year only)")
-    parser.add_argument("--margin", type=float, default=0.2,
-                        help="Fraction to extend beyond observed range (default: 0.2)")
+    parser.add_argument("--margin", type=float, default=0.0,
+                        help="Fractional extension of HIGH beyond high_pct (default: 0.0 = stay within training distribution)")
+    parser.add_argument("--high_pct", type=int, default=90,
+                        help="Percentile of non-zero subsidies used as HIGH (default: 90). "
+                             "Lower values (e.g. 75) reduce max investment to avoid "
+                             "out-of-distribution proxy inputs.")
+    parser.add_argument("--medium_pct", type=int, default=50,
+                        help="Percentile for MEDIUM (default: 50)")
+    parser.add_argument("--low_pct", type=int, default=25,
+                        help="Percentile for LOW (default: 25)")
+    parser.add_argument("--no_per_sector_amounts", action="store_true",
+                        help="Use a single global amount mapping instead of per-sector. "
+                             "Default is per-sector.")
     parser.add_argument("--data_dir", type=str, default="scenario_data")
     parser.add_argument("--round_decimals", type=int, default=1,
                         help="Decimals to round gamma/beta in quantile printout")
@@ -473,18 +677,32 @@ def main():
     print("Computing subsidy statistics (maxmin-scaled)...")
     sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
 
-    print("Suggesting amount values...")
-    amounts, amount_info, sub_stats = suggest_amount_values(
-        subsidies_scaled, mask, margin=args.margin)
+    if not args.no_per_sector_amounts:
+        print("Computing per-sector amount values...")
+        per_tech_mapping, sector_amounts, sector_info, empty_sectors = \
+            suggest_amount_values_per_sector(
+                subsidies_scaled, keys_df, mask, margin=args.margin,
+                high_pct=args.high_pct, medium_pct=args.medium_pct,
+                low_pct=args.low_pct)
+        print_summary_per_sector(sector_amounts, sector_info, empty_sectors)
+    else:
+        print("Suggesting amount values...")
+        amounts, amount_info, sub_stats = suggest_amount_values(
+            subsidies_scaled, mask, margin=args.margin,
+            high_pct=args.high_pct, medium_pct=args.medium_pct, low_pct=args.low_pct)
 
     print("Suggesting sigmoid parameters...")
     sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
         delta_stats, args.target_variable, margin=args.margin,
         sigma_window=tuple(args.sigma_window) if args.sigma_window else None)
 
-    print_summary(delta_stats, sub_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, args.target_variable,
-                  R_func=R_func, round_decimals=args.round_decimals)
+    if not args.no_per_sector_amounts:
+        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable)
+    else:
+        print_summary(delta_stats, sub_stats, amounts, amount_info,
+                      sigmoid_params, sigmoid_diag, args.target_variable,
+                      R_func=R_func, round_decimals=args.round_decimals)
+        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable)
 
 
 if __name__ == "__main__":

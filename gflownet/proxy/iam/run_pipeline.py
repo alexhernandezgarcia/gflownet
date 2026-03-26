@@ -78,8 +78,18 @@ def main():
     # --- Tuning args ---
     parser.add_argument("--tune_window", type=int, default=1,
                         help="year_window for tuning step (default: 1 = ±5 years)")
-    parser.add_argument("--margin", type=float, default=0.2,
-                        help="Margin fraction for amount/sigmoid fitting (default: 0.2)")
+    parser.add_argument("--margin", type=float, default=0.0,
+                        help="Fractional extension of HIGH beyond high_pct (default: 0.0)")
+    parser.add_argument("--high_pct", type=int, default=90,
+                        help="Percentile for HIGH amount (default: 90). Lower to restrict "
+                             "max investment, e.g. 75 to avoid OOD proxy inputs.")
+    parser.add_argument("--medium_pct", type=int, default=50,
+                        help="Percentile for MEDIUM amount (default: 50)")
+    parser.add_argument("--low_pct", type=int, default=25,
+                        help="Percentile for LOW amount (default: 25)")
+    parser.add_argument("--no_per_sector_amounts", action="store_true",
+                        help="Use a single global amount mapping instead of per-sector. "
+                             "Default is per-sector.")
     parser.add_argument("--round_decimals", type=int, default=1,
                         help="Decimal places to round gamma/beta printout (default: 1)")
     parser.add_argument("--sigma_window", type=int, nargs=2,
@@ -141,6 +151,10 @@ def main():
             target_variable=args.target_variable,
             data_dir=args.data_dir,
             sigma_window=tuple(args.sigma_window) if args.sigma_window else None,
+            high_pct=args.high_pct,
+            medium_pct=args.medium_pct,
+            low_pct=args.low_pct,
+            per_sector_amounts=not args.no_per_sector_amounts,
         )
 
         print("\n  ✓ Tuning complete.")

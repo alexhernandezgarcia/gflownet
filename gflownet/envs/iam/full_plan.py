@@ -165,7 +165,11 @@ class FullPlan(GFlowNetEnv):
         tags: Iterable = None,
         techs: Iterable = None,
         amounts: Iterable = None,
-        amount_values_mapping: List = [0.0, 0.75, 0.3, 0.1, 0.0],  # idx: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
+        amount_values_mapping: Union[List, Dict] = [0.0, 0.75, 0.3, 0.1, 0.0],
+        # Global mapping: List[float] of length 5 — idx: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
+        # Per-tech mapping: Dict[str, List[float]] keyed by tech name, each list length 5.
+        #   Built from per-sector calibration; each tech gets its sector's amount values.
+        #   Techs not in the dict fall back to the global fallback or the lowest sector.
         **kwargs,
     ):
         # Main attributes
@@ -191,7 +195,14 @@ class FullPlan(GFlowNetEnv):
         else:
             self.amounts = amounts
         self.n_amounts = len(self.amounts)
+        # Store raw config for serialisation / inspection
         self.amount_values_mapping = amount_values_mapping
+
+        # Build the lookup tensor used in states2proxy.
+        # _amount_lookup shape:
+        #   (5,)           — global mode (single list)
+        #   (n_techs, 5)   — per-tech mode (dict keyed by tech name)
+        self._build_amount_lookup()
         # Dictionaries
         self.idx2token_choices = {
             idx + 1: token for idx, token in enumerate(self.choices)
@@ -689,6 +700,58 @@ class FullPlan(GFlowNetEnv):
         """
         return self.n_techs * 6 + 1
 
+    def _build_amount_lookup(self):
+        """
+        Build self._amount_lookup for use in states2proxy.
+
+        Global mode  (amount_values_mapping is a list):
+            shape (5,) — same mapping for every tech.
+
+        Per-tech mode (amount_values_mapping is a dict {tech_name: [v0,v1,v2,v3,v4]}):
+            shape (n_techs, 5) — row i corresponds to self.techs[i].
+            Techs missing from the dict fall back to the lowest-valued row.
+        """
+        avm = self.amount_values_mapping
+
+        if isinstance(avm, list):
+            # Global mode
+            self._amount_lookup = torch.tensor(avm, dtype=torch.float32)
+            self._per_tech_amounts = False
+
+        elif isinstance(avm, dict):
+            # Per-tech mode: build (n_techs, 5) matrix
+            rows = []
+            missing = []
+            for tech in self.techs:
+                col_name = f"SUBS_{tech}"
+                # Accept either plain tech name or SUBS_ prefixed key
+                if tech in avm:
+                    rows.append(avm[tech])
+                elif col_name in avm:
+                    rows.append(avm[col_name])
+                else:
+                    rows.append(None)
+                    missing.append(tech)
+
+            if missing:
+                # Fallback: use the row with the lowest HIGH value among known techs
+                known_rows = [r for r in rows if r is not None]
+                if known_rows:
+                    fallback = min(known_rows, key=lambda r: r[1])  # index 1 = HIGH
+                else:
+                    fallback = [0.0, 0.75, 0.3, 0.1, 0.0]
+                for i, r in enumerate(rows):
+                    if r is None:
+                        rows[i] = fallback
+
+            self._amount_lookup = torch.tensor(rows, dtype=torch.float32)
+            self._per_tech_amounts = True
+
+        else:
+            raise ValueError(
+                f"amount_values_mapping must be a list or dict, got {type(avm)}"
+            )
+
     def states2proxy(
         self, states: Union[List[Dict], List[TensorType["max_length"]]]
     ) -> Tuple[TensorType["batch", "n_techs"], List[str]]:
@@ -711,14 +774,10 @@ class FullPlan(GFlowNetEnv):
         """
         batch_size = len(states)
 
-        # Amount index to value mapping (index 0 = unassigned, 1-4 = HIGH/MED/LOW/NONE)
-        amount_idx_to_value = torch.tensor(
-            self.amount_values_mapping,
-            device=self.device,
-            dtype=self.float,
-        )
+        # Move lookup to device on first use (device may not be set at __init__ time)
+        lookup = self._amount_lookup.to(device=self.device, dtype=self.float)
 
-        # Build plans tensor from state plan lists
+        # Build plans_indices: (batch, n_techs) long tensor
         plans_indices = torch.zeros(
             batch_size, self.n_techs, dtype=torch.long, device=self.device
         )
@@ -727,8 +786,18 @@ class FullPlan(GFlowNetEnv):
                 state["plan"], dtype=torch.long, device=self.device
             )
 
-        # Convert indices to values
-        plans_tensor = amount_idx_to_value[plans_indices]
+        if self._per_tech_amounts:
+            # Per-tech mode: lookup is (n_techs, 5)
+            # For each tech position t and each sample i, we want lookup[t, plans_indices[i,t]]
+            # Equivalent to gathering along dim=1 of the per-tech table.
+            # plans_tensor[i, t] = lookup[t, plans_indices[i, t]]
+            plans_tensor = lookup[
+                torch.arange(self.n_techs, device=self.device).unsqueeze(0),
+                plans_indices,
+            ]
+        else:
+            # Global mode: lookup is (5,)
+            plans_tensor = lookup[plans_indices]
 
         return plans_tensor
 

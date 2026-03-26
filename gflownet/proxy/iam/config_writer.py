@@ -96,15 +96,21 @@ def _tags(target_variable: str) -> list:
     return ["gflownet", "plan", "fairy", "sigmoid", slug]
 
 
-def _amount_list(amounts: dict) -> list:
-    """Convert amounts dict → [0.0, HIGH, MEDIUM, LOW, NONE] list."""
-    return [
-        0.0,
-        amounts["HIGH"],
-        amounts["MEDIUM"],
-        amounts["LOW"],
-        amounts["NONE"],
-    ]
+def _amount_list(amounts) -> object:
+    """
+    Convert amounts to the YAML-serialisable form.
+
+    Global mode  (dict with HIGH/MEDIUM/LOW/NONE keys):
+        → [0.0, HIGH, MEDIUM, LOW, NONE]
+
+    Per-tech mode (dict with tech-name keys, each mapping to a 5-element list):
+        → dict {tech_name: [v0,v1,v2,v3,v4]} (written as a YAML mapping)
+    """
+    if isinstance(amounts, dict) and "HIGH" in amounts:
+        return [0.0, amounts["HIGH"], amounts["MEDIUM"], amounts["LOW"], amounts["NONE"]]
+    else:
+        # Per-tech dict — return as-is for YAML serialisation
+        return dict(amounts)
 
 
 # ---------------------------------------------------------------------------
