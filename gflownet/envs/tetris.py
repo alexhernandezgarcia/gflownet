@@ -2,6 +2,7 @@
 An environment inspired by the game of Tetris.
 """
 
+import copy
 import itertools
 import re
 import warnings
@@ -16,7 +17,6 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import set_device, tint
-import copy
 
 PIECES = {
     "I": [1, [[1], [1], [1], [1]]],

@@ -565,7 +565,7 @@ class BaseBuffer:
         n: int,
         mode: str = "permutation",
         rng: Optional[np.random.Generator] = None,
-        n_duplicates: int = 1, 
+        n_duplicates: int = 1,
     ) -> pd.DataFrame:
         """
         Selects a subset of n data points from data_dict, according to the criterion
@@ -600,8 +600,8 @@ class BaseBuffer:
         rng : np.random.Generator
             A numpy random number generator, used for the permutation mode. Ignored
             otherwise.
-        
-        n_duplicates: int 
+
+        n_duplicates: int
             The number of times we duplicate samples. For example, if duplicate=2, we have 2 copies of each sample in the buffer. Useful for the MLE loss
 
         Returns
@@ -609,8 +609,10 @@ class BaseBuffer:
         filtered_data_dict
             A dict containing the data of n samples, selected from data_dict.
         """
-        if n % n_duplicates !=0: 
-            raise ValueError("the number of samples to select from the dictionary should be dividible by n_duplicates ")
+        if n % n_duplicates != 0:
+            raise ValueError(
+                "the number of samples to select from the dictionary should be dividible by n_duplicates "
+            )
         # If random number generator is None, start a new one
         if rng is None:
             rng = np.random.default_rng()
@@ -648,15 +650,14 @@ class BaseBuffer:
             # Obtain the indices of the selected samples
             selected_index = rng.choice(
                 index,
-                size=n  // n_duplicates ,
+                size=n // n_duplicates,
                 replace=True,
                 p=scores,
             )
         else:
             raise ValueError(f"Unrecognized sampling mode: {mode}.")
 
-        
-        selected_index = np.repeat(selected_index, n_duplicates, axis = 0)
+        selected_index = np.repeat(selected_index, n_duplicates, axis=0)
         return df.loc[selected_index]
 
     @staticmethod

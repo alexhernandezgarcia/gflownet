@@ -641,7 +641,11 @@ class GFlowNetAgent:
         if n_train > 0 and self.buffer.train is not None:
             envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
             x_train = self.buffer.select(
-                self.buffer.train, n_train, self.train_sampling, self.rng, n_duplicates= self.n_duplicates_batch_train
+                self.buffer.train,
+                n_train,
+                self.train_sampling,
+                self.rng,
+                n_duplicates=self.n_duplicates_batch_train,
             )["samples"].values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
@@ -736,7 +740,6 @@ class GFlowNetAgent:
 
         # Merge forward and backward batches
         batch = batch.merge([batch_forward, batch_train, batch_replay])
-        
 
         times["all"] = time.time() - t0_all
 

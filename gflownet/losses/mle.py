@@ -9,10 +9,10 @@ The MLE loss or objective was defined by Zhang et al. (2023):
 import torch
 from torchtyping import TensorType
 
+import wandb
 from gflownet.losses.base import BaseLoss
 from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 
-import wandb
 
 class MLE(BaseLoss):
     def __init__(self, **kwargs):
@@ -96,17 +96,17 @@ class MLE(BaseLoss):
         ----------
         batch : Batch
             A batch of trajectories.
-        
-        use_consistency_loss: Bool 
-            Whether or not to use the consistency loss for P_B. 
-        
-        alpha: float = 1. 
+
+        use_consistency_loss: Bool
+            Whether or not to use the consistency loss for P_B.
+
+        alpha: float = 1.
         Returns
         -------
         tensor
             The loss of each trajectory in the batch.
         """
-        terminating_states = batch.get_terminating_states(proxy = True)
+        terminating_states = batch.get_terminating_states(proxy=True)
         # Get logprobs of forward and backward transitions
         logprobs_f = compute_logprobs_trajectories(
             batch, forward_policy=self.forward_policy, backward=False
@@ -130,16 +130,20 @@ class MLE(BaseLoss):
             logprobs_f_cons = logprobs_f.reshape(bs // n_duplicates, n_duplicates)
             logprobs_b_cons = logprobs_b.reshape(bs // n_duplicates, n_duplicates)
             if logprobs_f.requires_grad:
-                consistency_loss = torch.var(logprobs_f_cons.detach() - logprobs_b_cons, dim = 1) # shape bs//n_duplicates
+                consistency_loss = torch.var(
+                    logprobs_f_cons.detach() - logprobs_b_cons, dim=1
+                )  # shape bs//n_duplicates
             else:
-                consistency_loss = torch.var(logprobs_f_cons - logprobs_b_cons, dim = 1) 
+                consistency_loss = torch.var(logprobs_f_cons - logprobs_b_cons, dim=1)
 
-        # the shape of the MLE loss is bs and the shape of the consistency loss is bs // n_duplicates 
+        # the shape of the MLE loss is bs and the shape of the consistency loss is bs // n_duplicates
         consistency_loss = alpha * consistency_loss
         return mle_loss, consistency_loss
 
     def aggregate_losses_of_batch(
-        self, losses: TensorType["batch_size"], batch: Batch,
+        self,
+        losses: TensorType["batch_size"],
+        batch: Batch,
     ) -> dict[str, float]:
         """
         Aggregates the losses computed from a batch to obtain the overall average loss.
@@ -154,7 +158,7 @@ class MLE(BaseLoss):
         batch : Batch
             A batch of trajectories.
         alpha: Float
-            A float to balance between the 
+            A float to balance between the
 
         Returns
         -------
@@ -164,6 +168,6 @@ class MLE(BaseLoss):
         mle_loss, consistency_loss = losses[0], losses[1]
         return {
             "all": mle_loss.mean() + consistency_loss.mean(),
-            "mle_loss":  mle_loss.mean(),  
-            "consistency_loss":  consistency_loss.mean(), 
+            "mle_loss": mle_loss.mean(),
+            "consistency_loss": consistency_loss.mean(),
         }

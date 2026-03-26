@@ -43,10 +43,9 @@ class Batch:
         proxy: Optional[Proxy] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
-        n_duplicates_batch_train: int=None,
+        n_duplicates_batch_train: int = None,
         collect_forwards_masks=False,
         collect_backwards_masks=False,
-        
     ):
         """
         Arguments
