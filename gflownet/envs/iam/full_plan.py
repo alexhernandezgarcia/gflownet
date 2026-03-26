@@ -711,55 +711,23 @@ class FullPlan(GFlowNetEnv):
             shape (n_techs, 5) — row i corresponds to self.techs[i].
             Techs missing from the dict fall back to the lowest-valued row.
         """
-        avm = self.amount_values_mapping
-        if avm is None:
-            avm = [0.0, 0.75, 0.3, 0.1, 0.0]
+        from omegaconf import OmegaConf
+        avm = OmegaConf.to_container(self.amount_values_mapping, resolve=True)
 
-        if isinstance(avm, list):
-            # Global list mode: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]
-            self._amount_lookup = torch.tensor(avm, dtype=torch.float32)
-            self._per_tech_amounts = False
+        # Per-tech mapping: {tech_name: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]}
+        rows = []
+        for tech in self.techs:
+            if tech in avm:
+                rows.append(avm[tech])
+            elif f"SUBS_{tech}" in avm:
+                rows.append(avm[f"SUBS_{tech}"])
+            else:
+                # Fallback: lowest HIGH row among known techs
+                known = [r for r in rows if r is not None]
+                rows.append(min(known, key=lambda r: r[1]) if known else [0.0, 0.0036, 0.0018, 0.0009, 0.0])
 
-        elif isinstance(avm, dict) and "HIGH" in avm:
-            # Global dict mode: {"HIGH": float, "MEDIUM": float, "LOW": float, "NONE": float}
-            global_list = [0.0, float(avm["HIGH"]), float(avm["MEDIUM"]),
-                           float(avm["LOW"]), float(avm["NONE"])]
-            self._amount_lookup = torch.tensor(global_list, dtype=torch.float32)
-            self._per_tech_amounts = False
-
-        elif isinstance(avm, dict):
-            # Per-tech mode: build (n_techs, 5) matrix
-            rows = []
-            missing = []
-            for tech in self.techs:
-                col_name = f"SUBS_{tech}"
-                # Accept either plain tech name or SUBS_ prefixed key
-                if tech in avm:
-                    rows.append(avm[tech])
-                elif col_name in avm:
-                    rows.append(avm[col_name])
-                else:
-                    rows.append(None)
-                    missing.append(tech)
-
-            if missing:
-                # Fallback: use the row with the lowest HIGH value among known techs
-                known_rows = [r for r in rows if r is not None]
-                if known_rows:
-                    fallback = min(known_rows, key=lambda r: r[1])  # index 1 = HIGH
-                else:
-                    fallback = [0.0, 0.75, 0.3, 0.1, 0.0]
-                for i, r in enumerate(rows):
-                    if r is None:
-                        rows[i] = fallback
-
-            self._amount_lookup = torch.tensor(rows, dtype=torch.float32)
-            self._per_tech_amounts = True
-
-        else:
-            raise ValueError(
-                f"amount_values_mapping must be a list or dict, got {type(avm)}"
-            )
+        self._amount_lookup = torch.tensor(rows, dtype=torch.float32)
+        self._per_tech_amounts = True
 
     def states2proxy(
         self, states: Union[List[Dict], List[TensorType["max_length"]]]
