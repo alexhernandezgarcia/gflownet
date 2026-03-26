@@ -9,4 +9,8 @@ sectors: null
 tags: null
 techs: null
 amounts: null
-amount_values_mapping: [0.0, 0.75, 0.3, 0.1, 0.0]
+amount_values_mapping:
+  HIGH: 0.75
+  MEDIUM: 0.3
+  LOW: 0.1
+  NONE: 0.0
