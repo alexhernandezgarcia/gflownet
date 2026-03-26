@@ -714,8 +714,16 @@ class FullPlan(GFlowNetEnv):
         avm = self.amount_values_mapping
 
         if isinstance(avm, list):
-            # Global mode
+            # Global list mode: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]
             self._amount_lookup = torch.tensor(avm, dtype=torch.float32)
+            self._per_tech_amounts = False
+
+        elif isinstance(avm, dict) and "HIGH" in avm:
+            # Global dict mode: {"HIGH": float, "MEDIUM": float, "LOW": float, "NONE": float}
+            # Convert to the canonical list format: [0.0, HIGH, MEDIUM, LOW, NONE]
+            global_list = [0.0, float(avm["HIGH"]), float(avm["MEDIUM"]),
+                           float(avm["LOW"]), float(avm["NONE"])]
+            self._amount_lookup = torch.tensor(global_list, dtype=torch.float32)
             self._per_tech_amounts = False
 
         elif isinstance(avm, dict):
