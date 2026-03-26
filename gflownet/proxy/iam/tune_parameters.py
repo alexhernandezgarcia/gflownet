@@ -337,21 +337,39 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
         p_max    = float(np.max(nonzero_vals))
         high_val = min(1.0, p_high * (1.0 + margin))
 
+        # If MEDIUM or LOW collapse to zero (sparse sector like DAC), apply
+        # geometric spacing: MEDIUM = HIGH/2, LOW = HIGH/4.
+        # This ensures the GFN always has 4 meaningfully distinct levels.
+        geometric_fallback = False
+        if p_medium <= 1e-9 or p_low <= 1e-9:
+            geometric_fallback = True
+            medium_val = round(high_val / 2.0, 4)
+            low_val    = round(high_val / 4.0, 4)
+            if sector not in empty_sectors:
+                print(f"  NOTE: Sector {sector!r} has collapsed MEDIUM/LOW "
+                      f"(p{medium_pct}={p_medium:.4f}, p{low_pct}={p_low:.4f}). "
+                      f"Using geometric spacing: HIGH={high_val:.4f}, "
+                      f"MEDIUM={medium_val:.4f}, LOW={low_val:.4f}.")
+        else:
+            medium_val = round(p_medium, 4)
+            low_val    = round(p_low, 4)
+
         sector_amounts[sector] = {
             "HIGH":   round(high_val, 4),
-            "MEDIUM": round(p_medium, 4),
-            "LOW":    round(p_low, 4),
+            "MEDIUM": medium_val,
+            "LOW":    low_val,
             "NONE":   0.0,
         }
         sector_info[sector] = {
             "n_nonzero":   int(len(nonzero_vals)),
             "n_total":     int(len(sector_vals)),
             "frac_nonzero": round(len(nonzero_vals) / len(sector_vals), 4),
-            f"p{low_pct} (LOW)":    round(p_low, 4),
+            f"p{low_pct} (LOW)":       round(p_low, 4),
             f"p{medium_pct} (MEDIUM)": round(p_medium, 4),
-            f"p{high_pct} (HIGH)":  round(p_high, 4),
-            "max":         round(p_max, 4),
-            "margin":      margin,
+            f"p{high_pct} (HIGH)":     round(p_high, 4),
+            "max":                     round(p_max, 4),
+            "margin":                  margin,
+            "geometric_fallback":      geometric_fallback,
         }
 
     # Fill empty sectors with the most conservative non-empty sector
