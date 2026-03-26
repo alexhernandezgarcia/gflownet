@@ -56,6 +56,7 @@ class GFlowNetAgent:
         train_sampling="permutation",
         garbage_collection_period: int = 0,
         collect_reversed_logprobs: bool = False,
+        n_duplicates_batch_train: int = 5,
         **kwargs,
     ):
         """
@@ -160,6 +161,7 @@ class GFlowNetAgent:
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
         self.buffer = buffer
+        self.n_duplicates_batch_train = n_duplicates_batch_train
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             scores_stats_tr = [
@@ -639,8 +641,8 @@ class GFlowNetAgent:
         if n_train > 0 and self.buffer.train is not None:
             envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
             x_train = self.buffer.select(
-                self.buffer.train, n_train, self.train_sampling, self.rng, n_duplicates=3 
-            )["samples"].values.tolist() #TODO find a way to not hardcode n_duplicates! 
+                self.buffer.train, n_train, self.train_sampling, self.rng, n_duplicates= self.n_duplicates_batch_train
+            )["samples"].values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
         else:
@@ -734,6 +736,7 @@ class GFlowNetAgent:
 
         # Merge forward and backward batches
         batch = batch.merge([batch_forward, batch_train, batch_replay])
+        
 
         times["all"] = time.time() - t0_all
 
@@ -959,6 +962,7 @@ class GFlowNetAgent:
                     collect_backwards_masks=self.collect_backwards_masks,
                 )
                 batch.merge(sub_batch)
+            batch.n_duplicates_batch_train = self.n_duplicates_batch_train
             for j in range(self.ttsr):
                 losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way

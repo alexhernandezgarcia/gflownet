@@ -43,8 +43,10 @@ class Batch:
         proxy: Optional[Proxy] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
+        n_duplicates_batch_train: int=None,
         collect_forwards_masks=False,
         collect_backwards_masks=False,
+        
     ):
         """
         Arguments
@@ -59,6 +61,7 @@ class Batch:
         float_type : torch.dtype or int
             One of float torch.dtype or an int indicating the float precision (16, 32
             or 64).
+        n_duplicates_batch_train: the number of duplicates of the terminal states in a batch sampled backwards from a training dataset. We set this number in the GflowNet agent.
         """
         # Device
         self.device = set_device(device)
@@ -105,6 +108,8 @@ class Batch:
         self.n_actions = []
         self.states_policy = None
         self.parents_policy = None
+        # n_duplicates_batch_train
+        self.n_duplicates_batch_train = n_duplicates_batch_train
         # Flag to indicate if masks should be collected in add_to_batch
         self.collect_forwards_masks = collect_forwards_masks
         self.collect_backwards_masks = collect_backwards_masks

@@ -12,6 +12,7 @@ from torchtyping import TensorType
 from gflownet.losses.base import BaseLoss
 from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 
+import wandb
 
 class MLE(BaseLoss):
     def __init__(self, **kwargs):
@@ -84,8 +85,6 @@ class MLE(BaseLoss):
         batch: Batch,
         use_consistency_loss: bool = True,
         alpha: float = 1,
-        n_trajs_per_terminal_state: int=1,
-        n_duplicates: int=3 #TODO find a way to not hardcode this! 
     ) -> TensorType["batch_size"]:
         """
         Computes the MLE loss for each trajectory of the input batch.
@@ -93,18 +92,21 @@ class MLE(BaseLoss):
         The MLE loss or objective is computed in this method as is
         defined in algorithm
 
-
-
         Parameters
         ----------
         batch : Batch
             A batch of trajectories.
-
+        
+        use_consistency_loss: Bool 
+            Whether or not to use the consistency loss for P_B. 
+        
+        alpha: float = 1. 
         Returns
         -------
         tensor
             The loss of each trajectory in the batch.
         """
+        terminating_states = batch.get_terminating_states(proxy = True)
         # Get logprobs of forward and backward transitions
         logprobs_f = compute_logprobs_trajectories(
             batch, forward_policy=self.forward_policy, backward=False
@@ -122,21 +124,22 @@ class MLE(BaseLoss):
 
         # Optional: consistency loss to train P_B
         consistency_loss = 0
+        n_duplicates = batch.n_duplicates_batch_train
         bs = len(logprobs_f)
         if use_consistency_loss:
-            #TODO add a test that we effectively have n_trajs_per_terminal_state trajectories per terminal state
-            #assert ( ), "Error: we don't have many trajectories per terminal state"
             logprobs_f_cons = logprobs_f.reshape(bs // n_duplicates, n_duplicates)
             logprobs_b_cons = logprobs_b.reshape(bs // n_duplicates, n_duplicates)
             if logprobs_f.requires_grad:
-                consistency_loss = torch.var(logprobs_f_cons.detach() - logprobs_b_cons, dim = 1) 
+                consistency_loss = torch.var(logprobs_f_cons.detach() - logprobs_b_cons, dim = 1) # shape bs//n_duplicates
             else:
                 consistency_loss = torch.var(logprobs_f_cons - logprobs_b_cons, dim = 1) 
 
-        return mle_loss + alpha * consistency_loss
+        # the shape of the MLE loss is bs and the shape of the consistency loss is bs // n_duplicates 
+        consistency_loss = alpha * consistency_loss
+        return mle_loss, consistency_loss
 
     def aggregate_losses_of_batch(
-        self, losses: TensorType["batch_size"], batch: Batch
+        self, losses: TensorType["batch_size"], batch: Batch,
     ) -> dict[str, float]:
         """
         Aggregates the losses computed from a batch to obtain the overall average loss.
@@ -150,12 +153,17 @@ class MLE(BaseLoss):
             The loss of each trajectory in the batch.
         batch : Batch
             A batch of trajectories.
+        alpha: Float
+            A float to balance between the 
 
         Returns
         -------
         loss_dict : dict
             A dictionary of loss aggregations.
         """
+        mle_loss, consistency_loss = losses[0], losses[1]
         return {
-            "all": losses.mean(),
+            "all": mle_loss.mean() + consistency_loss.mean(),
+            "mle_loss":  mle_loss.mean(),  
+            "consistency_loss":  consistency_loss.mean(), 
         }
