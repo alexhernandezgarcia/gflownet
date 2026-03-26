@@ -711,13 +711,9 @@ class FullPlan(GFlowNetEnv):
             shape (n_techs, 5) — row i corresponds to self.techs[i].
             Techs missing from the dict fall back to the lowest-valued row.
         """
-        # OmegaConf passes DictConfig/ListConfig instead of plain dict/list —
-        # convert to native Python types so isinstance checks work uniformly.
-        try:
-            from omegaconf import OmegaConf
-            avm = OmegaConf.to_container(avm, resolve=True)
-        except Exception:
-            avm = avm  # not an OmegaConf object, use as-is
+        if avm is None:
+            # No mapping provided — use hardcoded default
+            avm = [0.0, 0.75, 0.3, 0.1, 0.0]
 
         if isinstance(avm, list):
             # Global list mode: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]
@@ -726,7 +722,6 @@ class FullPlan(GFlowNetEnv):
 
         elif isinstance(avm, dict) and "HIGH" in avm:
             # Global dict mode: {"HIGH": float, "MEDIUM": float, "LOW": float, "NONE": float}
-            # Convert to the canonical list format: [0.0, HIGH, MEDIUM, LOW, NONE]
             global_list = [0.0, float(avm["HIGH"]), float(avm["MEDIUM"]),
                            float(avm["LOW"]), float(avm["NONE"])]
             self._amount_lookup = torch.tensor(global_list, dtype=torch.float32)
