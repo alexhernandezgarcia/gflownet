@@ -84,13 +84,20 @@ class MLE(BaseLoss):
         self,
         batch: Batch,
         use_consistency_loss: bool = True,
-        alpha: float = 1,
+        alpha: float = 1.0,
     ) -> TensorType["batch_size"]:
         """
         Computes the MLE loss for each trajectory of the input batch.
 
-        The MLE loss or objective is computed in this method as is
-        defined in algorithm
+        The MLE loss or objective is computed in this method as is defined in algorithm 1 in Zhang et al. (2023).
+        The MLE loss is used to learn P_F, and the consistency loss is used to learn P_B.
+        For the consistency loss: we are generalizing eq. (33) (where 2 trajectories only are sampled backwards per terminal state) to any number of trajectories sampled backwards per terminal state.
+        To generalise this, we are using VarGrad loss on these trajectories. The reward gets cancelled as these trajectories lead to the same terminal state.
+        More formally:
+        Given a terminal state s_f, and trajectories (tau_1, ... tau_k) that end in s_f, the generalised consistency loss is defined as:
+        Consistency_loss(s_f, tau_1, ... tau_k)= Var( \log ( P_F(\tau) /(R(s_f)P_B(tau)))) = Var( \log (P_F(\tau) /P_B(tau)))).
+        For the case k=2, we recover the original consistency loss defined in eq. (33) modulo a constant.
+
 
         Parameters
         ----------
@@ -100,11 +107,15 @@ class MLE(BaseLoss):
         use_consistency_loss: Bool
             Whether or not to use the consistency loss for P_B.
 
-        alpha: float = 1.
+        alpha: float
+            A hyperparameter such that the total loss is MLE_loss + alpha * consistency_loss
+
         Returns
         -------
         tensor
-            The loss of each trajectory in the batch.
+            A tuple of:
+            - the MLE loss (one for each trajectory in the batch),
+            - The consistency loss (one for each **unique** terminal state in the batch, as there may be several trajectories that are sampled backwards from the same terminal state).
         """
         terminating_states = batch.get_terminating_states(proxy=True)
         # Get logprobs of forward and backward transitions
@@ -136,7 +147,6 @@ class MLE(BaseLoss):
             else:
                 consistency_loss = torch.var(logprobs_f_cons - logprobs_b_cons, dim=1)
 
-        # the shape of the MLE loss is bs and the shape of the consistency loss is bs // n_duplicates
         consistency_loss = alpha * consistency_loss
         return mle_loss, consistency_loss
 

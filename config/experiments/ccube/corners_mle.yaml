@@ -50,6 +50,7 @@ gflownet:
     z_dim: 16
     lr_z_mult: 100
     n_train_steps: 10000
+  n_duplicates_batch_train: 5 
 
 # Policy
 policy:
@@ -64,7 +65,7 @@ policy:
 
 # Evaluator
 evaluator:
-  first_it: False
+  first_it: True
   period: 500
   n: 1000
   checkpoints_period: 500

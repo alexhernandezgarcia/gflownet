@@ -56,7 +56,7 @@ class GFlowNetAgent:
         train_sampling="permutation",
         garbage_collection_period: int = 0,
         collect_reversed_logprobs: bool = False,
-        n_duplicates_batch_train: int = 5,
+        n_duplicates_batch_train: int = 1,
         **kwargs,
     ):
         """

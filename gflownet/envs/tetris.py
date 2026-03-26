@@ -312,8 +312,8 @@ class Tetris(GFlowNetEnv):
 
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
-               Converts a state (board) into a human-friendly string.
-        gflownet/envs"""
+        Converts a state (board) into a human-friendly string.
+        """
         state = self._get_state(state)
         if isinstance(state, tuple) or isinstance(state, list):
             readable = str(np.stack(state))
@@ -586,7 +586,6 @@ class Tetris(GFlowNetEnv):
         linewidth : int
             The width of the separation between cells, in pixels.
         """
-        # board = board.clone().numpy()
         board = copy.deepcopy(board)
         height = board.shape[0] * cellsize
         width = board.shape[1] * cellsize

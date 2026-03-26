@@ -48,6 +48,7 @@ gflownet:
     lr_decay_gamma: 0.5
   replay_sampling: weighted
   train_sampling: permutation
+  n_duplicates_batch_train: 5 
 
 # Policy
 policy:
