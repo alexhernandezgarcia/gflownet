@@ -711,8 +711,8 @@ class FullPlan(GFlowNetEnv):
             shape (n_techs, 5) — row i corresponds to self.techs[i].
             Techs missing from the dict fall back to the lowest-valued row.
         """
+        avm = self.amount_values_mapping
         if avm is None:
-            # No mapping provided — use hardcoded default
             avm = [0.0, 0.75, 0.3, 0.1, 0.0]
 
         if isinstance(avm, list):
