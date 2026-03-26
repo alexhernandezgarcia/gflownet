@@ -711,7 +711,13 @@ class FullPlan(GFlowNetEnv):
             shape (n_techs, 5) — row i corresponds to self.techs[i].
             Techs missing from the dict fall back to the lowest-valued row.
         """
-        avm = self.amount_values_mapping
+        # OmegaConf passes DictConfig/ListConfig instead of plain dict/list —
+        # convert to native Python types so isinstance checks work uniformly.
+        try:
+            from omegaconf import OmegaConf
+            avm = OmegaConf.to_container(avm, resolve=True)
+        except Exception:
+            avm = avm  # not an OmegaConf object, use as-is
 
         if isinstance(avm, list):
             # Global list mode: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]
