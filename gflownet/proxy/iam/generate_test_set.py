@@ -89,11 +89,34 @@ def get_subset_mask(keys_df, region, center_year, year_window):
     return mask
 
 
-def round_to_nearest_amount(value, amount_values):
-    """Round a continuous subsidy value to the nearest discrete amount label."""
+def _resolve_tech_amounts(amount_values, tech):
+    """
+    Return a flat {label: float} dict for a specific tech.
+
+    Global mode  — amount_values is already {HIGH: float, MEDIUM: float, ...}
+    Per-tech mode — amount_values is {tech_name: [v0, v1, v2, v3, v4]}
+                    where indices map to [unset, HIGH, MEDIUM, LOW, NONE].
+    """
+    if isinstance(amount_values, dict) and "HIGH" in amount_values:
+        return amount_values  # global mode — same for all techs
+    # Per-tech mode
+    row = amount_values.get(tech)
+    if row is None:
+        # Fallback: use lowest HIGH row
+        row = min(amount_values.values(), key=lambda r: r[1])
+    # row = [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]
+    return {"HIGH": row[1], "MEDIUM": row[2], "LOW": row[3], "NONE": row[4]}
+
+
+def round_to_nearest_amount(value, amount_values_for_tech):
+    """Round a continuous subsidy value to the nearest discrete amount label.
+
+    amount_values_for_tech must be a flat {label: float} dict.
+    Use _resolve_tech_amounts() to obtain it from either global or per-tech mappings.
+    """
     best_label = None
     best_dist = float("inf")
-    for label, level_val in amount_values.items():
+    for label, level_val in amount_values_for_tech.items():
         dist = abs(value - level_val)
         if dist < best_dist:
             best_dist = dist
@@ -134,7 +157,8 @@ def generate_test_set(subsidies_df, keys_df, mask, amount_values, n_total, seed=
                 col = f"SUBS_{tech}"
                 if col in subsidies_df.columns:
                     raw_val = float(subsidies_df.loc[idx, col])
-                    nearest_label = round_to_nearest_amount(raw_val, amount_values)
+                    tech_amounts = _resolve_tech_amounts(amount_values, tech)
+                    nearest_label = round_to_nearest_amount(raw_val, tech_amounts)
                     plan.append(label2idx[nearest_label])
                 else:
                     if not missing_warned:
