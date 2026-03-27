@@ -1,0 +1,87 @@
+# @package _global_
+
+defaults:
+  - override /env: tree/node
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: uniform
+  - override /logger: wandb
+
+# Environment
+env:
+  features: 
+    - "a"
+    - "b"
+    - "c"
+
+  cube_kwargs:
+    min_incr: 0.01
+    n_comp: 2
+    epsilon: 1e-6
+    beta_params_min: 1.0
+    beta_params_max: 100.0
+    fixed_distribution:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_bts_prob: 0.1
+      bernoulli_eos_prob: 0.1
+    random_distribution:
+      beta_weights: 1.0
+      beta_alpha: 10.0
+      beta_beta: 10.0
+      bernoulli_bts_prob: 0.1
+      bernoulli_eos_prob: 0.1
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.0
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay: 0
+      backward_dataset: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 100
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 64
+    n_layers: 2
+  backward:
+    shared_weights: True
+    checkpoint: backward
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  checkpoints_period: 5000
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
+# WandB
+logger:
+  lightweight: True
+  run_name: "dummynode"
+  project_name: "tree"
+  tags:
+    - gflownet
+    - tree
+    - dummynode
+  do:
+    online: False
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
