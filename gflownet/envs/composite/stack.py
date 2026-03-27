@@ -135,7 +135,7 @@ class Stack(CompositeBase):
         -------
         True if the sub-environment at ``idx_subenv`` is done; False otherwise.
         """
-        assert idx_subenv in range(self.n_subenvs)
+        assert idx_subenv < self.self.n_subenvs
         return self._get_active_subenv(state) > idx_subenv
 
     def _compute_mask_dim(self):
