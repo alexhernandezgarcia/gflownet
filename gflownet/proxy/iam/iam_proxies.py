@@ -146,6 +146,14 @@ class FAIRY(Proxy):
             self.target_variable = target_variable
             self.var_target = self.variables_names.index(target_variable)
 
+            MINIMIZED_KEYWORDS = ("EMI", "emission")
+            self.minimize = any(
+                kw.lower() in self.target_variable.lower()
+                for kw in MINIMIZED_KEYWORDS
+            )
+            if self.minimize:
+                print(f"  Minimization mode: proxy output will be negated for {self.target_variable}")
+
             self.target_min = torch.tensor(
                 self.precomputed_scaling_params[target_variable]["min"], device=self.device
             )
@@ -265,9 +273,13 @@ class FAIRY(Proxy):
         # Forward pass
         developments = self.fairy(contexts, plan)
 
-        # Extract and rescale consumption
+        # Extract, rescale and compute delta
         y = developments[:, self.var_target]
         y = torch.addcmul(self.target_min, y, self.target_scale)
         y = y - self.target_current
+
+        # Negate for minimized variables so higher output always means better
+        if self.minimize:
+            y = -y
 
         return y

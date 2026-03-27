@@ -113,17 +113,6 @@ def get_subset_mask(keys_df, region, center_year, year_window):
     return mask
 
 
-
-def get_global_mask(keys_df, center_year, year_window):
-    """Boolean mask for ALL regions in the year range (for global sigmoid calibration)."""
-    year_lo = center_year - year_window * 5
-    year_hi = center_year + year_window * 5
-    mask = (keys_df["year"] >= year_lo) & (keys_df["year"] <= year_hi)
-    print(f"Global sigmoid subset: all regions, years=[{year_lo}, {year_hi}]")
-    print(f"  Rows in subset: {mask.sum()} / {len(keys_df)}")
-    return mask
-
-
 # ---------------------------------------------------------------------------
 # 3. Compute 5-year target variable deltas (original units)
 # ---------------------------------------------------------------------------
@@ -424,67 +413,50 @@ def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
     """
     Fit sigmoid to the 5-year delta distribution (original units).
 
-    For maximized variables (e.g. CONSUMPTION):
-        R(q75) = 0.50  (center at 75th percentile)
-        R(q95) approx 0.99  (saturates at 95th percentile)
+    Always uses maximization anchors (q75 center, q95 saturation) since the
+    proxy output is already negated for minimized variables (e.g. EMI_total_CO2)
+    in iam_proxies.py, so higher proxy output always means better outcome.
 
-    For minimized variables (e.g. EMI_total_CO2):
-        spread = q05 - q25 < 0, so gamma = ln(99)/spread < 0.
-        The sigmoid naturally assigns higher reward to more negative deltas.
-
-    R(x) = alpha / (1 + exp(-gamma * (x + beta)))
+    R(x) = alpha / (1 + gamma * exp(beta * x))   [GFN native parameterization]
 
     Parameters
     ----------
     sigma_window : tuple(int, int) or None
-        Override (center_pct, saturation_pct), e.g. (50, 10) for a wider
-        minimization span. Must be in {5, 10, 25, 50, 75, 90, 95}.
-        When None defaults are chosen from minimize/maximize mode.
+        Override (center_pct, saturation_pct) percentiles.
+        Must be in {5, 10, 25, 50, 75, 90, 95}.
     """
-    MINIMIZED_KEYWORDS = ("EMI", "COST", "emission", "carbon")
-    minimize = any(kw.lower() in target_variable.lower() for kw in MINIMIZED_KEYWORDS)
-
     PCT_TO_KEY = {5: "q05", 10: "q10", 25: "q25", 50: "q50",
                   75: "q75", 90: "q90", 95: "q95"}
 
     if sigma_window is not None:
         center_pct, sat_pct = sigma_window
-        x_mid = delta_stats[PCT_TO_KEY[center_pct]]
+        x_mid  = delta_stats[PCT_TO_KEY[center_pct]]
         x_high = delta_stats[PCT_TO_KEY[sat_pct]]
         mode_label = f"custom window ({center_pct}th center, {sat_pct}th saturation)"
-    elif minimize:
-        x_mid = delta_stats["q25"]
-        x_high = delta_stats["q05"]
-        mode_label = "minimization (q25 center, q05 saturation)"
     else:
-        x_mid = delta_stats["q75"]
+        x_mid  = delta_stats["q75"]
         x_high = delta_stats["q95"]
-        mode_label = "maximization (q75 center, q95 saturation)"
+        mode_label = "q75 center, q95 saturation"
 
-    print(f"\n  [{target_variable}] Mode: {mode_label}")
-    print(f"  Sigmoid fitting targets (5-year delta, original units):")
+    print(f"\n  [{target_variable}] Sigmoid fitting targets ({mode_label}):")
     print(f"    x_mid  = {x_mid:.6f}  -> R = 0.50")
     print(f"    x_high = {x_high:.6f} -> R approx 0.99")
 
-    # spread is negative for minimization (q05 < q25), giving gamma < 0
     spread = x_high - x_mid
     print(f"    spread = {spread:.6f}")
 
     if abs(spread) < 1e-10:
         print("  WARNING: x_high approx x_mid, using fallback spread.")
-        if minimize:
-            spread = (delta_stats["min"] - delta_stats["q50"]) * 0.25  # negative
-        else:
-            spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
+        spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
 
-    beta = -x_mid
-    gamma = 4.595 / spread  # ln(99)/spread -- negative when spread < 0
+    beta  = -4.595 / spread   # ln(99)/spread, negative (higher x = better)
+    gamma = float(np.exp(-beta * x_mid))   # always positive
 
     alpha = 1.0
 
     def R(x):
-        exp_arg = np.clip(-gamma * (x + beta), -500, 500)
-        return alpha / (1.0 + np.exp(exp_arg))
+        exp_arg = np.clip(beta * x, -500, 500)
+        return alpha / (1.0 + gamma * np.exp(exp_arg))
 
     params = {
         "gamma": round(float(gamma), 4),
@@ -538,7 +510,7 @@ def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
     print(f"\n--- Reward at delta quantiles (rounded: gamma={gamma_r}, beta={beta_r}) ---")
     for q in ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]:
         dx = delta_stats[q]
-        rv = alpha / (1.0 + np.exp(-gamma_r * (dx + beta_r)))
+        rv = alpha / (1.0 + gamma_r * np.exp(beta_r * dx))
         print(f"  R(Δ{target_variable}={dx:+.6f}) at {q} = {rv:.4f}")
 
     print("\n--- Suggested YAML config overrides ---")
@@ -597,7 +569,7 @@ def print_summary_per_sector(sector_amounts, sector_info, empty_sectors):
 
 def get_tuning_results(region, year, year_window, margin, target_variable, data_dir,
                       sigma_window=None, high_pct=90, medium_pct=50, low_pct=25,
-                      per_sector_amounts=False, global_sigmoid=False):
+                      per_sector_amounts=False):
     """
     Programmatic entry point — returns (amounts, sigmoid_params) dict for use
     by the pipeline runner without re-parsing CLI args.
@@ -613,12 +585,7 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
             f"  Available years:   {sorted(keys_df['year'].unique())}"
         )
 
-    if global_sigmoid:
-        print(f"  [global_sigmoid] Computing deltas across ALL regions in window...")
-        global_mask = get_global_mask(keys_df, year, year_window)
-        delta_stats = compute_variable_deltas(variables_df, keys_df, global_mask, target_variable)
-    else:
-        delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
+    delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
     if delta_stats is None:
         raise RuntimeError(
             f"No valid (t, t+5) pairs found. Try --year_window 1 or check year."
@@ -685,10 +652,6 @@ def main():
                         help="Override sigmoid fitting percentiles, e.g. "
                              "'--sigma_window 50 10' for a wider minimization span. "
                              "Values must be in {5,10,25,50,75,90,95}.")
-    parser.add_argument("--global_sigmoid", action="store_true",
-                        help="Calibrate sigmoid on ALL regions in the time window "
-                             "instead of just the target region. Useful when the "
-                             "regional distribution is too narrow or bimodal.")
 
     args = parser.parse_args()
 
@@ -707,15 +670,9 @@ def main():
         print(f"  Available years: {sorted(keys_df['year'].unique())}")
         sys.exit(1)
 
-    if args.global_sigmoid:
-        print(f"Computing 5-year Δ{args.target_variable} across ALL regions (global_sigmoid)...")
-        global_mask = get_global_mask(keys_df, args.year, args.year_window)
-        delta_stats = compute_variable_deltas(
-            variables_df, keys_df, global_mask, args.target_variable)
-    else:
-        print(f"Computing 5-year Δ{args.target_variable} (original units)...")
-        delta_stats = compute_variable_deltas(
-            variables_df, keys_df, mask, args.target_variable)
+    print(f"Computing 5-year Δ{args.target_variable} (original units)...")
+    delta_stats = compute_variable_deltas(
+        variables_df, keys_df, mask, args.target_variable)
     if delta_stats is None:
         print("ERROR: No valid (t, t+5) pairs. Try --year_window 1 or check year.")
         sys.exit(1)
