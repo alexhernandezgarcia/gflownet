@@ -47,8 +47,8 @@ class Stack(CompositeBase):
             stacked.
         """
         self.subenvs = subenvs
-        self.max_elements = len(self.subenvs)
-        # TODO: Create self.n_subenvs (and use it)
+        self.n_subenvs = len(self.subenvs)
+        self.max_elements = self.n_subenvs
 
         # Determine the unique environments
         (
@@ -116,7 +116,7 @@ class Stack(CompositeBase):
         """
         state = self._get_state(state)
         active_subenv = self._get_active_subenv(state)
-        return [1] * active_subenv + [0] * (self.max_elements - active_subenv)
+        return [1] * active_subenv + [0] * (self.n_subenvs - active_subenv)
 
     def _get_subdone(self, idx_subenv: int, state: Optional[Dict] = None) -> bool:
         """
@@ -135,7 +135,7 @@ class Stack(CompositeBase):
         -------
         True if the sub-environment at ``idx_subenv`` is done; False otherwise.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv in range(self.n_subenvs)
         return self._get_active_subenv(state) > idx_subenv
 
     def _compute_mask_dim(self):
@@ -155,7 +155,7 @@ class Stack(CompositeBase):
             The number of elements in the Stack masks.
         """
         mask_dim_envs_unique = [env.mask_dim for env in self.envs_unique]
-        return max(mask_dim_envs_unique) + self.max_elements
+        return max(mask_dim_envs_unique) + self.n_subenvs
 
     def _get_max_trajectory_length(self) -> int:
         """
@@ -281,9 +281,9 @@ class Stack(CompositeBase):
         idx_subenv : int
             The index of the sub-environment to be one-hot encoded.
         """
-        idx_onehot = [False] * self.max_elements
+        idx_onehot = [False] * self.n_subenvs
         idx_onehot[idx_subenv] = True
-        padding = [False] * (self.mask_dim - (len(mask) + self.max_elements))
+        padding = [False] * (self.mask_dim - (len(mask) + self.n_subenvs))
         return idx_onehot + mask + padding
 
     def _unformat_mask(
@@ -323,9 +323,9 @@ class Stack(CompositeBase):
             raise ValueError("idx_subenv and mask_dim cannot be both None")
 
         if isinstance(mask, list):
-            return mask[self.max_elements : self.max_elements + mask_dim]
+            return mask[self.n_subenvs : self.n_subenvs + mask_dim]
         elif torch.is_tensor(mask):
-            return mask[:, self.max_elements : self.max_elements + mask_dim]
+            return mask[:, self.n_subenvs : self.n_subenvs + mask_dim]
         else:
             raise ValueError("The input mask can only be a list or a tensor")
 
@@ -684,7 +684,7 @@ class Stack(CompositeBase):
         """
         # Get the indices of the relevant sub-environments from the one-hot prefix of
         # the mask
-        indices_relevant = torch.where(mask[:, : self.max_elements])[1]
+        indices_relevant = torch.where(mask[:, : self.n_subenvs])[1]
         indices_relevant_int = indices_relevant.tolist()
 
         # Create the tensor indices_unique, which contains the index of the unique
@@ -760,7 +760,7 @@ class Stack(CompositeBase):
 
         # Get the indices of the relevant sub-environments from the one-hot prefix of
         # the mask
-        indices_relevant = torch.where(mask[:, : self.max_elements])[1]
+        indices_relevant = torch.where(mask[:, : self.n_subenvs])[1]
         indices_relevant_int = indices_relevant.tolist()
 
         # Create the tensor indices_unique, which contains the index of the unique

@@ -477,7 +477,7 @@ class Crystal(Stack):
                 # Add meta-data to state
                 state.update(
                     {
-                        "_active": self.max_elements - 1,
+                        "_active": self.n_subenvs - 1,
                         "_envs_unique": self.unique_indices,
                     }
                 )

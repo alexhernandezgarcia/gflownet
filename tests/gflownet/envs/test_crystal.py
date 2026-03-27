@@ -402,9 +402,9 @@ def test__action_space__contains_actions_of_all_subenvs(env, request):
 def test__states2policy__is_concatenation_of_subenv_states(env, states, request):
     env = request.getfixturevalue(env)
     # Get policy states from the batch of states converted into each subenv
-    states_dict = {idx: [] for idx in range(env.max_elements)}
+    states_dict = {idx: [] for idx in range(env.n_subenvs)}
     for state in states:
-        for idx in range(env.max_elements):
+        for idx in range(env.n_subenvs):
             states_dict[idx].append(env._get_substate(state, idx))
     states_policy_dict = {
         idx: subenv.states2policy(states_dict[idx])
@@ -587,9 +587,9 @@ def test__states2policy__is_concatenation_of_subenv_states(env, states, request)
 def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
     env = request.getfixturevalue(env)
     # Get proxy states from the batch of states converted into each subenv
-    states_dict = {idx: [] for idx in range(env.max_elements)}
+    states_dict = {idx: [] for idx in range(env.n_subenvs)}
     for state in states:
-        for idx in range(env.max_elements):
+        for idx in range(env.n_subenvs):
             states_dict[idx].append(env._get_substate(state, idx))
     states_proxy_dict = {
         idx: subenv.states2proxy(states_dict[idx])
@@ -938,7 +938,7 @@ def test__get_substate__returns_expected(
     request,
 ):
     env = request.getfixturevalue(env)
-    for idx, state_stage in zip(range(env.max_elements), states_stages):
+    for idx, state_stage in zip(range(env.n_subenvs), states_stages):
         state_subenv = env._get_substate(state, idx)
         assert env.equal(state_subenv, state_stage)
 
@@ -1519,7 +1519,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
 ):
     env = request.getfixturevalue(env)
     env.set_state(state, done=False)
-    n_subenvs = env.max_elements
+    n_subenvs = env.n_subenvs
     active_subenv = env._get_active_subenv(state)
     subenv = env.subenvs[active_subenv]
     mask = env.get_mask_invalid_actions_backward()
@@ -1690,7 +1690,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
 ):
     env = request.getfixturevalue(env)
     env.set_state(state, done=False)
-    n_subenvs = env.max_elements
+    n_subenvs = env.n_subenvs
     active_subenv = env._get_active_subenv(state)
     if active_subenv == 0:
         assert env.equal(state, env.source)
