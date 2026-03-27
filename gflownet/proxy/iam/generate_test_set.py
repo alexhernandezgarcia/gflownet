@@ -75,6 +75,8 @@ def load_raw_data(data_dir):
         keys_df = keys_df.loc[keep_mask].reset_index(drop=True)
 
         print(f"  Rows remaining after block removal: {len(keys_df)}")
+    # --- End block removal ---
+
     return subsidies_df, keys_df
 
 
@@ -195,8 +197,8 @@ def build_output_path(output_arg, region, year, target_variable):
     """
     if output_arg is not None:
         return output_arg
-    # Sanitize target_variable for use in filename (replace / and spaces)
-    safe_var = target_variable.replace("/", "_").replace(" ", "_")
+    # Sanitize and lowercase to match config_writer's _var_to_slug convention
+    safe_var = target_variable.lower().replace("/", "_").replace(" ", "_")
     return f"test_{region}_{year}_{safe_var}.pkl"
 
 
