@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.tree.Tree
+_target_: gflownet.envs.tree.origtree.TreeOrig
 
 id: tree
 # Data set

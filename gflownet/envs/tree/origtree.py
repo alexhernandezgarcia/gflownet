@@ -123,7 +123,7 @@ class Attribute:
     N = 5  # Total number of attributes.
 
 
-class Tree(GFlowNetEnv):
+class TreeOrig(GFlowNetEnv):
     """
     GFlowNet environment representing a decision tree.
 
