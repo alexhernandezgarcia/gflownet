@@ -95,6 +95,9 @@ def main():
     parser.add_argument("--sigma_window", type=int, nargs=2,
                         metavar=("CENTER_PCT", "SAT_PCT"), default=None,
                         help="Override sigmoid percentiles e.g. '--sigma_window 50 10'")
+    parser.add_argument("--global_sigmoid", action="store_true",
+                        help="Calibrate sigmoid on all regions in the time window, "
+                             "not just the target region.")
 
     # --- Test-set args ---
     parser.add_argument("--n", type=int, default=None,
@@ -155,6 +158,7 @@ def main():
             medium_pct=args.medium_pct,
             low_pct=args.low_pct,
             per_sector_amounts=not args.no_per_sector_amounts,
+            global_sigmoid=args.global_sigmoid,
         )
 
         print("\n  ✓ Tuning complete.")

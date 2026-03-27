@@ -113,6 +113,17 @@ def get_subset_mask(keys_df, region, center_year, year_window):
     return mask
 
 
+
+def get_global_mask(keys_df, center_year, year_window):
+    """Boolean mask for ALL regions in the year range (for global sigmoid calibration)."""
+    year_lo = center_year - year_window * 5
+    year_hi = center_year + year_window * 5
+    mask = (keys_df["year"] >= year_lo) & (keys_df["year"] <= year_hi)
+    print(f"Global sigmoid subset: all regions, years=[{year_lo}, {year_hi}]")
+    print(f"  Rows in subset: {mask.sum()} / {len(keys_df)}")
+    return mask
+
+
 # ---------------------------------------------------------------------------
 # 3. Compute 5-year target variable deltas (original units)
 # ---------------------------------------------------------------------------
@@ -586,7 +597,7 @@ def print_summary_per_sector(sector_amounts, sector_info, empty_sectors):
 
 def get_tuning_results(region, year, year_window, margin, target_variable, data_dir,
                       sigma_window=None, high_pct=90, medium_pct=50, low_pct=25,
-                      per_sector_amounts=False):
+                      per_sector_amounts=False, global_sigmoid=False):
     """
     Programmatic entry point — returns (amounts, sigmoid_params) dict for use
     by the pipeline runner without re-parsing CLI args.
@@ -602,7 +613,12 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
             f"  Available years:   {sorted(keys_df['year'].unique())}"
         )
 
-    delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
+    if global_sigmoid:
+        print(f"  [global_sigmoid] Computing deltas across ALL regions in window...")
+        global_mask = get_global_mask(keys_df, year, year_window)
+        delta_stats = compute_variable_deltas(variables_df, keys_df, global_mask, target_variable)
+    else:
+        delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
     if delta_stats is None:
         raise RuntimeError(
             f"No valid (t, t+5) pairs found. Try --year_window 1 or check year."
@@ -669,6 +685,10 @@ def main():
                         help="Override sigmoid fitting percentiles, e.g. "
                              "'--sigma_window 50 10' for a wider minimization span. "
                              "Values must be in {5,10,25,50,75,90,95}.")
+    parser.add_argument("--global_sigmoid", action="store_true",
+                        help="Calibrate sigmoid on ALL regions in the time window "
+                             "instead of just the target region. Useful when the "
+                             "regional distribution is too narrow or bimodal.")
 
     args = parser.parse_args()
 
@@ -687,9 +707,15 @@ def main():
         print(f"  Available years: {sorted(keys_df['year'].unique())}")
         sys.exit(1)
 
-    print(f"Computing 5-year Δ{args.target_variable} (original units)...")
-    delta_stats = compute_variable_deltas(
-        variables_df, keys_df, mask, args.target_variable)
+    if args.global_sigmoid:
+        print(f"Computing 5-year Δ{args.target_variable} across ALL regions (global_sigmoid)...")
+        global_mask = get_global_mask(keys_df, args.year, args.year_window)
+        delta_stats = compute_variable_deltas(
+            variables_df, keys_df, global_mask, args.target_variable)
+    else:
+        print(f"Computing 5-year Δ{args.target_variable} (original units)...")
+        delta_stats = compute_variable_deltas(
+            variables_df, keys_df, mask, args.target_variable)
     if delta_stats is None:
         print("ERROR: No valid (t, t+5) pairs. Try --year_window 1 or check year.")
         sys.exit(1)
