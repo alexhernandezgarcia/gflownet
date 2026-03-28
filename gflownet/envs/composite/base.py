@@ -866,7 +866,15 @@ class CompositeBase(GFlowNetEnv):
         # If the action is not None, get the unique environment and depad the action
         if action is not None:
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
-            action = self._depad_action(action, idx_unique)
+            try:
+                action = self._depad_action(action, idx_unique)
+            except RuntimeError as e:
+                # If there is a mismatch between idx_unique and the action index,
+                # return False
+                if str(e).startswith(
+                    "There is a mismatch between the input idx_unique"
+                ):
+                    return False
 
         # For constraints to be applied, either the action is None (meaning the call of
         # this method was initiated by set_state() or reset(), or the action is EOS
