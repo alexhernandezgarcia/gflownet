@@ -117,6 +117,37 @@ def env_cube_setstacks():
     )
 
 
+@pytest.fixture
+def env_two_grids():
+    return Stack(
+        subenvs=(
+            Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
+        )
+    )
+
+
+@pytest.fixture
+def env_two_grids_three_cubes_tetris():
+    return Stack(
+        subenvs=(
+            Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
+            Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
+            Tetris(
+                width=2,
+                height=6,
+                pieces=["J", "L", "O"],
+                rotations=[0, 180],
+                allow_eos_before_full=True,
+                device="cpu",
+            ),
+        )
+    )
+
+
 @pytest.mark.parametrize(
     "env",
     [
@@ -125,6 +156,8 @@ def env_cube_setstacks():
         "env_cube_tetris_grid",
         "env_cube_setgrids",
         "env_cube_setstacks",
+        "env_two_grids",
+        "env_two_grids_three_cubes_tetris",
     ],
 )
 def test__environment__initializes_properly(env, request):
@@ -138,11 +171,50 @@ def test__environment__initializes_properly(env, request):
         ("env_grid2d_tetrismini", False),
         ("env_cube_tetris", True),
         ("env_cube_tetris_grid", True),
+        ("env_cube_setgrids", True),
+        ("env_cube_setstacks", True),
+        ("env_two_grids", False),
+        ("env_two_grids_three_cubes_tetris", True),
     ],
 )
 def test__environment__is_continuous(env, is_continuous, request):
     env = request.getfixturevalue(env)
     assert env.continuous == is_continuous
+
+
+@pytest.mark.parametrize(
+    "env, n_subenvs",
+    [
+        ("env_grid2d_tetrismini", 2),
+        ("env_cube_tetris", 2),
+        ("env_cube_tetris_grid", 3),
+        ("env_cube_setgrids", 2),
+        ("env_cube_setstacks", 2),
+        ("env_two_grids", 2),
+        ("env_two_grids_three_cubes_tetris", 6),
+    ],
+)
+def test__number_of_subenvs_is_correct(env, request, n_subenvs):
+    env = request.getfixturevalue(env)
+    assert env.n_subenvs == n_subenvs
+    assert env.max_elements == n_subenvs
+
+
+@pytest.mark.parametrize(
+    "env, n_unique_envs",
+    [
+        ("env_grid2d_tetrismini", 2),
+        ("env_cube_tetris", 2),
+        ("env_cube_tetris_grid", 3),
+        ("env_cube_setgrids", 2),
+        ("env_cube_setstacks", 2),
+        ("env_two_grids", 1),
+        ("env_two_grids_three_cubes_tetris", 3),
+    ],
+)
+def test__number_of_unique_envs_is_correct(env, request, n_unique_envs):
+    env = request.getfixturevalue(env)
+    assert env.n_unique_envs == n_unique_envs
 
 
 @pytest.mark.parametrize(
@@ -215,6 +287,23 @@ def test__pad_depad_action__return_expected(env, action_stack, action_subenv, re
 )
 def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space):
     env = env_grid2d_tetrismini
+    assert len(action_space) == len(env.action_space)
+    assert set(action_space) == set(env.action_space)
+
+
+@pytest.mark.parametrize(
+    "action_space",
+    [
+        [
+            (0, 0, 0, 0),
+            (0, 1, 0, 0),
+            (0, 0, 1, 0),
+            (0, 0, 0, 1),
+        ]
+    ],
+)
+def test__get_action_space__two_grids_returns_expected(env_two_grids, action_space):
+    env = env_two_grids
     assert len(action_space) == len(env.action_space)
     assert set(action_space) == set(env.action_space)
 
@@ -1543,6 +1632,414 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             },
             True,
         ),
+        # Source state
+        (
+            "env_two_grids",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 0, 0],
+                1: [0, 0, 0],
+            },
+            (0, 0, 1, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 0],
+                1: [0, 0, 0],
+            },
+            True,
+        ),
+        # Intermediate state
+        (
+            "env_two_grids",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 0],
+                1: [0, 0, 0],
+            },
+            (0, 1, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [1, 1, 0],
+                1: [0, 0, 0],
+            },
+            True,
+        ),
+        # Transition from 0 to 1
+        (
+            "env_two_grids",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [1, 1, 0],
+                1: [0, 0, 0],
+            },
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [1, 1, 0],
+                1: [0, 0, 0],
+            },
+            True,
+        ),
+        # Global EOS
+        (
+            "env_two_grids",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [1, 1, 0],
+                1: [0, 0, 2],
+            },
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [1, 1, 0],
+                1: [0, 0, 2],
+            },
+            True,
+        ),
+        # Source
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 0, 0],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (0, 1, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 0, 0],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 0 to 1
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 1 to 2
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (0, 0, 0, 0),
+            {
+                "_active": 2,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 2 to 3
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 2,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 3 to 4
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 4 to 5
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [0.99, 0.99],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [0.99, 0.99],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Global EOS
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [0.99, 0.99],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            (2, -1, -1, -1),
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [1, 1, 1],
+                1: [2, 2, 2],
+                2: [0.5, 0.9],
+                3: [0.01, 0.002],
+                4: [0.99, 0.99],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
     ],
 )
 def test__step__works_as_expected(
@@ -1566,12 +2063,18 @@ def test__step__works_as_expected(
     assert valid == valid_exp, (state_from, action)
 
     # Check done
-    if action == env.eos and valid_exp:
+    if (
+        action == env.eos
+        and valid_exp
+        and env._get_active_subenv(state_from) == env.n_subenvs - 1
+    ):
         assert env.done
+    else:
+        assert not env.done
 
 
 @pytest.mark.parametrize(
-    "env, state_from, action, state_next_exp, valid_exp",
+    "env, state_from, is_done, action, state_next_exp, valid_exp",
     [
         (
             "env_grid2d_tetrismini",
@@ -1591,6 +2094,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (0, 1, 0, 0),
             {
                 "_active": 0,
@@ -1628,6 +2132,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (1, 1, 0, 0),
             {
                 "_active": 1,
@@ -1665,6 +2170,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (1, 4, 0, 2),
             {
                 "_active": 1,
@@ -1703,6 +2209,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (0, 1, 0, 0),
             {
                 "_active": 0,
@@ -1741,6 +2248,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (0, 1, 0, 0),
             {
                 "_active": 0,
@@ -1779,6 +2287,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            False,
             (0, 0, 0, 0),
             {
                 "_active": 0,
@@ -1817,6 +2326,7 @@ def test__step__works_as_expected(
                     device="cpu",
                 ),
             },
+            True,
             (1, -1, -1, -1),
             {
                 "_active": 1,
@@ -1836,17 +2346,530 @@ def test__step__works_as_expected(
             },
             True,
         ),
+        # Terminal state, EOS action
+        (
+            "env_two_grids",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+            },
+            True,
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+            },
+            True,
+        ),
+        # Intermediate state, last subenv active
+        (
+            "env_two_grids",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+            },
+            False,
+            (0, 1, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [1, 1, 0],
+            },
+            True,
+        ),
+        # Transition between subenvs: active subenv should decrement
+        (
+            "env_two_grids",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [0, 0, 0],
+            },
+            False,
+            (0, 0, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [0, 0, 0],
+            },
+            True,
+        ),
+        # Intermediate state, first subenv active
+        (
+            "env_two_grids",
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 1, 2],
+                1: [0, 0, 0],
+            },
+            False,
+            (0, 0, 1, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0],
+                0: [0, 0, 2],
+                1: [0, 0, 0],
+            },
+            True,
+        ),
+        # Terminal state, EOS action
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+            (2, -1, -1, -1),
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Intermediate state, active subenv 5
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [300, 000],
+                        [300, 000],
+                        [300, 300],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (2, 3, 0, 0),
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 5 to 4
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 5,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Intermediate state, active 4
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.5, 0.5],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (1, 0.2, 0.3, 0),
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [0.3, 0.2],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 4 to 3
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 4,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Intermediate state, active 3
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [0.7, 0.3],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (1, 0.7, 0.3, 1),
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 3 to 2
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 3,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (1, np.inf, np.inf, np.inf),
+            {
+                "_active": 2,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [0.3, 0.7],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 2 to 1
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 2,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (0, 0, 0, 0),
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [2, 1, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
+        # Transition from 1 to 0
+        (
+            "env_two_grids_three_cubes_tetris",
+            {
+                "_active": 1,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            False,
+            (0, 0, 0, 0),
+            {
+                "_active": 0,
+                "_envs_unique": [0, 0, 1, 1, 1, 2],
+                0: [0, 1, 2],
+                1: [0, 0, 0],
+                2: [-1, -1],
+                3: [-1, -1],
+                4: [-1, -1],
+                5: torch.tensor(
+                    [
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                        [000, 000],
+                    ],
+                    dtype=torch.int16,
+                    device="cpu",
+                ),
+            },
+            True,
+        ),
     ],
 )
 def test__step_backwards__works_as_expected(
-    env, state_from, action, state_next_exp, valid_exp, request
+    env, state_from, is_done, action, state_next_exp, valid_exp, request
 ):
     env = request.getfixturevalue(env)
-    if action == env.eos and valid_exp:
-        done = True
-    else:
-        done = False
-    env.set_state(state_from, done)
+    env.set_state(state_from, is_done)
 
     # Check init state
     assert env.equal(env.state, state_from)
@@ -1886,16 +2909,21 @@ def test__step_random__does_not_crash_from_source(env, request):
         "env_cube_tetris_grid",
         "env_cube_setgrids",
         "env_cube_setstacks",
+        "env_two_grids",
+        "env_two_grids_three_cubes_tetris",
     ],
 )
-def test__trajectory_random__does_not_crash_from_source(env, request):
+def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, request):
     """
     Raising the bar...
     """
     env = request.getfixturevalue(env)
     env.reset()
     env.trajectory_random()
-    assert True
+    assert env.done
+    for subenv in env.subenvs:
+        assert subenv.done
+    assert env._get_active_subenv() == env.n_subenvs - 1
 
 
 @pytest.mark.parametrize(
@@ -2192,6 +3220,76 @@ class TestStackCubeSetFixStacks(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env_cube_setstacks):
         self.env = env_cube_setstacks
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestStackTwoGrids(common.BaseTestsDiscrete):
+    """Common tests for Stack of two identical Grids"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_two_grids):
+        self.env = env_two_grids
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestStackTwoGridsThreeCubesTetris(common.BaseTestsContinuous):
+    """Common tests for a Stack of two identical grids, three cubes and one tetris"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_two_grids_three_cubes_tetris):
+        self.env = env_two_grids_three_cubes_tetris
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,

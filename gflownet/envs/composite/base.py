@@ -498,9 +498,12 @@ class CompositeBase(GFlowNetEnv):
         if idx_unique is None:
             idx_unique = action[0]
         else:
-            # If idx_unique does not match the action prefix, return the action as is
+            # If idx_unique does not match the action prefix, raise an error
             if idx_unique != action[0]:
-                return action
+                raise RuntimeError(
+                    f"There is a mismatch between the input idx_unique ({idx_unique}) "
+                    f"for de-padding and the unique index in the action ({action[0]})"
+                )
         if idx_unique != -1:
             return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
         return (action[1],)

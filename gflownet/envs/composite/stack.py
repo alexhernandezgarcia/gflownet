@@ -382,8 +382,9 @@ class Stack(CompositeBase):
             mask = self._unformat_mask(mask, relevant_subenv)
 
         # Obtain valid actions
+        idx_unique = self._get_unique_idx_of_subenv(relevant_subenv)
         valid_actions = [
-            self._pad_action(action, relevant_subenv)
+            self._pad_action(action, idx_unique)
             for action in subenv.get_valid_actions(mask, state_subenv, done, backward)
         ]
 
@@ -483,8 +484,9 @@ class Stack(CompositeBase):
             parent = self._set_substate(relevant_subenv, parent_subenv, parent)
             parents.append(parent)
         # Pad actions
+        idx_unique = self._get_unique_idx_of_subenv(relevant_subenv)
         parent_actions = [
-            self._pad_action(action, relevant_subenv) for action in parent_actions
+            self._pad_action(action, idx_unique) for action in parent_actions
         ]
 
         # Reset constraints for self.state
@@ -522,10 +524,11 @@ class Stack(CompositeBase):
         if self.done:
             return self.state, action, False
 
-        # Get active sub-environment, subenv and action of subenv
+        # Get active sub-environment, unique index, subenv and action of subenv
         active_subenv = self._get_active_subenv(self.state)
+        idx_unique = self._get_unique_idx_of_subenv(active_subenv)
         subenv = self.subenvs[active_subenv]
-        action_subenv = self._depad_action(action, active_subenv)
+        action_subenv = self._depad_action(action, idx_unique)
 
         # Perform pre-step from subenv - if it was done from the Stack env there could
         # be a mismatch between mask and action space due to continuous subenvs.
@@ -553,7 +556,7 @@ class Stack(CompositeBase):
         # Check if action is EOS of subenv
         if action_subenv == subenv.eos:
             # If it is global EOS set done to True
-            if action == self.eos:
+            if active_subenv == (self.n_subenvs - 1) and action == self.eos:
                 self.done = True
             else:
                 # Increment active subenv and apply constraints
@@ -589,15 +592,22 @@ class Stack(CompositeBase):
         valid : bool
             False, if the action is not allowed for the current state. True otherwise.
         """
-        # Get relevant subenv index from action (not from state), subenv and action of
-        # subenv
-        relevant_subenv = action[0]
-        subenv = self.subenvs[relevant_subenv]
-        action_subenv = self._depad_action(action, relevant_subenv)
+        # Get active sub-environment, unique index, and action of subenv
+        # The unique index is taken from the action, not the state, since they may not
+        # coincide in inter-subenv transition actions
+        active_subenv = self._get_active_subenv(self.state)
+        idx_unique = action[0]
+        action_subenv = self._depad_action(action, idx_unique)
 
-        # If subenv of action and state are different, action must be EOS of subenv
-        if relevant_subenv != self._get_active_subenv(self.state):
-            assert action_subenv == subenv.eos
+        # Determine the relevant sub-environment: if the action is EOS, then it is a
+        # transition between sub-environments and the relevant sub-environment is the
+        # previous to the active subenv in the state. Exception: if the env is done
+        env = self._get_env_unique(idx_unique)
+        if action_subenv == env.eos and not self.done:
+            relevant_subenv = active_subenv - 1
+        else:
+            relevant_subenv = active_subenv
+        subenv = self.subenvs[relevant_subenv]
 
         # Perform pre-step from subenv - if it was done from the "superenv" there could
         # be a mismatch between mask and action space due to continuous subenvs.
@@ -721,7 +731,7 @@ class Stack(CompositeBase):
         # Stitch all actions in the right order, with the right padding
         return [
             self._pad_action(actions_dict[idx].pop(0), idx)
-            for idx in indices_relevant_int
+            for idx in indices_unique_int
         ]
 
     def get_logprobs(
@@ -890,15 +900,11 @@ class Stack(CompositeBase):
         representative. The part of the action that identifies the sub-environment
         concerned by the action remains unaffected.
         """
-        # Get relevant subenv from action (not from state), subenv and action of subenv
-        relevant_subenv = action[0]
-        subenv = self.subenvs[relevant_subenv]
-        action_subenv = self._depad_action(action, relevant_subenv)
-
-        # Obtain the representative from the subenv
-        representative_subenv = subenv.action2representative(action_subenv)
-        representative = self._pad_action(representative_subenv, relevant_subenv)
-        return representative
+        idx_unique = action[0]
+        action_subenv = self._depad_action(action, idx_unique)
+        env = self._get_env_unique(idx_unique)
+        action_subenv_representative = env.action2representative(action_subenv)
+        return self._pad_action(action_subenv_representative, idx_unique)
 
     def is_source(self, state: Optional[Dict] = None) -> bool:
         """
