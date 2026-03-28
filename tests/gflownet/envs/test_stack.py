@@ -343,7 +343,6 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -362,7 +361,6 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
             "env_cube_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -382,7 +380,6 @@ def test__mask_dim__is_as_expected(env, request, mask_dim_expected):
             "env_cube_tetris_grid",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -412,7 +409,6 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -432,7 +428,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -453,7 +448,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_tetris_grid",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -474,7 +468,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_tetris_grid",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -495,7 +488,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_setgrids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1, -1],
                 1: {
                     "_active": -1,
@@ -513,7 +505,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_setgrids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [-1, -1],
                 1: {
                     "_active": -1,
@@ -531,7 +522,6 @@ def test__source_is_expected(env, source, request):
             "env_cube_setgrids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0.0, 0.0],
                 1: {
                     "_active": -1,
@@ -561,7 +551,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -581,7 +570,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -601,7 +589,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -621,7 +608,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -641,7 +627,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -661,7 +646,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -681,7 +665,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -701,7 +684,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setgrids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1, -1],
                 1: {
                     "_active": -1,
@@ -719,7 +701,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setgrids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -737,7 +718,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setgrids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -755,7 +735,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setgrids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": 0,
@@ -773,7 +752,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setgrids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -791,7 +769,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1, -1],
                 1: {
                     "_active": -1,
@@ -801,13 +778,11 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_keys": [0, 1],
                     0: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [-1.0, -1.0],
                         1: [0, 0],
                     },
                     1: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [0, 0],
                         1: [-1.0, -1.0],
                     },
@@ -819,7 +794,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -829,13 +803,11 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_keys": [0, 1],
                     0: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [-1.0, -1.0],
                         1: [0, 0],
                     },
                     1: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [0, 0],
                         1: [-1.0, -1.0],
                     },
@@ -847,7 +819,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -857,13 +828,11 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_keys": [0, 1],
                     0: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [-1.0, -1.0],
                         1: [0, 0],
                     },
                     1: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [0, 0],
                         1: [-1.0, -1.0],
                     },
@@ -875,7 +844,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": 0,
@@ -883,10 +851,9 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [0, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: {"_active": 0, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [0, 0]},
+                    0: {"_active": 0, 0: [0.1, 0.2], 1: [0, 0]},
                     1: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [0, 0],
                         1: [-1.0, -1.0],
                     },
@@ -898,7 +865,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -906,10 +872,9 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [1, 0],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: {"_active": 1, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [2, 1]},
+                    0: {"_active": 1, 0: [0.1, 0.2], 1: [2, 1]},
                     1: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [0, 0],
                         1: [-1.0, -1.0],
                     },
@@ -921,7 +886,6 @@ def test__is_source__returns_expected(env, state, is_source, request):
             "env_cube_setstacks",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: {
                     "_active": -1,
@@ -929,8 +893,8 @@ def test__is_source__returns_expected(env, state, is_source, request):
                     "_dones": [1, 1],
                     "_envs_unique": [0, 1],
                     "_keys": [0, 1],
-                    0: {"_active": 1, "_envs_unique": [0, 1], 0: [0.1, 0.2], 1: [2, 1]},
-                    1: {"_active": 0, "_envs_unique": [0, 1], 0: [1, 2], 1: [0.3, 0.8]},
+                    0: {"_active": 1, 0: [0.1, 0.2], 1: [2, 1]},
+                    1: {"_active": 0, 0: [1, 2], 1: [0.3, 0.8]},
                 },
             },
             [True, True],
@@ -963,7 +927,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -982,7 +945,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1001,7 +963,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_cube_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1021,7 +982,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_cube_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1041,7 +1001,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_cube_tetris_grid",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1082,7 +1041,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1101,7 +1059,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_cube_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1122,7 +1079,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_cube_tetris_grid",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1143,7 +1099,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_cube_tetris_grid",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1186,7 +1141,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1206,7 +1160,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1225,7 +1178,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_cube_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1246,7 +1198,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_cube_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1266,7 +1217,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_cube_tetris_grid",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1287,7 +1237,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
             "env_cube_tetris_grid",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [0.3, 0.7],
                 1: torch.tensor(
                     [
@@ -1330,7 +1279,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1349,7 +1297,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
             "env_cube_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -1369,7 +1316,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_done(
             "env_cube_tetris_grid",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [-1.0, -1.0],
                 1: torch.tensor(
                     [
@@ -1412,7 +1358,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -1429,7 +1374,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1449,7 +1393,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -1466,7 +1409,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1487,7 +1429,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1504,7 +1445,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1524,7 +1464,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1541,7 +1480,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, 1, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1561,7 +1499,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1578,7 +1515,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, 4, 0, 2),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1599,7 +1535,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1616,7 +1551,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, -1, -1, -1),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -1637,14 +1571,12 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 0, 0],
                 1: [0, 0, 0],
             },
             (0, 0, 1, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 0],
                 1: [0, 0, 0],
             },
@@ -1655,14 +1587,12 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 0],
                 1: [0, 0, 0],
             },
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [1, 1, 0],
                 1: [0, 0, 0],
             },
@@ -1673,14 +1603,12 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [1, 1, 0],
                 1: [0, 0, 0],
             },
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [1, 1, 0],
                 1: [0, 0, 0],
             },
@@ -1691,14 +1619,12 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [1, 1, 0],
                 1: [0, 0, 2],
             },
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [1, 1, 0],
                 1: [0, 0, 2],
             },
@@ -1709,7 +1635,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 0, 0],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -1731,7 +1656,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 0, 0],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -1757,7 +1681,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -1779,7 +1702,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -1805,7 +1727,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [-1, -1],
@@ -1827,7 +1748,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (0, 0, 0, 0),
             {
                 "_active": 2,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [-1, -1],
@@ -1853,7 +1773,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 2,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1875,7 +1794,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1901,7 +1819,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1923,7 +1840,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1949,7 +1865,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1971,7 +1886,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -1997,7 +1911,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -2019,7 +1932,6 @@ def test__get_mask_invalid_actions_backward__returns_expected_global_source(
             (2, -1, -1, -1),
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [1, 1, 1],
                 1: [2, 2, 2],
                 2: [0.5, 0.9],
@@ -2080,7 +1992,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2098,7 +2009,6 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -2118,7 +2028,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2136,7 +2045,6 @@ def test__step__works_as_expected(
             (1, 1, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2156,7 +2064,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2174,7 +2081,6 @@ def test__step__works_as_expected(
             (1, 4, 0, 2),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2195,7 +2101,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 0],
                 1: torch.tensor(
                     [
@@ -2213,7 +2118,6 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2234,7 +2138,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2252,7 +2155,6 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2273,7 +2175,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2291,7 +2192,6 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2312,7 +2212,6 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2330,7 +2229,6 @@ def test__step__works_as_expected(
             (1, -1, -1, -1),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [2, 0],
                 1: torch.tensor(
                     [
@@ -2351,7 +2249,6 @@ def test__step__works_as_expected(
             "env_two_grids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
             },
@@ -2359,7 +2256,6 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
             },
@@ -2370,7 +2266,6 @@ def test__step__works_as_expected(
             "env_two_grids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
             },
@@ -2378,7 +2273,6 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [1, 1, 0],
             },
@@ -2389,7 +2283,6 @@ def test__step__works_as_expected(
             "env_two_grids",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [0, 0, 0],
             },
@@ -2397,7 +2290,6 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [0, 0, 0],
             },
@@ -2408,7 +2300,6 @@ def test__step__works_as_expected(
             "env_two_grids",
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 1, 2],
                 1: [0, 0, 0],
             },
@@ -2416,7 +2307,6 @@ def test__step__works_as_expected(
             (0, 0, 1, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0],
                 0: [0, 0, 2],
                 1: [0, 0, 0],
             },
@@ -2427,7 +2317,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2450,7 +2339,6 @@ def test__step__works_as_expected(
             (2, -1, -1, -1),
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2476,7 +2364,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2499,7 +2386,6 @@ def test__step__works_as_expected(
             (2, 3, 0, 0),
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2525,7 +2411,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 5,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2548,7 +2433,6 @@ def test__step__works_as_expected(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2574,7 +2458,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2597,7 +2480,6 @@ def test__step__works_as_expected(
             (1, 0.2, 0.3, 0),
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2623,7 +2505,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 4,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2646,7 +2527,6 @@ def test__step__works_as_expected(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2672,7 +2552,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2695,7 +2574,6 @@ def test__step__works_as_expected(
             (1, 0.7, 0.3, 1),
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2721,7 +2599,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 3,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2744,7 +2621,6 @@ def test__step__works_as_expected(
             (1, np.inf, np.inf, np.inf),
             {
                 "_active": 2,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [0.3, 0.7],
@@ -2770,7 +2646,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 2,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [-1, -1],
@@ -2793,7 +2668,6 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [2, 1, 0],
                 2: [-1, -1],
@@ -2819,7 +2693,6 @@ def test__step__works_as_expected(
             "env_two_grids_three_cubes_tetris",
             {
                 "_active": 1,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -2842,7 +2715,6 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             {
                 "_active": 0,
-                "_envs_unique": [0, 0, 1, 1, 1, 2],
                 0: [0, 1, 2],
                 1: [0, 0, 0],
                 2: [-1, -1],
@@ -2934,7 +2806,6 @@ def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, reques
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: torch.tensor(
                     [
@@ -2956,7 +2827,6 @@ def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, reques
             "env_grid2d_tetrismini",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -2973,7 +2843,6 @@ def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, reques
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [0, 2],
                     1: torch.tensor(
                         [
@@ -3010,7 +2879,6 @@ def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, reques
             "env_grid2d_tetrismini",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 2],
                 1: torch.tensor(
                     [
@@ -3027,7 +2895,6 @@ def test__trajectory_random__reaches_done_active_subenv_is_n_subenvs(env, reques
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [1, 2],
                     1: torch.tensor(
                         [

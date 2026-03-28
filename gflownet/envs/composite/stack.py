@@ -61,15 +61,10 @@ class Stack(CompositeBase):
         # - Meta-data about the Stack
         #   - "_active":  The index of the currently active sub-environment, starting
         #   from 0 at the source state, up to the total number of sub-environments.
-        #   - "_envs_unique": A list of indices identifying the unique environment
-        #   corresponding to each subenv.
         # - States of the sub-environments, with keys the indices of the subenvs.
         # Note: "_dones" is not included because it can be inferred from the active
         # sub-environment.
-        self.source = {
-            "_active": 0,
-            "_envs_unique": self.unique_indices,
-        }
+        self.source = {"_active": 0}
         self.source.update(
             {idx: subenv.source for idx, subenv in enumerate(self.subenvs)}
         )
@@ -138,6 +133,30 @@ class Stack(CompositeBase):
         assert idx_subenv < self.self.n_subenvs
         return self._get_active_subenv(state) > idx_subenv
 
+    # TODO: remove after refactoring of CompositeBase
+    def _get_unique_indices(self, state: Optional[Dict] = None) -> List[int]:
+        """
+        Returns the list of unique indices.
+
+        The unique indices are the indices of the unique environments corresponding to
+        each sub-environment and sub-state.
+
+        This method is overriden because the Stack states do not contain the key
+        ``"_envs_unique"``. A future refactoring should change the CompositeBase so
+        that this key is not included by default in the states.
+
+        Parameters
+        ----------
+        state : dict
+            Ignored.
+
+        Returns
+        -------
+        list
+            The list of unique environment indices.
+        """
+        return self.unique_indices
+
     def _compute_mask_dim(self):
         """
         Calculates the mask dimensionality of the Stack environment.
@@ -195,7 +214,7 @@ class Stack(CompositeBase):
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
         state_subenv = self._get_substate(state, active_subenv)
-        subenv = self._get_unique_env_of_subenv(active_subenv, state)
+        subenv = self._get_unique_env_of_subenv(active_subenv)
 
         # Obtain mask of substate
         mask = subenv.get_mask_invalid_actions_forward(state_subenv, done)
@@ -244,14 +263,14 @@ class Stack(CompositeBase):
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
         state_subenv = self._get_substate(state, active_subenv)
-        subenv = self._get_unique_env_of_subenv(active_subenv, state)
+        subenv = self._get_unique_env_of_subenv(active_subenv)
 
         # Change the relevant sub-environment and set done to True if the substate is
         # the source of an intermediate sub-environment
         if active_subenv > 0 and not done and subenv.is_source(state_subenv):
             relevant_subenv = active_subenv - 1
             state_subenv = self._get_substate(state, relevant_subenv)
-            subenv = self._get_unique_env_of_subenv(relevant_subenv, state)
+            subenv = self._get_unique_env_of_subenv(relevant_subenv)
             done = True
         else:
             relevant_subenv = active_subenv
@@ -360,7 +379,7 @@ class Stack(CompositeBase):
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
         state_subenv = self._get_substate(state, active_subenv)
-        subenv = self._get_unique_env_of_subenv(active_subenv, state)
+        subenv = self._get_unique_env_of_subenv(active_subenv)
 
         # Change the relevant sub-environment and set done to True if the substate is
         # the source of an intermediate sub-environment
@@ -372,7 +391,7 @@ class Stack(CompositeBase):
         ):
             relevant_subenv = active_subenv - 1
             state_subenv = self._get_substate(state, relevant_subenv)
-            subenv = self._get_unique_env_of_subenv(relevant_subenv, state)
+            subenv = self._get_unique_env_of_subenv(relevant_subenv)
             done = True
         else:
             relevant_subenv = active_subenv
@@ -461,14 +480,14 @@ class Stack(CompositeBase):
         # Get active sub-environment, substate and unique environment
         active_subenv = self._get_active_subenv(state)
         state_subenv = self._get_substate(state, active_subenv)
-        subenv = self._get_unique_env_of_subenv(active_subenv, state)
+        subenv = self._get_unique_env_of_subenv(active_subenv)
 
         # Change the relevant sub-environment and set done to True if the substate is
         # the source of an intermediate sub-environment
         if active_subenv > 0 and not done and subenv.is_source(state_subenv):
             relevant_subenv = active_subenv - 1
             state_subenv = self._get_substate(state, relevant_subenv)
-            subenv = self._get_unique_env_of_subenv(relevant_subenv, state)
+            subenv = self._get_unique_env_of_subenv(relevant_subenv)
             done = True
         else:
             relevant_subenv = active_subenv
@@ -702,7 +721,7 @@ class Stack(CompositeBase):
         # indices
         indices_unique = torch.empty_like(indices_relevant)
         for idx_subenv in set(indices_relevant_int):
-            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv)
             indices_unique[indices_relevant == idx_subenv] = idx_unique
         indices_unique_int = indices_unique.tolist()
 
@@ -778,7 +797,7 @@ class Stack(CompositeBase):
         # indices
         indices_unique = torch.empty_like(indices_relevant)
         for idx_subenv in set(indices_relevant_int):
-            idx_unique = self._get_unique_idx_of_subenv(idx_subenv, self.source)
+            idx_unique = self._get_unique_idx_of_subenv(idx_subenv)
             indices_unique[indices_relevant == idx_subenv] = idx_unique
         indices_unique_int = indices_unique.tolist()
 
@@ -881,10 +900,7 @@ class Stack(CompositeBase):
         readables = readable.split("; ")
         active_subenv = int(readables[0][-1])
         readables = readables[1:]
-        state = {
-            "_active": active_subenv,
-            "_envs_unique": self.unique_indices,
-        }
+        state = {"_active": active_subenv}
         state.update(
             {
                 idx: subenv.readable2state(readables[idx])

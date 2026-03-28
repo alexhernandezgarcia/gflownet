@@ -164,12 +164,10 @@ def test__lattice_parameters_property__returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -179,12 +177,10 @@ def test__lattice_parameters_property__returns_expected(
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -194,12 +190,10 @@ def test__lattice_parameters_property__returns_expected(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -241,156 +235,130 @@ def test__action_space__contains_actions_of_all_subenvs(env, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -426,156 +394,130 @@ def test__states2policy__is_concatenation_of_subenv_states(env, states, request)
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -608,12 +550,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -623,7 +563,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [0, 0, 0],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -633,12 +572,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -648,7 +585,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 {},
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -658,12 +594,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -673,7 +607,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [0, 0, 0],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -683,12 +616,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -698,7 +629,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [0, 0, 0],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -708,12 +638,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -723,7 +651,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -733,12 +660,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -748,7 +673,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -758,12 +682,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -773,7 +695,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -783,12 +704,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -798,7 +717,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -808,12 +726,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -823,7 +739,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -833,12 +748,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -848,7 +761,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -858,12 +770,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -873,7 +783,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -883,12 +792,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -898,7 +805,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 [4, 3, 105],
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -908,12 +814,10 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -923,7 +827,6 @@ def test__states2proxy__is_concatenation_of_subenv_states(env, states, request):
                 {1: 1, 3: 4},
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
                 },
@@ -951,12 +854,10 @@ def test__get_substate__returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {2: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -970,12 +871,10 @@ def test__get_substate__returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {2: 3, 3: 3},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -989,12 +888,10 @@ def test__get_substate__returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 2: 1, 4: 6},
                 1: [1, 2, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1008,12 +905,10 @@ def test__get_substate__returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1027,12 +922,10 @@ def test__get_substate__returns_expected(
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 4, 3: 4},
                 1: [3, 2, 67],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [ORTHORHOMBIC_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1046,12 +939,10 @@ def test__get_substate__returns_expected(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1065,12 +956,10 @@ def test__get_substate__returns_expected(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1084,12 +973,10 @@ def test__get_substate__returns_expected(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 3, 2: 1, 4: 6},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1103,12 +990,10 @@ def test__get_substate__returns_expected(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1171,12 +1056,10 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             None,
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1187,24 +1070,20 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1215,24 +1094,20 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1244,12 +1119,10 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             None,
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1261,12 +1134,10 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             None,
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 2},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1277,24 +1148,20 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1306,12 +1173,10 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             None,
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1322,24 +1187,20 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1351,12 +1212,10 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             None,
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1381,12 +1240,10 @@ def test__is_source_returns_expected(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 2, 2],
                 1: {1: 3, 4: 6},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1396,12 +1253,10 @@ def test__is_source_returns_expected(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1411,12 +1266,10 @@ def test__is_source_returns_expected(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 3, 2: 1, 4: 6},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1426,12 +1279,10 @@ def test__is_source_returns_expected(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1441,12 +1292,10 @@ def test__is_source_returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {2: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1456,12 +1305,10 @@ def test__is_source_returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {2: 3, 3: 3},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1471,12 +1318,10 @@ def test__is_source_returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 2: 1, 4: 6},
                 1: [1, 2, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1486,12 +1331,10 @@ def test__is_source_returns_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1501,12 +1344,10 @@ def test__is_source_returns_expected(
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 4, 3: 4},
                 1: [3, 2, 67],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [ORTHORHOMBIC_IDX],
                     1: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
                 },
@@ -1537,12 +1378,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1552,12 +1391,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 4: 6},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1567,12 +1404,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 2: 1, 4: 6},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1582,12 +1417,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 2: 1, 4: 6},
                 1: [1, 2, 2],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1597,12 +1430,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 3, 2: 1, 4: 6},
                 1: [2, 1, 3],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [MONOCLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1612,12 +1443,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1627,12 +1456,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 2, 2],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1642,12 +1469,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [2, 1, 3],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1657,12 +1482,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 2, 2],
                 1: {1: 3, 2: 1, 4: 6},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1672,12 +1495,10 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [2, 1, 3],
                 1: {1: 3, 2: 1, 4: 6},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [MONOCLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1729,12 +1550,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1742,12 +1561,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             (0, -1, -1, 0, 0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1757,12 +1574,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 2: 2},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1770,12 +1585,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             (0, -1, -1, 0, 0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 2: 2},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1785,12 +1598,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             "env_with_stoichiometry_sg_check",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 2: 3, 3: 7},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1798,12 +1609,10 @@ def test__step__action_from_source_changes_state(env, action, request):
             (0, -1, -1, 0, 0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 2: 3, 3: 7},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1840,12 +1649,10 @@ def test__transitions_from_composition_to_space_group_apply_constraints_correctl
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1853,12 +1660,10 @@ def test__transitions_from_composition_to_space_group_apply_constraints_correctl
             (0, -1, -1, -1, 0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1868,12 +1673,10 @@ def test__transitions_from_composition_to_space_group_apply_constraints_correctl
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 2, 2],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1881,12 +1684,10 @@ def test__transitions_from_composition_to_space_group_apply_constraints_correctl
             (0, -1, -1, -1, 0, 0, 0, 0),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [1, 2, 2],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1923,12 +1724,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             [(0, 1, 1, 0, 0, 0, 0, 0, 0), (0, 3, 4, 0, 0, 0, 0, 0)],
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1944,12 +1743,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1966,12 +1763,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -1989,12 +1784,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2012,12 +1805,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2036,12 +1827,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2061,12 +1850,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                 },
@@ -2087,12 +1874,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                 },
@@ -2113,12 +1898,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
@@ -2140,12 +1923,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
@@ -2157,12 +1938,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             [(0, 2, 105, 0, 0, 0, 0, 0, 0)],
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2174,12 +1953,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             [(0, 2, 105, 0, 0, 0, 0, 0, 0), (0, 2, 105, 0, 0, 0, 0, 0, 0)],
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2191,12 +1968,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             [(0, 2, 105, 0, 0, 0, 0, 0, 0), (0, -1, -1, -1, 0, 0, 0, 0, 0)],
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2212,12 +1987,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2235,12 +2008,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 2, 3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2261,12 +2032,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 2, 3: 4},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                 },
@@ -2287,12 +2056,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 2, 3: 4},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
@@ -2314,12 +2081,10 @@ def test__transitions_from_space_group_to_composition_apply_constraints_correctl
             ],
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 2, 3: 4},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
@@ -2351,12 +2116,10 @@ def test__step__action_sequence_has_expected_result(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                 },
@@ -2364,12 +2127,10 @@ def test__step__action_sequence_has_expected_result(
             (2, 1, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 1),
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2379,12 +2140,10 @@ def test__step__action_sequence_has_expected_result(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2392,12 +2151,10 @@ def test__step__action_sequence_has_expected_result(
             (2, 0, 0, 0, 0, 0, 0, 0, 0),
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2424,24 +2181,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2453,24 +2206,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2486,24 +2235,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2520,24 +2265,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2555,24 +2296,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2592,24 +2329,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2630,24 +2363,20 @@ def test__step_backwards__behaves_as_expected(
             "env_mini_comp_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: {1: 1, 3: 4},
                 1: [4, 3, 105],
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: {},
                 1: [0, 0, 0],
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2669,24 +2398,20 @@ def test__step_backwards__behaves_as_expected(
             "env_sg_first",
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2700,24 +2425,20 @@ def test__step_backwards__behaves_as_expected(
             "env_sg_first",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2733,24 +2454,20 @@ def test__step_backwards__behaves_as_expected(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2768,24 +2485,20 @@ def test__step_backwards__behaves_as_expected(
             "env_sg_first",
             {
                 "_active": 2,
-                "_envs_unique": [0, 1, 2],
                 0: [4, 3, 105],
                 1: {1: 1, 3: 4},
                 2: {
                     "_active": 1,
-                    "_envs_unique": [0, 1],
                     0: [TETRAGONAL_IDX],
                     1: [0.76, 0.0, 0.74, 0.0, 0.0, 0.0],
                 },
             },
             {
                 "_active": 0,
-                "_envs_unique": [0, 1, 2],
                 0: [0, 0, 0],
                 1: {},
                 2: {
                     "_active": 0,
-                    "_envs_unique": [0, 1],
                     0: [TRICLINIC_IDX],
                     1: [-1, -1, -1, -1, -1, -1],
                 },
@@ -2971,72 +2684,60 @@ def test__step_random__does_not_crash_from_source(env, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3048,48 +2749,40 @@ def test__step_random__does_not_crash_from_source(env, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3101,156 +2794,130 @@ def test__step_random__does_not_crash_from_source(env, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3262,36 +2929,30 @@ def test__step_random__does_not_crash_from_source(env, request):
             [
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [8, 4, 210],
                     1: {},
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [8, 4, 210],
                     1: {1: 8},
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [7, 1, 169],
                     1: {1: 6},
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3335,24 +2996,20 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3364,60 +3021,50 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3429,36 +3076,30 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3470,144 +3111,120 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3619,36 +3236,30 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [8, 4, 210],
                     1: {},
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [8, 4, 210],
                     1: {1: 8},
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: [7, 1, 169],
                     1: {1: 6},
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [CUBIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3689,72 +3300,60 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3773,48 +3372,40 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -3831,156 +3422,130 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.5, 0.0, 0.3, 0.0, 0.0, 0.0],
                     },
                 },
                 {
                     "_active": 2,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 1, 3: 4},
                     1: [4, 3, 105],
                     2: {
                         "_active": 1,
-                        "_envs_unique": [0, 1],
                         0: [TETRAGONAL_IDX],
                         1: [0.45, 0.0, 0.33, 0.0, 0.0, 0.0],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -4036,60 +3601,50 @@ def test__get_logprobs_forward__returns_valid_actions(
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -4107,36 +3662,30 @@ def test__get_logprobs_forward__returns_valid_actions(
             [
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
@@ -4152,108 +3701,90 @@ def test__get_logprobs_forward__returns_valid_actions(
             [
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 1, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 1,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [1, 2, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {1: 3, 2: 1, 4: 6},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },
                 },
                 {
                     "_active": 0,
-                    "_envs_unique": [0, 1, 2],
                     0: {2: 4, 3: 3},
                     1: [0, 0, 0],
                     2: {
                         "_active": 0,
-                        "_envs_unique": [0, 1],
                         0: [TRICLINIC_IDX],
                         1: [-1, -1, -1, -1, -1, -1],
                     },

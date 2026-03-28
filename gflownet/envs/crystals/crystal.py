@@ -475,12 +475,7 @@ class Crystal(Stack):
             ]
             if all(is_valid_subenvs):
                 # Add meta-data to state
-                state.update(
-                    {
-                        "_active": self.n_subenvs - 1,
-                        "_envs_unique": self.unique_indices,
-                    }
-                )
+                state.update({"_active": self.n_subenvs - 1})
                 data_valid.append(state)
         return data_valid
 

@@ -54,7 +54,6 @@ def test__environment__initializes_properly(env, request):
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 1],
                 1: {
                     "_active": -1,
@@ -72,7 +71,6 @@ def test__environment__initializes_properly(env, request):
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 1],
                 1: {
                     "_active": -1,
@@ -115,7 +113,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 1],
                 1: {
                     "_active": -1,
@@ -142,7 +139,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 1],
                 1: {
                     "_active": -1,
@@ -166,7 +162,6 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 0],
                 1: {
                     "_active": -1,
@@ -208,7 +203,6 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 1],
                 1: {
                     "_active": -1,
@@ -222,7 +216,6 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             (1, -1, -1, -1),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [0, 1],
                 1: {
                     "_active": -1,
@@ -239,7 +232,6 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             "env_1d_max1",
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 1],
                 1: {
                     "_active": -1,
@@ -254,7 +246,6 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             (1, -1, -1, -1),
             {
                 "_active": 1,
-                "_envs_unique": [0, 1],
                 0: [1, 1],
                 1: {
                     "_active": -1,
