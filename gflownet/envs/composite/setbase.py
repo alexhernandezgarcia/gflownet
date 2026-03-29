@@ -382,7 +382,7 @@ class BaseSet(CompositeBase):
 
         The mask is False-padded from the back up to mask_dim.
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -487,7 +487,7 @@ class BaseSet(CompositeBase):
 
         The mask is False-padded from the back up to mask_dim.
         """
-        do_constraints = state is not None
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -948,6 +948,8 @@ class BaseSet(CompositeBase):
         self._apply_constraints(state=self.state, action=action, is_backward=True)
         return self.state, action, valid
 
+    # TODO: review if adding constraints is necessary if state is not None and
+    # different to self.state
     def get_parents(
         self,
         state: Optional[Dict] = None,
@@ -1718,6 +1720,8 @@ class BaseSet(CompositeBase):
             assert torch.is_tensor(mask)
             return mask[:, self.n_toggle_actions : self.n_toggle_actions + mask_dim]
 
+    # TODO: review if adding constraints is necessary if state is not None and
+    # different to self.state
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
