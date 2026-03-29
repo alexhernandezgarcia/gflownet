@@ -233,8 +233,6 @@ class ChoicesBase:
         """
         Applies constraints across sub-environments in the forward direction.
 
-        This method is called when ``step()`` and ``set_state()`` are called.
-
         The available options of the sub-environments that are still to be set are
         restricted to the options that have not been selected yet. This is done by
         restricting the options of the unique environment, which is common to all
@@ -243,8 +241,8 @@ class ChoicesBase:
         Parameters
         ----------
         action : tuple (optional)
-            An action from the global set environment. If the call of this method
-            is initiated by ``set_state()``, then ``action`` is None.
+            An action from the global composite environment. If the call of this method
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global set environment.
 
@@ -273,9 +271,6 @@ class ChoicesBase:
         In the backward direction, in this case, means that the constraints between two
         sub-environments are undone and reset as in the source state.
 
-        This method is called when ``step_backwards()``, ``set_state()`` and
-        ``reset()`` are called.
-
         The available options of the sub-environments that are restricted to the
         options that are not part of the state. Additionally, the option of the
         currently active sub-environment is also addedto the available options, since,
@@ -286,7 +281,8 @@ class ChoicesBase:
         Parameters
         ----------
         action : tuple
-            An action from the global composite environment.
+            An action from the global composite environment. If the call of this method
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
 

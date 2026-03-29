@@ -580,9 +580,10 @@ class CompositeBase(GFlowNetEnv):
                 subenv.reset()
         super().reset(env_id=env_id)
 
-        # Apply constraints across sub-environments, in case they apply.
-        # TODO: Design better solution for resetting the constraints from reset()
+        # Apply constraints across sub-environments, in case they apply. is_backward is
+        # set to True to bypass forward constraints.
         self._apply_constraints(state=self.state, is_backward=True)
+
         return self
 
     def get_policy_output(self, params: list[dict]) -> TensorType["policy_output_dim"]:
@@ -693,12 +694,30 @@ class CompositeBase(GFlowNetEnv):
             - :py:meth:`~gflownet.envs.composite.base.CompositeBase.set_state()`
             - :py:meth:`~gflownet.envs.composite.base.CompositeBase.reset()`
 
+        Furthermore, it is also called from methods that receive an input state
+        different to ``self.state``, in order to make sure that the sub-environments
+        have the properties and constraints corresponding to the input state, rather
+        than those of ``self.state``. For example:
+            - ``get_mask_invalid_actions_forward()``
+            - ``get_mask_invalid_actions_backward()``
+            - ``get_valid_actions()``
+            - ``get_parents()``
+
+        In general, the application of constraints can be initiated by and depend on an
+        action (for example, from ``step()` or ``step_backwards()``) or by a state
+        (most other methods). In the former case, the input action is not ``None`` and the
+        state may be None. Furthermore, ``is_backward`` should be ``True`` or
+        ``False`` to indicate the direction of the action. In the latter case, the
+        action is ``None`` and the input state may be not ``None``. Furthermore,
+        ``is_backward`` is ``None``, indicating that no transition is involved in the
+        application of constraints.
+
         This method simply calls
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
         and/or
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`.
 
-        This method should in general not be overriden. Instead, environments
+        In general, this method should _not_ be overriden. Instead, environments
         inheriting composite classes may override:
             - `_apply_constraints_forward`
             - `_apply_constraints_backward`
@@ -706,21 +725,25 @@ class CompositeBase(GFlowNetEnv):
         Parameters
         ----------
         action : tuple (optional)
-            An action, which can be used to determine whether which constraints should
+            An action, used to determine whether and which constraints should
             be applied and which should not, since the computations may be intensive.
-            If the call of the method is initiated by ``set_state()`` or ``reset()``,
-            then the action will be None.
+            If the call of the method is not initiated by an actioa, then it is
+            expected to be ``None``.
         state : dict (optional)
-            A state that can optionally be passed to set in the environment after
-            applying the constraints. This may typically be used by ``set_state()``.
-        is_backward : bool
+            A state in environment format used to indicate the state of the trajectory
+            which should inform whether and which constraints should be applied. If
+            ``None``, ``self.state`` may be used.
+        is_backward : bool or None
             Boolean flag to indicate whether the constraint should be applied in the
             backward direction (True), meaning 'undoing' the constraint (this is the
-            value when the call method is initiated by ``step_backwards()`` or
-            ``reset()``); or in the forward direction, meaning 'applying' the
-            constraint (if initiated by ``step()``). If the call of the method is
-            initiated by ``set_state()``, then the value is None, since the constraints
-            may be applied in any direction, depending on the current state.
+            value when the call method is initiated by ``step_backwards()``; or in the
+            forward direction, meaning 'applying' the constraint (if initiated by
+            ``step()``). If the call of the method is not initiated by an action, then
+            the value may be ``None``, indicating that the constraints depend on the
+            input state. ``is_backward`` can be not None even if the action is None to
+            indicate that either the forward or the backward constraints can be
+            ignored. For example, ``reset()`` can pass ``is_backward=True`` to bypass
+            the forward constraints.
 
         Returns
         -------
@@ -732,19 +755,22 @@ class CompositeBase(GFlowNetEnv):
 
         applied_constraints = False
 
-        # Forward constraints are applied if the call method is initiated by
-        # set_state() (action is None and is_backward is not True) or by step() (action
-        # is not None and is_backward is False)
-        if (action is None and is_backward is not True) or (
-            action is not None and is_backward is False
-        ):
+        # Both forward and backward constraints are attempted if the call method is not
+        # initiated by a transition (action is None), unless is_backward is True or
+        # False, in which case one of the two directions may be ignored.
+        # then is_backward must be None too, and vice versa
+        # Forward constraints are applied as well if the call method is initiated
+        # by a forward transition (action is not None and is_backward is False)
+        # Backward constraints are applied as well if the call method is initiated
+        # by a backward transition (action is not None and is_backward is True)
+        if action is not None:
+            assert isinstance(is_backward, bool)
+        do_forward = is_backward is not True
+        do_backward = is_backward is not False
+
+        if do_forward:
             applied_constraints = self._apply_constraints_forward(action, state)
-        # Backward constraints are applied if the call method is initiated by
-        # set_state() or reset() (action is None and is_backward is not False) or by
-        # step_backward() (action is not None and is_backward is True)
-        if (action is None and is_backward is not False) or (
-            action is not None and is_backward is True
-        ):
+        if do_backward:
             applied_constraints = self._apply_constraints_backward(action, state)
 
         return applied_constraints
@@ -757,8 +783,6 @@ class CompositeBase(GFlowNetEnv):
         """
         Applies constraints across sub-environments in the forward direction.
 
-        This method is called when ``step()`` and ``set_state()`` are called.
-
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._do_constraints_for_subenv`
@@ -769,7 +793,7 @@ class CompositeBase(GFlowNetEnv):
         ----------
         action : tuple (optional)
             An action from the global composite environment. If the call of this method
-            is initiated by ``set_state()``, then ``action`` is None.
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
 
@@ -791,9 +815,6 @@ class CompositeBase(GFlowNetEnv):
         In the backward direction, in this case, means that the constraints between two
         sub-environments are undone and reset as in the source state.
 
-        This method is called when ``step_backwards()``, ``set_state()`` and
-        ``reset()`` are called.
-
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._do_constraints_for_subenv`
@@ -802,8 +823,9 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        action : tuple
-            An action from the global composite environment.
+        action : tuple (optional)
+            An action from the global composite environment. If the call of this method
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
 
@@ -829,10 +851,10 @@ class CompositeBase(GFlowNetEnv):
         to determine whether the constraints imposed by a particular sub-environment
         should be applied. This depends on whether the environment is done or not,
         whether the constraints are to be done or undone, and whether they would be
-        triggered by a transition or by ``set_state()`` or ``reset()``. This method is
+        triggered by a transition or by a state. This method is
         meant to be called from:
-            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`
 
         Additionally, composite environments may include other speciic checks before
         setting inter-environment constraints, besides the output of this method.
@@ -851,9 +873,7 @@ class CompositeBase(GFlowNetEnv):
         idx_subenv : int
             Index of the sub-environment that would trigger constraints.
         action : tuple (optional)
-            The action involved in the transition, or None if there is no transition,
-            for example if the application of constraints is initiated by
-            ``set_state()`` or ``reset()``.
+            The action involved in the transition, or None if there is no transition.
         is_backward : bool
             Boolean flag to indicate whether the potential constraint is in the
             backward direction (True) or in the forward direction (False).
@@ -875,18 +895,16 @@ class CompositeBase(GFlowNetEnv):
                     "There is a mismatch between the input idx_unique"
                 ):
                     return False
-
-        # For constraints to be applied, either the action is None (meaning the call of
-        # this method was initiated by set_state() or reset(), or the action is EOS
-        if action is not None:
+            # If the action is not None, indicating that the check was initiated by a
+            # transition, constraints are not applied if the action is not EOS.
             env_unique = self._get_env_unique(idx_unique)
             if action != env_unique.eos:
                 return False
 
         subenv_is_done = self._get_subdone(idx_subenv, state)
-        # Backward constraints could only be applied if the sub-environment is not done
+        # Backward constraints should only be applied if the sub-environment is not done
         if is_backward:
             return not subenv_is_done
-        # Forward constraints could only be applied if the sub-environment is done
+        # Forward constraints hould only be applied if the sub-environment is done
         else:
             return subenv_is_done
