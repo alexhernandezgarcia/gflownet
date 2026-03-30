@@ -6,6 +6,7 @@ Composite environments are environments which consist of multiple environments.
 
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
+import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -17,9 +18,9 @@ class CompositeBase(GFlowNetEnv):
 
     The states of composite environments are dictionaries. Keys with integers, starting
     from 0, are reserved to contain the states at the position indicated by the key.
-    Additionally, the dictionary includes keys with meta-data about the state of the
-    composite environment. The following keys and values are expected to be included in
-    all composite environments:
+    Additionally, the dictionary may includes keys with meta-data about the state of
+    the composite environment. The following keys and values are supported by default
+    by the base composite environment:
         - ``_active``: The index of the currently active sub-environment, or -1 if none
           is active.
         - ``_dones``: A list of flags indicating whether the sub-environments are done
@@ -32,7 +33,9 @@ class CompositeBase(GFlowNetEnv):
           particular the type of environment at index 1 in ``self.envs_unique``; the
           sub-environment at index 2 is of the type at index 0 in ``self.envs_unique``.
           If the environment type at a position is unknown, it contains -1.
-    Composite environments may include additional meta-data as needed.
+
+    Not all supported keys need to be included in the states of sub-classes and new
+    keys may be included as needed.
 
     Attributes
     ----------
@@ -80,7 +83,7 @@ class CompositeBase(GFlowNetEnv):
         """
         if idx_subenv is None:
             idx_subenv = self._get_active_subenv(state)
-        if idx_subenv not in range(self.max_elements):
+        if idx_subenv >= self.max_elements:
             raise ValueError(
                 f"Index {idx_subenv} is not a valid sub-environment index."
             )
@@ -131,7 +134,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv < self.max_elements
         state = self._get_state(state)
         state[idx_subenv] = state_subenv
         return state
@@ -171,7 +174,7 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements) or idx_subenv == -1
+        assert idx_subenv < self.max_elements or idx_subenv == -1
         state = self._get_state(state)
         state["_active"] = idx_subenv
         return state
@@ -215,10 +218,28 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
+        assert idx_subenv < self.max_elements
         state = self._get_state(state)
         state["_dones"][idx_subenv] = int(done)
         return state
+
+    def _get_subdone(self, idx_subenv: int, state: Optional[Dict] = None) -> bool:
+        """
+        Returns whether if the sub-environment at ``idx_subenv`` is done.
+
+        Parameters
+        ----------
+        idx_subenv : int
+            Index of the sub-environment to query.
+        state : dict
+            A state of the composite environment.
+
+        Returns
+        -------
+        True if the sub-environment at ``idx_subenv`` is done; False otherwise.
+        """
+        assert idx_subenv < self.max_elements
+        return bool(self._get_dones(state)[idx_subenv])
 
     def _set_unique_index(
         self, idx_subenv: int, idx_unique: int, state: Optional[Dict] = None
@@ -240,8 +261,8 @@ class CompositeBase(GFlowNetEnv):
         -------
         The updated composite state.
         """
-        assert idx_subenv in range(self.max_elements)
-        assert idx_unique in range(self.n_unique_envs)
+        assert idx_subenv < self.max_elements
+        assert idx_unique < self.n_unique_envs
         state = self._get_state(state)
         state["_envs_unique"][idx_subenv] = idx_unique
         return state
@@ -288,12 +309,26 @@ class CompositeBase(GFlowNetEnv):
     def n_unique_envs(self) -> int:
         """
         Returns the number of unique environments.
+
+        Returns
+        -------
+        int
+            The number of unique environments.
+
+        Raises
+        ------
+        RuntimeError
+            If ``self.subenvs`` is not an attribute of the environment.
         """
         if hasattr(self, "_n_unique_envs"):
             return self._n_unique_envs
         if not hasattr(self, "envs_unique"):
+            if not hasattr(self, "subenvs"):
+                raise RuntimeError("The environment does not contain self.subenvs")
             envs_unique, _, _ = self._get_unique_environments(self.subenvs)
             self._n_unique_envs = len(envs_unique)
+        else:
+            self._n_unique_envs = len(self.envs_unique)
         return self._n_unique_envs
 
     def _get_env_unique(self, idx_unique: int) -> GFlowNetEnv:
@@ -337,8 +372,7 @@ class CompositeBase(GFlowNetEnv):
         state : dict
             A state of the global composite environment.
         """
-        assert idx_subenv in range(self.max_elements)
-        state = self._get_state(state)
+        assert idx_subenv < self.max_elements
         return self._get_unique_indices(state)[idx_subenv]
 
     def _get_unique_env_of_subenv(
@@ -358,9 +392,7 @@ class CompositeBase(GFlowNetEnv):
         """
         return self._get_env_unique(self._get_unique_idx_of_subenv(idx_subenv, state))
 
-    def _get_unique_indices(
-        self, state: Optional[Dict] = None, exclude_nonpresent: bool = True
-    ) -> int:
+    def _get_unique_indices(self, state: Optional[Dict] = None) -> int:
         """
         Returns the part of the state containing the unique indices.
 
@@ -371,26 +403,21 @@ class CompositeBase(GFlowNetEnv):
         ----------
         state : dict
             A state of the global composite environment.
-        exclude_nonpresent : bool
-            If True, return only the indices of sub-environments that are present in
-            the state, that is exclude indices with -1.
         """
         state = self._get_state(state)
-        unique_indices = state["_envs_unique"]
-        if exclude_nonpresent:
-            return [idx for idx in unique_indices if idx != -1]
-        return unique_indices
+        return state["_envs_unique"]
 
     def get_action_space(self) -> List[Tuple]:
         """
         Constructs a list with all possible actions, including EOS.
 
-        By default, the action space of a Composite environment consists of:
-            - The concatenation of the actions of all unique environments.
-            - The EOS action.
+        By default, the action space of a Composite environment consists of the
+        concatenation of the actions of all unique environments.
 
         Certain composite environments may make use of additional actions, for example
         to toggle specific sub-environments.
+
+        Sub-classes with additional actions should override this method.
 
         In order to make all actions the same length (required to construct batches of
         actions as a tensor), the actions are zero-padded from the back.
@@ -409,9 +436,7 @@ class CompositeBase(GFlowNetEnv):
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._depad_action`
         """
-        # EOS action
-        action_space = [self.eos]
-        # Action space of each unique environment
+        action_space = []
         for idx in range(self.n_unique_envs):
             action_space.extend(
                 [
@@ -452,6 +477,9 @@ class CompositeBase(GFlowNetEnv):
         See:
         - :py:meth:`~gflownet.envs.composite.base.CompositeBase._pad_action`
 
+        If idx_unique does not match the prefix of the action, the action is returned
+        as is.
+
         Parameters
         ----------
         action : tuple
@@ -470,10 +498,47 @@ class CompositeBase(GFlowNetEnv):
         if idx_unique is None:
             idx_unique = action[0]
         else:
-            assert idx_unique == action[0]
+            # If idx_unique does not match the action prefix, raise an error
+            if idx_unique != action[0]:
+                raise RuntimeError(
+                    f"There is a mismatch between the input idx_unique ({idx_unique}) "
+                    f"for de-padding and the unique index in the action ({action[0]})"
+                )
         if idx_unique != -1:
             return action[1 : 1 + len(self._get_env_unique(idx_unique).eos)]
         return (action[1],)
+
+    def _depad_action_batch(
+        self,
+        actions: TensorType["batch_size", "action_dim"],
+        idx_unique: int,
+    ) -> TensorType["batch_size", "action_dim_subenv"]:
+        """
+        Reverses the padding operation for a batch of actions.
+
+        It is assumed that all actions correspond to the same unique environment or
+        that all of them are meta-actions.
+
+        See:
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._depad_action`
+
+        Parameters
+        ----------
+        actions : tensor
+            The batch of actions to be depadded.
+        idx_unique : int
+            The index of the unique environment or -1 for meta-actions (EOS and other
+            actions of the composite environment)
+
+        Returns
+        -------
+        tensor
+            The depadded batch of actions. If idx_unique is -1 (meta-action), then the
+            returned batch is a single-column tensor with the sub-environment index.
+        """
+        if idx_unique != -1:
+            return actions[:, 1 : 1 + len(self._get_env_unique(idx_unique).eos)]
+        return actions[:, 1]
 
     def set_state(self, state: Dict, done: Optional[bool] = False):
         """
@@ -488,18 +553,21 @@ class CompositeBase(GFlowNetEnv):
         done : bool
             Whether the trajectory of the environment is done or not.
         """
-        # If done is True, then the done flags in the set should all be 1
-        dones = [bool(el) for el in self._get_dones(state)]
+        # If done is True, then all sub-environments must be done
         if done:
-            assert all(dones)
+            dones = [True] * self.max_elements
+        else:
+            dones = self._get_dones(state)
 
+        # Set state and done
         super().set_state(state, done)
+
         # Set state and done of each sub-environment
         for idx, (subenv, done_subenv) in enumerate(zip(self.subenvs, dones)):
-            subenv.set_state(self._get_substate(self.state, idx), done_subenv)
+            subenv.set_state(self._get_substate(self.state, idx), bool(done_subenv))
 
         # Apply constraints across sub-environments, in case they apply.
-        self._apply_constraints(state=state, is_backward=None)
+        self._apply_constraints(state=self.state, is_backward=None)
 
         return self
 
@@ -512,10 +580,76 @@ class CompositeBase(GFlowNetEnv):
                 subenv.reset()
         super().reset(env_id=env_id)
 
-        # Apply constraints across sub-environments, in case they apply.
-        # TODO: Design better solution for resetting the constraints from reset()
+        # Apply constraints across sub-environments, in case they apply. is_backward is
+        # set to True to bypass forward constraints.
         self._apply_constraints(state=self.state, is_backward=True)
+
         return self
+
+    def get_policy_output(self, params: list[dict]) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model.
+
+        By default, the policy output is the concatenation of the policy outputs of the
+        unique environments.
+
+        Sub-classes should override this method if the structure of the policy outputs
+        changes, for example, if meta-actions are added.
+
+        Parameters
+        ----------
+        params : list
+            A list of distribution parameters. This list has as many elements as
+            there are unique environments, since all sub-environments of the same
+            environment type are expected to be identical.
+        """
+        return torch.cat(
+            [
+                self._get_env_unique(idx).get_policy_output(params_env_unique)
+                for idx, params_env_unique in enumerate(params)
+            ]
+        )
+
+    def _get_policy_outputs_of_env_unique(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        idx_unique: int,
+    ):
+        """
+        Returns the columns of the policy outputs that correspond to the unique
+        environment indicated by idx_unique.
+
+        Since the policy outputs corresponding to each unique environment are
+        concatenated across the columns of the input tensor, the outputs of a
+        particular environment can be retrieved by iterating over the unique
+        environments and calculating their output dimensions. In order to avoid this
+        iteration at every request, the first call creates a dictionary of offsets as
+        an attribute of the environment.
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            A tensor containing a batch of policy outputs. It is assumed that all the
+            rows in the this tensor correspond to the same unique environment.
+        idx_unique : int
+            Index of the unique environment of which the corresponding columns of the
+            policy outputs are to be extracted.
+        """
+        if hasattr(self, "_policy_outputs_offset_of_unique_env"):
+            if idx_unique in self._policy_outputs_offset_of_unique_env:
+                init_col = self._policy_outputs_offset_of_unique_env[idx_unique]
+                end_col = init_col + self._get_env_unique(idx_unique).policy_output_dim
+                return policy_outputs[:, init_col:end_col]
+        else:
+            self._policy_outputs_offset_of_unique_env = {}
+
+        init_col = 0
+        for idx in range(self.n_unique_envs):
+            end_col = init_col + self._get_env_unique(idx).policy_output_dim
+            if idx == idx_unique:
+                self._policy_outputs_offset_of_unique_env[idx] = init_col
+                return policy_outputs[:, init_col:end_col]
+            init_col = end_col
 
     @property
     def has_constraints(self):
@@ -550,7 +684,7 @@ class CompositeBase(GFlowNetEnv):
         action: Tuple = None,
         state: Optional[Dict] = None,
         is_backward: bool = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments.
 
@@ -560,12 +694,30 @@ class CompositeBase(GFlowNetEnv):
             - :py:meth:`~gflownet.envs.composite.base.CompositeBase.set_state()`
             - :py:meth:`~gflownet.envs.composite.base.CompositeBase.reset()`
 
+        Furthermore, it is also called from methods that receive an input state
+        different to ``self.state``, in order to make sure that the sub-environments
+        have the properties and constraints corresponding to the input state, rather
+        than those of ``self.state``. For example:
+            - ``get_mask_invalid_actions_forward()``
+            - ``get_mask_invalid_actions_backward()``
+            - ``get_valid_actions()``
+            - ``get_parents()``
+
+        In general, the application of constraints can be initiated by and depend on an
+        action (for example, from ``step()` or ``step_backwards()``) or by a state
+        (most other methods). In the former case, the input action is not ``None`` and the
+        state may be None. Furthermore, ``is_backward`` should be ``True`` or
+        ``False`` to indicate the direction of the action. In the latter case, the
+        action is ``None`` and the input state may be not ``None``. Furthermore,
+        ``is_backward`` is ``None``, indicating that no transition is involved in the
+        application of constraints.
+
         This method simply calls
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
         and/or
         :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`.
 
-        This method should in general not be overriden. Instead, environments
+        In general, this method should _not_ be overriden. Instead, environments
         inheriting composite classes may override:
             - `_apply_constraints_forward`
             - `_apply_constraints_backward`
@@ -573,49 +725,63 @@ class CompositeBase(GFlowNetEnv):
         Parameters
         ----------
         action : tuple (optional)
-            An action, which can be used to determine whether which constraints should
+            An action, used to determine whether and which constraints should
             be applied and which should not, since the computations may be intensive.
-            If the call of the method is initiated by ``set_state()`` or ``reset()``,
-            then the action will be None.
+            If the call of the method is not initiated by an actioa, then it is
+            expected to be ``None``.
         state : dict (optional)
-            A state that can optionally be passed to set in the environment after
-            applying the constraints. This may typically be used by ``set_state()``.
-        is_backward : bool
+            A state in environment format used to indicate the state of the trajectory
+            which should inform whether and which constraints should be applied. If
+            ``None``, ``self.state`` may be used.
+        is_backward : bool or None
             Boolean flag to indicate whether the constraint should be applied in the
             backward direction (True), meaning 'undoing' the constraint (this is the
-            value when the call method is initiated by ``step_backwards()`` or
-            ``reset()``); or in the forward direction, meaning 'applying' the
-            constraint (if initiated by ``step()``). If the call of the method is
-            initiated by ``set_state()``, then the value is None, since the constraints
-            may be applied in any direction, depending on the current state.
+            value when the call method is initiated by ``step_backwards()``; or in the
+            forward direction, meaning 'applying' the constraint (if initiated by
+            ``step()``). If the call of the method is not initiated by an action, then
+            the value may be ``None``, indicating that the constraints depend on the
+            input state. ``is_backward`` can be not None even if the action is None to
+            indicate that either the forward or the backward constraints can be
+            ignored. For example, ``reset()`` can pass ``is_backward=True`` to bypass
+            the forward constraints.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
         if not self.has_constraints:
-            return
+            return False
 
-        # Forward constraints are applied if the call method is initiated by
-        # set_state() (action is None and is_backward is not True) or by step() (action
-        # is not None and is_backward is False)
-        if (action is None and is_backward is not True) or (
-            action is not None and is_backward is False
-        ):
-            self._apply_constraints_forward(action, state)
-        # Backward constraints are applied if the call method is initiated by
-        # set_state() or reset() (action is None and is_backward is not False) or by
-        # step_backward() (action is not None and is_backward is True)
-        if (action is None and is_backward is not False) or (
-            action is not None and is_backward is True
-        ):
-            self._apply_constraints_backward(action, state)
+        applied_constraints = False
+
+        # Both forward and backward constraints are attempted if the call method is not
+        # initiated by a transition (action is None), unless is_backward is True or
+        # False, in which case one of the two directions may be ignored.
+        # then is_backward must be None too, and vice versa
+        # Forward constraints are applied as well if the call method is initiated
+        # by a forward transition (action is not None and is_backward is False)
+        # Backward constraints are applied as well if the call method is initiated
+        # by a backward transition (action is not None and is_backward is True)
+        if action is not None:
+            assert isinstance(is_backward, bool)
+        do_forward = is_backward is not True
+        do_backward = is_backward is not False
+
+        if do_forward:
+            applied_constraints = self._apply_constraints_forward(action, state)
+        if do_backward:
+            applied_constraints = self._apply_constraints_backward(action, state)
+
+        return applied_constraints
 
     def _apply_constraints_forward(
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the forward direction.
-
-        This method is called when ``step()`` and ``set_state()`` are called.
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
@@ -627,25 +793,27 @@ class CompositeBase(GFlowNetEnv):
         ----------
         action : tuple (optional)
             An action from the global composite environment. If the call of this method
-            is initiated by ``set_state()``, then ``action`` is None.
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        pass
+        return False
 
     def _apply_constraints_backward(
         self,
         action: Tuple = None,
         state: Optional[Dict] = None,
-    ):
+    ) -> bool:
         """
         Applies constraints across sub-environments in the backward direction.
 
         In the backward direction, in this case, means that the constraints between two
         sub-environments are undone and reset as in the source state.
-
-        This method is called when ``step_backwards()``, ``set_state()`` and
-        ``reset()`` are called.
 
         Environments inheriting composite classes may override this method if
         constraints across sub-environments must be applied. The method
@@ -655,12 +823,18 @@ class CompositeBase(GFlowNetEnv):
 
         Parameters
         ----------
-        action : tuple
-            An action from the global composite environment.
+        action : tuple (optional)
+            An action from the global composite environment. If the call of this method
+            is not initiated by a transition, then ``action`` is None.
         state : dict (optional)
             A state of the global composite environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        pass
+        return False
 
     def _do_constraints_for_subenv(
         self,
@@ -677,10 +851,10 @@ class CompositeBase(GFlowNetEnv):
         to determine whether the constraints imposed by a particular sub-environment
         should be applied. This depends on whether the environment is done or not,
         whether the constraints are to be done or undone, and whether they would be
-        triggered by a transition or by ``set_state()`` or ``reset()``. This method is
+        triggered by a transition or by a state. This method is
         meant to be called from:
-            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
-            - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_forward`
+        - :py:meth:`~gflownet.envs.composite.base.CompositeBase._apply_constraints_backward`
 
         Additionally, composite environments may include other speciic checks before
         setting inter-environment constraints, besides the output of this method.
@@ -699,9 +873,7 @@ class CompositeBase(GFlowNetEnv):
         idx_subenv : int
             Index of the sub-environment that would trigger constraints.
         action : tuple (optional)
-            The action involved in the transition, or None if there is no transition,
-            for example if the application of constraints is initiated by
-            ``set_state()`` or ``reset()``.
+            The action involved in the transition, or None if there is no transition.
         is_backward : bool
             Boolean flag to indicate whether the potential constraint is in the
             backward direction (True) or in the forward direction (False).
@@ -714,18 +886,25 @@ class CompositeBase(GFlowNetEnv):
         # If the action is not None, get the unique environment and depad the action
         if action is not None:
             idx_unique = self._get_unique_idx_of_subenv(idx_subenv, state)
+            try:
+                action = self._depad_action(action, idx_unique)
+            except RuntimeError as e:
+                # If there is a mismatch between idx_unique and the action index,
+                # return False
+                if str(e).startswith(
+                    "There is a mismatch between the input idx_unique"
+                ):
+                    return False
+            # If the action is not None, indicating that the check was initiated by a
+            # transition, constraints are not applied if the action is not EOS.
             env_unique = self._get_env_unique(idx_unique)
-            action = self._depad_action(action, idx_unique)
+            if action != env_unique.eos:
+                return False
 
-        # For constraints to be applied, either the action is None (meaning the call of
-        # this method was initiated by set_state() or reset(), or the action is EOS
-        if action is not None and action != env_unique.eos:
-            return False
-
-        subenv_is_done = self._get_dones(state)[idx_subenv]
-        # Backward constraints could only be applied if the sub-environment is not done
+        subenv_is_done = self._get_subdone(idx_subenv, state)
+        # Backward constraints should only be applied if the sub-environment is not done
         if is_backward:
             return not subenv_is_done
-        # Forward constraints could only be applied if the sub-environment is done
+        # Forward constraints hould only be applied if the sub-environment is done
         else:
             return subenv_is_done

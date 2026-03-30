@@ -52,10 +52,10 @@ def test__environment__initializes_properly(env, request):
     [
         (
             "env_1d_max1",
-            [
-                1,
-                [1, 1],
-                {
+            {
+                "_active": 1,
+                0: [1, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -64,15 +64,15 @@ def test__environment__initializes_properly(env, request):
                     0: [0.5431],
                     1: [0],
                 },
-            ],
+            },
             [True, False],
         ),
         (
             "env_1d_max1",
-            [
-                1,
-                [0, 1],
-                {
+            {
+                "_active": 1,
+                0: [0, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -80,7 +80,7 @@ def test__environment__initializes_properly(env, request):
                     "_keys": [0, 1],
                     0: [1],
                 },
-            ],
+            },
             [True, True],
         ),
     ],
@@ -96,11 +96,11 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
     assert env.equal(env.state, state)
 
     # Check states of subenvs
-    for stage, subenv in env.subenvs.items():
-        assert env.equal(subenv.state, env._get_substate(state, stage))
+    for idx, subenv in enumerate(env.subenvs):
+        assert env.equal(subenv.state, env._get_substate(state, idx))
 
     # Check dones
-    for subenv, done in zip(env.subenvs.values(), dones):
+    for subenv, done in zip(env.subenvs, dones):
         assert subenv.done == done
 
 
@@ -111,10 +111,10 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         # The only valid action is EOS of the conditioning grid to transition backwards
         (
             "env_1d_max1",
-            [
-                1,
-                [1, 1],
-                {
+            {
+                "_active": 1,
+                0: [1, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [0, 0],
@@ -123,7 +123,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                     0: [-1],
                     1: [0],
                 },
-            ],
+            },
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV (Stack)
@@ -137,10 +137,10 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         # The only valid action (backwards) is activating subenv 0
         (
             "env_1d_max1",
-            [
-                1,
-                [0, 1],
-                {
+            {
+                "_active": 1,
+                0: [0, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -148,7 +148,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                     "_keys": [0, 1],
                     0: [0],
                 },
-            ],
+            },
             # fmt: off
             [
                 False, True, # ACTIVE SUBENV (Stack)
@@ -160,10 +160,10 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         ),
         (
             "env_1d_max1",
-            [
-                1,
-                [0, 0],
-                {
+            {
+                "_active": 1,
+                0: [0, 0],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -171,7 +171,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
                     "_keys": [0, 1],
                     0: [0],
                 },
-            ],
+            },
             # fmt: off
             [
                 False, True, # ACTIVE SUBENV (Stack)
@@ -201,10 +201,10 @@ def test__get_mask_invalid_actions_backward__returns_expected(
     [
         (
             "env_1d_max1",
-            [
-                1,
-                [0, 1],
-                {
+            {
+                "_active": 1,
+                0: [0, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -212,12 +212,12 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                     "_keys": [0, 1],
                     0: [1],
                 },
-            ],
+            },
             (1, -1, -1, -1),
-            [
-                1,
-                [0, 1],
-                {
+            {
+                "_active": 1,
+                0: [0, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -225,15 +225,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                     "_keys": [0, 1],
                     0: [1],
                 },
-            ],
+            },
             True,
         ),
         (
             "env_1d_max1",
-            [
-                1,
-                [1, 1],
-                {
+            {
+                "_active": 1,
+                0: [1, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -242,12 +242,12 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                     0: [0.4321],
                     1: [1],
                 },
-            ],
+            },
             (1, -1, -1, -1),
-            [
-                1,
-                [1, 1],
-                {
+            {
+                "_active": 1,
+                0: [1, 1],
+                1: {
                     "_active": -1,
                     "_toggle": 0,
                     "_dones": [1, 1],
@@ -256,7 +256,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
                     0: [0.4321],
                     1: [1],
                 },
-            ],
+            },
             True,
         ),
     ],

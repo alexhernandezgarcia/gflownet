@@ -110,16 +110,16 @@ class Crystal(Stack):
             space_group = SpaceGroup(**self.space_group_kwargs)
             if self.do_sg_before_composition:
                 subenvs.append(space_group)
-                self.stage_spacegroup = 0
-                self.stage_composition = 1
+                self.idx_spacegroup = 0
+                self.idx_composition = 1
         else:
             space_group = None
         composition = Composition(**self.composition_kwargs)
         subenvs.append(composition)
         if not self.do_sg_before_composition and space_group is not None:
             subenvs.append(space_group)
-            self.stage_composition = 0
-            self.stage_spacegroup = 1
+            self.idx_composition = 0
+            self.idx_spacegroup = 1
         if self.do_lattice_parameters:
             # We initialize lattice parameters with triclinic lattice system as it is
             # the most general one, but it will have to be reinitialized using proper
@@ -133,7 +133,7 @@ class Crystal(Stack):
                     lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
                 )
             subenvs.append(lattice_parameters)
-            self.stage_latticeparameters = 2
+            self.idx_latticeparameters = 2
 
         # Initialize base Stack environment
         super().__init__(subenvs=tuple(subenvs), **kwargs)
@@ -147,8 +147,8 @@ class Crystal(Stack):
         -------
         Composition or None
         """
-        if hasattr(self, "stage_composition"):
-            return self.subenvs[self.stage_composition]
+        if hasattr(self, "idx_composition"):
+            return self.subenvs[self.idx_composition]
         return None
 
     @property
@@ -160,8 +160,8 @@ class Crystal(Stack):
         -------
         SpaceGroup or None
         """
-        if hasattr(self, "stage_spacegroup"):
-            return self.subenvs[self.stage_spacegroup]
+        if hasattr(self, "idx_spacegroup"):
+            return self.subenvs[self.idx_spacegroup]
         return None
 
     @property
@@ -173,8 +173,8 @@ class Crystal(Stack):
         -------
         LatticeParameters or None
         """
-        if hasattr(self, "stage_latticeparameters"):
-            return self.subenvs[self.stage_latticeparameters]
+        if hasattr(self, "idx_latticeparameters"):
+            return self.subenvs[self.idx_latticeparameters]
         return None
 
     def _check_has_constraints(self) -> bool:
@@ -198,10 +198,9 @@ class Crystal(Stack):
 
     def _apply_constraints_forward(
         self,
-        action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-    ):
+        action: Optional[Tuple] = None,
+        state: Optional[Dict] = None,
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -212,51 +211,78 @@ class Crystal(Stack):
 
         Parameters
         ----------
-        action : tuple
-            An action from the Crystal environment.
-        state : list or tensor (optional)
-            A state from the Crystal environment.
-        dones : list
-            A list indicating the sub-environments that are done.
+        action : tuple (optional)
+            An action from the Crystal environment or None.
+        state : dict (optional)
+            A state from the Crystal environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
+        applied_constraints = False
         # Apply constraints composition -> space group
         # Apply constraint only if action is None or if it is the composition EOS
         if (
             self.do_composition_to_sg_constraints
             and not self.do_sg_before_composition
-            and self._do_constraints_for_stage(
-                self.stage_composition, action, is_backward=False
+            and self._do_constraints_for_subenv(
+                state, self.idx_composition, action, is_backward=False
             )
         ):
-            n_atoms_per_element = self.subenvs[
-                self.stage_composition
-            ].get_n_atoms_per_element(self.composition.state)
+            applied_constraints = True
+            state = self._get_state(state)
+            composition_substate = self._get_substate(state, self.idx_composition)
+            n_atoms_per_element = self.composition.get_n_atoms_per_element(
+                composition_substate
+            )
             self.space_group.set_n_atoms_compatibility_dict(n_atoms_per_element)
 
         # Apply constraints:
         # - space group -> composition
         # - space group -> lattice parameters
         # Apply constraint only if action is None or if it is the space group EOS
-        if self._do_constraints_for_stage(
-            self.stage_spacegroup, action, is_backward=False
+        if self._do_constraints_for_subenv(
+            state, self.idx_spacegroup, action, is_backward=False
         ):
+            applied_constraints = True
+            state = self._get_state(state)
+            spacegroup_substate = self._get_substate(state, self.idx_spacegroup)
             if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
-                space_group = self.space_group.space_group
+                space_group = self.space_group.get_space_group(spacegroup_substate)
                 self.composition.set_space_group(space_group)
             if self.do_sg_to_lp_constraints:
-                lattice_system = self.space_group.lattice_system
+                lattice_system = self.space_group.get_lattice_system(
+                    spacegroup_substate
+                )
                 self.lattice_parameters.set_lattice_system(lattice_system)
+                self._set_substate(
+                    self.idx_latticeparameters, self.lattice_parameters.state, state
+                )
 
-    def _apply_constraints_backward(self, action: Tuple = None):
+        return applied_constraints
+
+    def _apply_constraints_backward(
+        self, action: Optional[Tuple] = None, state: Optional[Dict] = None
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the backward
         direction.
 
         Parameters
         ----------
-        action : tuple
-            An action from the Crystal environment.
+        action : tuple (optional)
+            An action from the Crystal environment or None.
+        state : dict (optional)
+            A state from the Crystal environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
+        applied_constraints = False
         # Revert constraints:
         # - space group -> lattice parameters: lattice system of LatticeParameters is
         # set back to TRICLINIC
@@ -265,11 +291,15 @@ class Crystal(Stack):
         if (
             self.do_spacegroup
             and self.do_sg_to_lp_constraints
-            and self._do_constraints_for_stage(
-                self.stage_spacegroup, action, is_backward=True
+            and self._do_constraints_for_subenv(
+                state, self.idx_spacegroup, action, is_backward=True
             )
         ):
+            applied_constraints = True
             self.lattice_parameters.set_lattice_system(TRICLINIC)
+            self._set_substate(
+                self.idx_latticeparameters, self.lattice_parameters.state, state
+            )
             self.composition.set_space_group(None)
 
         # Revert constraints composition -> space group: The number of atoms is set
@@ -278,24 +308,30 @@ class Crystal(Stack):
         if (
             self.do_composition_to_sg_constraints
             and not self.do_sg_before_composition
-            and self._do_constraints_for_stage(
-                self.stage_composition, action, is_backward=True
+            and self._do_constraints_for_subenv(
+                state, self.idx_composition, action, is_backward=True
             )
         ):
+            applied_constraints = True
             self.space_group.set_n_atoms_compatibility_dict(None)
 
+        return applied_constraints
+
     def states2proxy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "environment format" for a proxy: simply a
-        concatenation of the proxy-format states of the sub-environments.
+        Prepares a batch of states in environment format for the proxies.
 
-        This method is overriden so as to account for the space group before
-        composition case, since the proxy expects composition first regardless.
+        The output is the concatenation of the proxy-format states of the
+        sub-environments.
 
-        Args
-        ----
+        This method is overriden to improve the efficiency, to create a tensor as an
+        output and to account for the space group before composition case, since the
+        proxy expects composition first regardless.
+
+        Parameters
+        ----------
         states : list
             A batch of states in environment format.
 
@@ -303,17 +339,16 @@ class Crystal(Stack):
         -------
         A tensor containing all the states in the batch.
         """
-        if not self.do_sg_before_composition:
-            return super().states2proxy(states)
-        stages_composition_first = [
-            self.stage_composition,
-            self.stage_spacegroup,
-            self.stage_latticeparameters,
+        indices_subenvs_proxy = [
+            self.idx_composition,
+            self.idx_spacegroup,
+            self.idx_latticeparameters,
         ]
         return torch.cat(
             [
-                self.subenvs[stage].states2proxy([state[stage + 1] for state in states])
-                for stage in stages_composition_first
+                self.subenvs[idx].states2proxy([state[idx] for state in states])
+                for idx in indices_subenvs_proxy
+                if idx is not None
             ],
             dim=1,
         )
@@ -371,8 +406,8 @@ class Crystal(Stack):
         for state in tqdm(data, total=len(data), disable=not progress):
             # Index 0 is the row index; index 1 is the remaining columns
             is_valid_subenvs = [
-                subenv.is_valid(state[stage + 1])
-                for stage, subenv in self.subenvs.items()
+                subenv.is_valid(self._get_substate(state, idx))
+                for idx, subenv in enumerate(self.subenvs)
             ]
             if all(is_valid_subenvs):
                 data_valid.append(state)
@@ -407,22 +442,22 @@ class Crystal(Stack):
             row = row[1]
             state = {}
             # Composition
-            state[self.stage_composition] = self.subenvs[
-                self.stage_composition
+            state[self.idx_composition] = self.subenvs[
+                self.idx_composition
             ].readable2state(row["Formulae"])
             # Space group
-            state[self.stage_spacegroup] = self.subenvs[
-                self.stage_spacegroup
+            state[self.idx_spacegroup] = self.subenvs[
+                self.idx_spacegroup
             ]._set_constrained_properties([0, 0, row["Space Group"]])
             # Lattice parameters
             lattice_system = self.space_group.get_lattice_system(
-                state[self.stage_spacegroup]
+                state[self.idx_spacegroup]
             )
             if lattice_system not in LATTICE_SYSTEMS:
                 lattice_system = TRICLINIC
             state_lp = copy(self.lattice_parameters.source)
-            state_lp = self.lattice_parameters._set_stage(
-                self.lattice_parameters.stage_cube, state_lp
+            state_lp = self.lattice_parameters._set_active_subenv(
+                self.lattice_parameters.idx_cube, state_lp
             )
             state_lp = self.lattice_parameters.set_lattice_system(
                 lattice_system, state_lp
@@ -430,18 +465,18 @@ class Crystal(Stack):
             state_cube = self.lattice_parameters.revert_lattice_constraints(
                 tuple(row[list(PARAMETER_NAMES)]), lattice_system
             )
-            state[self.stage_latticeparameters] = self.lattice_parameters._set_substate(
-                self.lattice_parameters.stage_cube, state_cube, state_lp
+            state[self.idx_latticeparameters] = self.lattice_parameters._set_substate(
+                self.lattice_parameters.idx_cube, state_cube, state_lp
             )
             # Check validity
             is_valid_subenvs = [
-                subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
+                subenv.is_valid(self._get_substate(state, idx))
+                for idx, subenv in enumerate(self.subenvs)
             ]
             if all(is_valid_subenvs):
-                # TODO: Consider making stack state a dict which would avoid having to
-                # do this, among other advantages
-                state_stack = [2] + [state[stage] for stage in self.subenvs]
-                data_valid.append(state_stack)
+                # Add meta-data to state
+                state.update({"_active": self.n_subenvs - 1})
+                data_valid.append(state)
         return data_valid
 
     def _print_state(self, state: Optional[List] = None):
@@ -449,6 +484,6 @@ class Crystal(Stack):
         Prints a state in more human-readable format, for debugging purposes.
         """
         state = self._get_state(state)
-        for stage, subenv in self.subenvs.items():
-            print(f"Stage {stage}")
-            print(self._get_substate(state, stage))
+        for idx, subenv in enumerate(self.subenvs):
+            print(f"Stage {idx}")
+            print(self._get_substate(state, idx))
