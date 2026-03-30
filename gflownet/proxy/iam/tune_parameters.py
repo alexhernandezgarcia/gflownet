@@ -460,14 +460,19 @@ def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
         print("  WARNING: x_high approx x_mid, using fallback spread.")
         spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
 
-    beta  = -x_mid           # center sigmoid at x_mid
-    gamma = 4.595 / spread   # ln(99) / (q95 - q75), always positive
+    # Align with base.py's _sigmoid: R(x) = alpha / (1 + gamma * exp(beta * x))
+    # Anchors:
+    #   R(x_mid)  = 0.5  =>  gamma * exp(beta * x_mid)  = 1
+    #   R(x_high) = 0.99 =>  gamma * exp(beta * x_high) = 1/99
+    # Solving: beta = -ln(99) / (x_high - x_mid), gamma = exp(-beta * x_mid)
+    beta  = -4.595 / spread          # -ln(99) / spread, always negative for increasing sigmoid
+    gamma = float(np.exp(-beta * x_mid))   # centres sigmoid at x_mid
 
     alpha = 1.0
 
     def R(x):
-        exp_arg = np.clip(-gamma * (x + beta), -500, 500)
-        return alpha / (1.0 + np.exp(exp_arg))
+        exp_arg = np.clip(beta * x, -500, 500)
+        return alpha / (1.0 + gamma * np.exp(exp_arg))
 
     params = {
         "gamma": round(float(gamma), 4),
@@ -521,7 +526,7 @@ def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
     print(f"\n--- Reward at delta quantiles (rounded: gamma={gamma_r}, beta={beta_r}) ---")
     for q in ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]:
         dx = delta_stats[q]
-        rv = alpha / (1.0 + np.exp(-gamma_r * (dx + beta_r)))
+        rv = alpha / (1.0 + gamma_r * np.exp(beta_r * dx))
         print(f"  R(Δ{target_variable}={dx:+.6f}) at {q} = {rv:.4f}")
 
     print("\n--- Suggested YAML config overrides ---")
