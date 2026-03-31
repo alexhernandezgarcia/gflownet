@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torchtyping import TensorType
 
-from gflownet.envs.tree import Tree
+from gflownet.envs.tree.origtree import TreeOrig
 from gflownet.proxy.base import Proxy
 
 
@@ -33,7 +33,7 @@ class TreeProxy(Proxy):
         self.X = None
         self.y = None
 
-    def setup(self, env: Optional[Tree] = None):
+    def setup(self, env: Optional[TreeOrig] = None):
         self.X = env.X_train
         self.y = env.y_train
 
@@ -43,11 +43,11 @@ class TreeProxy(Proxy):
         for state in states:
             predictions = []
             for x in self.X:
-                predictions.append(Tree.predict(state, x))
+                predictions.append(TreeOrig.predict(state, x))
             likelihood = (np.array(predictions) == self.y).mean()
 
             if self.use_prior:
-                n_nodes = Tree.get_n_nodes(state)
+                n_nodes = TreeOrig.get_n_nodes(state)
                 prior = np.exp(-self.beta * n_nodes)
             else:
                 prior = 1
