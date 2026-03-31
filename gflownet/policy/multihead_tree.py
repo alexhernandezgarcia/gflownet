@@ -6,7 +6,7 @@ from torch_geometric.data import Batch
 from torch_geometric.nn import global_add_pool
 from torch_geometric.utils import unbatch
 
-from gflownet.envs.tree import Attribute, Stage, Tree
+from gflownet.envs.tree.origtree import Attribute, Stage, TreeOrig
 from gflownet.policy.base import Policy
 
 
@@ -349,7 +349,7 @@ class ForwardTreeModel(torch.nn.Module):
             states = x[indices]
 
             batch = Batch.from_data_list(
-                [Tree.state2pyg(state, self.n_features) for state in states]
+                [TreeOrig.state2pyg(state, self.n_features) for state in states]
             )
 
             if stage == Stage.COMPLETE:
@@ -361,7 +361,7 @@ class ForwardTreeModel(torch.nn.Module):
                     self.feature_head(batch)
                 )
             else:
-                ks = [Tree.find_active(state) for state in states]
+                ks = [TreeOrig.find_active(state) for state in states]
                 feature_index = torch.Tensor(
                     [states[i, k_i, Attribute.FEATURE] for i, k_i in enumerate(ks)]
                 )
@@ -460,7 +460,7 @@ class BackwardTreeModel(torch.nn.Module):
             states = x[indices]
 
             batch = Batch.from_data_list(
-                [Tree.state2pyg(state, self.n_features) for state in states]
+                [TreeOrig.state2pyg(state, self.n_features) for state in states]
             )
 
             if stage == Stage.COMPLETE:

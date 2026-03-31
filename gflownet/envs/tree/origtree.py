@@ -90,7 +90,7 @@ class Stage:
 
 class ActionType:
     """
-    Type of action that will be passed to Tree.step. Refer to Stage for details.
+    Type of action that will be passed to TreeOrig.step. Refer to Stage for details.
     """
 
     PICK_LEAF = 0
@@ -187,21 +187,22 @@ class TreeOrig(GFlowNetEnv):
 
         X_test : np.array
             Test dataset, with dimensionality (n_observations, n_features). It may be
-            None if a data set is provided via data_path, or if you don't want to perform
-            test set evaluation.
+            None if a data set is provided via data_path, or if you don't want to
+            perform test set evaluation.
 
         y_train : np.array
             Test labels, with dimensionality (n_observations,). It may be
-            None if a data set is provided via data_path, or if you don't want to perform
-            test set evaluation.
+            None if a data set is provided via data_path, or if you don't want to
+            perform test set evaluation.
 
         data_path : str
             A path to a data set, with the following options:
-            - *.pkl: Pickled dict with X_train, y_train, and (optional) X_test and y_test
-              variables.
-            - *.csv: CSV containing an optional 'Split' column in the last place, containing
-              'train' and 'test' values, and M remaining columns, where the first (M - 1)
-              columns will be taken to construct the input X, and M-th column will be the
+            - *.pkl: Pickled dict with X_train, y_train, and (optional) X_test and
+              y_test variables.
+            - *.csv: CSV containing an optional 'Split' column in the last place,
+              containing 'train' and 'test' values, and M remaining columns, where the
+              first (M - 1) columns will be taken to construct the input X, and M-th
+              column will be the
               target y.
             Ignored if X_train and y_train are not None.
 
@@ -212,17 +213,18 @@ class TreeOrig(GFlowNetEnv):
             Maximum depth of a tree.
 
         continuous : bool
-            Whether the environment should operate in a continuous mode (in which distribution
-            parameters are predicted for the threshold) or the discrete mode (in which there
-            is a discrete set of possible thresholds to choose from).
+            Whether the environment should operate in a continuous mode (in which
+            distribution parameters are predicted for the threshold) or the discrete
+            mode (in which there is a discrete set of possible thresholds to choose
+            from).
 
         n_thresholds : int
-            Number of uniformly distributed thresholds in a (0; 1) range that will be used
-            in the discrete mode. Ignored if continuous is True.
+            Number of uniformly distributed thresholds in a (0; 1) range that will be
+            used in the discrete mode. Ignored if continuous is True.
 
         policy_format : str
-            Type of policy that will be used with the environment, either 'mlp' or 'gnn'.
-            Influences which state2policy functions will be used.
+            Type of policy that will be used with the environment, either 'mlp' or
+            'gnn'.  Influences which state2policy functions will be used.
 
         threshold_components : int
             The number of mixture components that will be used for sampling
@@ -238,13 +240,13 @@ class TreeOrig(GFlowNetEnv):
                 self.X_test = None
                 self.y_test = None
         elif data_path is not None:
-            self.X_train, self.y_train, self.X_test, self.y_test = Tree._load_dataset(
-                data_path
+            self.X_train, self.y_train, self.X_test, self.y_test = (
+                TreeOrig._load_dataset(data_path)
             )
         else:
             raise ValueError(
-                "A Tree must be initialised with a data set. X_train, y_train and data_path cannot "
-                "be all None"
+                "A TreeOrig must be initialised with a data set. X_train, y_train "
+                "and data_path cannot be all None"
             )
         if scale_data:
             self.scaler = MinMaxScaler().fit(self.X_train)
@@ -256,7 +258,8 @@ class TreeOrig(GFlowNetEnv):
             self.y_test = self.y_test.astype(int)
         if not set(self.y_train).issubset({0, 1}):
             raise ValueError(
-                f"Expected y_train to have values in {{0, 1}}, received {set(self.y_train)}."
+                f"Expected y_train to have values in {{0, 1}}, received "
+                f"{set(self.y_train)}."
             )
         self.n_features = self.X_train.shape[1]
         self.max_depth = max_depth
@@ -268,10 +271,10 @@ class TreeOrig(GFlowNetEnv):
         self.components = threshold_components
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
-        # Source will contain information about the current stage (on the last position),
-        # and up to 2**max_depth - 1 nodes, each with Attribute.N attributes, for a total of
-        # 1 + Attribute.N * (2**max_depth - 1) values. The root (0-th node) of the
-        # source is initialized with a classifier.
+        # Source will contain information about the current stage (on the last
+        # position), and up to 2**max_depth - 1 nodes, each with Attribute.N
+        # attributes, for a total of 1 + Attribute.N * (2**max_depth - 1) values. The
+        # root (0-th node) of the source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
         self.source = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
         self._set_stage(Stage.COMPLETE, self.source)
@@ -292,7 +295,8 @@ class TreeOrig(GFlowNetEnv):
             self.states2policy = self.states2policy_mlp
         elif policy_format != "gnn":
             raise ValueError(
-                f"Unrecognized policy_format = {policy_format}, expected either 'mlp' or 'gnn'."
+                f"Unrecognized policy_format = {policy_format}, expected either "
+                "'mlp' or 'gnn'."
             )
 
         super().__init__(
@@ -330,11 +334,11 @@ class TreeOrig(GFlowNetEnv):
         """
         Get node index of the sibling of k-th node.
         """
-        parent = Tree._get_parent(k)
+        parent = TreeOrig._get_parent(k)
         if parent is None:
             return None
-        left = Tree._get_left_child(parent)
-        right = Tree._get_right_child(parent)
+        left = TreeOrig._get_left_child(parent)
+        right = TreeOrig._get_right_child(parent)
         return left if k == right else right
 
     def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
@@ -446,8 +450,8 @@ class TreeOrig(GFlowNetEnv):
         assert torch.all(attributes[1:4] >= 0)
         assert attributes[Attribute.ACTIVE] == Status.ACTIVE
 
-        k_left = Tree._get_left_child(k)
-        k_right = Tree._get_right_child(k)
+        k_left = TreeOrig._get_left_child(k)
+        k_right = TreeOrig._get_right_child(k)
 
         if attributes[Attribute.CLASS] == Operator.LT:
             self._insert_classifier(k_left, output=0)
@@ -658,7 +662,8 @@ class TreeOrig(GFlowNetEnv):
         temperature_logits: Optional[float] = 1.0,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs in the continuous mode.
+        Samples a batch of actions from a batch of policy outputs in the continuous
+        mode.
         """
         n_states = policy_outputs.shape[0]
         # Discrete actions
@@ -951,7 +956,7 @@ class TreeOrig(GFlowNetEnv):
         action is to be determined or sampled. It initializes the output tensor
         by using the parameters provided in the argument params.
 
-        The output of the policy of a Tree environment consists of a discrete and
+        The output of the policy of a TreeOrig environment consists of a discrete and
         continuous part. The discrete part (first part) corresponds to the discrete
         actions, while the continuous part (second part) corresponds to the single
         continuous action, that is the sampling of the threshold of a node classifier.
@@ -1006,7 +1011,7 @@ class TreeOrig(GFlowNetEnv):
         if done:
             return [True] * self.policy_output_dim
 
-        leaves = Tree._find_leaves(state)
+        leaves = TreeOrig._find_leaves(state)
         stage = self._get_stage(state)
         mask = [True] * self.policy_output_dim
 
@@ -1015,7 +1020,7 @@ class TreeOrig(GFlowNetEnv):
             # only valid actions are the ones for picking one of the leaves or EOS.
             for k in leaves:
                 # Check if splitting the node wouldn't exceed max depth.
-                if Tree._get_right_child(k) < self.n_nodes:
+                if TreeOrig._get_right_child(k) < self.n_nodes:
                     current_class = state[k, Attribute.CLASS].long()
                     mask[self._action_index_pick_leaf + 2 * k + current_class] = False
             mask[self._action_index_eos] = False
@@ -1085,7 +1090,7 @@ class TreeOrig(GFlowNetEnv):
         if done:
             return [state], [self.eos]
 
-        leaves = Tree._find_leaves(state)
+        leaves = TreeOrig._find_leaves(state)
         stage = self._get_stage(state)
         parents = []
         actions = []
@@ -1100,7 +1105,7 @@ class TreeOrig(GFlowNetEnv):
             triplets = []
             for k in leaves:
                 if k % 2 == 1 and k + 1 in leaves:
-                    triplets.append((Tree._get_parent(k), k, k + 1))
+                    triplets.append((TreeOrig._get_parent(k), k, k + 1))
             for k_parent, k_left, k_right in triplets:
                 parent = state.clone()
                 attributes_parent = parent[k_parent]
@@ -1129,14 +1134,14 @@ class TreeOrig(GFlowNetEnv):
                 parents.append(parent)
                 actions.append(action)
         else:
-            k = Tree.find_active(state)
+            k = TreeOrig.find_active(state)
 
             if stage == Stage.LEAF:
                 # Reverse self._pick_leaf.
                 if k == 0:
                     outputs = [self.default_class]
                 else:
-                    attributes_sibling = state[Tree._get_sibling(k)]
+                    attributes_sibling = state[TreeOrig._get_sibling(k)]
                     if attributes_sibling[Attribute.TYPE] == NodeType.CLASSIFIER:
                         outputs = [0 if attributes_sibling[Attribute.CLASS] == 1 else 1]
                     else:
@@ -1231,16 +1236,16 @@ class TreeOrig(GFlowNetEnv):
         graph.add_node(k, x=attributes, k=k)
 
         if attributes[Attribute.TYPE] != NodeType.CLASSIFIER:
-            k_left = Tree._get_left_child(k)
+            k_left = TreeOrig._get_left_child(k)
             if not torch.any(torch.isnan(state[k_left])):
-                Tree._get_graph(state, bidirectional, graph=graph, k=k_left)
+                TreeOrig._get_graph(state, bidirectional, graph=graph, k=k_left)
                 graph.add_edge(k, k_left)
                 if bidirectional:
                     graph.add_edge(k_left, k)
 
-            k_right = Tree._get_right_child(k)
+            k_right = TreeOrig._get_right_child(k)
             if not torch.any(torch.isnan(state[k_right])):
-                Tree._get_graph(state, bidirectional, graph=graph, k=k_right)
+                TreeOrig._get_graph(state, bidirectional, graph=graph, k=k_right)
                 graph.add_edge(k, k_right)
                 if bidirectional:
                     graph.add_edge(k_right, k)
@@ -1248,7 +1253,7 @@ class TreeOrig(GFlowNetEnv):
         return graph
 
     def get_pyg_input_dim(self) -> int:
-        return Tree.state2pyg(self.state, self.n_features).x.shape[1]
+        return TreeOrig.state2pyg(self.state, self.n_features).x.shape[1]
 
     @staticmethod
     def state2pyg(
@@ -1300,7 +1305,7 @@ class TreeOrig(GFlowNetEnv):
         """
         Convert self.state into a PyG graph.
         """
-        return Tree.state2pyg(self.state, self.n_features)
+        return TreeOrig.state2pyg(self.state, self.n_features)
 
     @staticmethod
     def _load_dataset(data_path):
@@ -1357,21 +1362,25 @@ class TreeOrig(GFlowNetEnv):
             x[attributes[Attribute.FEATURE].long().item()]
             < attributes[Attribute.THRESHOLD]
         ):
-            return Tree.predict(state, x, return_k=return_k, k=Tree._get_left_child(k))
+            return TreeOrig.predict(
+                state, x, return_k=return_k, k=TreeOrig._get_left_child(k)
+            )
         else:
-            return Tree.predict(state, x, return_k=return_k, k=Tree._get_right_child(k))
+            return TreeOrig.predict(
+                state, x, return_k=return_k, k=TreeOrig._get_right_child(k)
+            )
 
     def _predict(
         self, x: npt.NDArray, *, return_k: bool = False
     ) -> Union[int, Tuple[int, int]]:
-        return Tree.predict(self.state, x, return_k=return_k)
+        return TreeOrig.predict(self.state, x, return_k=return_k)
 
     @staticmethod
     def plot(state, path: Optional[Union[Path, str]] = None) -> None:
         """
         Plot current state of the tree.
         """
-        graph = Tree._get_graph(state, bidirectional=False)
+        graph = TreeOrig._get_graph(state, bidirectional=False)
 
         labels = {}
         node_color = []
@@ -1419,7 +1428,7 @@ class TreeOrig(GFlowNetEnv):
         predictions = np.empty((len(states), len(X)))
         for i, state in enumerate(states):
             for j, x in enumerate(X):
-                predictions[i, j] = Tree.predict(state, x)
+                predictions[i, j] = TreeOrig.predict(state, x)
         return predictions
 
     @staticmethod
@@ -1427,12 +1436,13 @@ class TreeOrig(GFlowNetEnv):
         predictions: npt.NDArray, y: npt.NDArray
     ) -> (dict, npt.NDArray):
         """
-        Computes accuracy and balanced accuracy metrics for given predictions and ground
-        truth labels.
+        Computes accuracy and balanced accuracy metrics for given predictions and
+        ground truth labels.
 
-        The metrics are computed in two modes: either as an average of scores calculated
-        for individual trees (mean_tree_*), or as a single score calculated on a prediction
-        made by the whole ensemble (forest_*), with ensembling done via prediction averaging.
+        The metrics are computed in two modes: either as an average of scores
+        calculated for individual trees (mean_tree_*), or as a single score calculated
+        on a prediction made by the whole ensemble (forest_*), with ensembling done via
+        prediction averaging.
 
         Args
         ----
@@ -1483,7 +1493,7 @@ class TreeOrig(GFlowNetEnv):
         path.mkdir()
 
         for i, (state, score) in enumerate(zip(states, scores)):
-            Tree.plot(state, path / f"tree_{i}_{score:.4f}.png")
+            TreeOrig.plot(state, path / f"tree_{i}_{score:.4f}.png")
 
     def test(
         self,
@@ -1492,9 +1502,9 @@ class TreeOrig(GFlowNetEnv):
         ],
     ) -> dict:
         """
-        Computes a dictionary of metrics, as described in Tree._compute_scores, for
-        both training and, if available, test data. If self.test_args['top_k_trees'] != 0,
-        also plots top n trees and saves them in the log directory.
+        Computes a dictionary of metrics, as described in TreeOrig._compute_scores, for
+        both training and, if available, test data. If self.test_args['top_k_trees'] !=
+        0, also plots top n trees and saves them in the log directory.
 
         Args
         ----
@@ -1507,10 +1517,12 @@ class TreeOrig(GFlowNetEnv):
         """
         result = {}
 
-        result["mean_n_nodes"] = np.mean([Tree.get_n_nodes(state) for state in samples])
+        result["mean_n_nodes"] = np.mean(
+            [TreeOrig.get_n_nodes(state) for state in samples]
+        )
 
-        train_predictions = Tree._predict_samples(samples, self.X_train)
-        train_scores = Tree._compute_scores(train_predictions, self.y_train)
+        train_predictions = TreeOrig._predict_samples(samples, self.X_train)
+        train_scores = TreeOrig._compute_scores(train_predictions, self.y_train)
         for k, v in train_scores.items():
             result[f"train_{k}"] = v
 
@@ -1528,14 +1540,14 @@ class TreeOrig(GFlowNetEnv):
             top_k_indices = order[: self.test_args["top_k_trees"]]
 
             # Plot trees.
-            Tree._plot_trees(
+            TreeOrig._plot_trees(
                 [samples[i] for i in top_k_indices],
                 accuracies[top_k_indices],
                 self.test_iteration,
             )
 
             # Compute metrics for top-k trees.
-            top_k_scores = Tree._compute_scores(
+            top_k_scores = TreeOrig._compute_scores(
                 train_predictions[top_k_indices], self.y_train
             )
             for k, v in top_k_scores.items():
@@ -1544,13 +1556,13 @@ class TreeOrig(GFlowNetEnv):
             self.test_iteration += 1
 
         if self.X_test is not None:
-            test_predictions = Tree._predict_samples(samples, self.X_test)
-            for k, v in Tree._compute_scores(test_predictions, self.y_test).items():
+            test_predictions = TreeOrig._predict_samples(samples, self.X_test)
+            for k, v in TreeOrig._compute_scores(test_predictions, self.y_test).items():
                 result[f"test_{k}"] = v
 
             if top_k_indices is not None:
                 # Compute metrics for top-k trees.
-                top_k_scores = Tree._compute_scores(
+                top_k_scores = TreeOrig._compute_scores(
                     test_predictions[top_k_indices], self.y_test
                 )
                 for k, v in top_k_scores.items():

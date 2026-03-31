@@ -11,7 +11,7 @@ pytest.importorskip(
 
 from torch_geometric.data import Batch
 
-from gflownet.envs.tree import Attribute, Operator, Tree
+from gflownet.envs.tree.origtree import Attribute, Operator, TreeOrig
 from gflownet.policy.multihead_tree import (
     Backbone,
     FeatureSelectionHead,
@@ -35,10 +35,10 @@ def tree(
     X = np.random.rand(n_observations, n_features)
     y = np.random.randint(2, size=n_observations)
 
-    _tree = Tree(X_train=X, y_train=y)
+    _tree = TreeOrig(X_train=X, y_train=y)
 
     for _ in range(n_nodes):
-        node = np.random.choice(list(Tree._find_leaves(_tree.state)))
+        node = np.random.choice(list(TreeOrig._find_leaves(_tree.state)))
         operator = np.random.choice([Operator.LT, Operator.GTE])
         feature = np.random.randint(n_features)
         threshold = np.random.rand()

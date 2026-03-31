@@ -12,14 +12,14 @@ pytest.importorskip(
     "be imported",
 )
 
-from gflownet.envs.tree import (
+from gflownet.envs.tree.origtree import (
     ActionType,
     Attribute,
     NodeType,
     Operator,
     Stage,
     Status,
-    Tree,
+    TreeOrig,
 )
 from gflownet.utils.common import tfloat
 
@@ -38,7 +38,7 @@ def y():
 
 @pytest.mark.repeat(10)
 def test__starting_tree__always_predicts_most_common_class(X, y):
-    tree = Tree(X, y)
+    tree = TreeOrig(X, y)
     x = np.random.random(5)
 
     assert tree._predict(x) == Counter(y).most_common()[0][0]
@@ -46,7 +46,7 @@ def test__starting_tree__always_predicts_most_common_class(X, y):
 
 @pytest.fixture
 def tree(X, y):
-    _tree = Tree(X, y)
+    _tree = TreeOrig(X, y)
 
     # split node k = 0 (root) on feature = 0, with threshold = 0.5 and < operator
     _tree.step((0, 0, _tree.default_class))
@@ -97,7 +97,7 @@ def test__node_tree__has_expected_node_attributes(tree):
 
 @pytest.fixture
 def tree_d2(X, y):
-    return Tree(
+    return TreeOrig(
         X_train=np.array([[1, 2], [3, 4], [5, 6]]),
         y_train=np.array([0, 0, 1]),
         max_depth=2,
@@ -106,7 +106,7 @@ def tree_d2(X, y):
 
 @pytest.fixture
 def tree_d3(X, y):
-    return Tree(
+    return TreeOrig(
         X_train=np.array([[1, 2], [3, 4], [5, 6]]),
         y_train=np.array([0, 0, 1]),
         max_depth=3,
@@ -1010,11 +1010,11 @@ def test__get_masks_backward__returns_expected(
 
 @pytest.fixture
 def env(X, y):
-    return Tree(X, y)
+    return TreeOrig(X, y)
 
 
-@pytest.mark.skip(reason="Skip until the discrete Tree environment gets fixed")
-class TestTreeDiscrete(common.BaseTestsDiscrete):
+@pytest.mark.skip(reason="Skip until the discrete TreeOrig environment gets fixed")
+class TestTreeOrigDiscrete(common.BaseTestsDiscrete):
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
@@ -1047,8 +1047,8 @@ class TestTreeDiscrete(common.BaseTestsDiscrete):
         }
 
 
-@pytest.mark.skip(reason="Skip until the continuous Tree environment gets fixed")
-class TestTreeContinuous(common.BaseTestsContinuous):
+@pytest.mark.skip(reason="Skip until the continuous TreeOrig environment gets fixed")
+class TestTreeOrigContinuous(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
