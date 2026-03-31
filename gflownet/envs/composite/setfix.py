@@ -1,4 +1,3 @@
-# TODO: Split BaseSet, SetFix and SetFlex into separate files.
 # TODO: The docstrings need a major rewrite to clarify the new functioning with _keys
 # and non-alternating subenvs.
 """

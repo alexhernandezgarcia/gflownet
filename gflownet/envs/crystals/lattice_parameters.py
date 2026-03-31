@@ -7,7 +7,7 @@ these changes or the history previous to that commit to consult previous
 implementations.
 """
 
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -131,19 +131,19 @@ class LatticeParameters(Stack):
         self.max_angle = max_angle
         self.angle_range = self.max_angle - self.min_angle
         self.condition = Dummy(state=[LATTICE_SYSTEM_INDEX[lattice_system]])
-        self.stage_condition = 0
+        self.idx_condition = 0
         self.cube = ContinuousCube(n_dim=6, **kwargs)
-        self.stage_cube = 1
+        self.idx_cube = 1
         self.source_cube_value = self.cube.source[0]
         super().__init__(subenvs=tuple([self.condition, self.cube]), **kwargs)
 
-    def get_lattice_system_idx(self, state: List) -> int:
+    def get_lattice_system_idx(self, state: Dict) -> int:
         """
         Returns the lattice system index, retrieved from the condition state.
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format.
 
         Returns
@@ -151,15 +151,15 @@ class LatticeParameters(Stack):
         int
             The index of the lattice system contained in the condition state.
         """
-        return self._get_substate(state, self.stage_condition)[0]
+        return self._get_substate(state, self.idx_condition)[0]
 
-    def get_lattice_system(self, state: List) -> str:
+    def get_lattice_system(self, state: Dict) -> str:
         """
         Returns the lattice system name, retrieved from the condition state.
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format.
 
         Returns
@@ -167,11 +167,11 @@ class LatticeParameters(Stack):
         str
             The name of the lattice system contained in the condition state.
         """
-        return LATTICE_SYSTEMS[self._get_substate(state, self.stage_condition)[0]]
+        return LATTICE_SYSTEMS[self._get_substate(state, self.idx_condition)[0]]
 
     def set_lattice_system(
-        self, lattice_system: Union[int, str], state: Optional[List] = None
-    ) -> List:
+        self, lattice_system: Union[int, str], state: Optional[Dict] = None
+    ) -> Dict:
         """
         Sets the lattice system of the unit cell as the condition of the environment.
 
@@ -184,7 +184,7 @@ class LatticeParameters(Stack):
             The index of the lattice system, as stored in
             :py:const:`gflownet.envs.crystals.lattice_parameters.LATTICE_SYSTEMS` or
             the string identifier.
-        state : list (optional)
+        state : dict (optional)
             A state in environment format.
 
         Returns
@@ -197,14 +197,19 @@ class LatticeParameters(Stack):
             state = self.state
             done_condition = self.condition.done
         else:
-            done_condition = self._get_stage(state) > self.stage_condition
+            done_condition = self._get_active_subenv(state) > self.idx_condition
         if isinstance(lattice_system, str):
             lattice_system = LATTICE_SYSTEM_INDEX[lattice_system]
 
-        # Update state of condition sub-environment
-        self.condition.set_state([lattice_system], done_condition)
+        # Update state of condition sub-environment - check if needed because set_state
+        # is expensive
+        if (
+            self.condition.state != [lattice_system]
+            or self.condition.done != done_condition
+        ):
+            self.condition.set_state([lattice_system], done_condition)
         # Update self.state or input state
-        state = self._set_substate(self.stage_condition, self.condition.state, state)
+        state = self._set_substate(self.idx_condition, self.condition.state, state)
 
         return state
 
@@ -300,7 +305,7 @@ class LatticeParameters(Stack):
         """
         return (angle - self.min_angle) / self.angle_range
 
-    def _get_lengths_angles(self, state: Optional[List] = None) -> Tuple[Tuple, Tuple]:
+    def _get_lengths_angles(self, state: Optional[Dict] = None) -> Tuple[Tuple, Tuple]:
         """
         Returns the lenths and angles of the state.
 
@@ -309,7 +314,7 @@ class LatticeParameters(Stack):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format
 
         Returns
@@ -320,15 +325,15 @@ class LatticeParameters(Stack):
             Lattice angles, in degrees.
         """
         state = self._get_state(state)
-        lattice_system = self._get_substate(state, self.stage_condition)[0]
-        state_cube = self._get_substate(state, self.stage_cube)
+        lattice_system = self._get_substate(state, self.idx_condition)[0]
+        state_cube = self._get_substate(state, self.idx_cube)
         (a, b, c), (alpha, beta, gamma) = self.apply_lattice_constraints(
             state_cube, lattice_system
         )
         return (a, b, c), (alpha, beta, gamma)
 
     def apply_lattice_constraints(
-        self, state: List[float], lattice_system: Union[int, str]
+        self, state: Dict, lattice_system: Union[int, str]
     ) -> Tuple[Tuple, Tuple]:
         """
         Applies lattice system constraints to a single cube state.
@@ -338,7 +343,7 @@ class LatticeParameters(Stack):
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state of the ContinuousCube in environment format.
         lattice_system : int or str
             The index of the lattice system, as stored in
@@ -482,11 +487,8 @@ class LatticeParameters(Stack):
         return states
 
     def _apply_constraints_forward(
-        self,
-        action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-    ):
+        self, action: Optional[Tuple] = None, state: Optional[Dict] = None
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -496,19 +498,27 @@ class LatticeParameters(Stack):
 
         Parameters
         ----------
-        action : tuple
-            An action from the LatticeParameters environment.
-        state : list or tensor (optional)
-            A state from the LatticeParameters environment.
-        dones : list
-            A list indicating the sub-environments that are done.
+        action : tuple (optional)
+            An action from the LatticeParameters environment or None.
+        state : dict (optional)
+            A state from the LatticeParameters environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        if self._do_constraints_for_stage(
-            self.stage_condition, action, is_backward=False
+        if self._do_constraints_for_subenv(
+            state, self.idx_condition, action, is_backward=False
         ):
             self.cube.ignored_dims = IGNORED_DIMS[self.lattice_system]
+            return True
+        else:
+            return False
 
-    def _apply_constraints_backward(self, action: Tuple = None):
+    def _apply_constraints_backward(
+        self, action: Optional[Tuple] = None, state: Optional[Dict] = None
+    ) -> bool:
         """
         Applies constraints across sub-environments in the backward direction.
 
@@ -517,13 +527,23 @@ class LatticeParameters(Stack):
 
         Parameters
         ----------
-        action : tuple
-            An action from the Stack environment.
+        action : tuple (optional)
+            An action from the LatticeParameters environment or None.
+        state : dict (optional)
+            A state from the LatticeParameters environment or None.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        if self._do_constraints_for_stage(
-            self.stage_condition, action, is_backward=True
+        if self._do_constraints_for_subenv(
+            state, self.idx_condition, action, is_backward=True
         ):
             self.cube.ignored_dims = IGNORED_DIMS[TRICLINIC]
+            return True
+        else:
+            return False
 
     def _check_has_constraints(self) -> bool:
         """
@@ -563,7 +583,15 @@ class LatticeParameters(Stack):
         A tensor containing all the states in the batch.
         """
         n_states = len(states)
-        lattice_systems, states = zip(*[(state[1], state[2]) for state in states])
+        lattice_systems, states = zip(
+            *[
+                (
+                    self._get_substate(state, self.idx_condition),
+                    self._get_substate(state, self.idx_cube),
+                )
+                for state in states
+            ]
+        )
         lattice_systems = tlong(lattice_systems, device=self.device).reshape(n_states)
         states = tfloat(states, device=self.device, float_type=self.float)
         states = torch.cat(
@@ -581,7 +609,7 @@ class LatticeParameters(Stack):
         return states
 
     def states2policy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_policy_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model.
@@ -601,17 +629,17 @@ class LatticeParameters(Stack):
         -------
         A tensor containing all the states in the batch.
         """
-        states = [self._get_substate(state, self.stage_cube) for state in states]
+        states = [self._get_substate(state, self.idx_cube) for state in states]
         return self.cube.states2policy(states)
 
-    def state2readable(self, state: Optional[List[float]] = None) -> str:
+    def state2readable(self, state: Optional[Dict] = None) -> str:
         """
         Converts the state into a human-readable string in the format "(a, b, c),
         (alpha, beta, gamma)".
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format.
 
         Returns
@@ -620,13 +648,13 @@ class LatticeParameters(Stack):
             A human-readable version of the state.
         """
         state = self._get_state(state)
-        stage = self._get_stage(state)
-        state_cube = self._get_substate(state, self.stage_cube)
+        active_subenv = self._get_active_subenv(state)
+        state_cube = self._get_substate(state, self.idx_cube)
         lattice_system = self.get_lattice_system(state)
         lengths, angles = self.apply_lattice_constraints(state_cube, lattice_system)
-        return f"Stage {stage}; {lattice_system}; {lengths}, {angles}"
+        return f"Active {active_subenv}; {lattice_system}; {lengths}, {angles}"
 
-    def readable2state(self, readable: str) -> List[float]:
+    def readable2state(self, readable: str) -> Dict:
         """
         Converts a human-readable representation of a state into the standard format.
 
@@ -637,11 +665,11 @@ class LatticeParameters(Stack):
 
         Returns
         -------
-        state : list
+        state : dict
             A state in environment format.
         """
         readables = readable.split("; ")
-        stage = int(readables[0][-1])
+        active_subenv = int(readables[0][-1])
         readable_cube = readables[2]
         for c in ["(", ")", " "]:
             readable_cube = readable_cube.replace(c, "")
@@ -649,17 +677,17 @@ class LatticeParameters(Stack):
         values = [float(value) for value in values]
         state_cube = self.revert_lattice_constraints(values, self.lattice_system)
         state = copy(self.source)
-        state = self._set_stage(stage, state)
-        return self._set_substate(self.stage_cube, state_cube, state)
+        state = self._set_active_subenv(active_subenv, state)
+        return self._set_substate(self.idx_cube, state_cube, state)
 
-    def is_valid(self, state: List) -> bool:
+    def is_valid(self, state: Dict) -> bool:
         """
         Determines whether a state is valid, according to the attributes of the
         environment.
 
         Parameters
         ----------
-        state : list
+        state : dict
             A state in environment format. If None, then lengths and angles will be
             used instead.
 
@@ -681,7 +709,7 @@ class LatticeParameters(Stack):
 
     def get_grid_terminating_states(
         self, n_states: int, kappa: Optional[float] = None
-    ) -> List[List]:
+    ) -> List[Dict]:
         """
         Constructs a grid of terminating states within the range of the hyper-cube.
 
@@ -703,13 +731,13 @@ class LatticeParameters(Stack):
         states = []
         for state_cube in states_cube:
             state = copy(self.source)
-            state = self._set_stage(self.stage_cube, state)
-            states.append(self._set_substate(self.stage_cube, state_cube, state))
+            state = self._set_active_subenv(self.idx_cube, state)
+            states.append(self._set_substate(self.idx_cube, state_cube, state))
         return states
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None, kappa: Optional[float] = None
-    ) -> List[List]:
+    ) -> List[Dict]:
         """
         Constructs a set of terminating states sampled uniformly within the range of
         the hyper-cube.
@@ -731,8 +759,8 @@ class LatticeParameters(Stack):
         states = []
         for state_cube in states_cube:
             state = copy(self.source)
-            state = self._set_stage(self.stage_cube, state)
-            states.append(self._set_substate(self.stage_cube, state_cube, state))
+            state = self._set_active_subenv(self.idx_cube, state)
+            states.append(self._set_substate(self.idx_cube, state_cube, state))
         return states
 
 
@@ -1185,7 +1213,7 @@ class LatticeParametersSGCCG(ContinuousCube):
         self,
         action: Tuple[float],
         backward: bool,
-    ) -> Tuple[List[float], Tuple[float], bool]:
+    ) -> Tuple[Dict, Tuple[float], bool]:
         """
         Updates self.state given a non-EOS action. This method is called by both step()
         and step_backwards(), with the corresponding value of argument backward.
@@ -1226,7 +1254,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
     def parameters2state(
         self, parameters: Tuple = None, lengths: Tuple = None, angles: Tuple = None
-    ) -> List[float]:
+    ) -> Dict:
         """Converts a set of lattice parameters in angstroms and degrees into a
         ContinuousCube state, with the parameters in the [0, 1] range.
 
@@ -1281,7 +1309,7 @@ class LatticeParametersSGCCG(ContinuousCube):
         proxy_input = [self.state2lattice(s.numpy()) for s in states]
         return tfloat(proxy_input, device=self.device, float_type=self.float).flatten(1)
 
-    def state2readable(self, state: Optional[List[float]] = None) -> str:
+    def state2readable(self, state: Optional[Dict] = None) -> str:
         """
         Converts the state into a human-readable string in the format "(a, b, c),
         (alpha, beta, gamma)".
@@ -1290,7 +1318,7 @@ class LatticeParametersSGCCG(ContinuousCube):
         (a, b, c), (alpha, beta, gamma) = self.state2lattice(state)
         return f"({a}, {b}, {c}), ({alpha}, {beta}, {gamma})"
 
-    def readable2state(self, readable: str) -> List[float]:
+    def readable2state(self, readable: str) -> Dict:
         """
         Converts a human-readable representation of a state into the state format.
         """
@@ -1304,7 +1332,7 @@ class LatticeParametersSGCCG(ContinuousCube):
 
         return state
 
-    def is_valid(self, state: List) -> bool:
+    def is_valid(self, state: Dict) -> bool:
         """
         Determines whether a state is valid, according to the attributes of the
         environment.

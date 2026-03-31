@@ -1,4 +1,3 @@
-# TODO: Split BaseSet, SetFix and SetFlex into separate files.
 # TODO: The docstrings need a major rewrite to clarify the new functioning with _keys
 # and non-alternating subenvs.
 """
@@ -383,15 +382,13 @@ class BaseSet(CompositeBase):
 
         The mask is False-padded from the back up to mask_dim.
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
@@ -490,15 +487,13 @@ class BaseSet(CompositeBase):
 
         The mask is False-padded from the back up to mask_dim.
         """
-        do_constraints = state is not None and self.has_constraints
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
         # Apply constraints based on the input state
         if do_constraints:
-            # TODO: _apply_constraints could return a boolean variable if constraints
-            # are applied
-            self._apply_constraints(state=state)
+            do_constraints = self._apply_constraints(state=state)
 
         # Get active sub-environment and flag
         active_subenv = self._get_active_subenv(state)
@@ -953,6 +948,8 @@ class BaseSet(CompositeBase):
         self._apply_constraints(state=self.state, action=action, is_backward=True)
         return self.state, action, valid
 
+    # TODO: review if adding constraints is necessary if state is not None and
+    # different to self.state
     def get_parents(
         self,
         state: Optional[Dict] = None,
@@ -1261,7 +1258,7 @@ class BaseSet(CompositeBase):
             if not torch.any(indices_unique_mask):
                 continue
             actions_subenvs_dict[idx] = subenv.sample_actions_batch(
-                self._get_policy_outputs_of_subenv(
+                self._get_policy_outputs_of_env_unique(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
                 self._extract_core_mask(
@@ -1389,10 +1386,12 @@ class BaseSet(CompositeBase):
             if not torch.any(indices_unique_mask):
                 continue
             logprobs_subenvs[indices_unique_mask] = subenv.get_logprobs(
-                self._get_policy_outputs_of_subenv(
+                self._get_policy_outputs_of_env_unique(
                     policy_outputs[is_active][indices_unique_mask], idx
                 ),
-                actions[is_active][indices_unique_mask, 1 : 1 + len(subenv.eos)],
+                self._depad_action_batch(
+                    actions[is_active][indices_unique_mask, :], idx
+                ),
                 self._extract_core_mask(
                     mask[is_active][indices_unique_mask], idx_unique=idx
                 ),
@@ -1721,6 +1720,8 @@ class BaseSet(CompositeBase):
             assert torch.is_tensor(mask)
             return mask[:, self.n_toggle_actions : self.n_toggle_actions + mask_dim]
 
+    # TODO: review if adding constraints is necessary if state is not None and
+    # different to self.state
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
@@ -1780,6 +1781,9 @@ class BaseSet(CompositeBase):
         """
         Defines the structure of the output of the policy model.
 
+        This method is overriden to add the policy outputs corresponding to the Set
+        actions. These are concatenated to the policy outputs of the unique
+        environments, obtained from the parent's method.
         The policy output is the concatenation of the policy outputs corresponding to
         the Set actions (actions to activate a sub-environment and EOS) and the policy
         outputs of the unique environments.
@@ -1791,57 +1795,30 @@ class BaseSet(CompositeBase):
             there are unique environments, since all sub-environments of the same
             environment type are expected to be identical.
         """
+        policy_outputs_subenvs = super().get_policy_output(params)
         policy_outputs_set_actions = torch.ones(
             self.n_toggle_actions + 1, dtype=self.float, device=self.device
         )
-        policy_outputs_subenvs = torch.cat(
-            [
-                self._get_env_unique(idx).get_policy_output(params_env_unique)
-                for idx, params_env_unique in enumerate(params)
-            ]
-        )
-        return torch.cat((policy_outputs_set_actions, policy_outputs_subenvs))
+        return torch.cat((policy_outputs_subenvs, policy_outputs_set_actions))
 
     def _get_policy_outputs_of_set_actions(
         self, policy_outputs: TensorType["n_states", "policy_output_dim"]
     ):
         """
-        Returns the columns of the policy outputs that correspond to the Set actions:
-        toggle actions and EOS.
+        Returns the columns of the policy outputs that correspond to the Set actions.
 
-        Args
-        ----
+        Set actions are toggle actions and EOS.
+
+        It is assumed that the policy outputs of Set actions are stored on the last
+        ``self.n_toggle_actions + 1`` columns of the input tensor.
+
+        Parameters
+        ----------
         policy_outputs : tensor
             A tensor containing a batch of policy outputs. It is assumed that all the
             rows in the this tensor correspond to actions to activate a sub-environemnt.
         """
-        return policy_outputs[:, : self.n_toggle_actions + 1]
-
-    def _get_policy_outputs_of_subenv(
-        self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-        idx_unique: int,
-    ):
-        """
-        Returns the columns of the policy outputs that correspond to the
-        sub-environment indicated by idx_subenv.
-
-        Args
-        ----
-        policy_outputs : tensor
-            A tensor containing a batch of policy outputs. It is assumed that all the
-            rows in the this tensor correspond to the same unique environment.
-
-        idx_unique : int
-            Index of the unique environment of which the corresponding columns of the
-            policy outputs are to be extracted.
-        """
-        init_col = self.n_toggle_actions + 1
-        for idx in range(self.n_unique_envs):
-            end_col = init_col + self._get_env_unique(idx).policy_output_dim
-            if idx == idx_unique:
-                return policy_outputs[:, init_col:end_col]
-            init_col = end_col
+        return policy_outputs[:, -(self.n_toggle_actions + 1) :]
 
     def is_source(self, state: Optional[Dict] = None) -> bool:
         """
@@ -1865,19 +1842,16 @@ class BaseSet(CompositeBase):
         state = self._get_state(state)
         substates = self._get_substates(state)
         n_subenvs = len(substates)
-        n_left = self.max_elements - n_subenvs
-        return (
-            self._get_active_subenv(state) == -1
-            and self._get_toggle_flag(state) == 0
-            and self._get_dones(state) == [0] * n_subenvs + [1] * n_left
-            and self._get_unique_indices(state, False)[n_subenvs:] == [-1] * n_left
-            and all(
-                [
-                    self._get_unique_env_of_subenv(idx, state).is_source(substate)
-                    for idx, substate in enumerate(substates)
-                ]
-            )
-        )
+        if self._get_active_subenv(state) != -1:
+            return False
+        if self._get_toggle_flag(state) != 0:
+            return False
+        if self._get_dones(state)[:n_subenvs] != [0] * n_subenvs:
+            return False
+        for idx, substate in enumerate(substates):
+            if not self._get_unique_env_of_subenv(idx, state).is_source(substate):
+                return False
+        return True
 
     def equal(self, state_x: Dict, state_y: Dict) -> bool:
         """

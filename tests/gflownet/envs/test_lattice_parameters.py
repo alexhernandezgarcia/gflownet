@@ -154,12 +154,36 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
@@ -173,12 +197,36 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             CUBIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [1.0, 1.0, 1.0, 30.0, 30.0, 30.0],
@@ -192,12 +240,36 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             CUBIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
@@ -211,12 +283,36 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [1.0, 1.0, 1.0, 90.0, 90.0, 90.0],
@@ -230,67 +326,111 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[TRICLINIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 # CUBIC
@@ -326,7 +466,11 @@ def test__triclinic__constraints_remain_after_random_trajectory(env, lattice_sys
         (
             CUBIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
             ],
             [
                 [2.0, 2.0, 2.0, 90.0, 90.0, 90.0],
@@ -348,12 +492,36 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
@@ -367,12 +535,36 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
         (
             CUBIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.2, 0.5, 0.0, 0.5, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
@@ -386,12 +578,36 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
         (
             CUBIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
@@ -405,12 +621,36 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [0, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 0,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
@@ -424,67 +664,111 @@ def test__states2proxy__returns_expected(env, lattice_system, states, expected):
         (
             TRICLINIC,
             [
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [0.25, 0.5, 0.75, 0.25, 0.5, 0.75]],
-                [1, [LATTICE_SYSTEM_INDEX[CUBIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[HEXAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[MONOCLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
-                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
-                    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]],
-                [
-                    1,
-                    [LATTICE_SYSTEM_INDEX[TRICLINIC]],
-                    [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
-                ],
-                [1, [LATTICE_SYSTEM_INDEX[TRICLINIC]], [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]],
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[CUBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[HEXAGONAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[MONOCLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[ORTHORHOMBIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[RHOMBOHEDRAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                },
+                {
+                    "_active": 1,
+                    0: [LATTICE_SYSTEM_INDEX[TRICLINIC]],
+                    1: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                },
             ],
             [
                 # CUBIC
@@ -530,13 +814,19 @@ def test__states2policy__returns_expected(env, lattice_system, states, expected)
 @pytest.mark.parametrize(
     "lattice_system, expected_output",
     [
-        (CUBIC, "Stage 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "Stage 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "Stage 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
-        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
-        (TETRAGONAL, "Stage 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "Stage 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
+        (CUBIC, "Active 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Active 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Active 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
+        (
+            ORTHORHOMBIC,
+            "Active 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)",
+        ),
+        (
+            RHOMBOHEDRAL,
+            "Active 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)",
+        ),
+        (TETRAGONAL, "Active 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Active 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
     ],
 )
 def test__state2readable__gives_expected_results_for_source_states(
@@ -548,13 +838,19 @@ def test__state2readable__gives_expected_results_for_source_states(
 @pytest.mark.parametrize(
     "lattice_system, readable",
     [
-        (CUBIC, "Stage 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "Stage 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "Stage 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
-        (ORTHORHOMBIC, "Stage 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "Stage 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
-        (TETRAGONAL, "Stage 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "Stage 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
+        (CUBIC, "Active 0; cubic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (HEXAGONAL, "Active 0; hexagonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 120.0)"),
+        (MONOCLINIC, "Active 0; monoclinic; (-1.0, -1.0, -1.0), (90.0, -1.0, 90.0)"),
+        (
+            ORTHORHOMBIC,
+            "Active 0; orthorhombic; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)",
+        ),
+        (
+            RHOMBOHEDRAL,
+            "Active 0; rhombohedral; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)",
+        ),
+        (TETRAGONAL, "Active 0; tetragonal; (-1.0, -1.0, -1.0), (90.0, 90.0, 90.0)"),
+        (TRICLINIC, "Active 0; triclinic; (-1.0, -1.0, -1.0), (-1.0, -1.0, -1.0)"),
     ],
 )
 def test__readable2state__gives_expected_results_for_source_states(
@@ -568,15 +864,31 @@ def test__readable2state__gives_expected_results_for_source_states(
     [
         (
             TETRAGONAL,
-            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [0.1, 0.0, 0.3, 0.0, 0.0, 0.0]],
+            {
+                "_active": 1,
+                0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                1: [0.1, 0.0, 0.3, 0.0, 0.0, 0.0],
+            },
             (1, 0.1, 0.0, 0.3, 0.0, 0.0, 0.0, 1),
-            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+            {
+                "_active": 1,
+                0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                1: [-1, -1, -1, -1, -1, -1],
+            },
         ),
         (
             TETRAGONAL,
-            [1, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+            {
+                "_active": 1,
+                0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                1: [-1, -1, -1, -1, -1, -1],
+            },
             (0, 0, 0, 0, 0, 0, 0, 0),
-            [0, [LATTICE_SYSTEM_INDEX[TETRAGONAL]], [-1, -1, -1, -1, -1, -1]],
+            {
+                "_active": 0,
+                0: [LATTICE_SYSTEM_INDEX[TETRAGONAL]],
+                1: [-1, -1, -1, -1, -1, -1],
+            },
         ),
     ],
 )
