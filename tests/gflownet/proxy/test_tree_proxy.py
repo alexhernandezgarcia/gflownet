@@ -11,7 +11,7 @@ pytest.importorskip(
 
 from sklearn.metrics import accuracy_score
 
-from gflownet.envs.tree import ActionType, Attribute, Tree
+from gflownet.envs.tree.origtree import ActionType, Attribute, TreeOrig
 from gflownet.proxy.tree import TreeProxy
 
 
@@ -26,13 +26,13 @@ def y():
 
 
 def test__tree_proxy__returns_expected_energies(X, y):
-    empty_tree = Tree(X, y, max_depth=4, scale_data=False)
-    full_tree = Tree(X, y, max_depth=4, scale_data=False)
+    empty_tree = TreeOrig(X, y, max_depth=4, scale_data=False)
+    full_tree = TreeOrig(X, y, max_depth=4, scale_data=False)
     while True:
         splittable_leafs = [
             l
-            for l in Tree._find_leaves(full_tree.state)
-            if Tree._get_right_child(l) < full_tree.n_nodes
+            for l in TreeOrig._find_leaves(full_tree.state)
+            if TreeOrig._get_right_child(l) < full_tree.n_nodes
         ]
 
         if len(splittable_leafs) == 0:
@@ -50,7 +50,7 @@ def test__tree_proxy__returns_expected_energies(X, y):
     proxy = TreeProxy(use_prior=False, device="cpu", float_precision=32)
     proxy.setup(empty_tree)
 
-    predictions = [Tree.predict(full_tree.state, x) for x in X]
+    predictions = [TreeOrig.predict(full_tree.state, x) for x in X]
     accuracy = accuracy_score(y, predictions)
 
     states = torch.stack([empty_tree.state, full_tree.state])
