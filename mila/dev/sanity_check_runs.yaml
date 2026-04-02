@@ -66,6 +66,45 @@ jobs:
       proxy: box/corners
       logger:
         run_name: Grid 10x10 FL
+  - slurm:
+      job_name: sanity-grid-vargrad
+    script:
+      env:
+        __value__: grid
+        length: 10
+      buffer:
+        test:
+          type: all
+      gflownet: vargrad
+      loss: vargrad
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 VG
+  # Grid buffers
+  - slurm:
+      job_name: sanity-grid-tb-buffers
+    script:
+      env:
+        __value__: grid
+        length: 10
+      buffer:
+        replay_capacity: 10
+        check_diversity: True
+        train:
+          type: all
+        test:
+          type: all
+      gflownet:
+        __value__: trajectorybalance
+        optimizer:
+          batch_size:
+            forward: 6
+            backward_replay: 2
+            backward_dataset: 2
+      loss: trajectorybalance
+      proxy: box/corners
+      logger:
+        run_name: Grid 10x10 TB Buffers
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
