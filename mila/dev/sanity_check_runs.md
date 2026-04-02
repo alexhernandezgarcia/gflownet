@@ -63,6 +63,26 @@ python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.
 python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 proxy=box/corners gflownet=flowmatch loss=flowmatching device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True buffer.test.type=all
 ```
 
+### Buffers
+
+`salloc`:
+
+```bash
+python train.py user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance gflownet.optimizer.batch_size.forward=6 gflownet.optimizer.batch_size.backward_replay=2 gflownet.optimizer.batch_size.backward_dataset=2 loss=trajectorybalance buffer.replay_capacity=10 buffer.check_diversity=True buffer.train.type=all buffer.test.type=all device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance gflownet.optimizer.batch_size.forward=6 gflownet.optimizer.batch_size.backward_replay=2 gflownet.optimizer.batch_size.backward_dataset=2 loss=trajectorybalance buffer.replay_capacity=10 buffer.check_diversity=True buffer.train.type=all buffer.test.type=all device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+
+```bash
+python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 proxy=box/corners gflownet=trajectorybalance gflownet.optimizer.batch_size.forward=6 gflownet.optimizer.batch_size.backward_replay=2 gflownet.optimizer.batch_size.backward_dataset=2 loss=trajectorybalance buffer.replay_capacity=10 buffer.check_diversity=True buffer.train.type=all buffer.test.type=all device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
 ## Tetris
 
 - Width 5
