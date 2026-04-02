@@ -39,7 +39,7 @@ env:
     min_angle: 60.0
     max_angle: 140.0
     n_comp: 5
-    beta_params_min: 0.1
+    beta_params_min: 1.0
     beta_params_max: 100.0
     min_incr: 0.1
     fixed_distr_params:
