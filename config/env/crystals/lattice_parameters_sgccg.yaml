@@ -12,7 +12,7 @@ lattice_system: triclinic
 min_incr: 0.1
 n_comp: 2
 epsilon: 1e-6
-beta_params_min: 0.1
+beta_params_min: 1.0
 beta_params_max: 100.0
 fixed_distribution:
   beta_weights: 1.0

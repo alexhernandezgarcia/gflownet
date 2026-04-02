@@ -20,7 +20,7 @@ test_args:
 
 # Policy parameters
 threshold_components: 3
-beta_params_min: 0.1
+beta_params_min: 1.0
 beta_params_max: 100.0
 fixed_distr_params:
   beta_alpha: 2.0

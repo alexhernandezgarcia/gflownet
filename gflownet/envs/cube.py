@@ -62,7 +62,7 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
-        beta_params_min: float = 0.1,
+        beta_params_min: float = 1.0,
         beta_params_max: float = 100.0,
         epsilon: float = 1e-6,
         kappa: float = 1e-3,

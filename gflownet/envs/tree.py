@@ -160,7 +160,7 @@ class Tree(GFlowNetEnv):
         continuous: bool = True,
         n_thresholds: Optional[int] = 9,
         threshold_components: int = 1,
-        beta_params_min: float = 0.1,
+        beta_params_min: float = 1.0,
         beta_params_max: float = 2.0,
         fixed_distr_params: dict = {
             "beta_alpha": 2.0,
