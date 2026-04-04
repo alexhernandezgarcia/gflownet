@@ -41,5 +41,5 @@ check_diversity: False
 # buffer.
 diversity_check_reward_similarity: 0.1
 
-# Whether to show a progress bar while processing the data sets. False by default.
-progress_process_dataset: False
+# Whether to show a progress bar while processing the data sets. True by default.
+progress_process_dataset: True
