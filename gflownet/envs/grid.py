@@ -82,20 +82,23 @@ class Grid(GFlowNetEnv):
         super().__init__(**kwargs)
 
     def get_action_space(self):
+        r"""
+        Constructs list with all possible actions, including eos.
+
+        An action is represented by a tuple of length ``self.n_dim`` where each index
+        $$d$$ indicates the increment to apply to dimension $$d$$ of the hyper-grid.
+
+        This method creates the attribute ``self.actions_np`` to enable quicker reuse
+        by other methods.
         """
-        Constructs list with all possible actions, including eos. An action is
-        represented by a vector of length n_dim where each index d indicates the
-        increment to apply to dimension d of the hyper-grid.
-        """
-        increments = [el for el in range(self.max_increment + 1)]
+        increments = np.indices([self.max_increment + 1] * self.n_dim).reshape(
+            self.n_dim, -1
+        )
+        mask = np.sum(increments > 0, axis=0) <= self.max_dim_per_action
+        self.actions_np = np.transpose(increments[:, mask])
         actions = []
-        for action in itertools.product(increments, repeat=self.n_dim):
-            if (
-                sum(action) != 0
-                and len([el for el in action if el > 0]) <= self.max_dim_per_action
-            ):
-                actions.append(tuple(action))
-        actions.append(self.eos)
+        for action in self.actions_np:
+            actions.append(tuple(action))
         return actions
 
     def get_mask_invalid_actions_forward(
@@ -104,22 +107,130 @@ class Grid(GFlowNetEnv):
         done: Optional[bool] = None,
     ) -> List:
         """
-        Returns a list of length the action space with values:
-            - True if the forward action is invalid from the current state.
-            - False otherwise.
+        Returns which actions are invalid (True) and which are not invalid (False).
+
+        A version of the code operation with numpy arrays is left commented out as a
+        potential alternative, for future reference. The numpy way makes use of
+        ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`.
+
+
+        Parameters
+        ----------
+        state : list
+            Input state. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values.
         """
         state = self._get_state(state)
         done = self._get_done(done)
         if done:
-            return [True for _ in range(self.policy_output_dim)]
-        mask = [False for _ in range(self.policy_output_dim)]
-        for idx, action in enumerate(self.action_space[:-1]):
-            child = state.copy()
-            for dim, incr in enumerate(action):
-                child[dim] += incr
-            if any(el >= self.length for el in child):
-                mask[idx] = True
+            return [True] * self.mask_dim
+        # Numpy way: less efficient at least with few dimensions
+        # dist_to_edge = (self.length - 1) * np.ones(self.n_dim, dtype=int) - np.array(
+        #     state
+        # )
+        # mask = np.any(dist_to_edge < self.actions_np, axis=1).tolist()
+        mask = [False] * self.mask_dim
+        max_val = self.length - 1
+        for idx, action in enumerate(self.action_space):
+            for s_dim, a_dim in zip(state, action):
+                if (max_val - s_dim) < a_dim:
+                    mask[idx] = True
+                    break
         return mask
+
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
+        """
+        Returns which backward actions are invalid (True) and which are not (False).
+
+        Although this method does not need to be overwritten in discrete environments,
+        it is overwritten here to improve the efficiency and because it is used by
+        :py:meth:`~gflownet.envs.grid.Grid.get_parents`.
+
+        A version of the code operation with numpy arrays is left commented out as a
+        potential alternative, for future reference. The numpy way makes use of
+        ``self.actions_np``, defined in
+        :py:meth:`~gflownet.envs.grid.Grid.get_action_space`.
+
+        Parameters
+        ----------
+        state : list
+            Input state. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        # If the trajectory is done, only EOS is valid.
+        if done:
+            mask = [True] * self.mask_dim
+            mask[self.action2index(self.eos)] = False
+            return mask
+        # Numpy way: less efficient at least with few dimensions
+        # mask = np.any(self.actions_np > np.array(state), axis=1).tolist()
+        # mask[self.action2index(self.eos)] = True
+        mask = [False] * self.mask_dim
+        for idx, action in enumerate(self.action_space):
+            if action == self.eos:
+                mask[idx] = True
+                continue
+            for s_dim, a_dim in zip(state, action):
+                if a_dim > s_dim:
+                    mask[idx] = True
+                    break
+        return mask
+
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        """
+        Determines all parents and actions that lead to a state.
+
+        Parameters
+        ----------
+        state : list
+            Input state in environment format. If None, self.state is used.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
+        action : None
+            Ignored
+
+        Returns
+        -------
+        parents : list
+            List of parents in environment format.
+        actions : list
+            List of actions that lead to the state for each parent in ``parents``.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if done:
+            state = self._get_state(state)
+            return [state], [self.eos]
+        actions_valid = self.get_valid_actions(state=state, done=done, backward=True)
+        parents = []
+        actions = []
+        for action in actions_valid:
+            parent = [s_dim - a_dim for s_dim, a_dim in zip(state, action)]
+            parents.append(parent)
+            actions.append(action)
+        return parents, actions
 
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
@@ -198,54 +309,6 @@ class Grid(GFlowNetEnv):
         """
         state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
-
-    def get_parents(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
-    ) -> Tuple[List, List]:
-        """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state, as a list of length length where each element is
-            the position at each dimension.
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : None
-            Ignored
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
-        """
-        state = self._get_state(state)
-        done = self._get_done(done)
-        if done:
-            return [state], [self.eos]
-        else:
-            parents = []
-            actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                parent = state.copy()
-                for dim, incr in enumerate(action):
-                    if parent[dim] - incr >= 0:
-                        parent[dim] -= incr
-                    else:
-                        break
-                else:
-                    parents.append(parent)
-                    actions.append(action)
-        return parents, actions
 
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
