@@ -102,13 +102,15 @@ class Tree(CompositeBase):
         # Single unique environment type (all nodes are the same kind)
         self.envs_unique = [self.node_env]
         self._n_unique_envs = len(self.envs_unique)
-        assert self._n_unique_envs == 1, "Currenlty only a tree with a single env type as node is supported"
+        assert (
+            self._n_unique_envs == 1
+        ), "Currenlty only a tree with a single env type as node is supported"
 
         # Source state: empty tree, idle
         self.source = {
             "_active": -1,
             "_dones": [0] * self.max_nodes,
-            "_envs_unique": self._n_unique_envs, # Useless?
+            "_envs_unique": self._n_unique_envs,  # Useless?
         }
 
         # Get action dimensionality by adding one to the action dim of the
@@ -173,15 +175,17 @@ class Tree(CompositeBase):
         - No node exists at that position yet.
         - Its parent is a done node (or it is the root).
         """
-        if not self._node_exists(0, state): # root does not exist yet
+        if not self._node_exists(0, state):  # root does not exist yet
             return [0]
 
         leaves = []
-        for k in range(self.max_nodes): # iterate over all possible node positions
+        for k in range(self.max_nodes):  # iterate over all possible node positions
             if not self._node_is_done(k, state):
                 continue
             for child in (self.left_child_idx(k), self.right_child_idx(k)):
-                if child < self.max_nodes and not self._node_exists(child, state): # Check if space available for child and child not exists yet
+                if child < self.max_nodes and not self._node_exists(
+                    child, state
+                ):  # Check if space available for child and child not exists yet
                     leaves.append(child)
         return leaves
 
@@ -227,9 +231,7 @@ class Tree(CompositeBase):
             child = parent
         return False
 
-    def _get_threshold_bounds(
-        self, k: int, state: Dict
-    ) -> Tuple[float, float]:
+    def _get_threshold_bounds(self, k: int, state: Dict) -> Tuple[float, float]:
         """
         Computes the valid threshold range for node ``k`` based on ancestor
         constraints.
@@ -262,7 +264,9 @@ class Tree(CompositeBase):
         while current > 0:
             parent = self.parent_idx(current)
             if not self._node_is_done(parent, state):
-                raise RuntimeError(f"Node {k} has an undone parent, which should be impossible")
+                raise RuntimeError(
+                    f"Node {k} has an undone parent, which should be impossible"
+                )
 
             parent_feature = self.node_env.get_feature(state[parent])
             if parent_feature == feature_idx:
@@ -439,9 +443,7 @@ class Tree(CompositeBase):
         content_padding = [False] * (self.mask_dim - self.max_nodes - len(node_mask))
         return prefix + node_mask + content_padding
 
-    def _is_meta_mask(
-        self, mask: Union[List[bool], TensorType["mask_dim"]]
-    ) -> bool:
+    def _is_meta_mask(self, mask: Union[List[bool], TensorType["mask_dim"]]) -> bool:
         """Returns True if the mask is in meta-action mode (prefix all False)."""
         if isinstance(mask, list):
             return not any(mask[: self.max_nodes])
@@ -565,9 +567,7 @@ class Tree(CompositeBase):
             substate = copy(state[active])
             temp_state = {**state, active: substate}
             self._unrescale_threshold(active, temp_state)
-            mask = self.node_env.get_mask_invalid_actions_backward(
-                substate, done=True
-            )
+            mask = self.node_env.get_mask_invalid_actions_backward(substate, done=True)
             return self._format_mask_building(mask, active)
 
         # Building, not done
@@ -604,7 +604,7 @@ class Tree(CompositeBase):
         - Delegated to the node env. If the node env becomes done after the
           action, ``_dones[k]`` is set to 1.
         """
-        if self.done: # any action invalid, return False
+        if self.done:  # any action invalid, return False
             return self.state, action, False
 
         is_meta = action[0] == -1
@@ -616,7 +616,9 @@ class Tree(CompositeBase):
             if target == -1:
                 # Global EOS
                 active = self.state["_active"]
-                if active != -1 or not self._node_is_done(0, self.state): # Can not terminante if source node is not done
+                if active != -1 or not self._node_is_done(
+                    0, self.state
+                ):  # Can not terminante if source node is not done
                     return self.state, action, False
                 self.done = True
                 self.n_actions += 1
@@ -650,7 +652,9 @@ class Tree(CompositeBase):
             return self.state, action, False
 
         idx_unique = action[0]
-        if idx_unique != 0: # env actions start with 0 (unique env idx 0 for all envs currently)
+        if (
+            idx_unique != 0
+        ):  # env actions start with 0 (unique env idx 0 for all envs currently)
             return self.state, action, False
         action_subenv = self._depad_action(action, idx_unique)
 
@@ -661,9 +665,7 @@ class Tree(CompositeBase):
         # Pre-step check via node env
         action_to_check = self.node_env.action2representative(action_subenv)
         skip = skip_mask_check or self.skip_mask_check or self.node_env.continuous
-        do_step, _, _ = self.node_env._pre_step(
-            action_to_check, skip_mask_check=skip
-        )
+        do_step, _, _ = self.node_env._pre_step(action_to_check, skip_mask_check=skip)
         if not do_step:
             return self.state, action, False
 
@@ -765,9 +767,13 @@ class Tree(CompositeBase):
         # back to [0, 1] so the ContinuousCube can process the backward step.
         substate = copy(self.state[active])
         if node_was_done:
-            self._unrescale_threshold(active, {
-                **self.state, active: substate,
-            })
+            self._unrescale_threshold(
+                active,
+                {
+                    **self.state,
+                    active: substate,
+                },
+            )
         self.node_env.set_state(substate, done=node_was_done)
 
         # Pre-step check
@@ -1081,18 +1087,30 @@ class Tree(CompositeBase):
 
         try:
             from networkx.drawing.nx_pydot import graphviz_layout
+
             pos = graphviz_layout(G, prog="dot")
         except ImportError:
             pos = nx.spring_layout(G)
 
         nx.draw(
-            G, pos, ax=ax, labels=labels, with_labels=True,
-            node_color=node_colors, node_size=2500, font_size=8,
-            font_weight="bold", arrows=True, arrowsize=15,
-            edgecolors="black", linewidths=1.0,
+            G,
+            pos,
+            ax=ax,
+            labels=labels,
+            with_labels=True,
+            node_color=node_colors,
+            node_size=2500,
+            font_size=8,
+            font_weight="bold",
+            arrows=True,
+            arrowsize=15,
+            edgecolors="black",
+            linewidths=1.0,
         )
         edge_labels = nx.get_edge_attributes(G, "label")
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, ax=ax, font_size=7)
+        nx.draw_networkx_edge_labels(
+            G, pos, edge_labels=edge_labels, ax=ax, font_size=7
+        )
 
         ax.set_title("Decision Tree", fontsize=12)
         plt.tight_layout()
@@ -1231,9 +1249,7 @@ class Tree(CompositeBase):
 
             sample_idx = meta_idx[~all_invalid]
             if len(sample_idx) > 0:
-                meta_po = self._get_policy_outputs_for_meta(
-                    policy_outputs[sample_idx]
-                )
+                meta_po = self._get_policy_outputs_for_meta(policy_outputs[sample_idx])
                 meta_mask = meta_mask[~all_invalid]
 
                 logits = meta_po.clone()
