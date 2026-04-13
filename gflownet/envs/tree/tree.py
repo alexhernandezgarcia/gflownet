@@ -23,11 +23,12 @@ State representation (dictionary):
 - ``_dones``: List of done flags for each possible node position (0 or 1).
 - Integer keys (0, 1, ...): Sub-states of existing nodes.
 
-Mask format (following SetBase convention):
-- First ``max_nodes`` elements: one-hot encoding of the active node when in building
-  mode; all False when in meta-action mode (idle or deactivation).
-- Next ``max(max_nodes + 1, node_env.mask_dim)`` elements: either meta-action mask
-  (toggle targets + EOS) or node env mask, depending on mode.
+Mask format (flat, prefix-free):
+- First ``max_nodes + 1`` elements (meta section): toggle targets + EOS.
+  All True when in building mode (no meta-actions valid).
+- Next ``node_env.mask_dim`` elements (node section): node env action mask.
+  All True when in meta-action mode (no node actions valid).
+- Mode detection: building mode iff node section is not all True.
 
 Action format:
 - Toggle meta-actions: ``(-1, k, 0, ...)`` to activate/deactivate node k.
@@ -398,78 +399,78 @@ class Tree(CompositeBase):
 
     # =========================================================================
     # Mask dimensionality and formatting
-    # Masks are of the form: [PREFIX | CONTENT | PADDING]
+    # Flat mask: [META SECTION | NODE SECTION]
     # =========================================================================
 
     def _compute_mask_dim(self) -> int:
         """
-        The mask has two sections:
+        The flat mask has two sections::
 
-        1. Prefix (``max_nodes`` elements): one-hot of active node or all 0 for idle mode.
-        2. Content (``max(n_meta_actions, node_env.mask_dim)`` elements): max of
-           meta-action mask or node env mask.
+        1. Meta section (``n_meta_actions`` elements): toggle actions + EOS.
+        2. Node section (``node_env.mask_dim`` elements): node env action mask.
         """
-        content_dim = max(self.n_meta_actions, self.node_env.mask_dim)
-        return self.max_nodes + content_dim
+        return self.n_meta_actions + self.node_env.mask_dim
 
     def _format_mask_meta(self, meta_mask: List[bool]) -> List[bool]:
         """
         Formats a meta-action mask (idle or deactivation mode).
+
+        The node section is set to all True (all node actions invalid).
 
         Parameters
         ----------
         meta_mask : list[bool]
             Mask of length ``n_meta_actions`` (toggles + EOS). True = invalid action.
         """
-        prefix = [False] * self.max_nodes
-        content_padding = [False] * (self.mask_dim - self.max_nodes - len(meta_mask))
-        return prefix + meta_mask + content_padding
+        if len(meta_mask) != self.n_meta_actions:
+            raise ValueError(f"Size of meta masked passed is {len(meta_mask)} but expected {self.n_meta_actions}")
+        node_section = [True] * self.node_env.mask_dim
+        return meta_mask + node_section
 
-    def _format_mask_building(
-        self, node_mask: List[bool], active_node: int
-    ) -> List[bool]:
+    def _format_mask_building(self, node_mask: List[bool]) -> List[bool]:
         """
         Formats a building-mode mask (node env actions).
+
+        The meta section is set to all True (all meta-actions invalid).
 
         Parameters
         ----------
         node_mask : list[bool]
             Node env mask. True = invalid.
-        active_node : int
-            Index of the active node (for the one-hot prefix).
         """
-        prefix = [False] * self.max_nodes
-        prefix[active_node] = True
-        content_padding = [False] * (self.mask_dim - self.max_nodes - len(node_mask))
-        return prefix + node_mask + content_padding
+        if len(node_mask) != self.node_env.mask_dim:
+            raise ValueError(f"Size of node masked passed is {len(node_mask)} but expected {self.node_env.mask_dim}")
+        meta_section = [True] * self.n_meta_actions
+        return meta_section + node_mask
 
     def _is_meta_mask(self, mask: Union[List[bool], TensorType["mask_dim"]]) -> bool:
-        """Returns True if the mask is in meta-action mode (prefix all False)."""
+        """Returns True if the mask is NOT in building mode.
+
+        Building mode is detected by the node section (after ``n_meta_actions``)
+        having at least one valid (False) entry. If the node section is all True,
+        the mask is in meta mode (or all-invalid for done/source states).
+        """
         if isinstance(mask, list):
-            return not any(mask[: self.max_nodes])
-        return not torch.any(mask[: self.max_nodes]).item()
+            return all(mask[self.n_meta_actions:])
+        return mask[self.n_meta_actions:].all().item()
 
     def _unformat_mask_building(
         self,
         mask: Union[List[bool], TensorType["batch_size", "mask_dim"]],
     ):
-        """Extracts the node env mask from a building-mode formatted mask,
-        by discarding the prefix and padding part."""
-        build_mask_dim = self.node_env.mask_dim
+        """Extracts the node env mask (node section) from a flat mask."""
         if isinstance(mask, list):
-            return mask[self.max_nodes : self.max_nodes + build_mask_dim]
-        return mask[:, self.max_nodes : self.max_nodes + build_mask_dim]
+            return mask[self.n_meta_actions:]
+        return mask[:, self.n_meta_actions:]
 
     def _unformat_mask_meta(
         self,
         mask: Union[List[bool], TensorType["batch_size", "mask_dim"]],
     ):
-        """Extracts the meta-action mask from a meta-mode formatted mask,
-        by discarding the prefix and padding part."""
-        meta_mask_dim = self.n_meta_actions
+        """Extracts the meta-action mask (meta section) from a flat mask."""
         if isinstance(mask, list):
-            return mask[self.max_nodes : self.max_nodes + meta_mask_dim]
-        return mask[:, self.max_nodes : self.max_nodes + meta_mask_dim]
+            return mask[:self.n_meta_actions]
+        return mask[:, :self.n_meta_actions]
 
     # =========================================================================
     # Forward mask
@@ -517,7 +518,7 @@ class Tree(CompositeBase):
         substate = state[active]
 
         mask = self.node_env.get_mask_invalid_actions_forward(substate, False)
-        return self._format_mask_building(mask, active)
+        return self._format_mask_building(mask)
 
     # =========================================================================
     # Backward mask
@@ -568,7 +569,7 @@ class Tree(CompositeBase):
             temp_state = {**state, active: substate}
             self._unrescale_threshold(active, temp_state)
             mask = self.node_env.get_mask_invalid_actions_backward(substate, done=True)
-            return self._format_mask_building(mask, active)
+            return self._format_mask_building(mask)
 
         # Building, not done
         substate = state[active]
@@ -582,7 +583,7 @@ class Tree(CompositeBase):
 
         # In progress: delegate to node env
         mask = self.node_env.get_mask_invalid_actions_backward(substate, False)
-        return self._format_mask_building(mask, active)
+        return self._format_mask_building(mask)
 
     # =========================================================================
     # Step (forward)
@@ -1144,7 +1145,6 @@ class Tree(CompositeBase):
         Bypasses CompositeBase's subenv iteration since tree nodes are dynamic.
         """
         GFlowNetEnv.set_state(self, state, done)
-        self._apply_constraints(state=self.state, is_backward=None)
         return self
 
     def reset(self, env_id: Union[int, str] = None):
@@ -1154,7 +1154,6 @@ class Tree(CompositeBase):
         self.done = False
         self.n_actions = 0
         self.id = str(uuid.uuid4()) if env_id is None else env_id
-        self._apply_constraints(state=self.state, is_backward=True)
         return self
 
     # =========================================================================
@@ -1205,8 +1204,8 @@ class Tree(CompositeBase):
         """
         n_states = policy_outputs.shape[0]
 
-        # Determine mode from mask prefix
-        is_building = torch.any(mask[:, : self.max_nodes], dim=1)
+        # Determine mode: building iff node section has any valid (False) entry
+        is_building = ~mask[:, self.n_meta_actions :].all(dim=1)
         actions = [None] * n_states
 
         # --- Building-mode states: delegate to node env ---
@@ -1302,7 +1301,8 @@ class Tree(CompositeBase):
         actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
 
-        is_building = torch.any(mask[:, : self.max_nodes], dim=1)
+        # Determine mode: building iff node section has any valid (False) entry
+        is_building = ~mask[:, self.n_meta_actions :].all(dim=1)
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
 
         # --- Building mode ---
