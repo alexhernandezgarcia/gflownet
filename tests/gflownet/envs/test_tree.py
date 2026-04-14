@@ -270,15 +270,250 @@ def test__action_space__contains_toggle_eos_and_node_actions(envs, request):
     for a in env.node_env.action_space:
         assert env._pad_action(a, 0) in action_space
 
-    # Total count: max_nodes toggles + 1 EOS + node_env actions
-    expected_len = env.max_nodes + 1 + len(env.node_env.action_space)
-    assert len(action_space) == expected_len
-
 @parametrize_envs
 def test__action_space__size(envs, request):
     env = request.getfixturevalue(envs)
+    # Total count: max_nodes toggles + 1 EOS + node_env actions
+    assert len(env.action_space) == env.max_nodes + 1 + len(env.node_env.action_space)
     assert len(env.action_space) - len(env.node_env.action_space) == 2**env.max_depth
 
+# ===========================================================================
+# Pad / depad action tests
+# ===========================================================================
+
+
+@pytest.mark.parametrize(
+    "meta_action, only_action, idx_unique",
+    [
+        # Toggle meta-action for node 0
+        ((-1, 0, 0, 0), (0,), -1),
+        # Toggle meta-action for node 2
+        ((-1, 2, 0, 0), (2,), -1),
+        # EOS
+        ((-1, -1, 0, 0), (-1,), -1),
+    ],
+)
+@parametrize_envs
+def test__pad_depad_action__meta_actions(
+    envs, request, meta_action, only_action, idx_unique
+):
+    env = request.getfixturevalue(envs)
+    assert env._pad_action(only_action, idx_unique) == meta_action
+    assert env._depad_action(meta_action, idx_unique) == only_action
+
+@pytest.mark.parametrize(
+    "action_on_tree, action_subenv, idx_unique",
+    [
+        # Subenv select feature 2
+        ((0, 0, 2, 0), (0, 2, 0), 0),
+        # Subenv select threshold 0.5 for node 2
+        ((0, 1, 0.5, 0), (1, 0.5, 0), 0),
+        # subenv EOS
+        ((0, 1, float("inf"), float("inf")), (1, float("inf"), float("inf")), 0),
+    ],
+)
+@parametrize_envs
+def test__pad_depad_action__subenv_actions(
+    envs, request, action_on_tree, action_subenv, idx_unique
+):
+    env = request.getfixturevalue(envs)
+    assert env._pad_action(action_subenv, idx_unique) == action_on_tree
+    assert env._depad_action(action_on_tree, idx_unique) == action_subenv
+
+@parametrize_envs
+def test__pad_depad_action__consistent_for_random_actions(envs, request):
+    env = request.getfixturevalue(envs)
+    for i in range(5):
+        _, action, action_successful = env.step_random()
+        if not action_successful:
+            continue
+        assert action == env._pad_action(env._depad_action(action), action[0])
+
+# ===========================================================================
+# Forward mask tests
+# ===========================================================================
+
+@parametrize_envs
+def test__mask_dim__is_correct(envs, request):
+    env = request.getfixturevalue(envs)
+    expected = env.max_nodes + 1 + env.node_env.mask_dim
+    assert env.mask_dim == expected
+
+@parametrize_envs
+def test__forward_mask__source_only_toggle_root_valid(envs, request):
+    """At source, only the toggle for root (node 0) should be valid."""
+    env = request.getfixturevalue(envs)
+    mask = env.get_mask_invalid_actions_forward()
+    valid = env.get_valid_actions()
+    # Only toggle for node 0 should be valid
+    toggle_0 = env._pad_action((0,), -1)
+    assert valid == [toggle_0]
+    assert mask == [False] + [True] * (env.mask_dim - 1)
+    # EOS invalid (no done nodes)
+    assert env.eos not in valid
+
+@parametrize_envs_bigger_than_depth_1
+def test__forward_mask__idle_after_root_done(envs, request):
+    """After building root, expand leaves 1/2 and EOS should all be valid."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    valid = env.get_valid_actions()
+    toggle_1 = env._pad_action((1,), -1)
+    toggle_2 = env._pad_action((2,), -1)
+    assert toggle_1 in valid
+    assert toggle_2 in valid
+    assert env.eos in valid
+    # Toggle 0 invalid (root already done, not expandable)
+    toggle_0 = env._pad_action((0,), -1)
+    assert toggle_0 not in valid
+    mask = env.get_mask_invalid_actions_forward()
+    expected_mask = [True, False, False] + [True] * (env.mask_dim - 4 - env.node_env.mask_dim) + [False] + [True] * (env.node_env.mask_dim)
+    assert mask == expected_mask
+
+@parametrize_envs
+def test__forward_mask__building_mode_delegates_to_node_env(envs, request):
+    """While building a node, mask should be in building mode."""
+    env = request.getfixturevalue(envs)
+    # Activate root
+    env.step(env._pad_action((0,), -1))
+    mask = env.get_mask_invalid_actions_forward()
+    # All meta actions should be masked out, so True
+    assert all(mask[:env.n_meta_actions])
+    # Node section should equal node_env's own mask for the active substate
+    active = env.state["_active"]
+    substate = env.state[active]
+    expected_node_mask = env.node_env.get_mask_invalid_actions_forward(substate, False)
+    assert mask[env.n_meta_actions:] == expected_node_mask
+    # Valid actions should be node env actions
+    valid = env.get_valid_actions()
+    for a in valid:
+        assert env._depad_action(a) in env.node_env.action_space
+
+@parametrize_envs
+def test__forward_mask__node_done_only_deactivation_valid(envs, request):
+    """When a node is done but still active, only the deactivation toggle is valid."""
+    env = request.getfixturevalue(envs)
+    # Activate and fully build node 0, without deactivating
+    env.step(env._pad_action((0,), -1))
+    env.step((0, 0, 1, 0))  # Choose feature
+    env.step((0, 0, -1, 0))  # Choice EOS
+    env.step((0, 1, 0.5, 1))  # Set threshold
+    env.step((0, 1, float("inf"), float("inf")))  # Cube EOS
+    # Node 0 is now done but still active
+    assert env._node_is_done(0, env.state)
+    assert env.state["_active"] == 0
+    valid = env.get_valid_actions()
+    assert len(valid) == 1
+    assert valid[0] == env._pad_action((0,), -1)  # Deactivation toggle
+
+@parametrize_envs
+def test__forward_mask__done_state_all_invalid(envs, request):
+    """When the tree is done, all actions are invalid."""
+    env = request.getfixturevalue(envs)
+    env.trajectory_random()
+    assert env.done
+    mask = env.get_mask_invalid_actions_forward()
+    assert all(mask)
+
+@parametrize_envs
+def test__forward_mask__building_in_progress_delegates_to_node_env(envs, request):
+    """While building a node past its source state (at least one subenv action
+    taken, not yet done), forward mask delegates to the node_env mask."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1))  # Activate root
+    # Take one valid forward subenv action to move past source
+    valid_fwd = env.get_valid_actions()
+    env.step(valid_fwd[0])
+    # Precondition: node 0 is in progress (past source, not done)
+    assert not env.node_env.is_source(env.state[0])
+    assert not env._node_is_done(0, env.state)
+
+    mask = env.get_mask_invalid_actions_forward()
+    # All meta actions invalid (because in building mode)
+    assert all(mask[:env.n_meta_actions])
+    # Node section should match node_env forward mask for the substate
+    substate = env.state[0]
+    expected = env.node_env.get_mask_invalid_actions_forward(substate, False)
+    assert mask[env.n_meta_actions:] == expected
+    # Valid forward actions should be node_env actions (when depadded)
+    valid = env.get_valid_actions()
+    assert len(valid) > 0
+    for a in valid:
+        assert env._depad_action(a) in env.node_env.action_space
+
+
+# ===========================================================================
+# Backward mask tests
+# ===========================================================================
+
+@parametrize_envs
+def test__backward_mask__done_only_eos_valid(envs, request):
+    """From done, only the EOS backward action is valid."""
+    env = request.getfixturevalue(envs)
+    env.trajectory_random()
+    assert env.done
+    valid = env.get_valid_actions(backward=True)
+    assert len(valid) == 1
+    assert valid[0] == env.eos
+
+@parametrize_envs
+def test__backward_mask__source_no_valid_actions(envs, request):
+    """At source, no backward actions are valid."""
+    env = request.getfixturevalue(envs)
+    mask = env.get_mask_invalid_actions_backward()
+    assert all(mask)
+    assert env.get_valid_actions(backward=True) == []
+
+@parametrize_envs_bigger_than_depth_1
+def test__backward_mask__idle_can_reactivate_leaf_done_nodes(envs, request):
+    """From idle with done nodes, can reactivate leaf done nodes only."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    # Idle with nodes 0 and 1 done. Node 1 is a leaf done node, node 0 is not
+    # (it has child 1).
+    valid = env.get_valid_actions(backward=True)
+    toggle_1 = env._pad_action((1,), -1)
+    toggle_0 = env._pad_action((0,), -1)
+    assert toggle_1 in valid
+    assert toggle_0 not in valid  # Node 0 has child 1
+
+@parametrize_envs
+def test__backward_mask__building_node_at_source_toggle_valid(envs, request):
+    """When building a node that is still at source, backward = undo activation."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1))  # Activate root
+    # Node 0 is at source state
+    assert env.node_env.is_source(env.state[0])
+    valid = env.get_valid_actions(backward=True)
+    assert len(valid) == 1
+    assert valid[0] == env._pad_action((0,), -1)  # Undo activation
+
+@parametrize_envs
+def test__backward_mask__building_in_progress_delegates_to_node_env(envs, request):
+    """While building a node past its source state (at least one subenv action
+    taken, not yet done), backward mask delegates to the node_env mask."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1))  # Activate root
+    # Take one valid forward subenv action to move past source
+    valid_fwd = env.get_valid_actions()
+    env.step(valid_fwd[0])
+    # Precondition: node 0 is in progress (past source, not done)
+    assert not env.node_env.is_source(env.state[0])
+    assert not env._node_is_done(0, env.state)
+
+    mask = env.get_mask_invalid_actions_backward()
+    # All meta actions invalid (we're in building mode)
+    assert all(mask[:env.n_meta_actions])
+    # Node section should match node_env backward mask for the substate
+    substate = env.state[0]
+    expected = env.node_env.get_mask_invalid_actions_backward(substate, False)
+    assert mask[env.n_meta_actions:] == expected
+    # Valid backward actions should be node_env actions (when depadded)
+    valid = env.get_valid_actions(backward=True)
+    assert len(valid) > 0
+    for a in valid:
+        assert env._depad_action(a) in env.node_env.action_space
 
 # ===========================================================================
 # Common base tests from common.py
