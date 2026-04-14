@@ -1,3 +1,5 @@
+from copy import copy
+
 import common
 import pytest
 
@@ -128,6 +130,50 @@ def _build_node_with_dtnode_subenv(tree, node_idx, feature_idx, threshold_val):
     # Deactivate
     s, _, v = tree.step(tree._pad_action((node_idx,), -1))
     assert v, f"Failed to deactivate node {node_idx}"
+
+
+# TODO: Tests that are based on this function, only work if tree is used with the initial node.py subenv
+def _unbuild_node_with_dtnode_subenv(tree, node_idx, feature_idx, threshold_val):
+    """
+    Reverses _build_node_with_dtnode_subenv: performs every backward action on an
+    already-built node, assuming subenvs are of type gflownet.envs.node.py:
+    reactivate -> backward Cube EOS -> backward threshold steps -> backward Choice EOS
+    -> backward choose feature -> backward activate (removes the node).
+
+    Parameters
+    ----------
+    tree : Tree
+        The tree environment.
+    node_idx : int
+        The node position (breadth-first index) to unbuild.
+    feature_idx : int
+        The feature index that was selected when the node was built.
+    threshold_val : float
+        The threshold value that was set when the node was built.
+    """
+    # Reactivate
+    s, _, v = tree.step_backwards(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed to reactivate node {node_idx}"
+    # Backward Cube EOS (clears done flag; unrescales threshold)
+    s, _, v = tree.step_backwards((0, 1, float("inf"), float("inf")))
+    assert v, f"Failed backward Cube EOS for node {node_idx}"
+    # Backward threshold steps (reverse order). The first two are regular
+    # decrements (action[-1]==0). The third (undoing the forward "from source"
+    # step) must use the Back-To-Source action (action[-1]==1), which jumps
+    # directly to the cube's source state [-1] regardless of the increment.
+    s, _, v = tree.step_backwards((0, 1, threshold_val / 5, 0))
+    s, _, v = tree.step_backwards((0, 1, 2 * threshold_val / 5, 0))
+    s, _, v = tree.step_backwards((0, 1, 0.0, 1))
+    assert v, f"Failed backward threshold steps for node {node_idx}"
+    # Backward Choice EOS
+    s, _, v = tree.step_backwards((0, 0, -1, 0))
+    assert v, f"Failed backward Choice EOS for node {node_idx}"
+    # Backward choose feature
+    s, _, v = tree.step_backwards((0, 0, feature_idx, 0))
+    assert v, f"Failed backward choose feature for node {node_idx}"
+    # Backward activate (removes node)
+    s, _, v = tree.step_backwards(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed backward activate (removal) for node {node_idx}"
 
 
 # ===========================================================================
@@ -514,6 +560,214 @@ def test__backward_mask__building_in_progress_delegates_to_node_env(envs, reques
     assert len(valid) > 0
     for a in valid:
         assert env._depad_action(a) in env.node_env.action_space
+
+# ===========================================================================
+# Forward step tests
+# ===========================================================================
+
+@parametrize_envs_bigger_than_depth_1
+def test__step__activate_node_creates_substate(envs, request):
+    """Activating a node creates a new subenv in source state."""
+    env = request.getfixturevalue(envs)
+    toggle = env._pad_action((0,), -1)
+    state, _, valid = env.step(toggle)
+    assert valid
+    assert state["_active"] == 0
+    assert 0 in state
+    assert env.node_env.is_source(state[0])
+
+@parametrize_envs_bigger_than_depth_1
+def test__step__deactivate_node_goes_idle(envs, request):
+    """Deactivating a done node sets active to -1."""
+    env = request.getfixturevalue(envs)
+    # Build and complete node 0 (without deactivation)
+    env.step(env._pad_action((0,), -1)) # Toggle
+    env.step((0, 0, 1, 0)) # Choice
+    env.step((0, 0, -1, 0)) # EOS choice
+    env.step((0, 1, 0.5, 1)) # Set threshold
+    env.step((0, 1, float("inf"), float("inf"))) # EOS node env
+    assert env.state["_active"] == 0
+    assert env._node_is_done(0, env.state)
+    # Deactivate
+    state, _, valid = env.step(env._pad_action((0,), -1))
+    assert valid
+    assert state["_active"] == -1
+
+@parametrize_envs
+def test__step__eos_sets_done(envs, request):
+    """EOS is valid when idle with root done and sets done=True."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _, _, valid = env.step(env.eos)
+    assert valid
+    assert env.done
+
+@parametrize_envs
+def test__step__eos_invalid_without_root_done(envs, request):
+    """EOS should be invalid if the root is not done."""
+    env = request.getfixturevalue(envs)
+    _, _, valid = env.step(env.eos)
+    assert not valid
+    assert not env.done
+
+@parametrize_envs
+def test__step__eos_invalid_when_not_idle(envs, request):
+    """EOS should be invalid when a node is active."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1))  # Activate root
+    _, _, valid = env.step(env.eos)
+    assert not valid
+
+@parametrize_envs_bigger_than_depth_1
+def test__step__invalid_toggle_target(envs, request):
+    """Toggling a non-expandable position should be invalid."""
+    env = request.getfixturevalue(envs)
+    # Try to activate node 1 without root being done
+    _, _, valid = env.step(env._pad_action((1,), -1))
+    assert not valid
+    # Try to activate node 2 without root being done
+    _, _, valid = env.step(env._pad_action((2,), -1))
+    assert not valid
+
+@parametrize_envs
+def test__step__node_env_action_sets_done_flag(envs, request):
+    """When the node env reaches done via an action, _dones flag is updated."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1)) # Toggle on root
+    env.step((0, 0, 1, 0)) # Choice
+    env.step((0, 0, -1, 0)) # EOS choice
+    env.step((0, 1, 0.5, 1)) # Set threshold
+    assert env.state["_dones"][0] == 0
+    env.step((0, 1, float("inf"), float("inf"))) # EOS node env
+    assert env.state["_dones"][0] == 1
+
+@parametrize_envs
+def test__step__node_env_action_invalid_when_idle(envs, request):
+    """Node env actions should be invalid when idle."""
+    env = request.getfixturevalue(envs)
+    _, _, valid = env.step((0, 0, 1, 0))
+    assert not valid
+    _, _, valid = env.step((0, 0, -1, 0))
+    assert not valid
+    _, _, valid = env.step((0, 1, 0.5, 1))
+    assert not valid
+    _, _, valid = env.step((0, 1, float("inf"), float("inf")))
+    assert not valid
+
+@parametrize_envs
+def test__step__returns_false_when_done(envs, request):
+    """Any step after done should return valid=False."""
+    env = request.getfixturevalue(envs)
+    env.trajectory_random()
+    assert env.done
+    _, _, valid = env.step(env._pad_action((0,), -1))
+    assert not valid
+
+
+# ===========================================================================
+# Backward step tests
+# ===========================================================================
+
+@parametrize_envs
+def test__step_backwards__eos_backward(envs, request):
+    """Backward EOS un-terminates the tree."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    env.step(env.eos)
+    assert env.done
+    state, _, valid = env.step_backwards(env.eos)
+    assert valid
+    assert not env.done
+    assert env._is_idle(state)
+
+@parametrize_envs
+def test__step_backwards__reactivate_done_node(envs, request):
+    """Backward toggle on idle reactivates a leaf done node."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    toggle_0 = env._pad_action((0,), -1)
+    state, _, valid = env.step_backwards(toggle_0)
+    assert valid
+    assert state["_active"] == 0
+    assert env._node_is_done(0, state)
+
+@parametrize_envs_bigger_than_depth_1
+def test__step_backwards__reactivate_blocked_for_non_leaf_done(envs, request):
+    """Cannot reactivate a done node that has children."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    toggle_0 = env._pad_action((0,), -1) # Try to reactivate root
+    _, _, valid = env.step_backwards(toggle_0)
+    assert not valid
+
+@parametrize_envs
+def test__step_backwards__remove_node_at_source(envs, request):
+    """Backward toggle on an active node at source removes it."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1))  # Activate root
+    assert 0 in env.state
+    toggle_0 = env._pad_action((0,), -1)
+    state, _, valid = env.step_backwards(toggle_0)
+    assert valid
+    assert 0 not in state
+    assert state["_active"] == -1
+    assert env.is_source()
+
+@parametrize_envs_bigger_than_depth_1
+def test__step_backwards__remove_node_in_tree(envs, request):
+    """Backward toggle on an active node removes it."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    assert 1 in env.state
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    assert 2 in env.state
+    env.step_backwards(env._pad_action((1,), -1))  # Activate node 1
+    env.step_baclwards
+
+@parametrize_envs_bigger_than_depth_1
+def test__step_backwards__remove_node_in_tree(envs, request):
+    """The full backward trajectory of a built non-root node removes it from the tree."""
+    env = request.getfixturevalue(envs)
+    feature_node_0, threshold_node_0, feature_node_1, threshold_node_1 = 1, 0.5, 2, 0.3
+    _build_node_with_dtnode_subenv(env, 0, feature_node_0, threshold_node_0)
+    assert 0 in env.state
+    _build_node_with_dtnode_subenv(env, 1, feature_node_1, threshold_node_1)
+    assert 1 in env.state
+
+    # Unbuild node 1 (leaf): full backward trajectory removes it from the tree
+    _unbuild_node_with_dtnode_subenv(env, 1, feature_node_1, threshold_node_1)
+    assert 1 not in env.state
+    assert env.state["_active"] == -1
+
+    # Node 0 is now a leaf done node; unbuild it too -> back to source
+    _unbuild_node_with_dtnode_subenv(env, 0, feature_node_0, threshold_node_0)
+    assert 0 not in env.state
+    assert env.is_source()
+
+@parametrize_envs
+def test__step_backwards__node_env_eos_clears_done(envs, request):
+    """Backward of node env EOS clears the done flag."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    # Reactivate node 0
+    env.step_backwards(env._pad_action((0,), -1))
+    assert env._node_is_done(0, env.state)
+    # Backward step of Cube EOS
+    state, _, valid = env.step_backwards(
+        (0, 1, float("inf"), float("inf"))
+    )
+    assert valid
+    assert not env._node_is_done(0, state)
+
+@parametrize_envs
+def test__step_backwards__eos_invalid_when_not_done(envs, request):
+    """Backward EOS should be invalid if the env is not done."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    # Not done yet
+    _, _, valid = env.step_backwards(env.eos)
+    assert not valid
 
 # ===========================================================================
 # Common base tests from common.py
