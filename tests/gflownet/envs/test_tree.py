@@ -770,6 +770,182 @@ def test__step_backwards__eos_invalid_when_not_done(envs, request):
     assert not valid
 
 # ===========================================================================
+# get_parents tests
+# ===========================================================================
+
+@parametrize_envs
+def test__get_parents__source_has_no_parents(envs, request):
+    """Source state should have no parents."""
+    env = request.getfixturevalue(envs)
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+@parametrize_envs
+def test__get_parents__done_returns_self_and_eos(envs, request):
+    """From env done, the only parent is the state itself and the EOS action."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    env.step(env.eos)
+    parents, actions = env.get_parents()
+    assert len(parents) == 1
+    assert actions[0] == env.eos
+
+@parametrize_envs_bigger_than_depth_1
+def test__get_parents__idle_with_done_nodes(envs, request):
+    """From idle with done nodes, parents are to reactivate done nodes."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    _build_node_with_dtnode_subenv(env, 2, 3, 0.7)
+    # Idle with nodes 0, 1, 2 done. Leaf done nodes are 1 and 2.
+    parents, _ = env.get_parents()
+    assert len(parents) == 2
+    # Each parent should have _active set to a leaf done node
+    parent_actives = {p["_active"] for p in parents}
+    assert parent_actives == {1, 2}
+
+@parametrize_envs
+def test__get_parents__node_at_source(envs, request):
+    """When building a node at source, the parent is the idle state without the node."""
+    env = request.getfixturevalue(envs)
+    env.step(env._pad_action((0,), -1)) # Toggle on root
+    parents, actions = env.get_parents()
+    assert len(parents) == 1
+    assert parents[0]["_active"] == -1
+    assert 0 not in parents[0]
+    assert actions[0] == env._pad_action((0,), -1)
+
+@parametrize_envs
+def test__get_parents__stepping_from_parent_reaches_child(envs, request):
+    """For each parent, stepping forward with the action should produce the state."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    state_saved = copy(env.state)
+    parents, actions = env.get_parents(state_saved)
+    for parent, action in zip(parents, actions):
+        env_copy = env.copy()
+        env_copy.set_state(copy(parent), done=False)
+        state_next, _, valid = env_copy.step(action)
+        assert valid
+        # The states should match
+        assert state_next["_active"] == state_saved["_active"]
+        assert state_next["_dones"] == state_saved["_dones"]
+        assert state_next["_envs_unique"] == state_saved["_envs_unique"]
+
+# ===========================================================================
+# Forward trajectory tests (full cycle)
+# ===========================================================================
+
+@parametrize_envs
+def test__full_trajectory__root_only(envs, request):
+    """Build root, EOS: single-node tree."""
+    env = request.getfixturevalue(envs)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    state, _, valid = env.step(env.eos)
+    assert valid and env.done
+    assert env._node_is_done(0, state)
+    # Backward to source
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+    assert env.is_source()
+
+def test__full_trajectory__full_depth2_tree(env_tree_depth2):
+    """Build all 3 nodes (root + 2 children), EOS, then backward to source."""
+    env = env_tree_depth2
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    _build_node_with_dtnode_subenv(env, 2, 3, 0.7)
+    _, _, valid = env.step(env.eos)
+    assert valid and env.done
+    # Full backward
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+    assert env.is_source()
+
+
+def test__full_trajectory__partial_tree(env_tree_depth2):
+    """Build root + only left child (partial tree), EOS, backward to source."""
+    env = env_tree_depth2
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
+    _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
+    _, _, valid = env.step(env.eos)
+    assert valid and env.done
+    # Full backward
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+    assert env.is_source()
+
+
+# ===========================================================================
+# Random trajectory tests
+# ===========================================================================
+
+
+@pytest.mark.repeat(10)
+@parametrize_envs
+def test__step_random__does_not_crash_from_source(envs, request):
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.step_random()
+
+
+@pytest.mark.repeat(10)
+@parametrize_envs
+def test__trajectory_random__reaches_done(envs, request):
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    assert env.done
+    assert env._is_idle(env.state)
+    assert env._node_is_done(0, env.state)
+
+
+@pytest.mark.repeat(5)
+@parametrize_envs
+def test__trajectory_random__forward_then_backward_reaches_source(envs, request):
+    """Forward random trajectory followed by greedy backward should reach source."""
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    assert env.done
+    # Backward
+    step_count = 0
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            assert len(va) > 0, (
+                f"No backward actions at step {step_count}, "
+                f"active={env.state['_active']}, dones={env.state['_dones']}"
+            )
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+        step_count += 1
+        assert step_count <= env.max_traj_length + 1
+    assert env.is_source()
+
+# ===========================================================================
 # Common base tests from common.py
 # ===========================================================================
 
