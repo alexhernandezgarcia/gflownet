@@ -46,6 +46,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
+from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.utils.common import copy, tfloat
 
 
@@ -63,7 +64,7 @@ class Tree(CompositeBase):
     max_depth : int
         Maximum depth of the tree. Nodes at depth ``max_depth - 1`` are the
         deepest that can split.
-    node_env : GFlowNetEnv
+    node_env : DecisionTreeNode
         Template (unique) environment used for each tree node.
     max_nodes : int
         Maximum number of internal nodes: ``2^max_depth - 1``.
@@ -71,8 +72,8 @@ class Tree(CompositeBase):
 
     def __init__(
         self,
-        max_depth: int,
-        node_env: GFlowNetEnv,
+        max_depth: int = 3,
+        node_kwargs: dict = None,
         **kwargs,
     ):
         """
@@ -80,9 +81,9 @@ class Tree(CompositeBase):
         ----------
         max_depth : int
             Maximum depth of the decision tree. Internal nodes exist at depths
-            0 through ``max_depth - 1``.
-        node_env : GFlowNetEnv
-            Template environment for each tree node (e.g., DecisionTreeNode).
+            0 through ``max_depth - 1``. By default: 3.
+        node_kwargs : dict
+            Optional arguments for the DecisionTreeNode sub-environments.
         """
         if max_depth < 1 or not isinstance(max_depth, int):
             warnings.warn(
@@ -93,7 +94,7 @@ class Tree(CompositeBase):
             )
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
-        self.node_env = node_env
+        self.node_env = DecisionTreeNode(**node_kwargs)
         self.subenvs = None  # Dynamic; nodes are created on demand
 
         # Max internal nodes: levels 0 to max_depth - 1
