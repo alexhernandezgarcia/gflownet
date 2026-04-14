@@ -10,11 +10,13 @@ from gflownet.envs.tree.tree import Tree
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def env_tree_depth1():
     features = ["feat_a", "feat_b", "feat_c"]
     decision_tree_node = DecisionTreeNode(features=features)
     return Tree(max_depth=1, node_env=decision_tree_node)
+
 
 @pytest.fixture
 def env_tree_depth2():
@@ -22,17 +24,20 @@ def env_tree_depth2():
     decision_tree_node = DecisionTreeNode(features=features)
     return Tree(max_depth=2, node_env=decision_tree_node)
 
+
 @pytest.fixture
 def env_tree_depth3():
     features = ["feat_a", "feat_b", "feat_c"]
     decision_tree_node = DecisionTreeNode(features=features)
     return Tree(max_depth=3, node_env=decision_tree_node)
 
+
 @pytest.fixture
 def env_tree_depth10():
     features = ["feat_a", "feat_b", "feat_c", "feat_d", "feat_e", "feat_f", "feat_g"]
     decision_tree_node = DecisionTreeNode(features=features)
     return Tree(max_depth=10, node_env=decision_tree_node)
+
 
 # ===========================================================================
 # Initialization tests
@@ -57,10 +62,12 @@ parametrize_envs_bigger_than_depth_1 = pytest.mark.parametrize(
     ],
 )
 
+
 @parametrize_envs
 def test__environment__initializes_properly(envs, request):
     env = request.getfixturevalue(envs)
     assert True
+
 
 def test__environment__raises_on_depth0():
     features = ["feat_a", "feat_b", "feat_c"]
@@ -68,10 +75,12 @@ def test__environment__raises_on_depth0():
     with pytest.raises(ValueError, match="max_depth >= 1"):
         Tree(max_depth=0, node_env=decision_tree_node)
 
+
 @parametrize_envs
 def test__environment__is_continous(envs, request):
     env = request.getfixturevalue(envs)
     assert env.continuous is True
+
 
 @pytest.mark.parametrize(
     "envs, max_depth, max_nodes",
@@ -88,9 +97,11 @@ def test__max_nodes__is_correct(envs, max_depth, max_nodes, request):
     assert env.max_nodes == max_nodes
     assert env.max_elements == max_nodes
 
+
 # ---------------------------------------------------------------------------
 # Helper to build a node via a sequence of forward steps
 # ---------------------------------------------------------------------------
+
 
 # TODO: Tests that are based on this function, only work if tree is used with the initial node.py subenv
 def _build_node_with_dtnode_subenv(tree, node_idx, feature_idx, threshold_val):
@@ -120,9 +131,9 @@ def _build_node_with_dtnode_subenv(tree, node_idx, feature_idx, threshold_val):
     assert v, f"Failed Choice EOS for node {node_idx}"
     # Set threshold in a series of steps
     # action[-1]==1 means "initialize from source"; only valid for the first step
-    s, _, v = tree.step((0, 1, 2*threshold_val/5, 1))
-    s, _, v = tree.step((0, 1, 2*threshold_val/5, 0))
-    s, _, v = tree.step((0, 1, threshold_val/5, 0))
+    s, _, v = tree.step((0, 1, 2 * threshold_val / 5, 1))
+    s, _, v = tree.step((0, 1, 2 * threshold_val / 5, 0))
+    s, _, v = tree.step((0, 1, threshold_val / 5, 0))
     assert v, f"Failed to set threshold for node {node_idx}"
     # ContinuousCube EOS
     s, _, v = tree.step((0, 1, float("inf"), float("inf")))
@@ -220,6 +231,7 @@ def test__is_source__returns_true_after_reset(envs, request):
     env.reset()
     assert env.is_source()
 
+
 # ===========================================================================
 # Tree structure helper tests
 # ===========================================================================
@@ -255,6 +267,7 @@ def test__get_expandable_leaves__source_returns_only_root(envs, request):
     env = request.getfixturevalue(envs)
     assert env._get_expandable_leaves(env.state) == [0]
 
+
 @parametrize_envs_bigger_than_depth_1
 def test__get_expandable_leaves__after_root_built(envs, request):
     env = request.getfixturevalue(envs)
@@ -273,6 +286,7 @@ def test__get_expandable_leaves__fully_built_tree(env_tree_depth1, env_tree_dept
     _build_node_with_dtnode_subenv(env, 2, 3, 0.7)
     # No more expandable leaves (depth 2 children are at indices 3-6, because max_nodes=3)
     assert env._get_expandable_leaves(env.state) == []
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__get_leaf_done_nodes__correctly_identifies_leaves(envs, request):
@@ -295,6 +309,7 @@ def test__get_leaf_done_nodes__correctly_identifies_leaves(envs, request):
     # Both nodes 1 and 2 are leaf done nodes; root is not
     assert env._get_leaf_done_nodes(env.state) == [1, 2]
 
+
 # ===========================================================================
 # Action space tests
 # ===========================================================================
@@ -316,12 +331,14 @@ def test__action_space__contains_toggle_eos_and_node_actions(envs, request):
     for a in env.node_env.action_space:
         assert env._pad_action(a, 0) in action_space
 
+
 @parametrize_envs
 def test__action_space__size(envs, request):
     env = request.getfixturevalue(envs)
     # Total count: max_nodes toggles + 1 EOS + node_env actions
     assert len(env.action_space) == env.max_nodes + 1 + len(env.node_env.action_space)
     assert len(env.action_space) - len(env.node_env.action_space) == 2**env.max_depth
+
 
 # ===========================================================================
 # Pad / depad action tests
@@ -347,6 +364,7 @@ def test__pad_depad_action__meta_actions(
     assert env._pad_action(only_action, idx_unique) == meta_action
     assert env._depad_action(meta_action, idx_unique) == only_action
 
+
 @pytest.mark.parametrize(
     "action_on_tree, action_subenv, idx_unique",
     [
@@ -366,6 +384,7 @@ def test__pad_depad_action__subenv_actions(
     assert env._pad_action(action_subenv, idx_unique) == action_on_tree
     assert env._depad_action(action_on_tree, idx_unique) == action_subenv
 
+
 @parametrize_envs
 def test__pad_depad_action__consistent_for_random_actions(envs, request):
     env = request.getfixturevalue(envs)
@@ -375,15 +394,18 @@ def test__pad_depad_action__consistent_for_random_actions(envs, request):
             continue
         assert action == env._pad_action(env._depad_action(action), action[0])
 
+
 # ===========================================================================
 # Forward mask tests
 # ===========================================================================
+
 
 @parametrize_envs
 def test__mask_dim__is_correct(envs, request):
     env = request.getfixturevalue(envs)
     expected = env.max_nodes + 1 + env.node_env.mask_dim
     assert env.mask_dim == expected
+
 
 @parametrize_envs
 def test__forward_mask__source_only_toggle_root_valid(envs, request):
@@ -397,6 +419,7 @@ def test__forward_mask__source_only_toggle_root_valid(envs, request):
     assert mask == [False] + [True] * (env.mask_dim - 1)
     # EOS invalid (no done nodes)
     assert env.eos not in valid
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__forward_mask__idle_after_root_done(envs, request):
@@ -413,8 +436,14 @@ def test__forward_mask__idle_after_root_done(envs, request):
     toggle_0 = env._pad_action((0,), -1)
     assert toggle_0 not in valid
     mask = env.get_mask_invalid_actions_forward()
-    expected_mask = [True, False, False] + [True] * (env.mask_dim - 4 - env.node_env.mask_dim) + [False] + [True] * (env.node_env.mask_dim)
+    expected_mask = (
+        [True, False, False]
+        + [True] * (env.mask_dim - 4 - env.node_env.mask_dim)
+        + [False]
+        + [True] * (env.node_env.mask_dim)
+    )
     assert mask == expected_mask
+
 
 @parametrize_envs
 def test__forward_mask__building_mode_delegates_to_node_env(envs, request):
@@ -424,16 +453,17 @@ def test__forward_mask__building_mode_delegates_to_node_env(envs, request):
     env.step(env._pad_action((0,), -1))
     mask = env.get_mask_invalid_actions_forward()
     # All meta actions should be masked out, so True
-    assert all(mask[:env.n_meta_actions])
+    assert all(mask[: env.n_meta_actions])
     # Node section should equal node_env's own mask for the active substate
     active = env.state["_active"]
     substate = env.state[active]
     expected_node_mask = env.node_env.get_mask_invalid_actions_forward(substate, False)
-    assert mask[env.n_meta_actions:] == expected_node_mask
+    assert mask[env.n_meta_actions :] == expected_node_mask
     # Valid actions should be node env actions
     valid = env.get_valid_actions()
     for a in valid:
         assert env._depad_action(a) in env.node_env.action_space
+
 
 @parametrize_envs
 def test__forward_mask__node_done_only_deactivation_valid(envs, request):
@@ -452,6 +482,7 @@ def test__forward_mask__node_done_only_deactivation_valid(envs, request):
     assert len(valid) == 1
     assert valid[0] == env._pad_action((0,), -1)  # Deactivation toggle
 
+
 @parametrize_envs
 def test__forward_mask__done_state_all_invalid(envs, request):
     """When the tree is done, all actions are invalid."""
@@ -460,6 +491,7 @@ def test__forward_mask__done_state_all_invalid(envs, request):
     assert env.done
     mask = env.get_mask_invalid_actions_forward()
     assert all(mask)
+
 
 @parametrize_envs
 def test__forward_mask__building_in_progress_delegates_to_node_env(envs, request):
@@ -476,11 +508,11 @@ def test__forward_mask__building_in_progress_delegates_to_node_env(envs, request
 
     mask = env.get_mask_invalid_actions_forward()
     # All meta actions invalid (because in building mode)
-    assert all(mask[:env.n_meta_actions])
+    assert all(mask[: env.n_meta_actions])
     # Node section should match node_env forward mask for the substate
     substate = env.state[0]
     expected = env.node_env.get_mask_invalid_actions_forward(substate, False)
-    assert mask[env.n_meta_actions:] == expected
+    assert mask[env.n_meta_actions :] == expected
     # Valid forward actions should be node_env actions (when depadded)
     valid = env.get_valid_actions()
     assert len(valid) > 0
@@ -492,6 +524,7 @@ def test__forward_mask__building_in_progress_delegates_to_node_env(envs, request
 # Backward mask tests
 # ===========================================================================
 
+
 @parametrize_envs
 def test__backward_mask__done_only_eos_valid(envs, request):
     """From done, only the EOS backward action is valid."""
@@ -502,6 +535,7 @@ def test__backward_mask__done_only_eos_valid(envs, request):
     assert len(valid) == 1
     assert valid[0] == env.eos
 
+
 @parametrize_envs
 def test__backward_mask__source_no_valid_actions(envs, request):
     """At source, no backward actions are valid."""
@@ -509,6 +543,7 @@ def test__backward_mask__source_no_valid_actions(envs, request):
     mask = env.get_mask_invalid_actions_backward()
     assert all(mask)
     assert env.get_valid_actions(backward=True) == []
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__backward_mask__idle_can_reactivate_leaf_done_nodes(envs, request):
@@ -524,6 +559,7 @@ def test__backward_mask__idle_can_reactivate_leaf_done_nodes(envs, request):
     assert toggle_1 in valid
     assert toggle_0 not in valid  # Node 0 has child 1
 
+
 @parametrize_envs
 def test__backward_mask__building_node_at_source_toggle_valid(envs, request):
     """When building a node that is still at source, backward = undo activation."""
@@ -534,6 +570,7 @@ def test__backward_mask__building_node_at_source_toggle_valid(envs, request):
     valid = env.get_valid_actions(backward=True)
     assert len(valid) == 1
     assert valid[0] == env._pad_action((0,), -1)  # Undo activation
+
 
 @parametrize_envs
 def test__backward_mask__building_in_progress_delegates_to_node_env(envs, request):
@@ -550,20 +587,22 @@ def test__backward_mask__building_in_progress_delegates_to_node_env(envs, reques
 
     mask = env.get_mask_invalid_actions_backward()
     # All meta actions invalid (we're in building mode)
-    assert all(mask[:env.n_meta_actions])
+    assert all(mask[: env.n_meta_actions])
     # Node section should match node_env backward mask for the substate
     substate = env.state[0]
     expected = env.node_env.get_mask_invalid_actions_backward(substate, False)
-    assert mask[env.n_meta_actions:] == expected
+    assert mask[env.n_meta_actions :] == expected
     # Valid backward actions should be node_env actions (when depadded)
     valid = env.get_valid_actions(backward=True)
     assert len(valid) > 0
     for a in valid:
         assert env._depad_action(a) in env.node_env.action_space
 
+
 # ===========================================================================
 # Forward step tests
 # ===========================================================================
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__step__activate_node_creates_substate(envs, request):
@@ -576,22 +615,24 @@ def test__step__activate_node_creates_substate(envs, request):
     assert 0 in state
     assert env.node_env.is_source(state[0])
 
+
 @parametrize_envs_bigger_than_depth_1
 def test__step__deactivate_node_goes_idle(envs, request):
     """Deactivating a done node sets active to -1."""
     env = request.getfixturevalue(envs)
     # Build and complete node 0 (without deactivation)
-    env.step(env._pad_action((0,), -1)) # Toggle
-    env.step((0, 0, 1, 0)) # Choice
-    env.step((0, 0, -1, 0)) # EOS choice
-    env.step((0, 1, 0.5, 1)) # Set threshold
-    env.step((0, 1, float("inf"), float("inf"))) # EOS node env
+    env.step(env._pad_action((0,), -1))  # Toggle
+    env.step((0, 0, 1, 0))  # Choice
+    env.step((0, 0, -1, 0))  # EOS choice
+    env.step((0, 1, 0.5, 1))  # Set threshold
+    env.step((0, 1, float("inf"), float("inf")))  # EOS node env
     assert env.state["_active"] == 0
     assert env._node_is_done(0, env.state)
     # Deactivate
     state, _, valid = env.step(env._pad_action((0,), -1))
     assert valid
     assert state["_active"] == -1
+
 
 @parametrize_envs
 def test__step__eos_sets_done(envs, request):
@@ -602,6 +643,7 @@ def test__step__eos_sets_done(envs, request):
     assert valid
     assert env.done
 
+
 @parametrize_envs
 def test__step__eos_invalid_without_root_done(envs, request):
     """EOS should be invalid if the root is not done."""
@@ -610,6 +652,7 @@ def test__step__eos_invalid_without_root_done(envs, request):
     assert not valid
     assert not env.done
 
+
 @parametrize_envs
 def test__step__eos_invalid_when_not_idle(envs, request):
     """EOS should be invalid when a node is active."""
@@ -617,6 +660,7 @@ def test__step__eos_invalid_when_not_idle(envs, request):
     env.step(env._pad_action((0,), -1))  # Activate root
     _, _, valid = env.step(env.eos)
     assert not valid
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__step__invalid_toggle_target(envs, request):
@@ -629,17 +673,19 @@ def test__step__invalid_toggle_target(envs, request):
     _, _, valid = env.step(env._pad_action((2,), -1))
     assert not valid
 
+
 @parametrize_envs
 def test__step__node_env_action_sets_done_flag(envs, request):
     """When the node env reaches done via an action, _dones flag is updated."""
     env = request.getfixturevalue(envs)
-    env.step(env._pad_action((0,), -1)) # Toggle on root
-    env.step((0, 0, 1, 0)) # Choice
-    env.step((0, 0, -1, 0)) # EOS choice
-    env.step((0, 1, 0.5, 1)) # Set threshold
+    env.step(env._pad_action((0,), -1))  # Toggle on root
+    env.step((0, 0, 1, 0))  # Choice
+    env.step((0, 0, -1, 0))  # EOS choice
+    env.step((0, 1, 0.5, 1))  # Set threshold
     assert env.state["_dones"][0] == 0
-    env.step((0, 1, float("inf"), float("inf"))) # EOS node env
+    env.step((0, 1, float("inf"), float("inf")))  # EOS node env
     assert env.state["_dones"][0] == 1
+
 
 @parametrize_envs
 def test__step__node_env_action_invalid_when_idle(envs, request):
@@ -653,6 +699,7 @@ def test__step__node_env_action_invalid_when_idle(envs, request):
     assert not valid
     _, _, valid = env.step((0, 1, float("inf"), float("inf")))
     assert not valid
+
 
 @parametrize_envs
 def test__step__returns_false_when_done(envs, request):
@@ -668,6 +715,7 @@ def test__step__returns_false_when_done(envs, request):
 # Backward step tests
 # ===========================================================================
 
+
 @parametrize_envs
 def test__step_backwards__eos_backward(envs, request):
     """Backward EOS un-terminates the tree."""
@@ -680,6 +728,7 @@ def test__step_backwards__eos_backward(envs, request):
     assert not env.done
     assert env._is_idle(state)
 
+
 @parametrize_envs
 def test__step_backwards__reactivate_done_node(envs, request):
     """Backward toggle on idle reactivates a leaf done node."""
@@ -691,15 +740,17 @@ def test__step_backwards__reactivate_done_node(envs, request):
     assert state["_active"] == 0
     assert env._node_is_done(0, state)
 
+
 @parametrize_envs_bigger_than_depth_1
 def test__step_backwards__reactivate_blocked_for_non_leaf_done(envs, request):
     """Cannot reactivate a done node that has children."""
     env = request.getfixturevalue(envs)
     _build_node_with_dtnode_subenv(env, 0, 1, 0.5)
     _build_node_with_dtnode_subenv(env, 1, 2, 0.3)
-    toggle_0 = env._pad_action((0,), -1) # Try to reactivate root
+    toggle_0 = env._pad_action((0,), -1)  # Try to reactivate root
     _, _, valid = env.step_backwards(toggle_0)
     assert not valid
+
 
 @parametrize_envs
 def test__step_backwards__remove_node_at_source(envs, request):
@@ -714,6 +765,7 @@ def test__step_backwards__remove_node_at_source(envs, request):
     assert state["_active"] == -1
     assert env.is_source()
 
+
 @parametrize_envs_bigger_than_depth_1
 def test__step_backwards__remove_node_in_tree(envs, request):
     """Backward toggle on an active node removes it."""
@@ -724,6 +776,7 @@ def test__step_backwards__remove_node_in_tree(envs, request):
     assert 2 in env.state
     env.step_backwards(env._pad_action((1,), -1))  # Activate node 1
     env.step_baclwards
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__step_backwards__remove_node_in_tree(envs, request):
@@ -745,6 +798,7 @@ def test__step_backwards__remove_node_in_tree(envs, request):
     assert 0 not in env.state
     assert env.is_source()
 
+
 @parametrize_envs
 def test__step_backwards__node_env_eos_clears_done(envs, request):
     """Backward of node env EOS clears the done flag."""
@@ -754,11 +808,10 @@ def test__step_backwards__node_env_eos_clears_done(envs, request):
     env.step_backwards(env._pad_action((0,), -1))
     assert env._node_is_done(0, env.state)
     # Backward step of Cube EOS
-    state, _, valid = env.step_backwards(
-        (0, 1, float("inf"), float("inf"))
-    )
+    state, _, valid = env.step_backwards((0, 1, float("inf"), float("inf")))
     assert valid
     assert not env._node_is_done(0, state)
+
 
 @parametrize_envs
 def test__step_backwards__eos_invalid_when_not_done(envs, request):
@@ -769,9 +822,11 @@ def test__step_backwards__eos_invalid_when_not_done(envs, request):
     _, _, valid = env.step_backwards(env.eos)
     assert not valid
 
+
 # ===========================================================================
 # get_parents tests
 # ===========================================================================
+
 
 @parametrize_envs
 def test__get_parents__source_has_no_parents(envs, request):
@@ -780,6 +835,7 @@ def test__get_parents__source_has_no_parents(envs, request):
     parents, actions = env.get_parents()
     assert len(parents) == 0
     assert len(actions) == 0
+
 
 @parametrize_envs
 def test__get_parents__done_returns_self_and_eos(envs, request):
@@ -790,6 +846,7 @@ def test__get_parents__done_returns_self_and_eos(envs, request):
     parents, actions = env.get_parents()
     assert len(parents) == 1
     assert actions[0] == env.eos
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__get_parents__idle_with_done_nodes(envs, request):
@@ -805,16 +862,18 @@ def test__get_parents__idle_with_done_nodes(envs, request):
     parent_actives = {p["_active"] for p in parents}
     assert parent_actives == {1, 2}
 
+
 @parametrize_envs
 def test__get_parents__node_at_source(envs, request):
     """When building a node at source, the parent is the idle state without the node."""
     env = request.getfixturevalue(envs)
-    env.step(env._pad_action((0,), -1)) # Toggle on root
+    env.step(env._pad_action((0,), -1))  # Toggle on root
     parents, actions = env.get_parents()
     assert len(parents) == 1
     assert parents[0]["_active"] == -1
     assert 0 not in parents[0]
     assert actions[0] == env._pad_action((0,), -1)
+
 
 @parametrize_envs
 def test__get_parents__stepping_from_parent_reaches_child(envs, request):
@@ -833,9 +892,11 @@ def test__get_parents__stepping_from_parent_reaches_child(envs, request):
         assert state_next["_dones"] == state_saved["_dones"]
         assert state_next["_envs_unique"] == state_saved["_envs_unique"]
 
+
 # ===========================================================================
-# Forward trajectory tests (full cycle)
+# Determined trajectory tests
 # ===========================================================================
+
 
 @parametrize_envs
 def test__full_trajectory__root_only(envs, request):
@@ -855,6 +916,7 @@ def test__full_trajectory__root_only(envs, request):
         _, _, v = env.step_backwards(a)
         assert v
     assert env.is_source()
+
 
 def test__full_trajectory__full_depth2_tree(env_tree_depth2):
     """Build all 3 nodes (root + 2 children), EOS, then backward to source."""
@@ -945,9 +1007,11 @@ def test__trajectory_random__forward_then_backward_reaches_source(envs, request)
         assert step_count <= env.max_traj_length + 1
     assert env.is_source()
 
+
 # ===========================================================================
 # Common base tests from common.py
 # ===========================================================================
+
 
 class TestTreeDepth1(common.BaseTestsContinuous):
     """Common tests for Tree with depth 1."""
@@ -983,6 +1047,7 @@ class TestTreeDepth1(common.BaseTestsContinuous):
             "test__gflownet_minimal_runs": 10,
         }
 
+
 class TestTreeDepth2(common.BaseTestsContinuous):
     """Common tests for Tree with depth 2."""
 
@@ -1017,6 +1082,7 @@ class TestTreeDepth2(common.BaseTestsContinuous):
             "test__gflownet_minimal_runs": 10,
         }
 
+
 class TestTreeDepth3(common.BaseTestsContinuous):
     """Common tests for Tree with depth 3."""
 
@@ -1050,6 +1116,7 @@ class TestTreeDepth3(common.BaseTestsContinuous):
             "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
             "test__gflownet_minimal_runs": 10,
         }
+
 
 # class TestTreeDepth10(common.BaseTestsContinuous):
 #     """Common tests for Tree with depth 10."""
