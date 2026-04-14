@@ -423,7 +423,9 @@ class Tree(CompositeBase):
             Mask of length ``n_meta_actions`` (toggles + EOS). True = invalid action.
         """
         if len(meta_mask) != self.n_meta_actions:
-            raise ValueError(f"Size of meta masked passed is {len(meta_mask)} but expected {self.n_meta_actions}")
+            raise ValueError(
+                f"Size of meta masked passed is {len(meta_mask)} but expected {self.n_meta_actions}"
+            )
         node_section = [True] * self.node_env.mask_dim
         return meta_mask + node_section
 
@@ -439,7 +441,9 @@ class Tree(CompositeBase):
             Node env mask. True = invalid.
         """
         if len(node_mask) != self.node_env.mask_dim:
-            raise ValueError(f"Size of node masked passed is {len(node_mask)} but expected {self.node_env.mask_dim}")
+            raise ValueError(
+                f"Size of node masked passed is {len(node_mask)} but expected {self.node_env.mask_dim}"
+            )
         meta_section = [True] * self.n_meta_actions
         return meta_section + node_mask
 
@@ -451,8 +455,8 @@ class Tree(CompositeBase):
         the mask is in meta mode (or all-invalid for done/source states).
         """
         if isinstance(mask, list):
-            return all(mask[self.n_meta_actions:])
-        return mask[self.n_meta_actions:].all().item()
+            return all(mask[self.n_meta_actions :])
+        return mask[self.n_meta_actions :].all().item()
 
     def _unformat_mask_building(
         self,
@@ -460,8 +464,8 @@ class Tree(CompositeBase):
     ):
         """Extracts the node env mask (node section) from a flat mask."""
         if isinstance(mask, list):
-            return mask[self.n_meta_actions:]
-        return mask[:, self.n_meta_actions:]
+            return mask[self.n_meta_actions :]
+        return mask[:, self.n_meta_actions :]
 
     def _unformat_mask_meta(
         self,
@@ -469,8 +473,8 @@ class Tree(CompositeBase):
     ):
         """Extracts the meta-action mask (meta section) from a flat mask."""
         if isinstance(mask, list):
-            return mask[:self.n_meta_actions]
-        return mask[:, :self.n_meta_actions]
+            return mask[: self.n_meta_actions]
+        return mask[:, : self.n_meta_actions]
 
     # =========================================================================
     # Forward mask
