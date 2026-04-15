@@ -1,0 +1,100 @@
+# @package _global_
+
+defaults:
+  - override /env: tree/tree
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
+
+device: cpu
+
+# Environment
+env:
+  max_depth: 3
+  node_kwargs:
+    features: 
+      - "feature_a"
+      - "feature_b"
+      - "feature_c"
+    cube_kwargs:
+      n_comp: 3
+      beta_params_min: 1.0
+      beta_params_max: 100.0
+      min_incr: 0.1
+      fixed_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+      random_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+
+# Buffer
+buffer:
+  replay_capacity: 0
+  train: null
+  test: null
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay: 0
+      backward_dataset: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 50000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
+  replay_sampling: weighted
+  train_sampling: permutation
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  checkpoints_period: 5000
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
+# WandB
+logger:
+  lightweight: True
+  run_name: "seagull"
+  project_name: "tree"
+  tags:
+    - gflownet
+    - tree
+    - uniform
+  do:
+    online: False
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
