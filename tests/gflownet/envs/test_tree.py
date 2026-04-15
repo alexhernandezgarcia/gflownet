@@ -2,6 +2,7 @@ from copy import copy
 
 import common
 import pytest
+import torch
 
 from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.envs.tree.tree import Tree
@@ -598,6 +599,80 @@ def test__backward_mask__building_in_progress_delegates_to_node_env(envs, reques
     for a in valid:
         assert env._depad_action(a) in env.node_env.action_space
 
+# ===========================================================================
+# get_mask is consistent when called with state argument vs self.state
+# ===========================================================================
+
+@pytest.mark.repeat(5)
+@parametrize_envs
+def test__get_mask__is_consistent_regardless_of_inputs(envs, request):
+    """
+    Mask computed with state passed as explicit arg should equal mask from self.state.
+    Tests both forward and backward masks.
+    """
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    # Sample a few backward steps to get to an intermediate state
+    if env.done:
+        env.step_backwards(env.eos)
+    for _ in range(3):
+        va = env.get_valid_actions(backward=True)
+        if va:
+            env.step_backwards(va[0])
+
+    state = copy(env.state)
+    done = env.done
+
+    mask_f_self = env.get_mask_invalid_actions_forward()
+    mask_f_arg = env.get_mask_invalid_actions_forward(state, done)
+    assert mask_f_self == mask_f_arg
+
+    mask_b_self = env.get_mask_invalid_actions_backward()
+    mask_b_arg = env.get_mask_invalid_actions_backward(state, done)
+    assert mask_b_self == mask_b_arg
+
+
+# ===========================================================================
+# get_valid_actions is consistent regardless of inputs
+# ===========================================================================
+
+@pytest.mark.repeat(5)
+@parametrize_envs
+def test__get_valid_actions__is_consistent_regardless_of_inputs(envs, request):
+    """
+    get_valid_actions should return the same result whether called with a
+    precomputed mask or without it.
+    """
+    env = request.getfixturevalue(envs)
+    env.reset()
+    # Do a random forward trajectory, then some backward steps
+    env.trajectory_random()
+    if env.done:
+        env.step_backwards(env.eos)
+    for _ in range(3):
+        va = env.get_valid_actions(backward=True)
+        if not va:
+            break
+        env.step_backwards(va[0])
+
+    state = copy(env.state)
+    done = env.done
+
+    # Forward
+    mask_f = env.get_mask_invalid_actions_forward(state, done)
+    valid_f_mask = env.get_valid_actions(mask=mask_f, state=state, done=done)
+    valid_f_none = env.get_valid_actions(state=state, done=done)
+    assert valid_f_mask == valid_f_none
+
+    # Backward
+    mask_b = env.get_mask_invalid_actions_backward(state, done)
+    valid_b_mask = env.get_valid_actions(
+        mask=mask_b, state=state, done=done, backward=True
+    )
+    valid_b_none = env.get_valid_actions(state=state, done=done, backward=True)
+    assert valid_b_mask == valid_b_none
+
 
 # ===========================================================================
 # Forward step tests
@@ -1007,6 +1082,140 @@ def test__trajectory_random__forward_then_backward_reaches_source(envs, request)
         assert step_count <= env.max_traj_length + 1
     assert env.is_source()
 
+# ===========================================================================
+# set_state test
+# ===========================================================================
+
+@parametrize_envs
+def test__set_state__sets_expected_state(envs, request):
+    """set_state should correctly set the state."""
+    env = request.getfixturevalue(envs)
+    selected_feature, selected_threshold = 1, 0.95
+    _build_node_with_dtnode_subenv(env, 0, selected_feature, selected_threshold)
+    state_after_root = copy(env.state)
+
+    env.reset()
+    assert env.is_source()
+
+    env.set_state(state_after_root, done=False)
+    assert env.state["_active"] == state_after_root["_active"]
+    assert env.state["_dones"] == state_after_root["_dones"]
+    assert env.state[0] == {'_active': 1, 0: [selected_feature], 1: [selected_threshold]}
+    assert env._node_is_done(0, env.state)
+
+
+# ===========================================================================
+# states2policy test
+# ===========================================================================
+
+
+@parametrize_envs
+def test__states2policy__returns_correct_shape(envs, request):
+    env = request.getfixturevalue(envs)
+    node_pdim = env.node_env.policy_input_dim
+    per_node_dim = 3 + node_pdim
+    expected_dim = 1 + env.max_nodes * per_node_dim
+
+    # Source state
+    result = env.states2policy([env.state])
+    assert result.shape == (1, expected_dim)
+    # Idle flag should be 1.0 at source
+    assert result[0, 0].item() == 1.0
+
+@parametrize_envs_bigger_than_depth_1
+def test__states2policy__batch_of_different_states(envs, request):
+    """Policy encoding of a batch with source and an intermediate state."""
+    env = request.getfixturevalue(envs)
+    source_state = copy(env.state)
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.2)
+    intermediate_state = copy(env.state)
+
+    result = env.states2policy([source_state, intermediate_state])
+    assert result.shape[0] == 2
+
+    # Source: idle=1, no nodes exist
+    assert result[0, 0].item() == 1.0
+    node_source_policy = env.node_env.states2policy([env.node_env.source])[0]
+    empty_node_block = torch.cat([torch.zeros(3), node_source_policy])
+    expected_source = torch.cat(
+        [torch.tensor([1.0])] + [empty_node_block] * env.max_nodes
+    )
+    assert torch.equal(result[0, :], expected_source)
+
+    # Intermediate: idle=1 (after deactivation), node 0 exists and is done
+    assert result[1, 0].item() == 1.0
+    node_pdim = env.node_env.policy_input_dim
+    per_node_dim = 3 + node_pdim
+    # Node 0: exists=1, done=1, active=0 (since idle)
+    offset = 1
+    assert result[1, offset].item() == 1.0      # exists
+    assert result[1, offset + 1].item() == 1.0  # done
+    assert result[1, offset + 2].item() == 0.0  # not active
+
+    # Full tensor comparison
+    node_0_policy = env.node_env.states2policy([intermediate_state[0]])[0]
+    node_0_block = torch.cat([torch.tensor([1.0, 1.0, 0.0]), node_0_policy])
+    expected_intermediate = torch.cat(
+        [torch.tensor([1.0]), node_0_block]
+        + [empty_node_block] * (env.max_nodes - 1)
+    )
+    assert torch.equal(result[1, :], expected_intermediate)
+
+# ===========================================================================
+# Mask format and unformat tests
+# ===========================================================================
+
+
+@parametrize_envs
+def test__format_mask_meta__has_correct_structure(envs, request):
+    """Meta mask: meta section (n_meta_actions) followed by all-True node section."""
+    env = request.getfixturevalue(envs)
+    # Arbitrary meta mask of the correct length (alternating True/False)
+    meta_mask_content = [i % 2 == 0 for i in range(env.n_meta_actions)]
+    formatted = env._format_mask_meta(meta_mask_content)
+    assert len(formatted) == env.mask_dim
+    # Meta section equals the input
+    assert formatted[: env.n_meta_actions] == meta_mask_content
+    # Node section is all True (no node actions valid in meta mode)
+    assert all(m is True for m in formatted[env.n_meta_actions :])
+    assert env._is_meta_mask(formatted) is True
+
+
+@parametrize_envs
+def test__format_mask_building__has_correct_structure(envs, request):
+    """Building mask: all-True meta section followed by the node env mask."""
+    env = request.getfixturevalue(envs)
+    node_mask = env.node_env.get_mask_invalid_actions_forward()
+    formatted = env._format_mask_building(node_mask)
+    assert len(formatted) == env.mask_dim
+    # Meta section all True (no meta actions valid in building mode)
+    assert all(m is True for m in formatted[:env.n_meta_actions])
+    # Node section equals the node env mask
+    assert formatted[env.n_meta_actions :] == node_mask
+    assert env._is_meta_mask(formatted) is False
+
+
+@parametrize_envs
+def test__unformat_mask_building__roundtrip(envs, request):
+    """Unformatting a building mask should recover the original node env mask."""
+    env = request.getfixturevalue(envs)
+    original_mask = env.node_env.get_mask_invalid_actions_forward()
+    formatted = env._format_mask_building(original_mask)
+    recovered = env._unformat_mask_building(formatted)
+    assert recovered == original_mask
+
+# ===========================================================================
+# Policy output structure
+# ===========================================================================
+
+@parametrize_envs
+def test__policy_output__has_correct_dim(envs, request):
+    env = request.getfixturevalue(envs)
+    expected_dim = env.node_env.policy_output_dim + env.n_meta_actions
+    assert env.policy_output_dim == expected_dim
+    # Verify with fixed_distr_params (the standard way to call this)
+    po = env.get_policy_output(env.fixed_distr_params)
+    assert len(po) == expected_dim
 
 # ===========================================================================
 # Common base tests from common.py
@@ -1116,38 +1325,3 @@ class TestTreeDepth3(common.BaseTestsContinuous):
             "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
             "test__gflownet_minimal_runs": 10,
         }
-
-
-# class TestTreeDepth10(common.BaseTestsContinuous):
-#     """Common tests for Tree with depth 10."""
-
-#     @pytest.fixture(autouse=True)
-#     def setup(self, env_tree_depth10):
-#         self.env = env_tree_depth10
-#         self.repeats = {
-#             "test__reset__state_is_source": 10,
-#             "test__forward_actions_have_nonzero_backward_prob": 10,
-#             "test__backward_actions_have_nonzero_forward_prob": 10,
-#             "test__trajectories_are_reversible": 10,
-#             "test__step_random__does_not_sample_invalid_actions_forward": 10,
-#             "test__step_random__does_not_sample_invalid_actions_backward": 10,
-#             "test__get_mask__is_consistent_regardless_of_inputs": 10,
-#             "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
-#             "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
-#             "test__get_parents_step_get_mask__are_compatible": 10,
-#             "test__sample_backwards_reaches_source": 10,
-#             "test__state2readable__is_reversible": 20,
-#             "test__gflownet_minimal_runs": 3,
-#         }
-#         self.n_states = {
-#             "test__backward_actions_have_nonzero_forward_prob": 3,
-#             "test__sample_backwards_reaches_source": 3,
-#             "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
-#             "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
-#         }
-#         self.batch_size = {
-#             "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
-#             "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
-#             "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
-#             "test__gflownet_minimal_runs": 10,
-#         }
