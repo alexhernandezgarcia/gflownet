@@ -4,7 +4,6 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.envs.tree.tree import Tree
 
 # ---------------------------------------------------------------------------
@@ -15,29 +14,25 @@ from gflownet.envs.tree.tree import Tree
 @pytest.fixture
 def env_tree_depth1():
     features = ["feat_a", "feat_b", "feat_c"]
-    decision_tree_node = DecisionTreeNode(features=features)
-    return Tree(max_depth=1, node_env=decision_tree_node)
+    return Tree(max_depth=1, node_kwargs={"features": features})
 
 
 @pytest.fixture
 def env_tree_depth2():
     features = ["feat_a", "feat_b", "feat_c"]
-    decision_tree_node = DecisionTreeNode(features=features)
-    return Tree(max_depth=2, node_env=decision_tree_node)
+    return Tree(max_depth=2, node_kwargs={"features": features})
 
 
 @pytest.fixture
 def env_tree_depth3():
     features = ["feat_a", "feat_b", "feat_c"]
-    decision_tree_node = DecisionTreeNode(features=features)
-    return Tree(max_depth=3, node_env=decision_tree_node)
+    return Tree(max_depth=3, node_kwargs={"features": features})
 
 
 @pytest.fixture
 def env_tree_depth10():
     features = ["feat_a", "feat_b", "feat_c", "feat_d", "feat_e", "feat_f", "feat_g"]
-    decision_tree_node = DecisionTreeNode(features=features)
-    return Tree(max_depth=10, node_env=decision_tree_node)
+    return Tree(max_depth=10, node_kwargs={"features": features})
 
 
 # ===========================================================================
@@ -72,9 +67,8 @@ def test__environment__initializes_properly(envs, request):
 
 def test__environment__raises_on_depth0():
     features = ["feat_a", "feat_b", "feat_c"]
-    decision_tree_node = DecisionTreeNode(features=features)
     with pytest.raises(ValueError, match="max_depth >= 1"):
-        Tree(max_depth=0, node_env=decision_tree_node)
+        Tree(max_depth=0, node_kwargs={"features": features})
 
 
 @parametrize_envs
