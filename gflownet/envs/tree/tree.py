@@ -953,7 +953,9 @@ class Tree(CompositeBase):
         # idle_flag + per_node * (exists + done + active + node_policy)
         per_node_dim = 3 + node_pdim
         policy_dim = 1 + self.max_nodes * per_node_dim
-        result = torch.zeros(batch_size, policy_dim, dtype=self.float, device=self.device)
+        result = torch.zeros(
+            batch_size, policy_dim, dtype=self.float, device=self.device
+        )
 
         subenv_policy = self.node_env.state2policy(self.node_env.source)
 
