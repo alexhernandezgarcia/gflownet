@@ -8,6 +8,9 @@ warning).
 If the target config does not exist, it is generated from the consumption
 template at TEMPLATE_PATH, substituting all variable-specific fields.
 
+With random_sigmoid=True the config is saved as plan_fairy_{slug}_rand.yaml
+to distinguish it from the scenario-calibrated version.
+
 Fields managed by this module
 ------------------------------
 buffer.test.path
@@ -15,16 +18,17 @@ env.amount_values_mapping
 proxy.key_region
 proxy.key_year
 proxy.target_variable          (added if absent)
+proxy.random_sigmoid           (added when random_sigmoid=True)
 proxy.reward_function_kwargs.gamma / beta / alpha
 logger.project_name
 logger.run_name
-logger.tags                    (target variable tag replaces "consumption")
+logger.tags                    (target variable tag replaces "consumption";
+                                "_rand" appended to slug tag when random_sigmoid)
 hydra.run.dir
 """
 
 import os
-import re
-import shutil
+import sys
 
 # ---------------------------------------------------------------------------
 # YAML backend: prefer ruamel (comment-preserving), fall back to PyYAML
@@ -59,30 +63,37 @@ def _var_to_slug(target_variable: str) -> str:
     return target_variable.lower().replace("/", "_").replace(" ", "_")
 
 
-def _config_path(target_variable: str) -> str:
+def _config_path(target_variable: str, random_sigmoid: bool = False) -> str:
     slug = _var_to_slug(target_variable)
-    return os.path.join(CONFIG_DIR, f"plan_fairy_{slug}.yaml")
+    suffix = "_rand" if random_sigmoid else ""
+    return os.path.join(CONFIG_DIR, f"plan_fairy_{slug}{suffix}.yaml")
 
 
-def _test_pkl_path(region: str, year: int, target_variable: str) -> str:
+def _test_pkl_path(region: str, year: int, target_variable: str,
+                   random_sigmoid: bool = False) -> str:
     slug = _var_to_slug(target_variable)
-    return f"gflownet/proxy/iam/test_{region}_{year}_{slug}.pkl"
+    suffix = "_rand" if random_sigmoid else ""
+    return f"gflownet/proxy/iam/test_{region}_{year}_{slug}{suffix}.pkl"
 
 
-def _project_name(region: str, year: int, target_variable: str) -> str:
+def _project_name(region: str, year: int, target_variable: str,
+                  random_sigmoid: bool = False) -> str:
     slug = _var_to_slug(target_variable)
-    return f"iameval-{region[:2]}{str(year)[2:]}-{slug}"
+    suffix = "-rand" if random_sigmoid else ""
+    return f"iameval-{region[:2]}{str(year)[2:]}-{slug}{suffix}"
 
 
 def _run_name() -> str:
     return "Plan Fairy TB"
 
 
-def _hydra_dir(region: str, year: int, target_variable: str) -> str:
+def _hydra_dir(region: str, year: int, target_variable: str,
+               random_sigmoid: bool = False) -> str:
     slug = _var_to_slug(target_variable)
+    subdir = f"{slug}_rand" if random_sigmoid else slug
     return (
         "${user.logdir.root}/plan/"
-        + slug
+        + subdir
         + "/sigmoid/"
         + region
         + "/"
@@ -91,9 +102,10 @@ def _hydra_dir(region: str, year: int, target_variable: str) -> str:
     )
 
 
-def _tags(target_variable: str) -> list:
+def _tags(target_variable: str, random_sigmoid: bool = False) -> list:
     slug = _var_to_slug(target_variable)
-    return ["gflownet", "plan", "fairy", "sigmoid", slug]
+    tag = f"{slug}_rand" if random_sigmoid else slug
+    return ["gflownet", "plan", "fairy", "sigmoid", tag]
 
 
 def _amount_list(amounts) -> object:
@@ -109,7 +121,6 @@ def _amount_list(amounts) -> object:
     if isinstance(amounts, dict) and "HIGH" in amounts:
         return [0.0, amounts["HIGH"], amounts["MEDIUM"], amounts["LOW"], amounts["NONE"]]
     else:
-        # Per-tech dict — return as-is for YAML serialisation
         return dict(amounts)
 
 
@@ -142,7 +153,6 @@ def _load_pyyaml(path: str):
 def _save_pyyaml(doc: dict, path: str):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
-        # Emit the @package header manually — PyYAML strips top-level comments
         f.write("# @package _global_\n")
         _pyyaml.dump(doc, f, default_flow_style=False, sort_keys=False)
 
@@ -151,12 +161,12 @@ def _save_pyyaml(doc: dict, path: str):
 # Core: apply tuned values to a loaded config document
 # ---------------------------------------------------------------------------
 
-def _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params):
+def _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params,
+                  random_sigmoid=False):
     """Mutate `doc` in-place with all tuned fields."""
-    slug = _var_to_slug(target_variable)
-
     # buffer.test.path
-    doc["buffer"]["test"]["path"] = _test_pkl_path(region, year, target_variable)
+    doc["buffer"]["test"]["path"] = _test_pkl_path(
+        region, year, target_variable, random_sigmoid)
 
     # env.amount_values_mapping
     doc["env"]["amount_values_mapping"] = _amount_list(amounts)
@@ -165,35 +175,34 @@ def _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params):
     doc["proxy"]["key_region"] = region
     doc["proxy"]["key_year"] = year
     doc["proxy"]["target_variable"] = target_variable
+    doc["proxy"]["random_sigmoid"] = random_sigmoid
     doc["proxy"]["reward_function_kwargs"]["gamma"] = sigmoid_params["gamma"]
     doc["proxy"]["reward_function_kwargs"]["beta"] = sigmoid_params["beta"]
     doc["proxy"]["reward_function_kwargs"]["alpha"] = sigmoid_params["alpha"]
 
     # logger
-    doc["logger"]["project_name"] = _project_name(region, year, target_variable)
+    doc["logger"]["project_name"] = _project_name(
+        region, year, target_variable, random_sigmoid)
     doc["logger"]["run_name"] = _run_name()
-    doc["logger"]["tags"] = _tags(target_variable)
+    doc["logger"]["tags"] = _tags(target_variable, random_sigmoid)
 
     # hydra.run.dir
-    doc["hydra"]["run"]["dir"] = _hydra_dir(region, year, target_variable)
+    doc["hydra"]["run"]["dir"] = _hydra_dir(
+        region, year, target_variable, random_sigmoid)
 
     return doc
 
 
 # ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
 # Skeleton builder — used when no template YAML exists on disk
 # ---------------------------------------------------------------------------
 
-def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
+def _build_skeleton(region, year, target_variable, amounts, sigmoid_params,
+                    random_sigmoid=False):
     """
     Build a minimal config dict matching the structure of the consumption
     template, filled with the provided tuned values.
     """
-    slug = _var_to_slug(target_variable)
     return {
         "defaults": [
             {"override /env": "iam/full_plan"},
@@ -204,7 +213,7 @@ def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
         "buffer": {
             "test": {
                 "type": "pkl",
-                "path": _test_pkl_path(region, year, target_variable),
+                "path": _test_pkl_path(region, year, target_variable, random_sigmoid),
             }
         },
         "env": {
@@ -228,6 +237,7 @@ def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
             "key_region": region,
             "key_year": year,
             "target_variable": target_variable,
+            "random_sigmoid": random_sigmoid,
             "reward_function": "sigmoid",
             "reward_function_kwargs": {
                 "gamma": sigmoid_params["gamma"],
@@ -238,9 +248,9 @@ def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
         "logger": {
             "do": {"online": False},
             "lightweight": True,
-            "project_name": _project_name(region, year, target_variable),
+            "project_name": _project_name(region, year, target_variable, random_sigmoid),
             "run_name": _run_name(),
-            "tags": _tags(target_variable),
+            "tags": _tags(target_variable, random_sigmoid),
         },
         "evaluator": {
             "first_it": False,
@@ -249,10 +259,14 @@ def _build_skeleton(region, year, target_variable, amounts, sigmoid_params):
             "checkpoints_period": 100000,
         },
         "hydra": {
-            "run": {"dir": _hydra_dir(region, year, target_variable)}
+            "run": {"dir": _hydra_dir(region, year, target_variable, random_sigmoid)}
         },
     }
 
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def write_or_update_config(
     region: str,
@@ -262,6 +276,7 @@ def write_or_update_config(
     sigmoid_params: dict,
     template_path: str = TEMPLATE_PATH,
     dry_run: bool = False,
+    random_sigmoid: bool = False,
 ) -> str:
     """
     Create or update the Hydra experiment config for the given parameters.
@@ -271,17 +286,24 @@ def write_or_update_config(
     region : str
     year : int
     target_variable : str
-    amounts : dict   — {"HIGH": float, "MEDIUM": float, "LOW": float, "NONE": float}
-    sigmoid_params : dict — {"gamma": float, "beta": float, "alpha": float}
-    template_path : str  — path to the consumption template (used when target
-                           config does not exist yet)
-    dry_run : bool       — if True, print what would be written but don't save
+    amounts : dict
+        {"HIGH": float, ...} (global) or {tech_name: [v0..v4], ...} (per-tech)
+    sigmoid_params : dict
+        {"gamma": float, "beta": float, "alpha": float}
+    template_path : str
+        Path to the consumption template (used when target config does not
+        exist yet).
+    dry_run : bool
+        If True, print what would be written but don't save.
+    random_sigmoid : bool
+        If True, save as plan_fairy_{slug}_rand.yaml and annotate the config
+        with proxy.random_sigmoid = true.
 
     Returns
     -------
     str — path to the written config file
     """
-    target_path = _config_path(target_variable)
+    target_path = _config_path(target_variable, random_sigmoid)
     is_consumption = _var_to_slug(target_variable) == "consumption"
 
     # Decide source file
@@ -295,7 +317,8 @@ def write_or_update_config(
         source_path = None
         action = "create (from scratch)"
 
-    print(f"\n  Config {action}: {target_path}")
+    rand_note = " [random_sigmoid]" if random_sigmoid else ""
+    print(f"\n  Config {action}{rand_note}: {target_path}")
     if source_path:
         print(f"  Source: {source_path}")
     else:
@@ -308,26 +331,23 @@ def write_or_update_config(
         else:
             doc = _load_pyyaml(source_path)
     else:
-        doc = _build_skeleton(region, year, target_variable, amounts, sigmoid_params)
+        doc = _build_skeleton(region, year, target_variable, amounts,
+                               sigmoid_params, random_sigmoid)
         if _RUAMEL:
-            from ruamel.yaml import YAML
             ryaml = YAML()
             ryaml.preserve_quotes = True
 
-    # Apply tuned fields (no-op for skeleton since it was already built with them,
-    # but harmless and keeps the logic uniform)
-    _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params)
+    _apply_fields(doc, region, year, target_variable, amounts, sigmoid_params,
+                  random_sigmoid)
 
     if dry_run:
         print("  [dry_run] Would write:")
         if _RUAMEL:
-            import sys
             ryaml.dump(doc, sys.stdout)
         else:
             print(_pyyaml.dump(doc, default_flow_style=False, sort_keys=False))
         return target_path
 
-    # Save
     if _RUAMEL:
         _save_ruamel(doc, ryaml, target_path)
     else:
@@ -356,6 +376,8 @@ if __name__ == "__main__":
                         help="gamma,beta,alpha as comma-separated floats")
     parser.add_argument("--template", default=TEMPLATE_PATH)
     parser.add_argument("--dry_run", action="store_true")
+    parser.add_argument("--random_sigmoid", action="store_true",
+                        help="Save as plan_fairy_{slug}_rand.yaml and annotate config.")
 
     args = parser.parse_args()
 
@@ -373,4 +395,5 @@ if __name__ == "__main__":
         sigmoid_params=sigmoid_params,
         template_path=args.template,
         dry_run=args.dry_run,
+        random_sigmoid=args.random_sigmoid,
     )

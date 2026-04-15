@@ -98,6 +98,15 @@ def main():
     parser.add_argument("--global_sigmoid", action="store_true",
                         help="Calibrate sigmoid on all regions in the time window, "
                              "not just the target region.")
+    parser.add_argument("--random_sigmoid", action="store_true",
+                        help=(
+                            "Calibrate the sigmoid on random plan proxy outputs instead "
+                            "of scenario deltas. Saves config as plan_fairy_{slug}_rand.yaml."
+                        ))
+    parser.add_argument("--n_random_sigmoid", type=int, default=10000,
+                        help="Number of random plans for --random_sigmoid (default: 10000).")
+    parser.add_argument("--random_sigmoid_seed", type=int, default=42,
+                        help="Random seed for --random_sigmoid plan generation.")
 
     # --- Test-set args ---
     parser.add_argument("--n", type=int, default=None,
@@ -159,6 +168,9 @@ def main():
             low_pct=args.low_pct,
             per_sector_amounts=not args.no_per_sector_amounts,
             global_sigmoid=args.global_sigmoid,
+            random_sigmoid=args.random_sigmoid,
+            n_random=args.n_random_sigmoid,
+            random_seed=args.random_sigmoid_seed,
         )
 
         print("\n  ✓ Tuning complete.")
@@ -206,12 +218,20 @@ def main():
         seed=args.seed,
     )
 
-    output_path = build_output_path(args.output, args.region, args.year, args.target_variable)
+    # Append _rand to target_variable slug for the test set filename
+    # so it doesn't overwrite the scenario-calibrated test set.
+    tv_for_path = (
+        args.target_variable + "_rand"
+        if args.random_sigmoid and not args.target_variable.endswith("_rand")
+        else args.target_variable
+    )
+    output_path = build_output_path(args.output, args.region, args.year, tv_for_path)
 
     payload = {
         "samples": samples,
         "target_variable": args.target_variable,
         "amount_values": amounts,
+        "random_sigmoid": args.random_sigmoid,
     }
     if sigmoid_params is not None:
         payload["sigmoid_params"] = sigmoid_params
@@ -244,6 +264,7 @@ def main():
             sigmoid_params=sigmoid_params,
             template_path=args.template,
             dry_run=args.dry_run_config,
+            random_sigmoid=args.random_sigmoid,
         )
 
     # -----------------------------------------------------------------------

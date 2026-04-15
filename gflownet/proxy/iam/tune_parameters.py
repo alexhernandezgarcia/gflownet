@@ -4,20 +4,23 @@ Tune GFN environment and reward parameters based on regional/temporal context.
 Computes:
   1. Amount values (HIGH/MEDIUM/LOW/NONE) from the local subsidy distribution
      in maxmin-scaled [0,1] space (matching what states2proxy feeds the proxy)
-  2. Sigmoid reward parameters calibrated to the distribution of 5-year
-     target variable deltas in original units (matching FAIRY proxy output)
+  2. Sigmoid reward parameters calibrated either to:
+     (a) the distribution of 5-year target variable deltas from scenario data
+         (default), or
+     (b) --random_sigmoid: the distribution of proxy outputs on UNIFORMLY RANDOM
+         investment plans, which gives a much wider and more balanced calibration
+         when the scenario data has very low variance (e.g. GDP, some EMI vars).
 
-The raw parquet files contain UNSCALED values. The witch_proc_data Dataset
-applies maxmin scaling at load time. We replicate that scaling here for
-subsidies so amount values are in the correct space.
-
-For the sigmoid, the FAIRY proxy output is delta_<target> in ORIGINAL units
-(it rescales internally via addcmul), so sigmoid targets use raw deltas.
+     With --random_sigmoid the config file is written as
+         plan_fairy_{slug}_rand.yaml
+     to distinguish it from the scenario-calibrated version.
 
 Usage (from gflownet/proxy/iam/):
     python tune_parameters.py --region europe --year 2025
     python tune_parameters.py --region europe --year 2025 --year_window 1 --margin 0.3
     python tune_parameters.py --region europe --year 2025 --target_variable EMI_total_CO2
+    python tune_parameters.py --region europe --year 2025 --target_variable GDP \\
+        --random_sigmoid --n_random 20000
 """
 
 import argparse
@@ -38,7 +41,6 @@ ALLOWED_SECTOR2TECH = {
     "STORAGE": ["power_STORAGE","production_HYDROGEN","refueling_station_HYDROGEN","pipelines_HYDROGEN"],
     "DAC": ["DAC_liquid_sorbents","DAC_solid_sorbents","DAC_calcium_oxide"],
 }
-
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +115,6 @@ def get_subset_mask(keys_df, region, center_year, year_window):
     return mask
 
 
-
 def get_global_mask(keys_df, center_year, year_window):
     """Boolean mask for ALL regions in the year range (for global sigmoid calibration)."""
     year_lo = center_year - year_window * 5
@@ -133,18 +134,6 @@ def compute_variable_deltas(variables_df, keys_df, mask, target_variable):
     Compute the distribution of 5-year deltas for `target_variable` in the
     filtered subset. Matches what the FAIRY proxy outputs:
         target(t+5) - target(t)  in ORIGINAL (unscaled) units.
-
-    Parameters
-    ----------
-    variables_df : pd.DataFrame
-        Raw (unscaled) variables dataframe.
-    keys_df : pd.DataFrame
-        Keys dataframe with gdx, year, n columns.
-    mask : pd.Series
-        Boolean mask for the relevant subset.
-    target_variable : str
-        Column name in variables_df to compute deltas for (e.g. "CONSUMPTION",
-        "EMI_total_CO2").
     """
     if target_variable not in variables_df.columns:
         raise ValueError(
@@ -200,6 +189,104 @@ def compute_variable_deltas(variables_df, keys_df, mask, target_variable):
 
 
 # ---------------------------------------------------------------------------
+# 3b. Compute proxy output distribution on random plans (for random_sigmoid)
+# ---------------------------------------------------------------------------
+
+def compute_random_plan_energies(region, year, target_variable, amounts,
+                                 n_random=10000, seed=42, device="cpu"):
+    """
+    Generate n_random uniformly random investment plans and evaluate them with
+    the FAIRY proxy. Returns a stats dict in the same format as
+    compute_variable_deltas(), so it can be fed directly into
+    suggest_sigmoid_params().
+
+    Parameters
+    ----------
+    amounts : dict
+        Amount values mapping (global or per-tech) already tuned by the
+        amount-calibration step — used to initialize the FullPlan environment.
+    n_random : int
+        Number of random plans to sample (default: 10000).
+    seed : int
+        Random seed for reproducibility.
+    device : str
+        Torch device for FAIRY proxy ('cpu' or 'cuda').
+
+    Returns
+    -------
+    stats : dict  — same keys as compute_variable_deltas() output
+    energies : np.ndarray  — raw proxy outputs (for diagnostics / plotting)
+    """
+    import torch
+    from omegaconf import OmegaConf
+    from gflownet.envs.iam.full_plan import FullPlan
+    from gflownet.proxy.iam.iam_proxies import FAIRY
+
+    print(f"\n  [random_sigmoid] Initializing FAIRY proxy for "
+          f"region={region}, year={year}, target={target_variable}...")
+
+    # Build the env with the already-tuned amount values
+    is_per_tech = isinstance(amounts, dict) and "HIGH" not in amounts
+    if is_per_tech:
+        env_mapping = OmegaConf.create(amounts)
+    else:
+        flat = [0.0, amounts["HIGH"], amounts["MEDIUM"], amounts["LOW"], amounts["NONE"]]
+        env_mapping = OmegaConf.create(flat)
+
+    env = FullPlan(amount_values_mapping=env_mapping, device=device)
+
+    proxy = FAIRY(
+        key_region=region,
+        key_year=year,
+        target_variable=target_variable,
+        device=device,
+    )
+    proxy.fairy.eval()
+
+    print(f"  [random_sigmoid] Sampling {n_random} random plans...")
+    random_states = env.get_uniform_terminating_states(n_random, seed=seed)
+    random_plans = [s["plan"] for s in random_states]
+
+    # Evaluate in batches
+    batch_size = 512
+    all_energies = []
+    with torch.no_grad():
+        for start in range(0, len(random_plans), batch_size):
+            batch = random_plans[start:start + batch_size]
+            states = [
+                {"partial": {"SECTOR": 0, "TAG": 0, "TECH": 0, "AMOUNT": 0}, "plan": p}
+                for p in batch
+            ]
+            tensor = env.states2proxy(states)
+            energies = proxy(tensor)
+            all_energies.append(energies.cpu().numpy())
+
+    energies_arr = np.concatenate(all_energies, axis=0)
+
+    print(f"  [random_sigmoid] Energy stats over {len(energies_arr)} random plans:")
+    print(f"    min={energies_arr.min():.4f}, max={energies_arr.max():.4f}, "
+          f"mean={energies_arr.mean():.4f}, std={energies_arr.std():.4f}")
+
+    stats = {
+        "n_pairs": len(energies_arr),
+        "min":  float(np.min(energies_arr)),
+        "max":  float(np.max(energies_arr)),
+        "mean": float(np.mean(energies_arr)),
+        "std":  float(np.std(energies_arr)),
+        "q05":  float(np.percentile(energies_arr, 5)),
+        "q10":  float(np.percentile(energies_arr, 10)),
+        "q25":  float(np.percentile(energies_arr, 25)),
+        "q50":  float(np.percentile(energies_arr, 50)),
+        "q75":  float(np.percentile(energies_arr, 75)),
+        "q90":  float(np.percentile(energies_arr, 90)),
+        "q95":  float(np.percentile(energies_arr, 95)),
+        "baseline_mean":   float(np.mean(energies_arr)),
+        "baseline_median": float(np.median(energies_arr)),
+    }
+    return stats, energies_arr
+
+
+# ---------------------------------------------------------------------------
 # 4. Compute subsidy statistics (maxmin-scaled)
 # ---------------------------------------------------------------------------
 
@@ -219,30 +306,6 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.0,
     """
     Suggest HIGH/MEDIUM/LOW/NONE from the actual distribution of non-zero
     subsidies in the subset (maxmin-scaled [0,1] space).
-
-    - HIGH   = high_pct percentile of non-zero subsidies (* (1 + margin))
-    - MEDIUM = medium_pct percentile of non-zero subsidies
-    - LOW    = low_pct percentile of non-zero subsidies
-    - NONE   = 0.0
-
-    Defaults are conservative (margin=0.0) to keep the GFN within the
-    proxy's training distribution and avoid out-of-distribution extrapolation
-    that produces unrealistically large energy values.
-
-    Parameters
-    ----------
-    margin : float
-        Fractional upward extension of HIGH beyond the high_pct value.
-        Default 0.0 (no extension — stay within observed distribution).
-        Use small values like 0.1 only if you want to allow modest exploration
-        beyond the training data.
-    high_pct : int
-        Percentile of non-zero subsidies to use as HIGH. Default 90.
-        Lower values (e.g. 75) further restrict the maximum allowed investment.
-    medium_pct : int
-        Percentile for MEDIUM. Default 50 (median).
-    low_pct : int
-        Percentile for LOW. Default 25.
     """
     sub = subsidies_scaled.loc[mask]
 
@@ -287,7 +350,6 @@ def suggest_amount_values(subsidies_scaled, mask, margin=0.0,
     return amounts, info, per_tech_stats
 
 
-
 # ---------------------------------------------------------------------------
 # 5b. Per-sector amount mappings
 # ---------------------------------------------------------------------------
@@ -298,20 +360,6 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
     """
     Compute per-sector amount mappings (HIGH/MEDIUM/LOW/NONE) from the
     non-zero subsidy distribution of each sector's techs separately.
-
-    Sectors with no non-zero subsidies in the filtered subset are flagged
-    and filled with the values from the sector that has the lowest HIGH value
-    (most conservative observed sector), to avoid feeding the proxy
-    out-of-distribution inputs.
-
-    Returns
-    -------
-    per_tech_mapping : dict {tech_name: [v_unset, v_HIGH, v_MEDIUM, v_LOW, v_NONE]}
-        One 5-element list per tech, in the amount_values_mapping index order:
-        index 0 = unset (always 0.0), 1 = HIGH, 2 = MEDIUM, 3 = LOW, 4 = NONE.
-    sector_amounts : dict {sector: {"HIGH": float, "MEDIUM": float, "LOW": float}}
-    sector_info : dict {sector: info_dict}  diagnostic information
-    empty_sectors : list[str]  sectors with no non-zero data in subset
     """
     sub = subsidies_scaled.loc[mask]
     sector_amounts = {}
@@ -319,7 +367,6 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
     empty_sectors = []
 
     for sector, techs in ALLOWED_SECTOR2TECH.items():
-        # Collect columns for this sector's techs
         cols = [f"SUBS_{t}" for t in techs if f"SUBS_{t}" in sub.columns]
         if not cols:
             empty_sectors.append(sector)
@@ -348,12 +395,7 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
         p_max    = float(np.max(nonzero_vals))
         high_val = min(1.0, p_high * (1.0 + margin))
 
-        # If MEDIUM or LOW collapse to zero (sparse sector like DAC), apply
-        # geometric spacing: MEDIUM = HIGH/2, LOW = HIGH/4.
-        # This ensures the GFN always has 4 meaningfully distinct levels.
         geometric_fallback = False
-        # Check rounded values — raw percentiles may be tiny but nonzero
-        # (e.g. 3e-5 passes the nonzero filter but rounds to 0.0 at 4dp)
         if round(p_medium, 4) <= 0.0 or round(p_low, 4) <= 0.0:
             geometric_fallback = True
             medium_val = round(high_val / 2.0, 4)
@@ -386,7 +428,6 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
         }
 
     # Fill empty sectors with the most conservative non-empty sector
-    # (lowest HIGH value = least likely to push proxy OOD)
     non_empty = {s: v for s, v in sector_amounts.items() if v is not None}
     if non_empty:
         fallback_sector = min(non_empty, key=lambda s: non_empty[s]["HIGH"])
@@ -394,7 +435,6 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
         print(f"  Fallback sector for empty sectors: {fallback_sector!r} "
               f"(HIGH={fallback_amounts['HIGH']})")
     else:
-        # No sector has any data — use hardcoded conservative fallback
         fallback_amounts = {"HIGH": 0.1, "MEDIUM": 0.05, "LOW": 0.01, "NONE": 0.0}
         print("  WARNING: No sector has non-zero data. Using hardcoded fallback.")
 
@@ -404,7 +444,6 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
 
     # Build per-tech mapping dict
     # Format: {tech_name: [0.0, HIGH, MEDIUM, LOW, NONE]}
-    # Index order matches amount_values_mapping: 0=unset, 1=HIGH, 2=MEDIUM, 3=LOW, 4=NONE
     per_tech_mapping = {}
     for sector, techs in ALLOWED_SECTOR2TECH.items():
         amts = sector_amounts[sector]
@@ -422,16 +461,19 @@ def suggest_amount_values_per_sector(subsidies_scaled, keys_df, mask,
 def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
                            sigma_window=None):
     """
-    Fit sigmoid to the 5-year delta distribution (original units).
+    Fit sigmoid to a distribution of proxy-output values (original units).
 
-    Always uses maximization anchors (q75 center, q95 saturation) since the
-    proxy output is already negated for minimized variables (e.g. EMI_total_CO2)
-    in iam_proxies.py, so higher proxy output always means better outcome.
+    R(x) = alpha / (1 + gamma * exp(beta * x))
 
-    R(x) = alpha / (1 + gamma * exp(beta * x))   [GFN native parameterization]
+    Anchors:
+        R(x_mid)  = 0.50  (center percentile)
+        R(x_high) = 0.99  (saturation percentile)
 
     Parameters
     ----------
+    delta_stats : dict
+        Quantile stats dict — same format returned by compute_variable_deltas()
+        OR compute_random_plan_energies(). Both have identical keys.
     sigma_window : tuple(int, int) or None
         Override (center_pct, saturation_pct) percentiles.
         Must be in {5, 10, 25, 50, 75, 90, 95}.
@@ -460,14 +502,8 @@ def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
         print("  WARNING: x_high approx x_mid, using fallback spread.")
         spread = (delta_stats["max"] - delta_stats["q50"]) * 0.25
 
-    # Align with base.py's _sigmoid: R(x) = alpha / (1 + gamma * exp(beta * x))
-    # Anchors:
-    #   R(x_mid)  = 0.5  =>  gamma * exp(beta * x_mid)  = 1
-    #   R(x_high) = 0.99 =>  gamma * exp(beta * x_high) = 1/99
-    # Solving: beta = -ln(99) / (x_high - x_mid), gamma = exp(-beta * x_mid)
-    beta  = -4.595 / spread          # -ln(99) / spread, always negative for increasing sigmoid
-    gamma = float(np.exp(-beta * x_mid))   # centres sigmoid at x_mid
-
+    beta  = -4.595 / spread
+    gamma = float(np.exp(-beta * x_mid))
     alpha = 1.0
 
     def R(x):
@@ -484,12 +520,16 @@ def suggest_sigmoid_params(delta_stats, target_variable, margin=0.2,
     for q in ["q05", "q10", "q25", "q50", "q75", "q90", "q95"]:
         diagnostics[f"R({q})"] = round(R(delta_stats[q]), 4)
 
-    # Return R closure so print_summary can reuse it without re-computing
     return params, diagnostics, R
 
 
+# ---------------------------------------------------------------------------
+# Print helpers
+# ---------------------------------------------------------------------------
+
 def print_summary(delta_stats, subsidy_stats, amounts, amount_info,
-                  sigmoid_params, sigmoid_diag, target_variable, R_func=None, round_decimals=1):
+                  sigmoid_params, sigmoid_diag, target_variable, R_func=None,
+                  round_decimals=1):
     print("\n" + "=" * 70)
     print("TUNING RESULTS")
     print("=" * 70)
@@ -544,10 +584,11 @@ proxy:
 """)
 
 
-
-def print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable):
+def print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable,
+                          source_label="scenario deltas"):
     """Print sigmoid params block (shared between global and per-sector paths)."""
-    print(f"\n--- Suggested Sigmoid Reward Parameters (target: {target_variable}) ---")
+    print(f"\n--- Suggested Sigmoid Reward Parameters (target: {target_variable}, "
+          f"calibrated on: {source_label}) ---")
     for k, v in sigmoid_params.items():
         print(f"  {k}: {v}")
     print("  Verification (exact params):")
@@ -583,12 +624,31 @@ def print_summary_per_sector(sector_amounts, sector_info, empty_sectors):
             print(f"    {tech_name}: {row}")
 
 
+# ---------------------------------------------------------------------------
+# Programmatic entry point
+# ---------------------------------------------------------------------------
+
 def get_tuning_results(region, year, year_window, margin, target_variable, data_dir,
-                      sigma_window=None, high_pct=90, medium_pct=50, low_pct=25,
-                      per_sector_amounts=False, global_sigmoid=False):
+                       sigma_window=None, high_pct=90, medium_pct=50, low_pct=25,
+                       per_sector_amounts=False, global_sigmoid=False,
+                       random_sigmoid=False, n_random=10000, random_seed=42,
+                       device="cpu"):
     """
     Programmatic entry point — returns (amounts, sigmoid_params) dict for use
     by the pipeline runner without re-parsing CLI args.
+
+    Parameters
+    ----------
+    random_sigmoid : bool
+        If True, calibrate the sigmoid on random plan proxy outputs instead of
+        scenario deltas. The amounts step runs first so the proxy can be called
+        with the correct environment mapping.
+    n_random : int
+        Number of random plans for random_sigmoid calibration.
+    random_seed : int
+        Seed for random plan generation.
+    device : str
+        Torch device for FAIRY proxy when using random_sigmoid.
     """
     subsidies_df, variables_df, keys_df = load_raw_data(data_dir)
     subsidies_scaled, _ = maxmin_scale_subsidies(subsidies_df)
@@ -601,19 +661,7 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
             f"  Available years:   {sorted(keys_df['year'].unique())}"
         )
 
-    if global_sigmoid:
-        print(f"  [global_sigmoid] Computing deltas across ALL regions in window...")
-        global_mask = get_global_mask(keys_df, year, year_window)
-        delta_stats = compute_variable_deltas(variables_df, keys_df, global_mask, target_variable)
-    else:
-        delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
-    if delta_stats is None:
-        raise RuntimeError(
-            f"No valid (t, t+5) pairs found. Try --year_window 1 or check year."
-        )
-
-    sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
-
+    # --- Amount calibration (always from scenario data) ---
     if per_sector_amounts:
         per_tech_mapping, sector_amounts, sector_info, empty_sectors = \
             suggest_amount_values_per_sector(
@@ -625,13 +673,33 @@ def get_tuning_results(region, year, year_window, margin, target_variable, data_
         amounts, amount_info, sub_stats = suggest_amount_values(
             subsidies_scaled, mask, margin=margin,
             high_pct=high_pct, medium_pct=medium_pct, low_pct=low_pct)
-        print_summary(delta_stats, sub_stats, amounts, amount_info,
-                      sigmoid_params=None, sigmoid_diag=None,
-                      target_variable=target_variable, R_func=None)
+
+    # --- Sigmoid calibration ---
+    if random_sigmoid:
+        print(f"\n  [random_sigmoid] Calibrating sigmoid on {n_random} random plans...")
+        delta_stats, _ = compute_random_plan_energies(
+            region=region, year=year, target_variable=target_variable,
+            amounts=amounts, n_random=n_random, seed=random_seed, device=device,
+        )
+        source_label = f"random plans (n={n_random})"
+    else:
+        if global_sigmoid:
+            print(f"  [global_sigmoid] Computing deltas across ALL regions in window...")
+            global_mask = get_global_mask(keys_df, year, year_window)
+            delta_stats = compute_variable_deltas(variables_df, keys_df, global_mask, target_variable)
+        else:
+            delta_stats = compute_variable_deltas(variables_df, keys_df, mask, target_variable)
+        if delta_stats is None:
+            raise RuntimeError(
+                f"No valid (t, t+5) pairs found. Try --year_window 1 or check year."
+            )
+        source_label = "scenario deltas"
 
     sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
-        delta_stats, target_variable, margin=margin)
-    print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable)
+        delta_stats, target_variable, margin=margin,
+        sigma_window=sigma_window)
+    print_sigmoid_summary(sigmoid_params, sigmoid_diag, target_variable,
+                          source_label=source_label)
 
     return amounts, sigmoid_params
 
@@ -647,35 +715,36 @@ def main():
     parser.add_argument("--year", type=int, default=2025)
     parser.add_argument("--year_window", type=int, default=0,
                         help="5-year steps on each side (default: 0 = exact year only)")
-    parser.add_argument("--margin", type=float, default=0.0,
-                        help="Fractional extension of HIGH beyond high_pct (default: 0.0 = stay within training distribution)")
-    parser.add_argument("--high_pct", type=int, default=90,
-                        help="Percentile of non-zero subsidies used as HIGH (default: 90). "
-                             "Lower values (e.g. 75) reduce max investment to avoid "
-                             "out-of-distribution proxy inputs.")
-    parser.add_argument("--medium_pct", type=int, default=50,
-                        help="Percentile for MEDIUM (default: 50)")
-    parser.add_argument("--low_pct", type=int, default=25,
-                        help="Percentile for LOW (default: 25)")
+    parser.add_argument("--margin", type=float, default=0.0)
+    parser.add_argument("--high_pct", type=int, default=90)
+    parser.add_argument("--medium_pct", type=int, default=50)
+    parser.add_argument("--low_pct", type=int, default=25)
     parser.add_argument("--no_per_sector_amounts", action="store_true",
-                        help="Use a single global amount mapping instead of per-sector. "
-                             "Default is per-sector.")
+                        help="Use a single global amount mapping instead of per-sector.")
     parser.add_argument("--data_dir", type=str, default="scenario_data")
-    parser.add_argument("--round_decimals", type=int, default=1,
-                        help="Decimals to round gamma/beta in quantile printout")
-    parser.add_argument("--target_variable", type=str, default="CONSUMPTION",
-                        help="Variable to tune sigmoid for (default: CONSUMPTION). "
-                             "Variables with 'EMI' or 'COST' in their name are "
-                             "treated as minimization targets.")
+    parser.add_argument("--round_decimals", type=int, default=1)
+    parser.add_argument("--target_variable", type=str, default="CONSUMPTION")
     parser.add_argument("--sigma_window", type=int, nargs=2,
-                        metavar=("CENTER_PCT", "SAT_PCT"),
-                        default=None,
-                        help="Override sigmoid fitting percentiles, e.g. "
-                             "'--sigma_window 50 10' for a wider minimization span. "
-                             "Values must be in {5,10,25,50,75,90,95}.")
+                        metavar=("CENTER_PCT", "SAT_PCT"), default=None)
     parser.add_argument("--global_sigmoid", action="store_true",
-                        help="Calibrate sigmoid on ALL regions in the time window "
-                             "instead of just the target region.")
+                        help="Calibrate sigmoid on ALL regions in the time window.")
+    # --- new ---
+    parser.add_argument("--random_sigmoid", action="store_true",
+                        help=(
+                            "Calibrate the sigmoid on the proxy output distribution of "
+                            "UNIFORMLY RANDOM investment plans instead of scenario deltas. "
+                            "Useful when the scenario distribution has very low variance "
+                            "(e.g. GDP, some EMI variables) that would otherwise collapse "
+                            "the reward signal. The resulting config is saved with a '_rand' "
+                            "suffix (e.g. plan_fairy_gdp_rand.yaml)."
+                        ))
+    parser.add_argument("--n_random", type=int, default=10000,
+                        help="Number of random plans for --random_sigmoid calibration "
+                             "(default: 10000).")
+    parser.add_argument("--random_seed", type=int, default=42,
+                        help="Random seed for --random_sigmoid plan generation.")
+    parser.add_argument("--device", type=str, default="cpu",
+                        help="Torch device for FAIRY proxy when using --random_sigmoid.")
 
     args = parser.parse_args()
 
@@ -694,13 +763,7 @@ def main():
         print(f"  Available years: {sorted(keys_df['year'].unique())}")
         sys.exit(1)
 
-    print(f"Computing 5-year Δ{args.target_variable} (original units)...")
-    delta_stats = compute_variable_deltas(
-        variables_df, keys_df, mask, args.target_variable)
-    if delta_stats is None:
-        print("ERROR: No valid (t, t+5) pairs. Try --year_window 1 or check year.")
-        sys.exit(1)
-
+    # --- Amount calibration ---
     print("Computing subsidy statistics (maxmin-scaled)...")
     sub_stats = compute_subsidy_stats(subsidies_scaled, mask)
 
@@ -711,6 +774,7 @@ def main():
                 subsidies_scaled, keys_df, mask, margin=args.margin,
                 high_pct=args.high_pct, medium_pct=args.medium_pct,
                 low_pct=args.low_pct)
+        amounts = per_tech_mapping
         print_summary_per_sector(sector_amounts, sector_info, empty_sectors)
     else:
         print("Suggesting amount values...")
@@ -718,18 +782,63 @@ def main():
             subsidies_scaled, mask, margin=args.margin,
             high_pct=args.high_pct, medium_pct=args.medium_pct, low_pct=args.low_pct)
 
+    # --- Sigmoid calibration ---
+    if args.random_sigmoid:
+        print(f"\nCalibrating sigmoid on {args.n_random} random plans "
+              f"(--random_sigmoid)...")
+        delta_stats, random_energies = compute_random_plan_energies(
+            region=args.region,
+            year=args.year,
+            target_variable=args.target_variable,
+            amounts=amounts,
+            n_random=args.n_random,
+            seed=args.random_seed,
+            device=args.device,
+        )
+        source_label = f"random plans (n={args.n_random})"
+    else:
+        print(f"Computing 5-year Δ{args.target_variable} (original units)...")
+        if args.global_sigmoid:
+            print("  [global_sigmoid] Using all regions in window...")
+            sigmoid_mask = get_global_mask(keys_df, args.year, args.year_window)
+        else:
+            sigmoid_mask = mask
+        delta_stats = compute_variable_deltas(
+            variables_df, keys_df, sigmoid_mask, args.target_variable)
+        if delta_stats is None:
+            print("ERROR: No valid (t, t+5) pairs. Try --year_window 1 or check year.")
+            sys.exit(1)
+        source_label = "scenario deltas"
+
     print("Suggesting sigmoid parameters...")
     sigmoid_params, sigmoid_diag, R_func = suggest_sigmoid_params(
         delta_stats, args.target_variable, margin=args.margin,
         sigma_window=tuple(args.sigma_window) if args.sigma_window else None)
 
     if not args.no_per_sector_amounts:
-        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable)
+        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable,
+                              source_label=source_label)
     else:
         print_summary(delta_stats, sub_stats, amounts, amount_info,
                       sigmoid_params, sigmoid_diag, args.target_variable,
                       R_func=R_func, round_decimals=args.round_decimals)
-        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable)
+        print_sigmoid_summary(sigmoid_params, sigmoid_diag, args.target_variable,
+                              source_label=source_label)
+
+    # --- Write config ---
+    # Import here to avoid making gflownet a hard dependency of standalone tuning
+    try:
+        from gflownet.proxy.iam.config_writer import write_or_update_config, TEMPLATE_PATH
+        write_or_update_config(
+            region=args.region,
+            year=args.year,
+            target_variable=args.target_variable,
+            amounts=amounts,
+            sigmoid_params=sigmoid_params,
+            random_sigmoid=args.random_sigmoid,
+        )
+    except ImportError:
+        print("\n  [config_writer] Not available — skipping automatic config write.")
 
 
 if __name__ == "__main__":
