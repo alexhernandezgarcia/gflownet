@@ -217,6 +217,13 @@ def compute_random_plan_energies(region, year, target_variable, amounts,
     stats : dict  — same keys as compute_variable_deltas() output
     energies : np.ndarray  — raw proxy outputs (for diagnostics / plotting)
     """
+    # Ensure the repo root is on sys.path so gflownet is importable regardless
+    # of where this script is invoked from (e.g. from gflownet/proxy/iam/).
+    _iam_dir = os.path.dirname(os.path.abspath(__file__))
+    _repo_root = os.path.abspath(os.path.join(_iam_dir, "..", "..", ".."))
+    if _repo_root not in sys.path:
+        sys.path.insert(0, _repo_root)
+
     import torch
     from omegaconf import OmegaConf
     from gflownet.envs.iam.full_plan import FullPlan
