@@ -94,7 +94,7 @@ class Tree(CompositeBase):
             )
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
-        self.node_env = DecisionTreeNode(**node_kwargs)
+        self.node_env = DecisionTreeNode(**(node_kwargs or {}))
         self.subenvs = None  # Dynamic; nodes are created on demand
 
         # Max internal nodes: levels 0 to max_depth - 1
