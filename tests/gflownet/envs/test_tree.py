@@ -599,9 +599,11 @@ def test__backward_mask__building_in_progress_delegates_to_node_env(envs, reques
     for a in valid:
         assert env._depad_action(a) in env.node_env.action_space
 
+
 # ===========================================================================
 # get_mask is consistent when called with state argument vs self.state
 # ===========================================================================
+
 
 @pytest.mark.repeat(5)
 @parametrize_envs
@@ -636,6 +638,7 @@ def test__get_mask__is_consistent_regardless_of_inputs(envs, request):
 # ===========================================================================
 # get_valid_actions is consistent regardless of inputs
 # ===========================================================================
+
 
 @pytest.mark.repeat(5)
 @parametrize_envs
@@ -1082,9 +1085,11 @@ def test__trajectory_random__forward_then_backward_reaches_source(envs, request)
         assert step_count <= env.max_traj_length + 1
     assert env.is_source()
 
+
 # ===========================================================================
 # set_state test
 # ===========================================================================
+
 
 @parametrize_envs
 def test__set_state__sets_expected_state(envs, request):
@@ -1100,7 +1105,11 @@ def test__set_state__sets_expected_state(envs, request):
     env.set_state(state_after_root, done=False)
     assert env.state["_active"] == state_after_root["_active"]
     assert env.state["_dones"] == state_after_root["_dones"]
-    assert env.state[0] == {'_active': 1, 0: [selected_feature], 1: [selected_threshold]}
+    assert env.state[0] == {
+        "_active": 1,
+        0: [selected_feature],
+        1: [selected_threshold],
+    }
     assert env._node_is_done(0, env.state)
 
 
@@ -1121,6 +1130,7 @@ def test__states2policy__returns_correct_shape(envs, request):
     assert result.shape == (1, expected_dim)
     # Idle flag should be 1.0 at source
     assert result[0, 0].item() == 1.0
+
 
 @parametrize_envs_bigger_than_depth_1
 def test__states2policy__batch_of_different_states(envs, request):
@@ -1148,7 +1158,7 @@ def test__states2policy__batch_of_different_states(envs, request):
     per_node_dim = 3 + node_pdim
     # Node 0: exists=1, done=1, active=0 (since idle)
     offset = 1
-    assert result[1, offset].item() == 1.0      # exists
+    assert result[1, offset].item() == 1.0  # exists
     assert result[1, offset + 1].item() == 1.0  # done
     assert result[1, offset + 2].item() == 0.0  # not active
 
@@ -1156,10 +1166,10 @@ def test__states2policy__batch_of_different_states(envs, request):
     node_0_policy = env.node_env.states2policy([intermediate_state[0]])[0]
     node_0_block = torch.cat([torch.tensor([1.0, 1.0, 0.0]), node_0_policy])
     expected_intermediate = torch.cat(
-        [torch.tensor([1.0]), node_0_block]
-        + [empty_node_block] * (env.max_nodes - 1)
+        [torch.tensor([1.0]), node_0_block] + [empty_node_block] * (env.max_nodes - 1)
     )
     assert torch.equal(result[1, :], expected_intermediate)
+
 
 # ===========================================================================
 # Mask format and unformat tests
@@ -1189,7 +1199,7 @@ def test__format_mask_building__has_correct_structure(envs, request):
     formatted = env._format_mask_building(node_mask)
     assert len(formatted) == env.mask_dim
     # Meta section all True (no meta actions valid in building mode)
-    assert all(m is True for m in formatted[:env.n_meta_actions])
+    assert all(m is True for m in formatted[: env.n_meta_actions])
     # Node section equals the node env mask
     assert formatted[env.n_meta_actions :] == node_mask
     assert env._is_meta_mask(formatted) is False
@@ -1204,9 +1214,11 @@ def test__unformat_mask_building__roundtrip(envs, request):
     recovered = env._unformat_mask_building(formatted)
     assert recovered == original_mask
 
+
 # ===========================================================================
 # Policy output structure
 # ===========================================================================
+
 
 @parametrize_envs
 def test__policy_output__has_correct_dim(envs, request):
@@ -1216,6 +1228,7 @@ def test__policy_output__has_correct_dim(envs, request):
     # Verify with fixed_distr_params (the standard way to call this)
     po = env.get_policy_output(env.fixed_distr_params)
     assert len(po) == expected_dim
+
 
 # ===========================================================================
 # Common base tests from common.py
