@@ -948,14 +948,14 @@ class Tree(CompositeBase):
         For each node position: [exists, done, active, node_env_policy].
         Plus a global idle flag.
         """
-        n_states = len(states)
+        batch_size = len(states)
         node_pdim = self.node_env.policy_input_dim
         # idle_flag + per_node * (exists + done + active + node_policy)
         per_node_dim = 3 + node_pdim
         policy_dim = 1 + self.max_nodes * per_node_dim
-        result = torch.zeros(n_states, policy_dim, dtype=self.float, device=self.device)
+        result = torch.zeros(batch_size, policy_dim, dtype=self.float, device=self.device)
 
-        source_policy = self.node_env.state2policy(self.node_env.source)
+        subenv_policy = self.node_env.state2policy(self.node_env.source)
 
         for i, state in enumerate(states):
             result[i, 0] = 1.0 if self._is_idle(state) else 0.0
@@ -965,10 +965,10 @@ class Tree(CompositeBase):
                     result[i, offset] = 1.0
                     result[i, offset + 1] = float(self._node_is_done(k, state))
                     result[i, offset + 2] = float(state["_active"] == k)
-                    np = self.node_env.state2policy(state[k])
-                    result[i, offset + 3 : offset + 3 + node_pdim] = np
+                    node_policy = self.node_env.state2policy(state[k])
+                    result[i, offset + 3 : offset + 3 + node_pdim] = node_policy
                 else:
-                    result[i, offset + 3 : offset + 3 + node_pdim] = source_policy
+                    result[i, offset + 3 : offset + 3 + node_pdim] = subenv_policy
         return result
 
     def states2proxy(self, states: List[Dict]) -> List[Dict]:
@@ -991,7 +991,7 @@ class Tree(CompositeBase):
                 status = "done" if self._node_is_done(k, state) else "building"
                 depth = self.node_depth(k)
                 node_str = self.node_env.state2readable(state[k])
-                parts.append(f"Node {k} (d={depth}, {status}): {node_str}")
+                parts.append(f"Node {k} (depth={depth}, status={status}): {node_str}")
 
         leaves = self._get_expandable_leaves(state)
         if leaves:
@@ -999,10 +999,11 @@ class Tree(CompositeBase):
 
         return "; ".join(parts)
 
-    # TODO: True / False is not consisten with Left / Right when displaying tree
     def display(self, state: Optional[Dict] = None, ax=None):
         """
-        Displays the tree as a graph using networkx and graphviz layout.
+        Displays the tree as a graph using networkx with a manual hierarchical
+        layout that guarantees True (``<=``) edges route to the left child and
+        False (``>``) edges route to the right child, visually.
 
         Internal (done) nodes show the decision rule: ``feature <= threshold``.
         Leaf positions (children of done nodes that don't exist) are shown as
@@ -1028,7 +1029,12 @@ class Tree(CompositeBase):
 
         G = nx.DiGraph()
         labels = {}
-        node_colors = []
+        node_colors = {}
+        # Maps networkx node id -> logical BFS index used for layout. For real
+        # nodes this is the node's own BFS index; for leaf placeholders it is
+        # the BFS index of the missing child slot they represent, which is what
+        # positions them correctly left/right under their parent.
+        bfs_index_of = {}
         internal_color = "#4a90d9"
         leaf_color = "#90d94a"
         building_color = "#d9a04a"
@@ -1036,6 +1042,7 @@ class Tree(CompositeBase):
         # Add done (internal) nodes
         for k in self._get_done_nodes(state):
             G.add_node(k)
+            bfs_index_of[k] = k
             feature_idx = self.node_env.get_feature(state[k])
             threshold = self.node_env.get_threshold(state[k])
             if feature_idx is not None:
@@ -1044,12 +1051,13 @@ class Tree(CompositeBase):
                 fname = "?"
             tval = f"{threshold:.2f}" if threshold is not None else "?"
             labels[k] = f"{fname}\n<= {tval}"
-            node_colors.append(internal_color)
+            node_colors[k] = internal_color
 
         # Add the active (building) node if any
         active = state["_active"]
         if active >= 0 and active not in G:
             G.add_node(active)
+            bfs_index_of[active] = active
             feature_idx = self.node_env.get_feature(state[active])
             threshold = self.node_env.get_threshold(state[active])
             fname = "?"
@@ -1057,21 +1065,21 @@ class Tree(CompositeBase):
                 fname = str(self.node_env.features[feature_idx - 1])
             tval = f"{threshold:.2f}" if threshold is not None else "?"
             labels[active] = f"{fname}\n<= {tval}\n(building)"
-            node_colors.append(building_color)
+            node_colors[active] = building_color
 
         # Add leaf placeholders (children of done nodes that don't exist)
         leaf_id = self.max_nodes  # use ids beyond max_nodes for leaf placeholders
         for k in self._get_done_nodes(state):
             for child in (self.left_child_idx(k), self.right_child_idx(k)):
+                is_left = child == self.left_child_idx(k)
                 if not self._node_exists(child, state):
                     G.add_node(leaf_id)
+                    bfs_index_of[leaf_id] = child
                     labels[leaf_id] = "Leaf"
-                    node_colors.append(leaf_color)
-                    is_left = child == self.left_child_idx(k)
+                    node_colors[leaf_id] = leaf_color
                     G.add_edge(k, leaf_id, label="True" if is_left else "False")
                     leaf_id += 1
                 else:
-                    is_left = child == self.left_child_idx(k)
                     G.add_edge(k, child, label="True" if is_left else "False")
 
         # Also connect active node to its parent if applicable
@@ -1090,20 +1098,30 @@ class Tree(CompositeBase):
         else:
             fig = ax.get_figure()
 
-        try:
-            from networkx.drawing.nx_pydot import graphviz_layout
+        # Manual hierarchical layout: x is determined by the BFS index within
+        # the node's depth level, so lower-index (left) children always sit to
+        # the left of their right sibling. This is necessary because
+        # graphviz_layout does not guarantee semantic left/right ordering.
+        pos = {}
+        for node_id, bfs_idx in bfs_index_of.items():
+            depth = self.node_depth(bfs_idx)
+            pos_in_level = bfs_idx - (2**depth - 1)
+            slot_width = 2 ** (self.max_depth - depth)
+            x = (pos_in_level + 0.5) * slot_width
+            y = -depth
+            pos[node_id] = (x, y)
 
-            pos = graphviz_layout(G, prog="dot")
-        except ImportError:
-            pos = nx.spring_layout(G)
+        node_list = list(G.nodes)
+        color_list = [node_colors[n] for n in node_list]
 
         nx.draw(
             G,
             pos,
             ax=ax,
+            nodelist=node_list,
             labels=labels,
             with_labels=True,
-            node_color=node_colors,
+            node_color=color_list,
             node_size=2500,
             font_size=8,
             font_weight="bold",
@@ -1188,7 +1206,7 @@ class Tree(CompositeBase):
         return policy_outputs[:, -self.n_meta_actions :]
 
     # =========================================================================
-    # Batch sampling and log-probabilities
+    # TODO: Batch sampling and log-probabilities
     # =========================================================================
 
     def sample_actions_batch(
@@ -1350,7 +1368,7 @@ class Tree(CompositeBase):
         return logprobs
 
     # =========================================================================
-    # Action utilities
+    # TODO: Action utilities
     # =========================================================================
 
     def action2representative(self, action: Tuple) -> Tuple:
