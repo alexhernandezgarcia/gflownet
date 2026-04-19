@@ -29,9 +29,12 @@ import json
 import os
 import pickle
 import subprocess
+import warnings
 
 import numpy as np
 import yaml
+
+from gflownet.utils.common import load_gflownet_from_rundir
 
 # -----------------------------------------------------------
 # Argument parser
@@ -60,6 +63,29 @@ def parse_args():
         "--sampling_batch_size", type=int, default=1, help="Batch size."
     )
     eval_parser.add_argument("--eval_script", type=str, default="../../eval.py")
+    eval_parser.add_argument(
+        "--estimate_logz",
+        action="store_true",
+        help="Estimate logZ from model samples using evaluator.logz_est.",
+    )
+    eval_parser.add_argument(
+        "--n_logz_samples",
+        type=int,
+        default=100,
+        help="Number of forward model samples used in logZ estimation.",
+    )
+    eval_parser.add_argument(
+        "--logz_batch_size",
+        type=int,
+        default=100,
+        help="Batch size for drawing model samples in logZ estimation.",
+    )
+    eval_parser.add_argument(
+        "--n_trajs_logz",
+        type=int,
+        default=10,
+        help="Number of backward trajectories per sampled terminal state for logZ estimation.",
+    )
     eval_parser.add_argument(
         "--resample",
         action="store_true",
@@ -149,6 +175,60 @@ def maybe_sample(args):
     print("Running:", cmd)
     subprocess.run(cmd, shell=True, check=True)
     print("\nSampling finished.\n")
+
+
+def estimate_logz_from_eval(args, sampled_states=None):
+    """Estimate logZ from evaluator-driven model samples.
+
+    Loads a trained GFlowNet from a run directory, enables evaluator-side logZ
+    estimation, and returns the scalar estimate produced by
+    :py:meth:`gflownet.evaluator.base.BaseEvaluator.eval`.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments. The following attributes are used:
+        ``rundir``, ``n_logz_samples``, ``logz_batch_size``, and
+        ``n_trajs_logz``.
+    sampled_states : array-like, optional
+        Optional terminating states reused for logZ estimation. If ``None``,
+        the evaluator samples terminal states from the model policy.
+
+    Returns
+    -------
+    float
+        Estimated log-partition value produced by evaluator metric ``logz_est``.
+
+    Raises
+    ------
+    RuntimeError
+        If evaluator output does not contain metric ``logz_est``.
+    """
+    print("Running logZ estimation through evaluator API")
+    gflownet, _ = load_gflownet_from_rundir(
+        rundir=os.path.abspath(args.rundir),
+        device="cpu",
+        no_wandb=True,
+        print_config=False,
+        load_last_checkpoint=True,
+    )
+
+    evaluator = gflownet.evaluator
+    evaluator.config.compute_logz_est = True
+    evaluator.config.n_logz_samples = args.n_logz_samples
+    evaluator.config.logz_batch_size = args.logz_batch_size
+    evaluator.config.n_trajs_logz = args.n_trajs_logz
+    evaluator.metrics = evaluator.make_metrics("logz_est")
+    evaluator.reqs = evaluator.make_requirements(metrics=evaluator.metrics)
+
+    result = evaluator.eval(metrics="logz_est", logz_states=sampled_states)
+    logz_est = result.get("metrics", {}).get("logz_est")
+    if logz_est is None:
+        raise RuntimeError(
+            "Could not compute `logz_est` from evaluator. "
+            "Check that the run has a valid checkpoint and environment config."
+        )
+    return float(logz_est)
 
 
 # -----------------------------------------------------------
@@ -341,6 +421,7 @@ def run_gfn_evaluation(args):
     """Run trained GFN evaluation and theoretical comparaison"""
     n_dim, length, J_nn, beta_raw = load_ising_params(args.rundir)
     logZ_gfn = load_wandb_logZ(args.wandbdir)
+    logZ_estimated = None
     # convert negative GFN beta to physical beta
     beta = abs(beta_raw)
 
@@ -356,6 +437,9 @@ def run_gfn_evaluation(args):
 
     # Load samples
     samples, energies = load_samples_from_pkl(args.rundir)
+
+    if args.estimate_logz:
+        logZ_estimated = estimate_logz_from_eval(args, sampled_states=samples)
 
     # Theoretical quantities
     theory = compute_theoretical_quantities(beta, length)
@@ -377,6 +461,7 @@ def run_gfn_evaluation(args):
         "beta_raw": beta_raw,
         "beta_phys": beta,
         "logZ_gfn": logZ_gfn,
+        "logZ_estimated": logZ_estimated,
         "mean_abs_magnetization": m_abs_magnetization,
         "mean_susceptibility": m_susceptibility,
         "mean_energy": m_energy,
@@ -386,6 +471,8 @@ def run_gfn_evaluation(args):
 
     print("\nEstimated quantities from GFN run:")
     print(f"  logZ from GFN                  = {logZ_gfn:.6f}")
+    if logZ_estimated is not None:
+        print(f"  logZ estimated from trajectories = {logZ_estimated:.6f}")
     print(f"  Mean absolute magnetization    = {m_abs_magnetization:.6f}")
     print(f"  Mean susceptibility            = {m_susceptibility:.6f}")
     print(f"  Mean energy                    = {m_energy:.6f}")
