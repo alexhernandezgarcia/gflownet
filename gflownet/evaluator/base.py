@@ -56,14 +56,6 @@ class BaseEvaluator(AbstractEvaluator):
         :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
         """
         super().__init__(gfn_agent, **config)
-        if not getattr(self.config, "compute_logz_est", False):
-            if isinstance(self.metrics, dict) and "logz_est" in self.metrics:
-                self.metrics = {
-                    k: v for k, v in self.metrics.items() if k != "logz_est"
-                }
-                self.reqs = set(
-                    [r for m in self.metrics.values() for r in m["requirements"]]
-                )
 
     def define_new_metrics(self):
         return {
@@ -362,7 +354,7 @@ class BaseEvaluator(AbstractEvaluator):
             Computed dict of metrics as ``{"metrics": {str: float}}``.
         """
         metrics = self.make_metrics(metrics)
-        if "logz_est" not in metrics:
+        if "logz_est" not in metrics or not getattr(self.config, "compute_logz_est", False):
             return {"metrics": {}}
 
         if sampled_states is None:
@@ -565,6 +557,12 @@ class BaseEvaluator(AbstractEvaluator):
             `{"metrics": {str: float}, "figs": {str: plt.Figure}}`.
         """
         metrics = self.make_metrics(metrics)
+        if (
+            isinstance(metrics, dict)
+            and "logz_est" in metrics
+            and not getattr(self.config, "compute_logz_est", False)
+        ):
+            metrics = {k: v for k, v in metrics.items() if k != "logz_est"}
         reqs = self.make_requirements(metrics=metrics)
 
         all_data = {}
