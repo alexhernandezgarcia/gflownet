@@ -955,7 +955,7 @@ class GFlowNetAgent:
             \log Z \approx \log R(x) + \log P_B(\tau \mid x) - \log P_F(\tau)
 
         The returned value is the average over all sampled trajectories. This implementation
-        does not use bootstrap resampling; uncertainty estimation is deferred to 
+        does not use bootstrap resampling; uncertainty estimation is deferred to
         a later phase.
 
         Parameters

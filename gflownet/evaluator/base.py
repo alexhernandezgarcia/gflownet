@@ -381,7 +381,9 @@ class BaseEvaluator(AbstractEvaluator):
         logz_est = self.gfn.estimate_logz_data(
             sampled_states,
             n_trajectories=self.config.n_trajs_logz,
-            max_data_size=max(self.config.n_logz_samples, self.config.max_data_logprobs),
+            max_data_size=max(
+                self.config.n_logz_samples, self.config.max_data_logprobs
+            ),
             batch_size=self.config.logz_batch_size,
         )
 
