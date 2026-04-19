@@ -354,7 +354,7 @@ class BaseEvaluator(AbstractEvaluator):
             Computed dict of metrics as ``{"metrics": {str: float}}``.
         """
         metrics = self.make_metrics(metrics)
-        if "logz_est" not in metrics or not getattr(self.config, "compute_logz_est", False):
+        if "logz_est" not in metrics:
             return {"metrics": {}}
 
         if sampled_states is None:
@@ -557,12 +557,6 @@ class BaseEvaluator(AbstractEvaluator):
             `{"metrics": {str: float}, "figs": {str: plt.Figure}}`.
         """
         metrics = self.make_metrics(metrics)
-        if (
-            isinstance(metrics, dict)
-            and "logz_est" in metrics
-            and not getattr(self.config, "compute_logz_est", False)
-        ):
-            metrics = {k: v for k, v in metrics.items() if k != "logz_est"}
         reqs = self.make_requirements(metrics=metrics)
 
         all_data = {}
