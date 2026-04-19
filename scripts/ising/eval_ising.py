@@ -144,10 +144,78 @@ def load_ising_params(rundir):
 
 
 def load_wandb_logZ(wandbdir):
+    def _extract_run_id(path):
+        run_dir = os.path.basename(os.path.dirname(path.rstrip("/")))
+        # Expected format: run-YYYYMMDD_HHMMSS-<run_id>
+        if run_dir.startswith("run-") and "-" in run_dir:
+            return run_dir.split("-")[-1]
+        return None
+
+    def _load_entity_project(path):
+        metadata_path = os.path.join(path, "wandb-metadata.json")
+        if not os.path.exists(metadata_path):
+            return None, None
+        try:
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+            return metadata.get("entity"), metadata.get("project")
+        except Exception:
+            return None, None
+
+    def _load_from_wandb_api(path):
+        run_id = _extract_run_id(path)
+        if run_id is None:
+            return None
+
+        entity, project = _load_entity_project(path)
+        if not entity:
+            entity = os.environ.get("WANDB_ENTITY")
+        if not project:
+            project = os.environ.get("WANDB_PROJECT")
+        if not entity or not project:
+            return None
+
+        try:
+            import wandb
+
+            api = wandb.Api(timeout=30)
+            run = api.run(f"{entity}/{project}/{run_id}")
+
+            logz = run.summary.get("logZ")
+            if logz is not None:
+                return float(logz)
+
+            # Fallback to history in case summary is not finalized on timed-out runs.
+            last = None
+            for row in run.scan_history(keys=["logZ"]):
+                val = row.get("logZ")
+                if val is not None:
+                    last = val
+            if last is not None:
+                return float(last)
+        except Exception:
+            return None
+        return None
+
     wandb_summary_path = os.path.join(wandbdir, "wandb-summary.json")
-    with open(wandb_summary_path, "r") as f:
-        data = json.load(f)
-    return data["logZ"]
+    if os.path.exists(wandb_summary_path):
+        try:
+            with open(wandb_summary_path, "r") as f:
+                data = json.load(f)
+            if "logZ" in data:
+                return float(data["logZ"])
+        except Exception:
+            pass
+
+    logz_api = _load_from_wandb_api(wandbdir)
+    if logz_api is not None:
+        return logz_api
+
+    warnings.warn(
+        f"Could not retrieve logZ from local summary or WandB API for {wandbdir}. "
+        "Using NaN for logZ from GFN."
+    )
+    return float("nan")
 
 
 # -----------------------------------------------------------
