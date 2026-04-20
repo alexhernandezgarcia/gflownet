@@ -1147,6 +1147,21 @@ class Tree(CompositeBase):
         # TODO: implement proper parsing
         raise NotImplementedError("readable2state not yet implemented for Tree")
 
+    @staticmethod
+    def equal(state_x, state_y) -> bool:
+        """
+        Checks whether two Tree states are equal, using approximate comparison
+        for floating-point threshold values.
+
+        The threshold rescale/unrescale roundtrip introduces IEEE 754 errors
+        of order ~1e-16 per operation. When same-feature ancestor chains create
+        tight threshold bounds (small spans), the error is amplified by 1/span
+        and can reach ~1e-12 at depth 3 or ~1e-10 at deeper trees. This override
+        uses atol=1e-8 to absorb these errors with margin, while remaining far
+        below any meaningful threshold difference (>1e-4 in practice).
+        """
+        return GFlowNetEnv.isclose(state_x, state_y, rtol=0.0, atol=1e-8)
+
     def is_source(self, state: Optional[Dict] = None) -> bool:
         """Returns True if the state is the source (empty tree, idle)."""
         state = self._get_state(state)
@@ -1216,13 +1231,13 @@ class Tree(CompositeBase):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
-        states_from: List[Dict] = None,
+        states_from: List[Dict] = None, # states originating the actions
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
     ) -> List[Tuple]:
         """
-        Samples a batch of actions from policy outputs.
+        Samples a batch of actions from policy outputs with n_states = batch size.
 
         Routes each state to either meta-action sampling (categorical over
         toggles + EOS) or node env sampling (delegated to node_env).
@@ -1230,22 +1245,23 @@ class Tree(CompositeBase):
         n_states = policy_outputs.shape[0]
 
         # Determine mode: building iff node section has any valid (False) entry
-        is_building = ~mask[:, self.n_meta_actions :].all(dim=1)
+        is_building = ~mask[:, self.n_meta_actions :].all(dim=1) # is_building has shape [n_states]
         actions = [None] * n_states
 
-        # --- Building-mode states: delegate to node env ---
+        # Building-mode states: delegate to node env
         building_idx = torch.where(is_building)[0]
         if len(building_idx) > 0:
-            building_po = self._get_policy_outputs_of_env_unique(
-                policy_outputs[building_idx], 0
+            building_po = self._get_policy_outputs_of_env_unique( # Shape [n_building, node_env.policy_output_dim]
+                policy_outputs[building_idx], 0 # Shape [n_building, policy_output_dim]
             )
             subenv_masks = self._unformat_mask_building(mask[building_idx])
+
             substates = []
             for i in building_idx.tolist():
                 active = states_from[i]["_active"]
-                substates.append(states_from[i][active])
+                substates.append(states_from[i][active]) # extract each states active substate
 
-            subenv_actions = self.node_env.sample_actions_batch(
+            subenv_actions = self.node_env.sample_actions_batch( # Pass to subenv, which returns subenv actions
                 building_po,
                 subenv_masks,
                 substates,
@@ -1254,12 +1270,12 @@ class Tree(CompositeBase):
                 temperature_logits,
             )
             for j, i in enumerate(building_idx.tolist()):
-                actions[i] = self._pad_action(subenv_actions[j], 0)
+                actions[i] = self._pad_action(subenv_actions[j], 0) # fill in subenv part of actions list
 
-        # --- Meta-action states: categorical sampling ---
-        meta_idx = torch.where(~is_building)[0]
+        # Meta-action states: categorical sampling
+        meta_idx = torch.where(~is_building)[0] # Meta mode if it is not building
         if len(meta_idx) > 0:
-            meta_mask = self._unformat_mask_meta(mask[meta_idx])
+            meta_mask = self._unformat_mask_meta(mask[meta_idx]) # Get masks
 
             # States where no meta-action is valid (e.g. the tree is already done)
             # cannot be sampled from: softmax over an all -inf logits vector yields
@@ -1267,17 +1283,17 @@ class Tree(CompositeBase):
             # step() / step_backwards() will reject it as invalid (valid=False), so
             # the caller sees the same behavior as the node env when called on a
             # completed state.
-            all_invalid = meta_mask.all(dim=1)
+            all_invalid = meta_mask.all(dim=1) # True if there is no valid action remaining (tree is done)
             for j in torch.where(all_invalid)[0].tolist():
-                actions[meta_idx[j].item()] = self.eos
+                actions[meta_idx[j].item()] = self.eos # Dummy EOS action that will have no impact in step
 
-            sample_idx = meta_idx[~all_invalid]
+            sample_idx = meta_idx[~all_invalid] # States where there are possible meta actions to perform
             if len(sample_idx) > 0:
                 meta_po = self._get_policy_outputs_for_meta(policy_outputs[sample_idx])
                 meta_mask = meta_mask[~all_invalid]
 
                 logits = meta_po.clone()
-                logits[meta_mask] = -float("inf")
+                logits[meta_mask] = -float("inf") # Set all invalid actions to -inf
                 logits = logits / temperature_logits
 
                 # Random action injection

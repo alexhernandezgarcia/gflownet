@@ -1081,6 +1081,299 @@ def test__trajectory_random__forward_then_backward_reaches_source(envs, request)
 
 
 # ===========================================================================
+# Rescale/unrescale and trajectory reversibility diagnostic tests
+#
+# The Tree rescales node thresholds based on ancestor constraints:
+#   rescaled = lower + raw * (upper - lower)
+# and unrescales during backward steps:
+#   recovered = (rescaled - lower) / (upper - lower)
+#
+# Due to IEEE 754 floating-point arithmetic, this roundtrip is NOT
+# bit-exact when the span (upper - lower) is not a power of two.
+# For example: 0.6 * 0.3 / 0.3 != 0.6 in floating point.
+#
+# This causes test__trajectories_are_reversible to fail intermittently
+# when random trajectories create same-feature ancestor chains.
+# ===========================================================================
+
+
+def _state_diff_detail(env, state_a, state_b):
+    """
+    Returns a human-readable diff between two Tree states, highlighting
+    threshold differences from floating-point rescale/unrescale errors.
+    """
+    diffs = []
+    if state_a.get("_active") != state_b.get("_active"):
+        diffs.append(f"  _active: {state_a['_active']} vs {state_b['_active']}")
+    if state_a.get("_dones") != state_b.get("_dones"):
+        diffs.append(f"  _dones: {state_a['_dones']} vs {state_b['_dones']}")
+    for k in range(env.max_nodes):
+        a_exists = env._node_exists(k, state_a)
+        b_exists = env._node_exists(k, state_b)
+        if a_exists != b_exists:
+            diffs.append(f"  Node {k}: exists in A={a_exists}, in B={b_exists}")
+        elif a_exists:
+            sub_a, sub_b = state_a[k], state_b[k]
+            if sub_a != sub_b:
+                parts = [f"  Node {k} (depth {env.node_depth(k)}):"]
+                f_a = env.node_env.get_feature(sub_a)
+                f_b = env.node_env.get_feature(sub_b)
+                if f_a != f_b:
+                    parts.append(f"    Feature: {f_a} vs {f_b}")
+                t_a = env.node_env.get_threshold(sub_a)
+                t_b = env.node_env.get_threshold(sub_b)
+                if t_a != t_b:
+                    delta = (
+                        (t_a - t_b)
+                        if t_a is not None and t_b is not None
+                        else None
+                    )
+                    parts.append(
+                        f"    Threshold: {t_a!r} vs {t_b!r}"
+                        + (f" (delta={delta:.2e})" if delta is not None else "")
+                    )
+                for key in sorted(set(sub_a.keys()) | set(sub_b.keys()), key=str):
+                    va, vb = sub_a.get(key), sub_b.get(key)
+                    if va != vb:
+                        parts.append(
+                            f"    substate[{key}]: {va!r} vs {vb!r}"
+                        )
+                diffs.extend(parts)
+    return "\n".join(diffs) if diffs else "  (no differences found)"
+
+
+def _build_node_recording(env, node_idx, feature_idx, threshold_val, states, actions):
+    """
+    Builds a complete node while recording every intermediate (state, action).
+    Uses the same steps as _build_node_with_dtnode_subenv.
+    """
+    def do_step(action):
+        s, a, v = env.step(action)
+        assert v, f"Step failed at node {node_idx}: action={action}"
+        states.append(copy(s))
+        actions.append(a)
+
+    do_step(env._pad_action((node_idx,), -1))
+    do_step((0, 0, feature_idx, 0))
+    do_step((0, 0, -1, 0))
+    do_step((0, 1, 2 * threshold_val / 5, 1))
+    do_step((0, 1, 2 * threshold_val / 5, 0))
+    do_step((0, 1, threshold_val / 5, 0))
+    do_step((0, 1, float("inf"), float("inf")))
+    do_step(env._pad_action((node_idx,), -1))
+
+
+def test__rescale_unrescale__demonstrates_fp_error(env_tree_depth3):
+    """
+    Demonstrates the IEEE 754 floating-point error in the rescale/unrescale
+    roundtrip that causes test__trajectories_are_reversible to fail.
+
+    Builds root (node 0) and its right child (node 2) with the same feature.
+    The right-subtree rescaling uses bounds [0.7, 1.0] with span 0.3, for
+    which the roundtrip raw -> rescaled -> unrescaled is NOT bit-exact:
+    0.6 * 0.3 / 0.3 != 0.6 in IEEE 754.
+
+    The test captures the state before and after the Cube EOS (which triggers
+    rescaling), then undoes it (triggering unrescaling), and compares.
+    """
+    env = env_tree_depth3
+
+    # Build root: feature 1, threshold 0.7
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.7)
+
+    # Build node 2 (right child of root) step by step with SAME feature
+    env.step(env._pad_action((2,), -1))  # activate
+    env.step((0, 0, 1, 0))  # choose feature 1 (same as root!)
+    env.step((0, 0, -1, 0))  # Choice EOS
+    env.step((0, 1, 0.24, 1))  # threshold step 1 (from source)
+    env.step((0, 1, 0.24, 0))  # threshold step 2
+    env.step((0, 1, 0.12, 0))  # threshold step 3 → raw = 0.6
+
+    # Capture state BEFORE Cube EOS (threshold is the raw value from ContinuousCube)
+    state_before_cube_eos = copy(env.state)
+    raw_threshold = env.node_env.get_threshold(env.state[2])
+
+    # Cube EOS triggers _rescale_threshold
+    env.step((0, 1, float("inf"), float("inf")))
+    rescaled_threshold = env.node_env.get_threshold(env.state[2])
+
+    # Deactivate, then undo deactivation + Cube EOS
+    env.step(env._pad_action((2,), -1))  # deactivate
+    env.step_backwards(env._pad_action((2,), -1))  # backward deactivation
+    _, _, valid = env.step_backwards(
+        (0, 1, float("inf"), float("inf"))
+    )  # backward Cube EOS → triggers _unrescale_threshold
+    assert valid
+
+    # Capture state AFTER backward Cube EOS (threshold should match raw, but may not)
+    state_after_bw_cube_eos = copy(env.state)
+    recovered_threshold = env.node_env.get_threshold(env.state[2])
+
+    lower, upper = env._get_threshold_bounds(2, copy(env.state))
+
+    info = (
+        f"\n--- Floating-point roundtrip for node 2 "
+        f"(right child of root, same feature) ---\n"
+        f"  Root threshold: {env.node_env.get_threshold(env.state[0])!r}\n"
+        f"  Rescaling bounds for node 2: [{lower}, {upper}], "
+        f"span = {upper - lower!r}\n"
+        f"  Raw threshold (before Cube EOS): {raw_threshold!r}\n"
+        f"  Rescaled (after Cube EOS):       {rescaled_threshold!r}\n"
+        f"  Recovered (after backward EOS):  {recovered_threshold!r}\n"
+        f"  raw == recovered: {raw_threshold == recovered_threshold}\n"
+    )
+    if raw_threshold is not None and recovered_threshold is not None:
+        info += f"  delta: {recovered_threshold - raw_threshold:.2e}\n"
+    print(info)
+
+    states_match = env.equal(state_before_cube_eos, state_after_bw_cube_eos)
+    if not states_match:
+        diff = _state_diff_detail(env, state_before_cube_eos, state_after_bw_cube_eos)
+        pytest.fail(
+            f"Cube EOS forward/backward is NOT reversible due to floating-point "
+            f"error in threshold rescale/unrescale.{info}\n"
+            f"State diff:\n{diff}\n\n"
+            f"This is the root cause of the intermittent "
+            f"test__trajectories_are_reversible failure at depth >= 3."
+        )
+
+
+def test__trajectories_are_reversible__determined_right_subtree(env_tree_depth3):
+    """
+    Deterministic full trajectory test: builds root and its right child with
+    the same feature, takes EOS, then replays the entire trajectory backward.
+
+    This reliably triggers the floating-point rescale/unrescale error because
+    the right-subtree bounds [0.7, 1.0] have span 0.3, and
+    0.6 * 0.3 / 0.3 != 0.6 in IEEE 754.
+    """
+    env = env_tree_depth3
+    states_fw = []
+    actions_fw = []
+
+    # Build root (node 0): feature 1, threshold 0.7
+    _build_node_recording(env, 0, 1, 0.7, states_fw, actions_fw)
+    # Build right child (node 2): SAME feature 1, threshold 0.6
+    _build_node_recording(env, 2, 1, 0.6, states_fw, actions_fw)
+
+    # EOS
+    s, a, v = env.step(env.eos)
+    assert v
+    states_fw.append(copy(s))
+    actions_fw.append(a)
+
+    # Backward: replay all actions in reverse
+    states_bw = []
+    actions_copy = actions_fw.copy()
+    while not env.is_source() or env.done:
+        action = actions_copy.pop()
+        state, _, valid = env.step_backwards(action)
+        assert valid, f"Backward failed: action={action}, state={env.state2readable()}"
+        states_bw.append(copy(state))
+
+    # Compare intermediate states
+    fw = states_fw[:-1]  # exclude final done state
+    bw = states_bw[-2::-1]  # reverse, exclude source
+
+    mismatches = []
+    for i, (sf, sb) in enumerate(zip(fw, bw)):
+        if not env.equal(sf, sb):
+            mismatches.append(i)
+
+    if mismatches:
+        msg = [
+            f"\nDetermined right-subtree trajectory NOT reversible.",
+            f"Config: node 0 (feature 1, t=0.7) -> node 2 (feature 1, t=0.6)",
+            f"Mismatches at step indices: {mismatches}",
+        ]
+        for i in mismatches[:3]:
+            msg.append(f"\n--- Step {i}, action: {actions_fw[i]} ---")
+            msg.append(f"Forward:\n  {env.state2readable(fw[i])}")
+            msg.append(f"Backward:\n  {env.state2readable(bw[i])}")
+            msg.append(f"Diff:\n{_state_diff_detail(env, fw[i], bw[i])}")
+        pytest.fail("\n".join(msg))
+
+
+@pytest.mark.repeat(20)
+def test__trajectories_are_reversible__depth3_diagnostic(env_tree_depth3):
+    """
+    Random trajectory reversibility test for depth 3 with 20 repeats and
+    detailed diagnostics. Shows the full tree structure and pinpoints the
+    exact node/threshold that causes the mismatch.
+    """
+    env = env_tree_depth3
+    env.reset()
+
+    # Forward random trajectory
+    states_fw = []
+    actions_fw = []
+    while not env.done:
+        state, action, valid = env.step_random(backward=False)
+        assert valid
+        states_fw.append(copy(state))
+        actions_fw.append(action)
+
+    # Backward: replay forward actions in reverse
+    states_bw = []
+    actions_copy = actions_fw.copy()
+    while not env.is_source() or env.done:
+        action = actions_copy.pop()
+        state, _, valid = env.step_backwards(action)
+        assert valid, (
+            f"Backward step failed: action={action}, "
+            f"state={env.state2readable()}, done={env.done}"
+        )
+        states_bw.append(copy(state))
+
+    # Compare
+    fw = states_fw[:-1]
+    bw = states_bw[-2::-1]
+
+    mismatches = []
+    for i, (sf, sb) in enumerate(zip(fw, bw)):
+        if not env.equal(sf, sb):
+            mismatches.append(i)
+
+    if mismatches:
+        # Show final tree structure for context
+        final_state = states_fw[-1]
+        tree_info = []
+        for k in range(env.max_nodes):
+            if env._node_is_done(k, final_state):
+                f = env.node_env.get_feature(final_state[k])
+                t = env.node_env.get_threshold(final_state[k])
+                d = env.node_depth(k)
+                parent = env.parent_idx(k) if k > 0 else None
+                pf = (
+                    env.node_env.get_feature(final_state[parent])
+                    if parent is not None and env._node_is_done(parent, final_state)
+                    else None
+                )
+                same_as_parent = " [SAME FEATURE AS PARENT]" if pf == f else ""
+                tree_info.append(
+                    f"  Node {k} (depth {d}): feature={f}, "
+                    f"threshold={t:.6f}{same_as_parent}"
+                )
+
+        msg = [
+            f"\nRandom trajectory NOT reversible at depth 3.",
+            f"Mismatches at {len(mismatches)} of {len(fw)} steps.",
+            f"Total actions: {len(actions_fw)}.",
+        ]
+        if tree_info:
+            msg.append("\nFinal tree (done nodes):")
+            msg.extend(tree_info)
+
+        i = mismatches[0]
+        msg.append(f"\nFirst mismatch at step {i}, action: {actions_fw[i]}")
+        msg.append(f"Forward:\n  {env.state2readable(fw[i])}")
+        msg.append(f"Backward:\n  {env.state2readable(bw[i])}")
+        msg.append(f"Diff:\n{_state_diff_detail(env, fw[i], bw[i])}")
+
+        pytest.fail("\n".join(msg))
+
+
+# ===========================================================================
 # set_state test
 # ===========================================================================
 
