@@ -37,11 +37,17 @@ Action format:
 """
 
 import math
+import pickle
 import uuid
 import warnings
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import torch
+from sklearn.preprocessing import MinMaxScaler
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -74,6 +80,12 @@ class Tree(CompositeBase):
         self,
         max_depth: int = 3,
         node_kwargs: dict = None,
+        X_train: Optional[npt.NDArray] = None,
+        y_train: Optional[npt.NDArray] = None,
+        X_test: Optional[npt.NDArray] = None,
+        y_test: Optional[npt.NDArray] = None,
+        data_path: Optional[str] = None,
+        scale_data: bool = True,
         **kwargs,
     ):
         """
@@ -84,6 +96,31 @@ class Tree(CompositeBase):
             0 through ``max_depth - 1``. By default: 3.
         node_kwargs : dict
             Optional arguments for the DecisionTreeNode sub-environments.
+            Must contain a ``features`` key if no dataset is provided.
+        X_train : np.ndarray, optional
+            Training features array of shape ``(n_observations, n_features)``.
+        y_train : np.ndarray, optional
+            Training labels array of shape ``(n_observations,)``.
+        X_test : np.ndarray, optional
+            Test features array of shape ``(n_observations, n_features)``.
+        y_test : np.ndarray, optional
+            Test labels array of shape ``(n_observations,)``.
+        data_path : str, optional
+            Path to a dataset file. Supported formats:
+
+            - ``*.pkl``: Pickled dict with keys ``X_train``, ``y_train``, and
+              optionally ``X_test``, ``y_test``.
+            - ``*.csv``: CSV file where the last column is the target variable.
+              If a ``Split`` column is present as the last column (with values
+              ``"train"`` and ``"test"``), the second-to-last column is taken
+              as the target and the data is split accordingly. Feature names
+              are read from the column headers.
+
+            Ignored if ``X_train`` and ``y_train`` are provided directly.
+        scale_data : bool
+            Whether to apply min-max scaling to the features (scales to
+            [0, 1] range). Only relevant when a dataset is provided.
+            By default: True.
         """
         if max_depth < 1 or not isinstance(max_depth, int):
             warnings.warn(
@@ -94,7 +131,52 @@ class Tree(CompositeBase):
             )
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
-        self.node_env = DecisionTreeNode(**(node_kwargs or {}))
+
+        # --- Dataset loading and preprocessing ---
+        node_kwargs = node_kwargs or {}
+        self.X_train = None
+        self.y_train = None
+        self.X_test = None
+        self.y_test = None
+        self.scaler = None
+        self.feature_names = None
+
+        if X_train is not None and y_train is not None:
+            self.X_train = np.asarray(X_train)
+            self.y_train = np.asarray(y_train).astype(int)
+            if X_test is not None and y_test is not None:
+                self.X_test = np.asarray(X_test)
+                self.y_test = np.asarray(y_test).astype(int)
+        elif data_path is not None:
+            self.X_train, self.y_train, self.X_test, self.y_test, self.feature_names = (
+                Tree._load_dataset(data_path)
+            )
+            self.y_train = self.y_train.astype(int)
+            if self.y_test is not None:
+                self.y_test = self.y_test.astype(int)
+
+        if self.X_train is not None:
+            if scale_data:
+                self.scaler = MinMaxScaler().fit(self.X_train)
+                self.X_train = self.scaler.transform(self.X_train)
+                if self.X_test is not None:
+                    self.X_test = self.scaler.transform(self.X_test)
+            # Derive features from dataset if not explicitly provided
+            if "features" not in node_kwargs:
+                n_features = self.X_train.shape[1]
+                if self.feature_names is not None:
+                    node_kwargs["features"] = list(self.feature_names)
+                else:
+                    node_kwargs["features"] = [f"x{i}" for i in range(n_features)]
+
+        if "features" not in node_kwargs:
+            raise ValueError(
+                "A Tree must be initialized with features. Provide either "
+                "node_kwargs={'features': [...]}, or a dataset via data_path "
+                "or X_train/y_train from which features can be derived."
+            )
+
+        self.node_env = DecisionTreeNode(**node_kwargs)
         self.subenvs = None  # Dynamic; nodes are created on demand
 
         # Max internal nodes: levels 0 to max_depth - 1
@@ -351,6 +433,84 @@ class Tree(CompositeBase):
         # Per node: 1 activate toggle + node_env trajectory + 1 deactivate toggle
         # Plus 1 global EOS
         return self.max_nodes * (self.node_env.max_traj_length + 2) + 1
+
+    # =========================================================================
+    # Dataset loading
+    # =========================================================================
+
+    @staticmethod
+    def _load_dataset(
+        data_path: str,
+    ) -> Tuple[
+        npt.NDArray,
+        npt.NDArray,
+        Optional[npt.NDArray],
+        Optional[npt.NDArray],
+        Optional[List[str]],
+    ]:
+        """
+        Loads a dataset from a file path.
+
+        Supported formats:
+
+        - ``*.csv``: A CSV file. If the last column is named ``"Split"``
+          (case-insensitive) and contains ``"train"``/``"test"`` values, it is
+          used to partition the data; the second-to-last column is the target.
+          Otherwise, the last column is the target and all data is training
+          data. Feature names are taken from column headers.
+        - ``*.pkl``: A pickled dictionary with keys ``"X_train"``,
+          ``"y_train"``, and optionally ``"X_test"``, ``"y_test"``.
+          Feature names are not available from this format.
+
+        Parameters
+        ----------
+        data_path : str
+            Path to the dataset file.
+
+        Returns
+        -------
+        X_train : np.ndarray
+        y_train : np.ndarray
+        X_test : np.ndarray or None
+        y_test : np.ndarray or None
+        feature_names : list of str or None
+            Column names of the feature columns (from CSV only).
+        """
+        data_path = Path(data_path)
+        feature_names = None
+
+        if data_path.suffix == ".csv":
+            df = pd.read_csv(data_path)
+            if df.columns[-1].lower() != "split":
+                X_train = df.iloc[:, 0:-1].values
+                y_train = df.iloc[:, -1].values
+                feature_names = list(df.columns[:-1])
+                X_test = None
+                y_test = None
+            else:
+                if set(df.iloc[:, -1]) != {"train", "test"}:
+                    raise ValueError(
+                        f"Expected 'Split' column to have values in {{'train', 'test'}}, "
+                        f"received {set(df.iloc[:, -1])}."
+                    )
+                X_train = df[df.iloc[:, -1] == "train"].iloc[:, 0:-2].values
+                y_train = df[df.iloc[:, -1] == "train"].iloc[:, -2].values
+                X_test = df[df.iloc[:, -1] == "test"].iloc[:, 0:-2].values
+                y_test = df[df.iloc[:, -1] == "test"].iloc[:, -2].values
+                feature_names = list(df.columns[:-2])
+        elif data_path.suffix == ".pkl":
+            with open(data_path, "rb") as f:
+                dct = pickle.load(f)
+                X_train = dct["X_train"]
+                y_train = dct["y_train"]
+                X_test = dct.get("X_test")
+                y_test = dct.get("y_test")
+                feature_names = dct.get("feature_names")
+        else:
+            raise ValueError(
+                "data_path must be a CSV (*.csv) or a pickled dict (*.pkl)."
+            )
+        return X_train, y_train, X_test, y_test, feature_names
 
     # =========================================================================
     # CompositeBase overrides
@@ -1231,7 +1391,7 @@ class Tree(CompositeBase):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "mask_dim"]] = None,
-        states_from: List[Dict] = None, # states originating the actions
+        states_from: List[Dict] = None,  # states originating the actions
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
@@ -1245,23 +1405,27 @@ class Tree(CompositeBase):
         n_states = policy_outputs.shape[0]
 
         # Determine mode: building iff node section has any valid (False) entry
-        is_building = ~mask[:, self.n_meta_actions :].all(dim=1) # is_building has shape [n_states]
+        is_building = ~mask[:, self.n_meta_actions :].all(
+            dim=1
+        )  # is_building has shape [n_states]
         actions = [None] * n_states
 
         # Building-mode states: delegate to node env
         building_idx = torch.where(is_building)[0]
         if len(building_idx) > 0:
-            building_po = self._get_policy_outputs_of_env_unique( # Shape [n_building, node_env.policy_output_dim]
-                policy_outputs[building_idx], 0 # Shape [n_building, policy_output_dim]
+            building_po = self._get_policy_outputs_of_env_unique(  # Shape [n_building, node_env.policy_output_dim]
+                policy_outputs[building_idx], 0  # Shape [n_building, policy_output_dim]
             )
             subenv_masks = self._unformat_mask_building(mask[building_idx])
 
             substates = []
             for i in building_idx.tolist():
                 active = states_from[i]["_active"]
-                substates.append(states_from[i][active]) # extract each states active substate
+                substates.append(
+                    states_from[i][active]
+                )  # extract each states active substate
 
-            subenv_actions = self.node_env.sample_actions_batch( # Pass to subenv, which returns subenv actions
+            subenv_actions = self.node_env.sample_actions_batch(  # Pass to subenv, which returns subenv actions
                 building_po,
                 subenv_masks,
                 substates,
@@ -1270,12 +1434,14 @@ class Tree(CompositeBase):
                 temperature_logits,
             )
             for j, i in enumerate(building_idx.tolist()):
-                actions[i] = self._pad_action(subenv_actions[j], 0) # fill in subenv part of actions list
+                actions[i] = self._pad_action(
+                    subenv_actions[j], 0
+                )  # fill in subenv part of actions list
 
         # Meta-action states: categorical sampling
-        meta_idx = torch.where(~is_building)[0] # Meta mode if it is not building
+        meta_idx = torch.where(~is_building)[0]  # Meta mode if it is not building
         if len(meta_idx) > 0:
-            meta_mask = self._unformat_mask_meta(mask[meta_idx]) # Get masks
+            meta_mask = self._unformat_mask_meta(mask[meta_idx])  # Get masks
 
             # States where no meta-action is valid (e.g. the tree is already done)
             # cannot be sampled from: softmax over an all -inf logits vector yields
@@ -1283,17 +1449,23 @@ class Tree(CompositeBase):
             # step() / step_backwards() will reject it as invalid (valid=False), so
             # the caller sees the same behavior as the node env when called on a
             # completed state.
-            all_invalid = meta_mask.all(dim=1) # True if there is no valid action remaining (tree is done)
+            all_invalid = meta_mask.all(
+                dim=1
+            )  # True if there is no valid action remaining (tree is done)
             for j in torch.where(all_invalid)[0].tolist():
-                actions[meta_idx[j].item()] = self.eos # Dummy EOS action that will have no impact in step
+                actions[meta_idx[j].item()] = (
+                    self.eos
+                )  # Dummy EOS action that will have no impact in step
 
-            sample_idx = meta_idx[~all_invalid] # States where there are possible meta actions to perform
+            sample_idx = meta_idx[
+                ~all_invalid
+            ]  # States where there are possible meta actions to perform
             if len(sample_idx) > 0:
                 meta_po = self._get_policy_outputs_for_meta(policy_outputs[sample_idx])
                 meta_mask = meta_mask[~all_invalid]
 
                 logits = meta_po.clone()
-                logits[meta_mask] = -float("inf") # Set all invalid actions to -inf
+                logits[meta_mask] = -float("inf")  # Set all invalid actions to -inf
                 logits = logits / temperature_logits
 
                 # Random action injection

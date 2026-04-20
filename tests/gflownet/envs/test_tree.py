@@ -1,10 +1,17 @@
 from copy import copy
+from pathlib import Path
 
 import common
+import numpy as np
 import pytest
 import torch
 
 from gflownet.envs.tree.tree import Tree
+
+# Path to the test dataset
+IRIS_CSV_PATH = str(
+    Path(__file__).resolve().parent.parent.parent / "data" / "tree" / "iris.csv"
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -33,6 +40,25 @@ def env_tree_depth3():
 def env_tree_depth10():
     features = ["feat_a", "feat_b", "feat_c", "feat_d", "feat_e", "feat_f", "feat_g"]
     return Tree(max_depth=10, node_kwargs={"features": features})
+
+
+@pytest.fixture
+def env_tree_depth4_data_path():
+    """Tree initialized from a CSV data path (iris dataset)."""
+    return Tree(max_depth=4, data_path=IRIS_CSV_PATH)
+
+
+@pytest.fixture
+def env_tree_depth4_xy():
+    """Tree initialized from X_train/y_train numpy arrays."""
+    rng = np.random.default_rng(42)
+    X_train = rng.random((80, 4))
+    y_train = rng.integers(0, 3, size=80)
+    X_test = rng.random((20, 4))
+    y_test = rng.integers(0, 3, size=20)
+    return Tree(
+        max_depth=4, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test
+    )
 
 
 # ===========================================================================
@@ -1123,11 +1149,7 @@ def _state_diff_detail(env, state_a, state_b):
                 t_a = env.node_env.get_threshold(sub_a)
                 t_b = env.node_env.get_threshold(sub_b)
                 if t_a != t_b:
-                    delta = (
-                        (t_a - t_b)
-                        if t_a is not None and t_b is not None
-                        else None
-                    )
+                    delta = (t_a - t_b) if t_a is not None and t_b is not None else None
                     parts.append(
                         f"    Threshold: {t_a!r} vs {t_b!r}"
                         + (f" (delta={delta:.2e})" if delta is not None else "")
@@ -1135,9 +1157,7 @@ def _state_diff_detail(env, state_a, state_b):
                 for key in sorted(set(sub_a.keys()) | set(sub_b.keys()), key=str):
                     va, vb = sub_a.get(key), sub_b.get(key)
                     if va != vb:
-                        parts.append(
-                            f"    substate[{key}]: {va!r} vs {vb!r}"
-                        )
+                        parts.append(f"    substate[{key}]: {va!r} vs {vb!r}")
                 diffs.extend(parts)
     return "\n".join(diffs) if diffs else "  (no differences found)"
 
@@ -1147,6 +1167,7 @@ def _build_node_recording(env, node_idx, feature_idx, threshold_val, states, act
     Builds a complete node while recording every intermediate (state, action).
     Uses the same steps as _build_node_with_dtnode_subenv.
     """
+
     def do_step(action):
         s, a, v = env.step(action)
         assert v, f"Step failed at node {node_idx}: action={action}"
@@ -1598,6 +1619,213 @@ class TestTreeDepth3(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env_tree_depth3):
         self.env = env_tree_depth3
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+# ===========================================================================
+# Dataset initialization tests
+# ===========================================================================
+
+
+class TestTreeDataPathInit:
+    """Tests for Tree initialized via data_path (CSV)."""
+
+    def test__init__loads_features_from_csv(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        expected_features = [
+            "sepal length",
+            "sepal width",
+            "petal length",
+            "petal width",
+        ]
+        assert env.node_env.features == expected_features
+        assert env.node_env.n_features == 4
+
+    def test__init__loads_train_data(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        assert env.X_train is not None
+        assert env.y_train is not None
+        assert env.X_train.shape[0] == 120  # 120 train rows in iris.csv
+        assert env.X_train.shape[1] == 4
+        assert env.y_train.shape[0] == 120
+
+    def test__init__loads_test_data(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        assert env.X_test is not None
+        assert env.y_test is not None
+        assert env.X_test.shape[0] == 30  # 30 test rows in iris.csv
+        assert env.X_test.shape[1] == 4
+        assert env.y_test.shape[0] == 30
+
+    def test__init__applies_scaling(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        assert env.scaler is not None
+        # Scaled data should be in [0, 1] range
+        assert env.X_train.min() >= 0.0
+        assert env.X_train.max() <= 1.0
+
+    def test__init__labels_are_int(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        assert env.y_train.dtype == int
+        assert env.y_test.dtype == int
+
+    def test__init__max_depth_and_max_nodes(self, env_tree_depth4_data_path):
+        env = env_tree_depth4_data_path
+        assert env.max_depth == 4
+        assert env.max_nodes == 15
+
+    def test__init__no_scale(self):
+        env = Tree(max_depth=2, data_path=IRIS_CSV_PATH, scale_data=False)
+        assert env.scaler is None
+        # Unscaled data has values > 1
+        assert env.X_train.max() > 1.0
+
+    def test__init__node_kwargs_features_override_dataset(self):
+        """If node_kwargs provides features, they take precedence over dataset columns."""
+        custom_features = ["a", "b", "c", "d"]
+        env = Tree(
+            max_depth=2,
+            data_path=IRIS_CSV_PATH,
+            node_kwargs={"features": custom_features},
+        )
+        assert env.node_env.features == custom_features
+        # Dataset is still loaded
+        assert env.X_train is not None
+
+    def test__init__error_without_features_or_data(self):
+        with pytest.raises(ValueError, match="must be initialized with features"):
+            Tree(max_depth=2)
+
+
+class TestTreeXyInit:
+    """Tests for Tree initialized via X_train/y_train arrays."""
+
+    def test__init__stores_data(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.X_train is not None
+        assert env.y_train is not None
+        assert env.X_train.shape == (80, 4)
+        assert env.y_train.shape == (80,)
+
+    def test__init__stores_test_data(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.X_test is not None
+        assert env.y_test is not None
+        assert env.X_test.shape == (20, 4)
+        assert env.y_test.shape == (20,)
+
+    def test__init__generates_feature_names(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.node_env.features == ["x0", "x1", "x2", "x3"]
+        assert env.node_env.n_features == 4
+
+    def test__init__applies_scaling(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.scaler is not None
+        assert env.X_train.min() >= 0.0
+        assert env.X_train.max() <= 1.0
+
+    def test__init__labels_are_int(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.y_train.dtype == int
+        assert env.y_test.dtype == int
+
+    def test__init__max_depth_and_max_nodes(self, env_tree_depth4_xy):
+        env = env_tree_depth4_xy
+        assert env.max_depth == 4
+        assert env.max_nodes == 15
+
+    def test__init__no_test_data(self):
+        rng = np.random.default_rng(0)
+        env = Tree(
+            max_depth=2,
+            X_train=rng.random((50, 3)),
+            y_train=rng.integers(0, 2, size=50),
+        )
+        assert env.X_test is None
+        assert env.y_test is None
+        assert env.node_env.features == ["x0", "x1", "x2"]
+
+    def test__init__no_scale(self):
+        X = np.array([[0.0, 5.0], [1.0, 10.0], [2.0, 15.0]])
+        y = np.array([0, 1, 0])
+        env = Tree(max_depth=2, X_train=X, y_train=y, scale_data=False)
+        assert env.scaler is None
+        assert env.X_train[2, 1] == 15.0
+
+
+# ===========================================================================
+# Common base tests for dataset-initialized trees (depth 4)
+# ===========================================================================
+
+
+class TestTreeDepth4DataPath(common.BaseTestsContinuous):
+    """Common tests for Tree with depth 4 initialized from CSV data_path."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_tree_depth4_data_path):
+        self.env = env_tree_depth4_data_path
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__get_mask__is_consistent_regardless_of_inputs": 10,
+            "test__get_valid_actions__is_consistent_regardless_of_inputs": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 3,
+            "test__sample_backwards_reaches_source": 3,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+
+
+class TestTreeDepth4Xy(common.BaseTestsContinuous):
+    """Common tests for Tree with depth 4 initialized from X_train/y_train arrays."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_tree_depth4_xy):
+        self.env = env_tree_depth4_xy
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,
