@@ -1,0 +1,30 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.tree.tree.Tree
+
+max_depth: 3
+# Example node_kwargs config
+# node_kwargs:
+#   features: 
+#     - "feature_a"
+#     - "feature_b"
+#     - "feature_c"
+#   cube_kwargs:
+#     n_comp: 3
+#     beta_params_min: 1.0
+#     beta_params_max: 100.0
+#     min_incr: 0.1
+#     fixed_distr_params:
+#       beta_weights: 1.0
+#       beta_alpha: 10.0
+#       beta_beta: 10.0
+#       bernoulli_eos_prob: 0.1
+#       bernoulli_bts_prob: 0.1
+#     random_distr_params:
+#       beta_weights: 1.0
+#       beta_alpha: 10.0
+#       beta_beta: 10.0
+#       bernoulli_eos_prob: 0.1
+#       bernoulli_bts_prob: 0.1
+
