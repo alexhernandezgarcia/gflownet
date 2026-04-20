@@ -132,7 +132,7 @@ class Tree(CompositeBase):
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
 
-        # --- Dataset loading and preprocessing ---
+        # Dataset loading and preprocessing
         node_kwargs = node_kwargs or {}
         self.X_train = None
         self.y_train = None
@@ -481,11 +481,17 @@ class Tree(CompositeBase):
 
         if data_path.suffix == ".csv":
             df = pd.read_csv(data_path)
-            if df.columns[-1].lower() != "split":
-                X_train = df.iloc[:, 0:-1].values
-                y_train = df.iloc[:, -1].values
-                feature_names = list(df.columns[:-1])
-                X_test = None
+            if (
+                df.columns[-1].lower() != "split"
+            ):  # Check if last column determines train/test split
+                X_train = df.iloc[
+                    :, 0:-1
+                ].values  # All columns except last are features
+                y_train = df.iloc[:, -1].values  # Last column are labels
+                feature_names = list(
+                    df.columns[:-1]
+                )  # All column names except the last are features
+                X_test = None  # No split column, so all data used as train
                 y_test = None
             else:
                 if set(df.iloc[:, -1]) != {"train", "test"}:
@@ -493,18 +499,22 @@ class Tree(CompositeBase):
                         f"Expected 'Split' column to have values in {{'train', 'test'}}, "
                         f"received {set(df.iloc[:, -1])}."
                     )
-                X_train = df[df.iloc[:, -1] == "train"].iloc[:, 0:-2].values
+                X_train = (
+                    df[df.iloc[:, -1] == "train"].iloc[:, 0:-2].values
+                )  # Take all except last two columns
                 y_train = df[df.iloc[:, -1] == "train"].iloc[:, -2].values
-                X_test = df[df.iloc[:, -1] == "test"].iloc[:, 0:-2].values
+                X_test = (
+                    df[df.iloc[:, -1] == "test"].iloc[:, 0:-2].values
+                )  # Take second last column as labels
                 y_test = df[df.iloc[:, -1] == "test"].iloc[:, -2].values
                 feature_names = list(df.columns[:-2])
         elif data_path.suffix == ".pkl":
             with open(data_path, "rb") as f:
                 dct = pickle.load(f)
-                X_train = dct["X_train"]
-                y_train = dct["y_train"]
-                X_test = dct.get("X_test")
-                y_test = dct.get("y_test")
+                X_train = dct["X_train"]  # Necessary
+                y_train = dct["y_train"]  # Necessary
+                X_test = dct.get("X_test")  # Optional
+                y_test = dct.get("y_test")  # Optional
                 feature_names = dct.get("feature_names")
         else:
             raise ValueError(
