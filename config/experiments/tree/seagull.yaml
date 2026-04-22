@@ -11,7 +11,7 @@ device: cpu
 
 # Environment
 env:
-  max_depth: 3
+  max_depth: 5
   data_path: null
   node_kwargs:
     features:
@@ -38,7 +38,7 @@ env:
 
 # Buffer
 buffer:
-  replay_capacity: 0
+  replay_capacity: 100
   train: null
   test: null
 
@@ -47,10 +47,10 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 10
-      backward_replay: 0
+      forward: 90
+      backward_replay: 10
       backward_dataset: 0
-    lr: 0.0001
+    lr: 0.01
     z_dim: 16
     lr_z_mult: 100
     n_train_steps: 50000

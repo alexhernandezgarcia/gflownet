@@ -21,7 +21,7 @@ from gflownet.envs.tree.tree import Tree
 from gflownet.proxy.base import Proxy
 
 # =============================================================================
-# Shared helpers
+# Shared helper functions for all classes
 # =============================================================================
 
 
@@ -67,7 +67,7 @@ def _count_internal_nodes(state: Dict) -> int:
 # TreeProxy (simple accuracy-based)
 # =============================================================================
 
-
+# TODO: Include code to use predicted leaf probabilities
 class TreeProxy(Proxy):
     """
     Simple decision tree proxy that uses training accuracy (empirical
@@ -146,7 +146,7 @@ class CategoricalTreeProxy(Proxy):
     log-likelihood (integrating out leaf class probabilities) combined with a
     configurable structure prior.
 
-    Since the composite Tree environment does not model leaf class
+    If the composite Tree environment does not model leaf class
     probabilities explicitly, this proxy marginalizes them out analytically
     using conjugacy:
 
