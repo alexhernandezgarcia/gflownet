@@ -30,6 +30,12 @@ import sys
 import numpy as np
 import pandas as pd
 
+import os, sys
+_iam_dir = os.path.dirname(os.path.abspath(__file__))
+_repo_root = os.path.abspath(os.path.join(_iam_dir, "..", "..", ".."))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
 # Sector->tech mapping (mirrors full_plan.py; duplicated to avoid circular import)
 ALLOWED_SECTOR2TECH = {
     "POWER": ["power_COAL_noccs","power_COAL_ccs","power_NUCLEAR","power_OIL",
