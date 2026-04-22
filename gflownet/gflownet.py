@@ -934,6 +934,141 @@ class GFlowNetAgent:
         pbar2.close()
         return logprobs_estimates, logprobs_std, probs_std
 
+    @torch.no_grad()
+    def estimate_logz_data(
+        self,
+        data: Union[List, str],
+        n_trajectories: int = 1,
+        max_iters_per_traj: int = 10,
+        max_data_size: int = 1e5,
+        batch_size: int = 100,
+    ):
+        r"""
+        Estimates the log-partition function of the current GFlowNet policy.
+
+        The estimate is obtained by sampling backward trajectories from terminating
+        states, then applying the trajectory balance identity on each sampled
+        trajectory:
+
+        .. math::
+
+            \log Z \approx \log R(x) + \log P_B(\tau \mid x) - \log P_F(\tau)
+
+        The returned value is the average over all sampled trajectories. This implementation
+        does not use bootstrap resampling; uncertainty estimation is deferred to
+        a later phase.
+
+        Parameters
+        ----------
+        data : list or string
+            A data set of terminating states. The data set may be passed directly as a
+            list of states, or it may be a string defining the path to a pickled data
+            set where the terminating states are stored in key "samples".
+        n_trajectories : int
+            The number of trajectories per object to sample for estimating logZ.
+        max_iters_per_traj : int
+            The maximum number of attempts to sample a distinct trajectory, to avoid
+            getting trapped in an infinite loop.
+        max_data_size : int
+            Maximum number of data points in the data set to avoid an accidental
+            situation of having to sample too many backward trajectories. If necessary,
+            the user should change this argument manually.
+        batch_size : int
+            Number of terminating states to process at a time.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar estimate of logZ computed from sampled backward trajectories.
+        """
+        times = {}
+        if isinstance(data, list):
+            states_term = data
+        elif isinstance(data, str) and Path(data).suffix == ".pkl":
+            with open(data, "rb") as f:
+                data_dict = pickle.load(f)
+                states_term = data_dict["samples"]
+        else:
+            raise NotImplementedError(
+                "data must be either a list of states or a path to a .pkl file."
+            )
+        n_states = len(states_term)
+        assert (
+            n_states < max_data_size
+        ), f"The size of the input dataset ({n_states}) is larger than max_data_size ({max_data_size})."
+
+        logz_estimates = []
+        init_batch = 0
+        end_batch = min(batch_size, n_states)
+        pbar = tqdm(
+            total=n_states,
+            disable=self.logger.progressbar["skip"],
+            leave=False,
+            desc="Sampling backward actions from dataset to estimate logZ",
+        )
+        pbar2 = trange(
+            end_batch * n_trajectories,
+            disable=self.logger.progressbar["skip"],
+            leave=False,
+            desc="Setting env terminal states",
+        )
+        while init_batch < n_states:
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
+            envs = []
+            pbar2.reset((end_batch - init_batch) * n_trajectories)
+            for state_idx in range(init_batch, end_batch):
+                for traj_idx in range(n_trajectories):
+                    idx = int(max(n_states, n_trajectories) * state_idx + traj_idx)
+                    env = self.env_maker().set_id(idx)
+                    env.set_state(states_term[state_idx], done=True)
+                    envs.append(env)
+                    pbar2.update(1)
+            while envs:
+                actions, logprobs, logprobs_rev = self.sample_actions(
+                    envs,
+                    batch,
+                    backward=True,
+                    no_random=True,
+                    times=times,
+                    compute_reversed_logprobs=True,
+                )
+                envs, actions, valids = self.step(envs, actions, backward=True)
+                batch.add_to_batch(
+                    envs,
+                    actions,
+                    logprobs,
+                    logprobs_rev,
+                    valids,
+                    backward=True,
+                    train=True,
+                )
+                envs = [env for env in envs if not env.equal(env.state, env.source)]
+
+            logprobs_f = compute_logprobs_trajectories(
+                batch, self.env, forward_policy=self.forward_policy, backward=False
+            )
+            logprobs_b = compute_logprobs_trajectories(
+                batch, self.env, backward_policy=self.backward_policy, backward=True
+            )
+            logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
+            logz_estimates.append(logrewards + logprobs_b - logprobs_f)
+
+            init_batch += batch_size
+            end_batch = min(end_batch + batch_size, n_states)
+            if n_states > batch_size:
+                pbar.update(end_batch - init_batch)
+
+        logz_estimates = torch.cat(logz_estimates)
+        logz_estimate = logz_estimates.mean()
+        pbar.close()
+        pbar2.close()
+        return logz_estimate
+
     def train(self):
         # Train loop
         pbar = tqdm(
