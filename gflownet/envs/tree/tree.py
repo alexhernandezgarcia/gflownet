@@ -1323,12 +1323,12 @@ class Tree(CompositeBase):
         Checks whether two Tree states are equal, using approximate comparison
         for floating-point threshold values.
 
-        The threshold rescale/unrescale roundtrip introduces IEEE 754 errors
+        The threshold rescale/unrescale roundtrip introduces floating-point errors
         of order ~1e-16 per operation. When same-feature ancestor chains create
         tight threshold bounds (small spans), the error is amplified by 1/span
         and can reach ~1e-12 at depth 3 or ~1e-10 at deeper trees. This override
         uses atol=1e-8 to absorb these errors with margin, while remaining far
-        below any meaningful threshold difference (>1e-4 in practice).
+        below any meaningful threshold difference.
         """
         return GFlowNetEnv.isclose(state_x, state_y, rtol=0.0, atol=1e-8)
 

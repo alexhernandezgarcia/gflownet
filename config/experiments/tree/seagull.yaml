@@ -4,7 +4,7 @@ defaults:
   - override /env: tree/tree
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: uniform
+  - override /proxy: tree
   - override /logger: wandb
 
 device: cpu
@@ -12,8 +12,9 @@ device: cpu
 # Environment
 env:
   max_depth: 3
+  data_path: null
   node_kwargs:
-    features: 
+    features:
       - "feature_a"
       - "feature_b"
       - "feature_c"
@@ -85,14 +86,14 @@ evaluator:
 # WandB
 logger:
   lightweight: True
-  run_name: "seagull"
-  project_name: "tree"
+  run_name: null
+  project_name: "dt-gfn"
+  entity: null
   tags:
     - gflownet
     - tree
-    - uniform
   do:
-    online: False
+    online: True
 
 # Hydra
 hydra:
