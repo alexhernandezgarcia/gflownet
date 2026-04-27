@@ -1,0 +1,6 @@
+_target_: gflownet.proxy.box.spheres.Spheres
+
+radii: 
+  - 0.2
+  - 0.8
+sigma: 0.05
