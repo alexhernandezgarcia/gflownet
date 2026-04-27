@@ -1,0 +1,12 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.sequences.base.SequenceBase
+
+id: sequencebase
+# Tokens
+tokens: [0, 1]
+pad_token: -1
+# Min and max length
+min_length: 1
+max_length: 5
