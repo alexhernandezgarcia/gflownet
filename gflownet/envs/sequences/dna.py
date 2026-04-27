@@ -1,6 +1,7 @@
 """
 Class to represent DNA sequences.
 """
+
 from typing import List, Union
 
 import numpy.typing as npt

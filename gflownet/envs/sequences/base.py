@@ -2,6 +2,7 @@
 Base class to represent sequence-like environments, such as AMP and DNA. Sequences
 are constructed by adding tokens from a dictionary, from left to right.
 """
+
 import itertools
 from typing import Iterable, List, Optional, Tuple, Union
 
