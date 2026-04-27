@@ -1,7 +1,9 @@
 import common
+import numpy as np
 import pytest
 import torch
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.choices import Choices
 from gflownet.utils.common import tbool, tfloat
 
@@ -23,6 +25,26 @@ def env_without_replacement():
     return Choices(
         options=["A", "B", "C", "D", "E"], max_selection=3, with_replacement=False
     )
+
+
+@pytest.fixture
+def env_2of3_without_replacement():
+    return Choices(n_options=3, max_selection=2, with_replacement=False)
+
+
+@pytest.fixture
+def env_2of3_with_replacement():
+    return Choices(n_options=3, max_selection=2, with_replacement=True)
+
+
+@pytest.fixture
+def env_3of3_without_replacement():
+    return Choices(n_options=3, max_selection=3, with_replacement=False)
+
+
+@pytest.fixture
+def env_3of3_with_replacement():
+    return Choices(n_options=3, max_selection=3, with_replacement=True)
 
 
 @pytest.mark.parametrize(
@@ -753,6 +775,299 @@ def test__set_state__sets_expected_constraints(
     assert env.choice_env.options_available == options_avail_a
     env.set_state(state_b, done=False)
     assert env.choice_env.options_available == options_avail_b
+
+
+@pytest.mark.parametrize(
+    "env, state, all_parents_perms, parent_actions_perms",
+    [
+        # All done
+        (
+            "env_2of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1],
+                1: [2],
+            },
+            [
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1],
+                    1: [2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, 0],
+                    "_keys": [1, 0],
+                    0: [1],
+                    1: [2],
+                },
+            ],
+            [(-1, 0), (-1, 0)],
+        ),
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [3],
+            },
+            [
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [0, 1, 2],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [0, 2, 1],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [1, 0, 2],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [1, 2, 0],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [2, 0, 1],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+                {
+                    "_active": 2,
+                    "_toggle": 0,
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [0, 0, 0],
+                    "_keys": [2, 1, 0],
+                    0: [1],
+                    1: [2],
+                    2: [3],
+                },
+            ],
+            [(-1, 0), (-1, 0), (-1, 0), (-1, 0), (-1, 0), (-1, 0)],
+        ),
+    ],
+)
+def test__get_parents__with_permutations_can_return_all_possible_parents(
+    env, state, all_parents_perms, parent_actions_perms, request
+):
+    env = request.getfixturevalue(env)
+
+    parents_found = [False] * len(all_parents_perms)
+
+    # Keep obtaining parents until all possible expected parents are found at least
+    # once
+    count = 0
+    max_iters = 1e6
+    while not all(parents_found):
+        parents, parent_actions = env.get_parents(state, done=False)
+        for p, p_a in zip(parents, parent_actions):
+            for idx, (p_exp, p_a_exp) in enumerate(
+                zip(all_parents_perms, parent_actions_perms)
+            ):
+                # If a match is found between parents, the action must match too. Add
+                # the index to the found parents and break the inner loop to check the
+                # next actual parent
+                if GFlowNetEnv.equal(p, p_exp):
+                    assert p_a == p_a_exp
+                    parents_found[idx] = True
+                    break
+            else:
+                # If a parent is not among the expected parents, the test is failed
+                assert False
+        count += 1
+        if count > max_iters:
+            assert False
+    assert True
+
+
+@pytest.mark.parametrize(
+    "env, state, action, logprob",
+    [
+        # All done
+        # There are 2 permutations
+        (
+            "env_2of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1],
+                1: [2],
+            },
+            (-1, 0),
+            np.log(1.0 / 2),
+        ),
+        # All done
+        # There are 6 permutations
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [3],
+            },
+            (-1, 0),
+            np.log(1.0 / 6),
+        ),
+        # All done
+        # There are 3 permutations because two choices are the same
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [2],
+            },
+            (-1, 0),
+            np.log(1.0 / 3),
+        ),
+        # All done
+        # There is 1 permutations because all choices are the same
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [1],
+                2: [1],
+            },
+            (-1, 0),
+            np.log(1.0 / 1),
+        ),
+        # All done but one
+        # There are 2 permutations
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [0],
+            },
+            (-1, 0),
+            np.log(1.0 / 2),
+        ),
+        # All done but one
+        # There are 2 permutations
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [0],
+            },
+            (-1, 0),
+            np.log(1.0 / 2),
+        ),
+        # All done but one
+        # There is 1 permutations because both choices are the same
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [2],
+                1: [2],
+                2: [0],
+            },
+            (-1, 0),
+            np.log(1.0 / 1),
+        ),
+    ],
+)
+def test__get_logprobs_backward__calculates_permutations(
+    env, state, action, logprob, request
+):
+    env = request.getfixturevalue(env)
+    masks = torch.unsqueeze(
+        tbool(
+            env.get_mask_invalid_actions_backward(state, done=False), device=env.device
+        ),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=True,
+    )
+    assert torch.isclose(logprobs[0], torch.tensor(logprob).to(logprobs))
 
 
 class TestChoicesDefault(common.BaseTestsDiscrete):
