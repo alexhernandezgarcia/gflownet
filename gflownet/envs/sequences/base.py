@@ -9,7 +9,6 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
-from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -100,6 +99,10 @@ class SequenceBase(GFlowNetEnv):
             action_space: [(0,), (1,), (-1,)]
         """
         return [(self.token2idx[token],) for token in self.tokens] + [(self.eos_idx,)]
+
+    def _get_max_trajectory_length(self) -> int:
+        """Return the maximum trajectory length, including the EOS action."""
+        return self.max_length + 1
 
     def get_mask_invalid_actions_forward(
         self,
@@ -396,24 +399,40 @@ class SequenceBase(GFlowNetEnv):
         seed : int
             Random seed.
         """
-        n_tokens = len(self.tokens)
-        n_per_length = tlong(
+        generator = self._get_generator(seed)
+        n_per_length = torch.tensor(
             [
-                n_tokens**length
+                self.n_tokens**length
                 for length in range(self.min_length, self.max_length + 1)
             ],
-            device=self.device,
+            dtype=torch.float64,
         )
-        lengths = Categorical(logits=n_per_length.repeat(n_states, 1)).sample() + 1
+        lengths = torch.multinomial(
+            n_per_length,
+            num_samples=n_states,
+            replacement=True,
+            generator=generator,
+        ) + self.min_length
         samples = torch.randint(
-            low=1, high=n_tokens + 1, size=(n_states, self.max_length)
+            low=1,
+            high=self.n_tokens + 1,
+            size=(n_states, self.max_length),
+            generator=generator,
         )
-        for idx, length in enumerate(lengths):
-            samples[idx, length:] = 0
+        for idx, length in enumerate(lengths.tolist()):
+            samples[idx, length:] = self.pad_idx
         # TODO: this is very inefficient but currently this method has to return a list
         # of states in the GFlowNet format.
-        samples = torch.cat(samples).tolist()
+        samples = samples.tolist()
         return [tlong(sample, device=self.device) for sample in samples]
+
+    def _get_generator(self, seed: Optional[int] = None) -> Optional[torch.Generator]:
+        """Return a local random number generator for the given seed."""
+        if seed is None:
+            return None
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        return generator
 
     def _pad(self, seq_list: list):
         """

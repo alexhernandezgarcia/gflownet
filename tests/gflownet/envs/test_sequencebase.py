@@ -277,6 +277,42 @@ def test__readable2state__returns_expected(env, state, readable):
     assert torch.equal(env.readable2state(readable), state)
 
 
+def test__get_uniform_terminating_states__returns_valid_states(env_min_length3):
+    states = env_min_length3.get_uniform_terminating_states(100, seed=0)
+    assert len(states) == 100
+    for state in states:
+        assert len(state) == env_min_length3.max_length
+        length = int(env_min_length3._get_seq_length(state))
+        assert env_min_length3.min_length <= length <= env_min_length3.max_length
+        assert torch.all(state[:length] != env_min_length3.pad_idx)
+        assert torch.all(state[length:] == env_min_length3.pad_idx)
+
+
+def test__get_uniform_terminating_states__is_reproducible_with_seed(env):
+    states_seed_0_a = env.get_uniform_terminating_states(25, seed=0)
+    states_seed_0_b = env.get_uniform_terminating_states(25, seed=0)
+    states_seed_1 = env.get_uniform_terminating_states(25, seed=1)
+    assert all(
+        torch.equal(state_a, state_b)
+        for state_a, state_b in zip(states_seed_0_a, states_seed_0_b)
+    )
+    assert any(
+        not torch.equal(state_a, state_b)
+        for state_a, state_b in zip(states_seed_0_a, states_seed_1)
+    )
+
+
+def test__get_uniform_terminating_states__samples_lengths_uniformly_over_states():
+    env = SequenceBase(tokens=(0, 1), min_length=1, max_length=3, device="cpu")
+    states = env.get_uniform_terminating_states(7000, seed=0)
+    lengths = torch.tensor([int(env._get_seq_length(state)) for state in states])
+    counts = torch.bincount(lengths, minlength=env.max_length + 1)[env.min_length :]
+    observed = counts.to(torch.float64) / counts.sum()
+    expected = torch.tensor([2**length for length in range(1, 4)], dtype=torch.float64)
+    expected /= expected.sum()
+    assert torch.allclose(observed, expected, atol=0.03)
+
+
 class TestSequenceBaseDefault(common.BaseTestsDiscrete):
     """Common tests the default SequenceBase"""
 
