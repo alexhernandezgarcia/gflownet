@@ -1,6 +1,7 @@
-"""
-Base class to represent sequence-like environments, such as AMP and DNA. Sequences
-are constructed by adding tokens from a dictionary, from left to right.
+"""Represent sequence-like environments.
+
+Sequences are constructed by adding tokens from a dictionary, from left to
+right.
 """
 
 import itertools
@@ -17,23 +18,12 @@ from gflownet.utils.common import copy, set_device, tlong
 
 class SequenceBase(GFlowNetEnv):
     """
-    Parent class of sequence environments, in its simplest form: sequences are
-    constructed starting from an empty sequence and adding one token at a time.
+    Represent sequence environments built one token at a time.
 
     By default, for illustration purposes, this class is functional and represents
-    binary sequences of 0s and 1s, that can be padded with the special token [PAD] and
-    are terminated by a special EOS action without appending any token to the state.
-
-    Attributes
-    ----------
-    tokens : iterable
-        An iterable containing the vocabulary of tokens that make the sequences.
-    min_length : int
-        Minimum valid sequence length before the EOS action is allowed.
-    max_length : int
-        Maximum length of the sequences.
-    pad_token : int, str
-        PAD token. Default: -1.
+    binary sequences of 0s and 1s that can be padded with the special token [PAD]
+    and terminated by a special EOS action without appending any token to the
+    state.
     """
 
     def __init__(
@@ -44,6 +34,22 @@ class SequenceBase(GFlowNetEnv):
         pad_token: Union[int, float, str] = -1,
         **kwargs,
     ):
+        """
+        Initialize a sequence environment.
+
+        Parameters
+        ----------
+        tokens : Iterable
+            Vocabulary of tokens used to build sequences.
+        min_length : int
+            Minimum valid sequence length before the EOS action is allowed.
+        max_length : int
+            Maximum sequence length.
+        pad_token : int, float, str
+            Token used to pad incomplete sequences.
+        **kwargs
+            Additional keyword arguments forwarded to :class:`GFlowNetEnv`.
+        """
         assert max_length > 0
         assert min_length > 0
         assert min_length <= max_length
@@ -54,12 +60,10 @@ class SequenceBase(GFlowNetEnv):
                 f"The padding token ({pad_token}) cannot be one of the regular tokens."
             )
         # Make sure that all tokens are the same type
-        if (
-            len(set([type(token) for token in set(tokens).union(set([pad_token]))]))
-            != 1
-        ):
+        token_types = {type(token) for token in set(tokens).union({pad_token})}
+        if len(token_types) != 1:
             raise ValueError(
-                f"All tokens must be the same type, but more than one type was found."
+                "All tokens must be the same type, but more than one type was found."
             )
         # Set device because it is needed in the init
         self.device = set_device(kwargs["device"])
@@ -87,7 +91,7 @@ class SequenceBase(GFlowNetEnv):
 
     def get_action_space(self) -> List[Tuple]:
         """
-        Constructs list with all possible actions, including eos.
+        Construct the list of all possible actions, including EOS.
 
         An action is represented by a single-element tuple indicating the index of the
         token to be added to the current sequence (state).
@@ -99,11 +103,13 @@ class SequenceBase(GFlowNetEnv):
 
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[TensorType["max_length"]] = None,
+        state: Optional[TensorType["max_length"]] = None,  # noqa: F821
         done: Optional[bool] = None,
     ) -> List[bool]:
         """
-        Returns a list of length the action space with values:
+        Return the mask of invalid forward actions.
+
+        The returned list has one entry per action:
             - True if the forward action is invalid from the current state.
             - False otherwise.
 
@@ -142,12 +148,12 @@ class SequenceBase(GFlowNetEnv):
 
     def get_parents(
         self,
-        state: Optional[TensorType["max_length"]] = None,
+        state: Optional[TensorType["max_length"]] = None,  # noqa: F821
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
         """
-        Determines all parents and actions that lead to state.
+        Determine all parents and actions that lead to a state.
 
         The GFlowNet graph is a tree and there is only one parent per state.
 
@@ -183,9 +189,9 @@ class SequenceBase(GFlowNetEnv):
 
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
-    ) -> [TensorType["max_length"], Tuple[int], bool]:
+    ) -> Tuple[TensorType["max_length"], Tuple[int], bool]:  # noqa: F821
         """
-        Executes step given an action.
+        Execute a step for the given action.
 
         Parameters
         ----------
@@ -226,13 +232,15 @@ class SequenceBase(GFlowNetEnv):
     def states2proxy(
         self,
         states: Union[
-            List[TensorType["max_length"]], TensorType["batch", "max_length"]
+            List[TensorType["max_length"]],  # noqa: F821
+            TensorType["batch", "max_length"],  # noqa: F821
         ],
     ) -> List[List]:
         """
-        Prepares a batch of states in "environment format" for a proxy: states
-        are represented by the tokens instead of the indices, with padding up to the
-        max_length.
+        Prepare a batch of states for a proxy.
+
+        States are represented by the tokens instead of the indices, with
+        padding up to the max_length.
 
         Important: by default, the output of states2proxy() is a list of lists, instead
         of a tensor as in most environments. This is to allow for string tokens.
@@ -261,12 +269,14 @@ class SequenceBase(GFlowNetEnv):
     def states2policy(
         self,
         states: Union[
-            List[TensorType["max_length"]], TensorType["batch", "max_length"]
+            List[TensorType["max_length"]],  # noqa: F821
+            TensorType["batch", "max_length"],  # noqa: F821
         ],
-    ) -> TensorType["batch", "policy_input_dim"]:
+    ) -> TensorType["batch", "policy_input_dim"]:  # noqa: F821
         """
-        Prepares a batch of states in "environment format" for the policy model: states
-        are one-hot encoded.
+        Prepare a batch of states for the policy model.
+
+        States are one-hot encoded.
 
         Example, with max_length = 5:
           - Sequence (tokens): 0100
@@ -291,9 +301,11 @@ class SequenceBase(GFlowNetEnv):
             .to(self.float)
         )
 
-    def state2readable(self, state: TensorType["max_length"] = None) -> str:
+    def state2readable(
+        self, state: Optional[TensorType["max_length"]] = None  # noqa: F821
+    ) -> str:
         """
-        Converts a state into a human-readable string.
+        Convert a state into a human-readable string.
 
         Example, with max_length = 5:
           - state: [1, 2, 1, 1, 0]
@@ -315,9 +327,9 @@ class SequenceBase(GFlowNetEnv):
         state = self._unpad(state.tolist())
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
-    def readable2state(self, readable: str) -> TensorType["max_length"]:
+    def readable2state(self, readable: str) -> TensorType["max_length"]:  # noqa: F821
         """
-        Converts a state in readable format into the "environment format" (tensor)
+        Convert a readable state into environment format.
 
         Example, with max_length = 5:
           - readable: "0 1 0 0"
@@ -341,10 +353,10 @@ class SequenceBase(GFlowNetEnv):
             device=self.device,
         )
 
-    def get_all_terminating_states(self) -> List[TensorType["max_length"]]:
-        """
-        Constructs a batch with all the states in the sample space of the environment.
-        """
+    def get_all_terminating_states(
+        self,
+    ) -> List[TensorType["max_length"]]:  # noqa: F821
+        """Construct a batch with all terminating states in the sample space."""
         samples = []
         tokens_indices = set(self.idx2token.keys())
         tokens_indices.remove(self.pad_idx)
@@ -372,10 +384,9 @@ class SequenceBase(GFlowNetEnv):
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
-    ) -> List[TensorType["max_length"]]:
+    ) -> List[TensorType["max_length"]]:  # noqa: F821
         """
-        Constructs a batch of n states uniformly sampled in the sample space of the
-        environment.
+        Construct a batch of states sampled uniformly from the sample space.
 
         Parameters
         ----------
@@ -406,7 +417,7 @@ class SequenceBase(GFlowNetEnv):
 
     def _pad(self, seq_list: list):
         """
-        Pads a sequence represented as a list of indices.
+        Pad a sequence represented as a list of indices.
 
         Parameters
         ----------
@@ -421,8 +432,7 @@ class SequenceBase(GFlowNetEnv):
 
     def _unpad(self, seq_list: list):
         """
-        Removes the padding from the end off a sequence represented as a list of
-        indices.
+        Remove trailing padding from a sequence represented as a list of indices.
 
         Parameters
         ----------
@@ -438,9 +448,11 @@ class SequenceBase(GFlowNetEnv):
             return seq_list
         return seq_list[: seq_list.index(self.pad_idx)]
 
-    def _get_seq_length(self, state: TensorType["max_length"] = None):
+    def _get_seq_length(
+        self, state: Optional[TensorType["max_length"]] = None  # noqa: F821
+    ):
         """
-        Returns the effective length of a state, that is ignoring the padding.
+        Return the effective length of a state, ignoring padding.
 
         Parameters
         ----------

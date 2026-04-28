@@ -61,9 +61,10 @@ class DNA(SequenceBase):
     def states2proxy_onehot(
         self,
         states: Union[
-            List[TensorType["max_length"]], TensorType["batch", "max_length"]
+            List[TensorType["max_length"]],  # noqa: F821
+            TensorType["batch", "max_length"],  # noqa: F821
         ],
-    ) -> Union[TensorType["batch", "policy_input_dim"], npt.NDArray]:
+    ) -> Union[TensorType["batch", "policy_input_dim"], npt.NDArray]:  # noqa: F821
         """
         Prepares a batch of states in "environment format" for a proxy model: states
         are one-hot encoded. If numpy is True (default), the output is converted into a

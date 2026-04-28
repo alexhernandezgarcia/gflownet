@@ -42,7 +42,7 @@ def env_default():
     ],
 )
 def test__environment_initializes_properly(tokens):
-    env = SequenceBase(tokens=tokens, pad_token=100, device="device")
+    SequenceBase(tokens=tokens, pad_token=100, device="device")
     assert True
 
 
@@ -195,18 +195,18 @@ def test__get_mask_forward__returns_expected(env, state, mask, request):
             [
                 # fmt: off
                 [
-                    1, 0, 0, 0, 0, 0, 
-                    1, 0, 0, 0, 0, 0, 
-                    1, 0, 0, 0, 0, 0, 
-                    1, 0, 0, 0, 0, 0, 
-                    1, 0, 0, 0, 0, 0, 
+                    1, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0,
+                    1, 0, 0, 0, 0, 0,
                 ],
                 [
-                    0, 1, 0, 0, 0, 0, 
-                    0, 0, 0, 1, 0, 0, 
-                    0, 0, 1, 0, 0, 0, 
-                    0, 1, 0, 0, 0, 0, 
-                    0, 0, 0, 0, 1, 0, 
+                    0, 1, 0, 0, 0, 0,
+                    0, 0, 0, 1, 0, 0,
+                    0, 0, 1, 0, 0, 0,
+                    0, 1, 0, 0, 0, 0,
+                    0, 0, 0, 0, 1, 0,
                 ],
                 # fmt: on
             ],
@@ -216,11 +216,11 @@ def test__get_mask_forward__returns_expected(env, state, mask, request):
             [
                 # fmt: off
                 [
-                    0, 1, 0, 0, 0, 0, 
-                    0, 0, 0, 1, 0, 0, 
-                    0, 0, 1, 0, 0, 0, 
-                    0, 1, 0, 0, 0, 0, 
-                    0, 0, 0, 0, 1, 0, 
+                    0, 1, 0, 0, 0, 0,
+                    0, 0, 0, 1, 0, 0,
+                    0, 0, 1, 0, 0, 0,
+                    0, 1, 0, 0, 0, 0,
+                    0, 0, 0, 0, 1, 0,
                 ],
                 # fmt: on
             ],
