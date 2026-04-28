@@ -96,7 +96,7 @@ class SequenceBase(GFlowNetEnv):
         token to be added to the current sequence (state).
 
         The action space of this parent class is:
-            action_space: [(0,), (1,), (-1,)]
+            action_space: [(1,), (2,), (-1,)]
         """
         return [(self.token2idx[token],) for token in self.tokens] + [(self.eos_idx,)]
 
@@ -187,7 +187,7 @@ class SequenceBase(GFlowNetEnv):
         pos_last_token = self._get_seq_length(state) - 1
         parent = copy(state)
         parent[pos_last_token] = self.pad_idx
-        p_action = (state[pos_last_token],)
+        p_action = (int(state[pos_last_token]),)
         return [parent], [p_action]
 
     def step(
@@ -348,7 +348,7 @@ class SequenceBase(GFlowNetEnv):
         A tensor containing the indices of the tokens.
         """
         if readable == "":
-            return self.source
+            return copy(self.source)
         return tlong(
             self._pad(
                 [self.token2idx[self.dtype(token)] for token in readable.split(" ")]
@@ -412,7 +412,8 @@ class SequenceBase(GFlowNetEnv):
             num_samples=n_states,
             replacement=True,
             generator=generator,
-        ) + self.min_length
+        )
+        lengths += self.min_length
         samples = torch.randint(
             low=1,
             high=self.n_tokens + 1,

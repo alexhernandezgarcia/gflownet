@@ -108,6 +108,7 @@ def test__get_parents__returns_expected(
         assert torch.equal(p, p_e)
     for p_a, p_a_e in zip(parents_a, parents_a_expected):
         assert p_a == p_a_e
+        assert isinstance(p_a[0], int)
 
 
 @pytest.mark.parametrize(
@@ -275,6 +276,13 @@ def test__state2readable__returns_expected(env, state, readable):
 def test__readable2state__returns_expected(env, state, readable):
     state = tlong(state, device=env.device)
     assert torch.equal(env.readable2state(readable), state)
+
+
+def test__readable2state__empty_returns_copy_of_source(env):
+    state = env.readable2state("")
+    state[0] = 1
+    assert torch.equal(env.source, tlong([0, 0, 0, 0, 0], device=env.device))
+    assert torch.equal(env.reset().state, env.source)
 
 
 def test__get_uniform_terminating_states__returns_valid_states(env_min_length3):
