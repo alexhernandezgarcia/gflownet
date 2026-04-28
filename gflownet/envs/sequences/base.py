@@ -22,18 +22,18 @@ class SequenceBase(GFlowNetEnv):
 
     By default, for illustration purposes, this class is functional and represents
     binary sequences of 0s and 1s, that can be padded with the special token [PAD] and
-    are terminated by the special token [EOS].
+    are terminated by a special EOS action without appending any token to the state.
 
     Attributes
     ----------
     tokens : iterable
         An iterable containing the vocabulary of tokens that make the sequences.
+    min_length : int
+        Minimum valid sequence length before the EOS action is allowed.
     max_length : int
         Maximum length of the sequences.
-    eos_token : int, str
-       EOS token. Default: -1.
     pad_token : int, str
-       PAD token. Default: -1.
+        PAD token. Default: -1.
     """
 
     def __init__(
@@ -365,7 +365,7 @@ class SequenceBase(GFlowNetEnv):
                     dim=1,
                 )
             )
-        # TODO: this is very inneficient but currently this method has to return a list
+        # TODO: this is very inefficient but currently this method has to return a list
         # of states in the GFlowNet format.
         samples = torch.cat(samples).tolist()
         return [tlong(sample, device=self.device) for sample in samples]
@@ -399,7 +399,7 @@ class SequenceBase(GFlowNetEnv):
         )
         for idx, length in enumerate(lengths):
             samples[idx, length:] = 0
-        # TODO: this is very inneficient but currently this method has to return a list
+        # TODO: this is very inefficient but currently this method has to return a list
         # of states in the GFlowNet format.
         samples = torch.cat(samples).tolist()
         return [tlong(sample, device=self.device) for sample in samples]
