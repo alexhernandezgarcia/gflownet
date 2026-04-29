@@ -5,7 +5,7 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.sequences.selfies import PAD_TOKEN, SELFIES_VOCAB_SMALL, SelfiesEnv
+from gflownet.envs.sequences.selfies import PAD_TOKEN, SELFIES_VOCAB_SMALL, Selfies
 from gflownet.utils.common import tlong
 
 SELFIES_VOCAB_TEST = ["[C]", "[O]", "[N]"]
@@ -14,12 +14,12 @@ SELFIES_TOKEN_PATTERN = re.compile(r"\[[^\]]+\]")
 
 @pytest.fixture
 def env():
-    return SelfiesEnv(selfies_vocab=SELFIES_VOCAB_TEST, max_length=3, device="cpu")
+    return Selfies(selfies_vocab=SELFIES_VOCAB_TEST, max_length=3, device="cpu")
 
 
 @pytest.fixture
 def env_large():
-    return SelfiesEnv(
+    return Selfies(
         selfies_vocab=SELFIES_VOCAB_TEST,
         min_length=2,
         max_length=5,
@@ -29,7 +29,7 @@ def env_large():
 
 @pytest.fixture
 def env_default_vocab():
-    return SelfiesEnv(max_length=2, device="cpu")
+    return Selfies(max_length=2, device="cpu")
 
 
 def _make_state(env, length: int, offset: int = 0):

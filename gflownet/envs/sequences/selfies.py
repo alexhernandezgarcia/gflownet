@@ -38,7 +38,7 @@ SELFIES_VOCAB_SMALL = [
 PAD_TOKEN = "[nop]"
 
 
-class SelfiesEnv(SequenceBase):
+class Selfies(SequenceBase):
     """
     A SELFIES sequence environment whose tokens are valid SELFIES tokens.
 
