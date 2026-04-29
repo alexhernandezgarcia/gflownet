@@ -1,4 +1,5 @@
 import itertools
+import re
 
 import common
 import pytest
@@ -8,6 +9,7 @@ from gflownet.envs.sequences.selfies import PAD_TOKEN, SELFIES_VOCAB_SMALL, Self
 from gflownet.utils.common import tlong
 
 SELFIES_VOCAB_TEST = ["[C]", "[O]", "[N]"]
+SELFIES_TOKEN_PATTERN = re.compile(r"\[[^\]]+\]")
 
 
 @pytest.fixture
@@ -38,16 +40,17 @@ def _make_state(env, length: int, offset: int = 0):
     )
 
 
-def _make_readable(env, state):
+def _state_tokens(env, state):
     length = int(env._get_seq_length(state))
-    return " ".join(env.idx2token[int(idx)] for idx in state[:length].tolist())
+    return [env.idx2token[int(idx)] for idx in state[:length].tolist()]
+
+
+def _make_readable(env, state):
+    return " ".join(_state_tokens(env, state))
 
 
 def _make_proxy(env, state):
-    length = int(env._get_seq_length(state))
-    return [env.idx2token[int(idx)] for idx in state[:length].tolist()] + [
-        env.pad_token
-    ] * (env.max_length - length)
+    return "".join(_state_tokens(env, state))
 
 
 def _all_readable_strings(env):
@@ -56,6 +59,38 @@ def _all_readable_strings(env):
         for length in range(env.min_length, env.max_length + 1)
         for tokens in itertools.product(env.selfies_vocab, repeat=length)
     }
+
+
+def _all_proxy_strings(env):
+    return {readable.replace(" ", "") for readable in _all_readable_strings(env)}
+
+
+def _tokenize_selfies_string(selfies_string):
+    tokens = SELFIES_TOKEN_PATTERN.findall(selfies_string)
+    assert "".join(tokens) == selfies_string
+    return tokens
+
+
+def _assert_valid_proxy_string(env, proxy_string, expected_length=None):
+    assert PAD_TOKEN not in proxy_string
+    assert " " not in proxy_string
+    tokens = _tokenize_selfies_string(proxy_string)
+    if expected_length is not None:
+        assert len(tokens) == expected_length
+    assert all(token in env.selfies_vocab for token in tokens)
+
+
+def _sample_random_state_at_max_length(env, max_attempts: int = 100):
+    for _ in range(max_attempts):
+        env.reset()
+        state = env.state
+        while not env.done and env._get_seq_length() < env.max_length:
+            state, action, valid = env.step_random()
+            assert valid
+            assert action in env.action_space
+        if env._get_seq_length(state) == env.max_length:
+            return state
+    raise RuntimeError("Could not sample a random trajectory that reached max length.")
 
 
 def test__environment_initializes_with_default_vocab(env_default_vocab):
@@ -72,118 +107,99 @@ def test__environment_initializes_with_custom_vocab(env_large):
     assert env_large.max_length == 5
 
 
-def test__get_action_space__returns_expected(env):
-    assert env.min_length == 1
-    assert env.max_length == 3
-    assert env.action_space == [(1,), (2,), (3,), env.eos]
+def test__get_action_space__returns_expected(env, env_large):
+    for current_env in (env, env_large):
+        assert current_env.min_length > 0
+        assert current_env.max_length >= current_env.min_length
+        assert current_env.action_space == [
+            (token_idx,) for token_idx in range(1, current_env.n_tokens + 1)
+        ] + [current_env.eos]
 
 
-def test__get_action_space__returns_expected_large(env_large):
-    assert env_large.min_length == 2
-    assert env_large.max_length == 5
-    assert env_large.action_space == [(1,), (2,), (3,), env_large.eos]
+def test__state2readable_and_readable2state__are_consistent(env, env_large):
+    for current_env, max_offset in ((env, 2), (env_large, 1)):
+        for length, offset in (
+            (0, 0),
+            (current_env.min_length, 0),
+            (current_env.max_length, max_offset),
+        ):
+            state = _make_state(current_env, length, offset=offset)
+            readable = current_env.state2readable(state)
+
+            assert readable == _make_readable(current_env, state)
+            assert torch.equal(current_env.readable2state(readable), state)
 
 
-def test__states2proxy__returns_expected(env):
-    assert env.min_length == 1
-    assert env.max_length == 3
-    empty_state = _make_state(env, 0)
-    min_state = _make_state(env, env.min_length)
-    max_state = _make_state(env, env.max_length, offset=2)
-    states = tlong(
-        [empty_state.tolist(), min_state.tolist(), max_state.tolist()],
-        device=env.device,
-    )
-    assert env.states2proxy(states) == [
-        [PAD_TOKEN] * env.max_length,
-        _make_proxy(env, min_state),
-        _make_proxy(env, max_state),
-    ]
+def test__states2proxy__returns_compact_selfies_strings(env, env_large):
+    for current_env, max_offset in ((env, 2), (env_large, 1)):
+        states = [
+            _make_state(current_env, 0),
+            _make_state(current_env, current_env.min_length),
+            _make_state(current_env, current_env.max_length, offset=max_offset),
+        ]
+        states_tensor = tlong(
+            [state.tolist() for state in states],
+            device=current_env.device,
+        )
+        expected_proxy = [_make_proxy(current_env, state) for state in states]
+
+        assert current_env.states2proxy(states_tensor) == expected_proxy
+        assert (
+            current_env.states2proxy([state.tolist() for state in states])
+            == expected_proxy
+        )
+
+        for state, proxy_string in zip(states, expected_proxy):
+            assert current_env.state2proxy(state) == [proxy_string]
+            _assert_valid_proxy_string(
+                current_env,
+                proxy_string,
+                expected_length=int(current_env._get_seq_length(state)),
+            )
 
 
-def test__states2proxy__returns_expected_large(env_large):
-    assert env_large.min_length == 2
-    assert env_large.max_length == 5
-    empty_state = _make_state(env_large, 0)
-    min_state = _make_state(env_large, env_large.min_length)
-    max_state = _make_state(env_large, env_large.max_length, offset=1)
-    states = tlong(
-        [empty_state.tolist(), min_state.tolist(), max_state.tolist()],
-        device=env_large.device,
-    )
-    assert env_large.states2proxy(states) == [
-        [PAD_TOKEN] * env_large.max_length,
-        _make_proxy(env_large, min_state),
-        _make_proxy(env_large, max_state),
-    ]
+def test__get_all_terminating_states__returns_expected_formats(env):
+    states = env.get_all_terminating_states()
+    readable_states = {env.state2readable(state) for state in states}
+    proxy_states = set(env.states2proxy(states))
 
-
-def test__state2readable__returns_expected(env):
-    assert env.min_length == 1
-    assert env.max_length == 3
-    empty_state = _make_state(env, 0)
-    min_state = _make_state(env, env.min_length)
-    max_state = _make_state(env, env.max_length, offset=2)
-    assert env.state2readable(empty_state) == ""
-    assert env.state2readable(min_state) == _make_readable(env, min_state)
-    assert env.state2readable(max_state) == _make_readable(env, max_state)
-
-
-def test__state2readable__returns_expected_large(env_large):
-    assert env_large.min_length == 2
-    assert env_large.max_length == 5
-    empty_state = _make_state(env_large, 0)
-    min_state = _make_state(env_large, env_large.min_length)
-    max_state = _make_state(env_large, env_large.max_length, offset=1)
-    assert env_large.state2readable(empty_state) == ""
-    assert env_large.state2readable(min_state) == _make_readable(env_large, min_state)
-    assert env_large.state2readable(max_state) == _make_readable(env_large, max_state)
-
-
-def test__readable2state__returns_expected(env):
-    assert env.min_length == 1
-    assert env.max_length == 3
-    empty_state = _make_state(env, 0)
-    min_state = _make_state(env, env.min_length)
-    max_state = _make_state(env, env.max_length, offset=2)
-    assert torch.equal(env.readable2state(""), empty_state)
-    assert torch.equal(env.readable2state(_make_readable(env, min_state)), min_state)
-    assert torch.equal(env.readable2state(_make_readable(env, max_state)), max_state)
-
-
-def test__readable2state__returns_expected_large(env_large):
-    assert env_large.min_length == 2
-    assert env_large.max_length == 5
-    empty_state = _make_state(env_large, 0)
-    min_state = _make_state(env_large, env_large.min_length)
-    max_state = _make_state(env_large, env_large.max_length, offset=1)
-    assert torch.equal(env_large.readable2state(""), empty_state)
-    assert torch.equal(
-        env_large.readable2state(_make_readable(env_large, min_state)), min_state
-    )
-    assert torch.equal(
-        env_large.readable2state(_make_readable(env_large, max_state)), max_state
-    )
-
-
-def test__get_all_terminating_states__returns_expected_readable_strings(env):
-    readable_states = {
-        env.state2readable(state) for state in env.get_all_terminating_states()
-    }
     assert readable_states == _all_readable_strings(env)
-    assert "[C]" in readable_states
-    assert "[C] [O] [N]" in readable_states
+    assert proxy_states == _all_proxy_strings(env)
+    assert "[C]" in proxy_states
+    assert "[C][O][N]" in proxy_states
+
+    for proxy_string in proxy_states:
+        _assert_valid_proxy_string(env, proxy_string)
 
 
-def test__get_uniform_terminating_states__return_valid_selfies_strings(env_large):
+def test__get_uniform_terminating_states__return_valid_selfies_proxy_strings(env_large):
     states = env_large.get_uniform_terminating_states(100, seed=0)
-    all_readable_states = _all_readable_strings(env_large)
-    for state in states:
+    readable_states = _all_readable_strings(env_large)
+    proxy_states = _all_proxy_strings(env_large)
+
+    for state, proxy_string in zip(states, env_large.states2proxy(states)):
         readable = env_large.state2readable(state)
-        assert readable in all_readable_states
-        tokens = readable.split(" ")
-        assert env_large.min_length <= len(tokens) <= env_large.max_length
-        assert all(token in env_large.selfies_vocab for token in tokens)
+        assert readable in readable_states
+        assert proxy_string in proxy_states
+        _assert_valid_proxy_string(
+            env_large,
+            proxy_string,
+            expected_length=int(env_large._get_seq_length(state)),
+        )
+
+
+def test__step_random_to_max_length__produces_valid_selfies_proxy_string(env_large):
+    for _ in range(20):
+        state = _sample_random_state_at_max_length(env_large)
+        proxy_string = env_large.states2proxy([state])[0]
+
+        assert env_large._get_seq_length(state) == env_large.max_length
+        assert env_large.state2proxy(state) == [proxy_string]
+        _assert_valid_proxy_string(
+            env_large,
+            proxy_string,
+            expected_length=env_large.max_length,
+        )
 
 
 class TestSelfiesSmallVocabCommonDiscrete(common.BaseTestsDiscrete):
