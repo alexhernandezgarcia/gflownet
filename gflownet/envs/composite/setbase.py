@@ -357,7 +357,7 @@ class BaseSet(CompositeBase):
         """
         if (
             not self.can_alternate_subenvs
-            and not is_backward
+            and is_backward
             and action[0] == -1
             and action != self.eos
         ):
