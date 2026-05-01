@@ -955,3 +955,166 @@ def test__permute_substates__generates_correct_keys(
     assert state_permuted["_keys"] in permutations_keys
     # Check that key permutation is done in-place
     assert id(state_permuted) == id(state)
+
+
+@pytest.mark.parametrize(
+    "env, state, idx_unique, done_only, unique_substates_exp",
+    [
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
+            0,
+            False,
+            [0, 0],
+        ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            0,
+            True,
+            [0, 1],
+        ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [1, 2],
+            },
+            0,
+            True,
+            [0, 0],
+        ),
+        (
+            "env_fix_two_grids",
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [2, 1],
+            },
+            0,
+            True,
+            [0, -1],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            0,
+            False,
+            [0, 1, -1, -1, -1],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 0, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            False,
+            [-1, -1, 0, 1, 2],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 1, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.33, 0.22],
+                4: [-1, -1],
+            },
+            1,
+            True,
+            [-1, -1, 0, 1, -1],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 1, 0],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.44, 0.55],
+                4: [-1, -1],
+            },
+            1,
+            True,
+            [-1, -1, 0, 0, -1],
+        ),
+        (
+            "env_fix_two_grids_three_cubes",
+            {
+                "_active": 3,
+                "_toggle": 0,
+                "_dones": [1, 1, 1, 1, 1],
+                "_envs_unique": [0, 0, 1, 1, 1],
+                "_keys": [0, 1, 2, 3, 4],
+                0: [1, 2],
+                1: [2, 1],
+                2: [0.44, 0.55],
+                3: [0.44, 0.55],
+                4: [0.44, 0.55],
+            },
+            1,
+            True,
+            [-1, -1, 0, 0, 0],
+        ),
+    ],
+)
+def test__get_unique_substates__returns_correct_output(
+    env, state, idx_unique, done_only, unique_substates_exp, request
+):
+    env = request.getfixturevalue(env)
+    unique_substates = env._get_unique_substates(idx_unique, state, done_only)
+    assert unique_substates_exp == unique_substates

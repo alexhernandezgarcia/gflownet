@@ -1119,6 +1119,98 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
+    def _get_unique_substates(
+        self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
+    ) -> Tuple[Dict, int]:
+        """
+        Determines which sub-states of a unique environment are unique.
+
+        Each substate of a unique environment is compared against the other substates
+        of the corresponing environment. If a substate has been already matched to
+        another one, the comparison is skipped.
+
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose substates should be
+            compared.
+        state : dict
+            A state of the Set environment. If None, self.state is used.
+        done_only : bool
+            Whether to compare only the done sub-environments.
+
+        Returns
+        -------
+        unique_substates : list
+            A list containing the correspondences between substates, indicated by an
+            integer. All substates of a different unique environment than the queried
+            one are set to -1. For the substates of the queried environment, each
+            unique substate is assigned an arbitrary index, starting from 0, such that
+            all identical substates are assigned the same index. If ``done_only`` is
+            True, all non-done substates are assigned -1, even if they correspond to
+            the queried environment.
+        """
+        unique_indices = self._get_unique_indices(state)
+        dones = self._get_dones(state)
+        n_substates = len(unique_indices)
+        if done_only:
+            dones = self._get_dones(state)
+        else:
+            dones = [True] * n_substates
+
+        # Find relevant substates and initialize output list
+        unique_substates = [-1] * n_substates
+        indices_relevant = []
+        offset = 0
+        for idx, (idx_u, done) in enumerate(zip(unique_indices, dones)):
+            if idx_u == idx_unique and done:
+                indices_relevant.append(idx)
+                unique_substates[idx] = offset
+                offset += 1
+        n_relevant = len(indices_relevant)
+
+        # If there are less than two relevant states, return immediately
+        if n_relevant < 2:
+            return unique_substates
+
+        # Collect substates of done instances
+        substates = [self._get_substate(state, idx) for idx in indices_relevant]
+
+        # Compare all relevant sub-states:
+        # - We compare each substate with the other substates except with itself
+        # - If a substate has been already matched to another one, we skip the
+        # comparison
+        # - If two states are found to be equal, we assign them the same identity
+        # indices
+        matched_substates = [False] * n_substates
+        for idx_x, substate_x in zip(indices_relevant, substates):
+            for idx_y, substate_y in zip(indices_relevant, substates):
+                # Skip if the indices of both substates are the same
+                if idx_x == idx_y:
+                    continue
+                # Skip if the substates have already been matched to another state
+                if matched_substates[idx_x] or matched_substates[idx_y]:
+                    continue
+                # If a match is found, set the index of new match to the index of the
+                # first reference.
+                # If substates are dictionaries and have the key "_keys", compare
+                # using the Set's equal(). Otherwise, use the parent's equal().
+                if (
+                    type(substate_x) == dict
+                    and "_keys" in substate_x
+                    and type(substate_y) == dict
+                    and "_keys" in substate_y
+                ):
+                    substate_match = self.equal(substate_x, substate_y)
+                else:
+                    substate_match = GFlowNetEnv.equal(substate_x, substate_y)
+                if substate_match:
+                    unique_substates[idx_y] = unique_substates[idx_x]
+                    matched_substates[idx_y] = True
+            matched_substates[idx_x] = True
+
+        return unique_substates
+
     def _permute_substates(
         self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
     ) -> Tuple[Dict, int]:
