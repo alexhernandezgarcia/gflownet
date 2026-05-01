@@ -1070,6 +1070,100 @@ def test__get_logprobs_backward__calculates_permutations(
     assert torch.isclose(logprobs[0], torch.tensor(logprob).to(logprobs))
 
 
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        # Two sub-envs
+        # One done, one at source and active
+        (
+            "env_2of3_with_replacement",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1],
+                1: [0],
+            },
+            (-1, 0),
+        ),
+        # Three sub-envs
+        # Two done, one at source and active
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [2],
+                2: [0],
+            },
+            (-1, 0),
+        ),
+        # Three sub-envs
+        # Two done, one at source and active
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [2],
+                1: [2],
+                2: [0],
+            },
+            (-1, 0),
+        ),
+        # Three sub-envs
+        # One done, one at source and active, one at source
+        (
+            "env_3of3_with_replacement",
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [1, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [1],
+                1: [0],
+                2: [0],
+            },
+            (-1, 0),
+        ),
+    ],
+)
+def test__get_logprobs_backward__returns_zero_if_action_is_deactivate(
+    env, state, action, request
+):
+    env = request.getfixturevalue(env)
+    masks = torch.unsqueeze(
+        tbool(
+            env.get_mask_invalid_actions_backward(state, done=False), device=env.device
+        ),
+        0,
+    )
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
+    actions_torch = torch.unsqueeze(torch.tensor(action), 0)
+    logprobs = env.get_logprobs(
+        policy_outputs=policy_outputs,
+        actions=actions_torch,
+        mask=masks,
+        states_from=[state],
+        is_backward=True,
+    )
+    if not torch.isclose(logprobs[0], torch.tensor(0.0).to(logprobs)):
+        import ipdb
+
+        ipdb.set_trace()
+    assert torch.isclose(logprobs[0], torch.tensor(0.0).to(logprobs))
+
+
 class TestChoicesDefault(common.BaseTestsDiscrete):
     """Common tests for default Choices environment"""
 

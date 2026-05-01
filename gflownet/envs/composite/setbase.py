@@ -1333,21 +1333,30 @@ class BaseSet(CompositeBase):
                 is_backward,
             )
             # Apply permutation correction for backward toggle actions with a
-            # stochastic component (not EOS, not when can_alternate_subenvs is True)
+            # stochastic component (not EOS and from inactive state and not when
+            # can_alternate_subenvs is True)
             if is_backward and not self.can_alternate_subenvs:
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+                # First selection: Actions are stochastic if they are set actions and
+                # not EOS
                 is_stochastic = torch.zeros_like(is_set)
                 is_stochastic[is_set] = torch.any(actions[is_set] != eos_tensor, dim=1)
+                # Refined selection: Actions are stochastic only if they are from an
+                # inactive state
+                states_stochastic = []
+                for idx, (state, iss) in enumerate(zip(states_from, is_stochastic)):
+                    if not iss:
+                        continue
+                    if self._get_active_subenv(state) == -1:
+                        states_stochastic.append(state)
+                    else:
+                        is_stochastic[idx] = False
                 if any(is_stochastic):
                     logprobs_set[
                         is_stochastic[is_set]
                     ] -= self._get_logprobs_of_permutations(
                         actions[is_stochastic],
-                        [
-                            state
-                            for state, do_keep in zip(states_from, is_stochastic)
-                            if do_keep
-                        ],
+                        states_stochastic,
                     )
 
         # Get the active sub-environment of each mask from the one-hot prefix
