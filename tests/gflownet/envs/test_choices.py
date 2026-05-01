@@ -1157,10 +1157,6 @@ def test__get_logprobs_backward__returns_zero_if_action_is_deactivate(
         states_from=[state],
         is_backward=True,
     )
-    if not torch.isclose(logprobs[0], torch.tensor(0.0).to(logprobs)):
-        import ipdb
-
-        ipdb.set_trace()
     assert torch.isclose(logprobs[0], torch.tensor(0.0).to(logprobs))
 
 
