@@ -324,6 +324,8 @@ class BaseSet(CompositeBase):
             )
         return action_space
 
+    # TODO: Currently returns True for backward actions that "deactivate" the
+    # sub-environment, but permutation is not done for those.
     def action_produces_permutation(
         self, action: Tuple, is_backward: bool = False
     ) -> bool:
