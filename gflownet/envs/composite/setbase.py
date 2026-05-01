@@ -1217,14 +1217,24 @@ class BaseSet(CompositeBase):
         """
         Permutes the sub-states of a given unique environment.
 
+        This method does not perform a full permutation. Since actions always take
+        place on the last substate, only the last substate is permuted swapped with
+        another substate. Furthermore, if the state contains identical substates, these
+        are considered only once in the permutation. Concretely, the permutation
+        consists of the following steps:
+            1. Identify the unique substates corresponding to the relevant unique
+            environment.
+            2. Among the unique substates, one of the them is selected randomly.
+            3. The selected substate is swapped with the current last state.
+
         The permutation is reflected only in the list stored in the key ``_keys`` of
         the dictionary, which contains the actual keys where the states are stored.
         Permuting the values of this list is more efficient than permuting the actual
         sub-states.
 
         If ``done_only`` is True (default), then only the done sub-environments are
-        permuted.  Otherwise, all sub-environments of the specified unique environment
-        are permuted.
+        considered in the permutation. Otherwise, all sub-environments of the specified
+        unique environment are considered.
 
         Parameters
         ----------
@@ -1241,39 +1251,39 @@ class BaseSet(CompositeBase):
         state : dict
             The updated state
         indices_relevant : int
-            The indices of the relevant elements whose keys are permuted, which
-            correspond to the indices of the specified type and (if ``done_only`` is
-            True) are also done. Note that the returned indices are the actual indices
-            and not the substate keys. These indices are not permuted.
+            The indices of the relevant elements, which correspond to the indices of
+            the specified type and (if ``done_only`` is True) are also done. Note that
+            the returned indices are the actual indices and not the substate keys.
+            These indices are not permuted.
         """
-        state = self._get_state(state)
-        unique_indices = self._get_unique_indices(state)
         keys = self._get_keys(state)
-        if done_only:
-            dones = self._get_dones(state)
-        else:
-            dones = [True] * len(keys)
+        unique_substates = self._get_unique_substates(idx_unique, state, done_only)
 
-        # Find all done sub-environments of the relevant unique environment
-        indices_relevant, keys_to_permute = zip(
-            *[
-                (idx, key)
-                for idx, (idx_u, key, done) in enumerate(
-                    zip(unique_indices, keys, dones)
-                )
-                if idx_u == idx_unique and done
-            ]
-        )
+        # Determine the relevant keys
+        indices_relevant = []
+        indices_to_permute = []
+        indices_unique_processed = []
+        for idx, idx_u in enumerate(unique_substates):
+            if idx_u == -1:
+                continue
+            indices_relevant.append(idx)
+            if idx_u in indices_unique_processed:
+                continue
+            indices_to_permute.append(idx)
+            indices_unique_processed.append(idx_u)
 
-        # If there are not any indices to permute, return immediately
-        if len(indices_relevant) <= 1:
+        # If there are not any keys to permute, return immediately
+        if len(indices_to_permute) < 2:
             return state, indices_relevant
 
-        # Permute relevant keys and update keys of state
-        keys_to_permute = list(keys_to_permute)
-        random.shuffle(keys_to_permute)
-        for idx, key in zip(indices_relevant, keys_to_permute):
-            keys[idx] = key
+        # Permute indices and update keys of state
+        idx_selected = random.choice(indices_to_permute)
+        idx_last = indices_relevant[-1]
+        if idx_selected == idx_last:
+            return state, indices_relevant
+        key_selected = keys[idx_selected]
+        keys[idx_selected] = keys[idx_last]
+        keys[idx_last] = key_selected
         state = self._set_keys(keys, state)
 
         return state, indices_relevant
