@@ -929,7 +929,7 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
     "env, state, action, logprob",
     [
         # All done
-        # There are 2 permutations
+        # There are 2 unique relevant substates
         (
             "env_2of3_with_replacement",
             {
@@ -945,7 +945,7 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
             np.log(1.0 / 2),
         ),
         # All done
-        # There are 6 permutations
+        # There are 3 unique relevant substates
         (
             "env_3of3_with_replacement",
             {
@@ -959,10 +959,10 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
                 2: [3],
             },
             (-1, 0),
-            np.log(1.0 / 6),
+            np.log(1.0 / 3),
         ),
         # All done
-        # There are 3 permutations because two choices are the same
+        # There are 2 unique substates because two choices are the same
         (
             "env_3of3_with_replacement",
             {
@@ -976,10 +976,10 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
                 2: [2],
             },
             (-1, 0),
-            np.log(1.0 / 3),
+            np.log(1.0 / 2),
         ),
         # All done
-        # There is 1 permutations because all choices are the same
+        # There is 1 unique substate because all choices are the same
         (
             "env_3of3_with_replacement",
             {
@@ -996,7 +996,7 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
             np.log(1.0 / 1),
         ),
         # All done but one
-        # There are 2 permutations
+        # There are 2 unique relevant substates
         (
             "env_3of3_with_replacement",
             {
@@ -1013,7 +1013,7 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
             np.log(1.0 / 2),
         ),
         # All done but one
-        # There are 2 permutations
+        # There are 2 unique relevant substates
         (
             "env_3of3_with_replacement",
             {
@@ -1030,7 +1030,7 @@ def test__get_parents__with_permutations_can_return_all_possible_parents(
             np.log(1.0 / 2),
         ),
         # All done but one
-        # There is 1 permutations because both choices are the same
+        # There is 1 unique substate because both choices are the same
         (
             "env_3of3_with_replacement",
             {

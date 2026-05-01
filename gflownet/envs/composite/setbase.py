@@ -1456,7 +1456,7 @@ class BaseSet(CompositeBase):
                 if any(is_stochastic):
                     logprobs_set[
                         is_stochastic[is_set]
-                    ] -= self._get_logprobs_of_permutations(
+                    ] += self._get_logprobs_of_permutations(
                         actions[is_stochastic],
                         states_stochastic,
                     )
@@ -1533,13 +1533,9 @@ class BaseSet(CompositeBase):
         probability. In order to correctly assign the transition probabilities, we need
         to calculate the log-probability of these transitions.
 
-        If all substates involved in the permutation are identical, the probability of
-        the transition is one. Otherwise, the log-probability is $-\log(P)$, where $P$
-        is the number of permutations. If all substates involved in the permutation are
-        different, the number of permutations is equal to $n!$, where $n$ is the number
-        of substates. However, if there exist subsets of the states that are identical,
-        the number of permutations is equal to $n! / (m_1! * m_2! * \ldots)$, where
-        $m_i$ are the multiplicities of identical subsets of substates.
+        Since only the last relevant substate is randomly swapped with one of the other
+        unique relevant substate, the number of permutations is equal to the number of
+        unique relevant states, $n$. Therefore, the log probability is $-log(n)$.
 
         Parameters
         ----------
@@ -1563,74 +1559,19 @@ class BaseSet(CompositeBase):
             # Get the unique environment index from the toggle action
             idx_unique = action[1]
 
-            # Get unique indices and done flags from state
-            unique_indices = self._get_unique_indices(state)
-            dones = self._get_dones(state)
-
-            # Find all done instances of this unique environment type
-            indices_relevant = [
-                idx
-                for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
-                if idx_u == idx_unique and done
-            ]
-            n_done = len(indices_relevant)
-
-            # No correction needed if fewer than 2 done instances
-            if n_done <= 1:
-                continue
-
-            # Collect substates of done instances
-            substates = [self._get_substate(state, idx) for idx in indices_relevant]
-
-            # Count multiplicities of each substate:
-            # - All substates are initialized to present once
-            # - We compare each substate with the other substates except with itself
-            # - If a substate has been already matched to another one, we skip the
-            # comparison
-            # - If two states are found to be equal, we increase by one the
-            # multiplicity of the first one and set to zero the multiplicity of the
-            # second one
-            multiplicities = [1] * n_done
-            matched_substates = [False] * n_done
-            for idx_x, substate_x in enumerate(substates):
-                for idx_y, substate_y in enumerate(substates):
-                    # Skip if the indices of both substates are the same
-                    if idx_x == idx_y:
-                        continue
-                    # Skip if the substates have already been matched to another state
-                    if matched_substates[idx_x] or matched_substates[idx_y]:
-                        continue
-                    # If a match is found, increase the multiplicity of the first
-                    # substate and set to zero the multiplicity of the second one
-                    # If substates are dictionaries and have the key "_keys", compare
-                    # using the Set's equal(). Otherwise, use the parent's equal().
-                    if (
-                        type(substate_x) == dict
-                        and "_keys" in substate_x
-                        and type(substate_y) == dict
-                        and "_keys" in substate_y
-                    ):
-                        substate_match = self.equal(substate_x, substate_y)
-                    else:
-                        substate_match = GFlowNetEnv.equal(substate_x, substate_y)
-                    if substate_match:
-                        multiplicities[idx_x] += 1
-                        multiplicities[idx_y] = 0
-                        matched_substates[idx_y] = True
-                matched_substates[idx_x] = True
-
-            # Compute number of unique permutations: n! / (m1! * m2! * ...)
-            # In log space: log(n!) - sum(log(mi!))
-            log_n_factorial = torch.lgamma(
-                torch.tensor(n_done + 1, dtype=self.float, device=self.device)
+            # Get unique substates
+            unique_substates = self._get_unique_substates(
+                idx_unique, state, done_only=True
             )
-            multiplicities = torch.tensor(
-                multiplicities, dtype=self.float, device=self.device
+
+            # Get number of unique states
+            unique_substates = tlong(unique_substates, device=self.device)
+            unique_substates = unique_substates[unique_substates != -1]
+            n_unique = torch.unique(unique_substates).shape[0]
+
+            logprobs[idx] = -torch.log(
+                tfloat(n_unique, device=self.device, float_type=self.float)
             )
-            multiplicities = multiplicities[multiplicities > 0]
-            multiplicities += 1
-            log_denominator = torch.sum(torch.lgamma(multiplicities))
-            logprobs[idx] = log_n_factorial - log_denominator
 
         return logprobs
 
