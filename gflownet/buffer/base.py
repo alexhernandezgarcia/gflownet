@@ -40,7 +40,7 @@ class BaseBuffer:
         use_main_buffer=False,
         check_diversity: bool = False,
         diversity_check_reward_similarity: float = 0.1,
-        progress_process_dataset: bool = False,
+        progress_process_dataset: bool = True,
         **kwargs,
     ):
         """
@@ -474,15 +474,16 @@ class BaseBuffer:
                 samples = data_dict["samples"]
                 if hasattr(self.env, "process_data_set"):
                     n_samples_orig = len(samples)
-                    print(f"The data set containts {n_samples_orig} samples", end="")
+                    print(f"The data set containts {n_samples_orig} samples.\n")
                     samples = self.env.process_data_set(
                         samples, self.progress_process_dataset
                     )
                     n_samples_new = len(samples)
                     if n_samples_new != n_samples_orig:
                         print(
-                            f", but only {n_samples_new} are valid according to the "
-                            "environment settings. Invalid samples have been discarded."
+                            f"\nOnly {n_samples_new}/{n_samples_orig} are valid "
+                            "according to the environment settings. Invalid samples "
+                            "have been discarded."
                         )
         elif config.type == "csv" and "path" in config:
             print(f"from CSV: {config.path}\n")
@@ -497,15 +498,16 @@ class BaseBuffer:
                 samples = pd.read_csv(config.path, index_col=0)
             if hasattr(self.env, "process_data_set"):
                 n_samples_orig = len(samples)
-                print(f"The data set containts {n_samples_orig} samples", end="")
+                print(f"The data set containts {n_samples_orig} samples.\n")
                 samples = self.env.process_data_set(
                     samples, self.progress_process_dataset
                 )
                 n_samples_new = len(samples)
                 if n_samples_new != n_samples_orig:
                     print(
-                        f", but only {n_samples_new} are valid according to the "
-                        "environment settings. Invalid samples have been discarded."
+                        f"\nOnly {n_samples_new}/{n_samples_orig} are valid "
+                        "according to the environment settings. Invalid samples "
+                        "have been discarded."
                     )
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
