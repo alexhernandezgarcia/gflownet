@@ -4,6 +4,7 @@ import common
 import numpy as np
 import pytest
 import torch
+import gflownet.envs.composite.setfix as setfix_module
 from torch import Tensor
 
 from gflownet.envs.base import GFlowNetEnv
@@ -7320,6 +7321,44 @@ def test__trajectory_bacwards_random__does_not_crash_and_reaches_source(env, req
 def test__states2policy__returns_expected(env, states, states_policy_exp, request):
     env = request.getfixturevalue(env)
     assert torch.equal(states_policy_exp, env.states2policy(states))
+
+
+def test__states2policy__creates_helper_tensors_on_env_device(monkeypatch):
+    recorded_devices = []
+
+    def tracked_zeros(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.zeros(*args, **kwargs)
+
+    def tracked_tensor(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.tensor(*args, **kwargs)
+
+    class TorchProxy:
+        def __getattr__(self, name):
+            if name == "zeros":
+                return tracked_zeros
+            if name == "tensor":
+                return tracked_tensor
+            return getattr(torch, name)
+
+    monkeypatch.setattr(setfix_module, "torch", TorchProxy())
+
+    env = SetFix(
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+        ),
+        device="cpu",
+    )
+    states_policy = env.states2policy([env.state])
+
+    assert states_policy.device == env.device
+    assert recorded_devices
+    assert all(
+        device is not None and torch.device(device) == env.device
+        for device in recorded_devices
+    )
 
 
 @pytest.mark.parametrize(

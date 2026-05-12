@@ -176,10 +176,17 @@ class Grid(GFlowNetEnv):
         """
         states = tlong(states, device=self.device)
         n_states = states.shape[0]
-        cols = states + torch.arange(self.n_dim) * self.length
-        rows = torch.repeat_interleave(torch.arange(n_states), self.n_dim)
+        device = states.device
+        index_dtype = states.dtype
+        cols = (
+            states
+            + torch.arange(self.n_dim, device=device, dtype=index_dtype) * self.length
+        )
+        rows = torch.repeat_interleave(
+            torch.arange(n_states, device=device, dtype=index_dtype), self.n_dim
+        )
         states_policy = torch.zeros(
-            (n_states, self.length * self.n_dim), dtype=self.float, device=self.device
+            (n_states, self.length * self.n_dim), dtype=self.float, device=device
         )
         states_policy[rows, cols.flatten()] = 1.0
         return states_policy
