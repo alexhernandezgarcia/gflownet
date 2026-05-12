@@ -4,9 +4,9 @@ import common
 import numpy as np
 import pytest
 import torch
-import gflownet.envs.composite.setfix as setfix_module
 from torch import Tensor
 
+import gflownet.envs.composite.setfix as setfix_module
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.setfix import SetFix
 from gflownet.envs.composite.stack import Stack
