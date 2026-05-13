@@ -47,16 +47,25 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from sklearn.preprocessing import MinMaxScaler
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
+from gflownet.envs.tree.discrete_node import DecisionTreeNodeDiscrete
 from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.utils.common import copy, tfloat
 
+_NODE_CLASSES = {
+    "continuous": DecisionTreeNode,
+    "discrete": DecisionTreeNodeDiscrete,
+}
+
 
 class Tree(CompositeBase):
+    _node_kwargs_logged = False
+
     """
     Composite environment that constructs a binary decision tree by iteratively
     expanding leaf positions into internal nodes.
@@ -79,6 +88,8 @@ class Tree(CompositeBase):
     def __init__(
         self,
         max_depth: int = 3,
+        node_type: str = "continuous",
+        rescale_thresholds: bool = True,
         node_kwargs: dict = None,
         X_train: Optional[npt.NDArray] = None,
         y_train: Optional[npt.NDArray] = None,
@@ -131,6 +142,7 @@ class Tree(CompositeBase):
             )
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
+        self.rescale_thresholds = rescale_thresholds
 
         # Dataset loading and preprocessing
         node_kwargs = node_kwargs or {}
@@ -162,7 +174,7 @@ class Tree(CompositeBase):
                 if self.X_test is not None:
                     self.X_test = self.scaler.transform(self.X_test)
             # Derive features from dataset if not explicitly provided
-            if "features" not in node_kwargs:
+            if "features" not in node_kwargs or node_kwargs["features"] == None:
                 n_features = self.X_train.shape[1]
                 if self.feature_names is not None:
                     node_kwargs["features"] = list(self.feature_names)
@@ -176,7 +188,16 @@ class Tree(CompositeBase):
                 "or X_train/y_train from which features can be derived."
             )
 
-        self.node_env = DecisionTreeNode(**node_kwargs)
+        node_cls = _NODE_CLASSES[node_type]
+        self.node_env = node_cls(**node_kwargs)
+        self.node_type = node_type
+
+        if not Tree._node_kwargs_logged:
+            print("\n", 20 * "*", "ARGUMENTS PASSED TO SUBENV", 20 * "*")
+            print(f"Initialized node_env with the following arguments: {node_kwargs}")
+            print(60 * "*", "\n")
+            Tree._node_kwargs_logged = True
+
         self.subenvs = None  # Dynamic; nodes are created on demand
 
         # Max internal nodes: levels 0 to max_depth - 1
@@ -384,6 +405,10 @@ class Tree(CompositeBase):
         state : dict
             Current tree state. Node ``k`` must be done.
         """
+        # If wanted or for discrete grids, thresholds are not rescaled.
+        if self.node_type != "continuous" or not self.rescale_thresholds:
+            return
+
         lower, upper = self._get_threshold_bounds(k, state)
         if lower == 0.0 and upper == 1.0:
             return  # No rescaling needed
@@ -412,6 +437,11 @@ class Tree(CompositeBase):
             Current tree state. Node ``k`` must be done and have its threshold
             set.
         """
+
+        # If wanted or for discrete grids, thresholds are not rescaled.
+        if self.node_type != "continuous" or not self.rescale_thresholds:
+            return
+
         lower, upper = self._get_threshold_bounds(k, state)
         if lower == 0.0 and upper == 1.0:
             return
@@ -470,8 +500,6 @@ class Tree(CompositeBase):
         Returns
         -------
         X_train : np.ndarray
-        y_train : np.ndarray
-        X_test : np.ndarray or None
         y_test : np.ndarray or None
         feature_names : list of str or None
             Column names of the feature columns (from CSV only).
@@ -1343,6 +1371,279 @@ class Tree(CompositeBase):
             if k in state:
                 return False
         return True
+
+    # =========================================================================
+    # Evaluation: train/test accuracy of sampled trees
+    # =========================================================================
+
+    def _route_samples(self, state: Dict, X: npt.NDArray) -> Dict[int, List[int]]:
+        """
+        Routes each row of ``X`` through the tree ``state`` and returns a mapping
+        ``leaf_node_index -> list of sample row indices`` that reach it.
+
+        A "leaf" of the current tree is any position that is reachable from the
+        root but whose sub-env is not done (either the root has no node yet, or
+        an internal done node's child that does not exist / is not done).
+        """
+        leaf_samples: Dict[int, List[int]] = {}
+        for i, x in enumerate(X):
+            k = 0
+            while self._node_is_done(k, state):
+                feature_idx = self.node_env.get_feature(state[k])
+                threshold = self.node_env.get_threshold(state[k])
+                if feature_idx is None or threshold is None:
+                    break
+                # feature_idx is 1-based (0 is reserved by the Choice env)
+                if x[feature_idx - 1] <= threshold:
+                    k = self.left_child_idx(k)
+                else:
+                    k = self.right_child_idx(k)
+            leaf_samples.setdefault(k, []).append(i)
+        return leaf_samples
+
+    def _sample_leaf_dirichlet(
+        self,
+        state: Dict,
+        alpha: npt.NDArray,
+        n_classes: int,
+        rng: np.random.Generator,
+    ) -> Dict[int, npt.NDArray]:
+        """
+        Draws a posterior-predictive Dirichlet sample of the class probabilities
+        at every leaf of ``state``, using routing on ``self.X_train``.
+
+        For each leaf reached by some training sample with class counts ``c``,
+        the returned probability vector is a draw from ``Dirichlet(alpha + c)``.
+        For leaves that no training sample reaches, the prior ``Dirichlet(alpha)``
+        is used (still a proper sample — not just the prior mean).
+        """
+        leaf_samples = self._route_samples(state, self.X_train)
+        probs: Dict[int, npt.NDArray] = {}
+        for k, idx in leaf_samples.items():
+            counts = np.bincount(self.y_train[idx], minlength=n_classes).astype(float)
+            probs[k] = rng.dirichlet(alpha + counts)
+        return probs
+
+    def _predict_proba(
+        self,
+        state: Dict,
+        leaf_probs: Dict[int, npt.NDArray],
+        X: npt.NDArray,
+        n_classes: int,
+    ) -> npt.NDArray:
+        """
+        Returns a ``(n_samples, n_classes)`` matrix of class probabilities for
+        ``X`` routed through ``state`` with leaf probabilities ``leaf_probs``.
+
+        Samples landing at a leaf never visited during training (i.e. absent
+        from ``leaf_probs``) get a uniform prediction.
+        """
+        leaf_samples = self._route_samples(state, X)
+        proba = np.full((len(X), n_classes), 1.0 / n_classes, dtype=float)
+        for k, idx in leaf_samples.items():
+            if k in leaf_probs:
+                proba[idx] = leaf_probs[k]
+        return proba
+
+    @staticmethod
+    def _compute_tree_scores(proba: npt.NDArray, y: npt.NDArray) -> Dict[str, float]:
+        """
+        Given a ``(n_trees, n_samples, n_classes)`` tensor of predicted
+        probabilities and the target vector, returns:
+
+        - ``mean_tree_acc`` / ``mean_tree_bac``: mean of per-tree scores
+          (each tree's prediction is ``argmax`` over classes).
+        - ``forest_acc`` / ``forest_bac``: score of the ensemble prediction
+          obtained by averaging probabilities across trees, then ``argmax``.
+          This is the Bayesian-posterior ensemble (correct for multi-class;
+          equivalent to majority vote for binary with symmetric priors).
+        """
+        per_tree = np.argmax(proba, axis=-1)  # (n_trees, n_samples)
+        mean_tree_acc = float(
+            np.mean([accuracy_score(y, per_tree[i]) for i in range(per_tree.shape[0])])
+        )
+        mean_tree_bac = float(
+            np.mean(
+                [
+                    balanced_accuracy_score(y, per_tree[i])
+                    for i in range(per_tree.shape[0])
+                ]
+            )
+        )
+        forest_pred = np.argmax(proba.mean(axis=0), axis=-1)  # (n_samples,)
+        forest_acc = float(accuracy_score(y, forest_pred))
+        forest_bac = float(balanced_accuracy_score(y, forest_pred))
+        return {
+            "mean_tree_acc": mean_tree_acc,
+            "mean_tree_bac": mean_tree_bac,
+            "forest_acc": forest_acc,
+            "forest_bac": forest_bac,
+        }
+
+    def test(
+        self,
+        samples: List[Dict],
+        alpha: Optional[npt.NDArray] = None,
+        alpha_value: float = 1.0,
+        top_k_trees: int = 0,
+        plot_top_k: bool = True,
+        seed: Optional[int] = None,
+    ) -> Dict[str, object]:
+        """
+        Evaluates a batch of sampled terminating trees.
+
+        The procedure mirrors the legacy ``Tree.test`` (``tree_acc.py``):
+
+        1. For each sampled tree, draw one posterior-predictive sample of the
+           per-leaf class probabilities from ``Dirichlet(alpha + train_counts)``.
+        2. Compute class-probability predictions for ``X_train`` (and
+           ``X_test`` if available).
+        3. Compute, for each split:
+
+           - ``mean_tree_acc`` / ``mean_tree_bac``: per-tree scores averaged
+             over the ensemble.
+           - ``forest_acc`` / ``forest_bac``: accuracy of the ensembled
+             (probability-averaged) forest prediction.
+
+        4. If ``top_k_trees > 0``, rank the trees by train accuracy, and
+           additionally report metrics on the top-k subset and on the top-1
+           tree. Optionally plot these top trees with ``self.display``.
+
+        Parameters
+        ----------
+        samples : list of dict
+            Terminating tree states sampled from the policy.
+        alpha : np.ndarray, optional
+            Dirichlet concentration vector of length ``n_classes``. If None,
+            uses a uniform ``alpha_value`` on each class.
+        alpha_value : float
+            Value used when ``alpha`` is None.
+        top_k_trees : int
+            If > 0, additionally report top-k and top-1 metrics and plots.
+        plot_top_k : bool
+            If True and ``top_k_trees > 0``, include figures of the top-k
+            trees in the returned ``figs`` dict (uses ``self.display``).
+        seed : int, optional
+            RNG seed for the Dirichlet draws (reproducibility).
+
+        Returns
+        -------
+        dict
+            ``{"metrics": {...}, "figs": {...}}``.
+        """
+        if not samples:
+            return {"metrics": {}, "figs": {}}
+        if self.X_train is None or self.y_train is None:
+            return {"metrics": {}, "figs": {}}
+
+        # Accept both a tensor-like and a plain list of dict states
+        if isinstance(samples, torch.Tensor):
+            samples = list(samples)
+        states: List[Dict] = list(samples)
+        n_states = len(states)
+
+        n_classes = int(max(np.max(self.y_train) + 1, len(np.unique(self.y_train))))
+        if alpha is None:
+            alpha = np.ones(n_classes, dtype=float) * alpha_value
+        else:
+            alpha = np.asarray(alpha, dtype=float)
+
+        rng = np.random.default_rng(seed)
+
+        # --- Per-state Dirichlet draw of leaf probabilities (from train data) ---
+        leaf_probs_list = [
+            self._sample_leaf_dirichlet(s, alpha, n_classes, rng) for s in states
+        ]
+
+        # --- Train probabilities / scores ---
+        train_proba = np.stack(
+            [
+                self._predict_proba(
+                    states[i], leaf_probs_list[i], self.X_train, n_classes
+                )
+                for i in range(n_states)
+            ],
+            axis=0,
+        )  # (n_states, n_train, n_classes)
+        train_scores = Tree._compute_tree_scores(train_proba, self.y_train)
+
+        result_metrics: Dict[str, float] = {
+            "mean_n_nodes": float(np.mean([sum(s["_dones"]) for s in states]))
+        }
+        for key, val in train_scores.items():
+            result_metrics[f"train_{key}"] = val
+
+        # --- Top-k ranking by per-tree train accuracy ---
+        top_k_indices = None
+        figs: Dict[str, object] = {}
+        if top_k_trees > 0 and n_states > 0:
+            top_k_trees_eff = min(top_k_trees, n_states)
+            per_tree_train = np.argmax(train_proba, axis=-1)
+            per_tree_acc = np.array(
+                [
+                    accuracy_score(self.y_train, per_tree_train[i])
+                    for i in range(n_states)
+                ]
+            )
+            order = np.argsort(per_tree_acc)[::-1]
+            top_k_indices = order[:top_k_trees_eff]
+
+            top_k_scores = Tree._compute_tree_scores(
+                train_proba[top_k_indices], self.y_train
+            )
+            for key, val in top_k_scores.items():
+                result_metrics[f"train_top_k_{key}"] = val
+
+            top_1_idx = int(top_k_indices[0])
+            top_1_scores = Tree._compute_tree_scores(
+                train_proba[[top_1_idx]], self.y_train
+            )
+            for key, val in top_1_scores.items():
+                result_metrics[f"train_top_1_{key}"] = val
+
+            # Plot top-k trees. display() works unchanged: it reads _dones and
+            # per-node substates that are unmodified by the Dirichlet draw.
+            if plot_top_k:
+                for rank, idx in enumerate(top_k_indices):
+                    try:
+                        fig = self.display(state=states[int(idx)])
+                    except Exception:
+                        fig = None
+                    if fig is not None:
+                        figs[
+                            f"top_{rank + 1}_tree_acc_{per_tree_acc[int(idx)]:.4f}"
+                        ] = fig
+
+        # --- Test split, if available ---
+        if self.X_test is not None and self.y_test is not None:
+            if np.array_equal(np.unique(self.y_test), np.unique(self.y_train)):
+                test_proba = np.stack(
+                    [
+                        self._predict_proba(
+                            states[i], leaf_probs_list[i], self.X_test, n_classes
+                        )
+                        for i in range(n_states)
+                    ],
+                    axis=0,
+                )
+                test_scores = Tree._compute_tree_scores(test_proba, self.y_test)
+                for key, val in test_scores.items():
+                    result_metrics[f"test_{key}"] = val
+
+                if top_k_indices is not None:
+                    top_k_scores = Tree._compute_tree_scores(
+                        test_proba[top_k_indices], self.y_test
+                    )
+                    for key, val in top_k_scores.items():
+                        result_metrics[f"test_top_k_{key}"] = val
+
+                    top_1_scores = Tree._compute_tree_scores(
+                        test_proba[[int(top_k_indices[0])]], self.y_test
+                    )
+                    for key, val in top_1_scores.items():
+                        result_metrics[f"test_top_1_{key}"] = val
+
+        return {"metrics": result_metrics, "figs": figs}
 
     # =========================================================================
     # State management

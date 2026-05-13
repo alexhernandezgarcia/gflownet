@@ -1,0 +1,14 @@
+defaults:
+  - base
+
+_target_: gflownet.evaluator.tree.TreeEvaluator
+
+# Tree-specific test pass. Runs on the same schedule as BaseEvaluator (the
+# `period`/`first_it` keys inherited from base.yaml govern when eval_and_log
+# fires; the tree pass is appended to each firing).
+tree_test:
+  n_samples: 500
+  top_k_trees: 5
+  alpha_value: 0.1
+  plot_top_k: True
+  seed: null

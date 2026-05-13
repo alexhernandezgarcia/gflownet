@@ -1,0 +1,145 @@
+# @package _global_
+
+defaults:
+  - override /env: tree/tree
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: tree
+  - override /logger: wandb
+  - override /evaluator: tree
+
+device: cpu
+
+# Environment
+env:
+  max_depth: 5
+  rescale_thresholds: True # If True, trivially unnecessary splits are not considered during training
+  data_path: null
+  node_kwargs:
+    features: # If feature names and a dataset are provided, the provided feature names will overwrite the dataset ones
+    cube_kwargs:
+      n_comp: 3
+      beta_params_min: 1.0
+      beta_params_max: 100.0
+      min_incr: 0.1
+      fixed_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+      random_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+
+# Proxy
+proxy:
+  # --- Structure prior over trees ---
+  # One of: "node_count", "exponential", "bcart", "none"
+  prior_type: node_count
+  # Penalty coefficient for prior_type="exponential": log_prior = -beta * n_internal
+  beta: 1.0
+  # BCART prior (prior_type="bcart"): p_split(depth) = sigma * (1 + depth)^(-phi)
+  sigma: 0.95
+  phi: 2.0
+
+  # --- Dirichlet prior over leaf class probabilities ---
+  # One of: "uniform", "label_counts"
+  alpha_type: uniform
+  alpha_value: 0.1
+
+  # If True, divide the marginal log-likelihood by N_train so the proxy reports
+  # the average per-sample log-likelihood. Makes reward_function_kwargs.beta
+  # invariant to dataset size. The structure log-prior is left unscaled.
+  normalize_likelihood: False
+
+  # --- Reward function (proxy value -> reward) ---
+  # Log-posterior is passed through an exponential: reward = alpha * exp(beta * proxy)
+  # Options: "identity", "exponential"/"boltzmann", "power", "shift", "product",
+  #          "rbf_exponential", "sigmoid"
+  reward_function: exponential
+  reward_function_kwargs:
+    beta: 0.1
+    alpha: 1.0
+  reward_min: 0.0
+  do_clip_rewards: False
+
+# Buffer
+buffer:
+  replay_capacity: 100
+  train: null
+  test: null
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 90
+      backward_replay: 10
+      backward_dataset: 0
+    lr: 0.01
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 50000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
+  replay_sampling: weighted
+  train_sampling: permutation
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  checkpoints_period: 5000
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+  # Tree-specific accuracy evaluation (see gflownet/evaluator/tree.py).
+  # Runs on the same period as the base evaluator.
+  tree_test:
+    n_samples: 1000
+    top_k_trees: 10
+    alpha_value: 0.1
+    plot_top_k: True
+    seed: null
+
+# WandB
+logger:
+  lightweight: True
+  run_name: null
+  project_name: "dt-gfn"
+  entity: null
+  tags:
+    - gflownet
+    - tree
+  do:
+    online: True
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
+
+# Profiling
+profile: false
+profile_sort: cumtime
+profile_n_rows: 20
