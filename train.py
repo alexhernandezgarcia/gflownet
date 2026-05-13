@@ -2,8 +2,10 @@
 Runnable script with hydra capabilities
 """
 
+import cProfile  # Imported to monitor number and time of function calls
 import os
 import pickle
+import pstats  # Imported to monitor number and time of function calls
 import random
 import sys
 from pathlib import Path
@@ -34,8 +36,26 @@ def main(config):
     # Initialize a GFlowNet agent from the configuration file
     gflownet = gflownet_from_config(config)
 
-    # Train GFlowNet
-    gflownet.train()
+    # Train GFlowNet with monitoring number and time of function calls
+    if config.get("profile", False):
+        profiler = cProfile.Profile()
+        profiler.enable()
+        gflownet.train()
+        profiler.disable()
+
+        stats = pstats.Stats(profiler).sort_stats(config.get("profile_sort", "cumtime"))
+        print(
+            f"\n=== cProfile: top {config.get('profile_n_rows', 20)} by "
+            f"{config.get('profile_sort', 'cumtime')} ==="
+        )
+        stats.print_stats(config.get("profile_n_rows", 20))
+
+        profile_path = Path(config.logger.logdir.path) / "train.prof"
+        stats.dump_stats(profile_path)
+        print(f"[profile] Raw stats saved to: {profile_path}")
+        print(f"[profile] Inspect with:  snakeviz {profile_path}")
+    else:
+        gflownet.train()
 
     # Sample from trained GFlowNet
     # TODO: move to method in GFlowNet agent, like sample_and_log()

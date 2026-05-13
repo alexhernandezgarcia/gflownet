@@ -67,6 +67,7 @@ def _count_internal_nodes(state: Dict) -> int:
 # TreeProxy (simple accuracy-based)
 # =============================================================================
 
+
 # TODO: Include code to use predicted leaf probabilities
 class TreeProxy(Proxy):
     """
@@ -181,6 +182,7 @@ class CategoricalTreeProxy(Proxy):
         beta: float = 1.0,
         sigma: float = 0.95,
         phi: float = 2.0,
+        normalize_likelihood: bool = False,
         **kwargs,
     ):
         """
@@ -202,6 +204,12 @@ class CategoricalTreeProxy(Proxy):
             Base splitting probability for the BCART prior.
         phi : float
             Depth decay exponent for the BCART prior.
+        normalize_likelihood : bool
+            If True, divide the marginal log-likelihood by the number of
+            training samples so the proxy reports the *average per-sample*
+            log-likelihood. This makes the reward-function ``beta`` invariant
+            to dataset size. The structure log-prior is left unscaled because
+            it is already O(1) in N.
         """
         super().__init__(**kwargs)
         self.prior_type = prior_type.lower()
@@ -210,6 +218,7 @@ class CategoricalTreeProxy(Proxy):
         self.beta = beta
         self.sigma = sigma
         self.phi = phi
+        self.normalize_likelihood = normalize_likelihood
         self.env = None
         self.alpha = None
 
@@ -222,6 +231,7 @@ class CategoricalTreeProxy(Proxy):
 
         self.n_classes = len(np.unique(env.y_train))
         self.n_features = env.X_train.shape[1]
+        self.n_train = len(env.y_train)
 
         # Initialize Dirichlet concentration parameters
         if self.alpha_type == "uniform":
@@ -312,6 +322,8 @@ class CategoricalTreeProxy(Proxy):
 
         for state in states:
             log_likelihood = self._compute_log_likelihood(state)
+            if self.normalize_likelihood:
+                log_likelihood = log_likelihood / self.n_train
             log_prior = self._compute_log_prior(state)
             energies.append(log_likelihood + log_prior)
 
