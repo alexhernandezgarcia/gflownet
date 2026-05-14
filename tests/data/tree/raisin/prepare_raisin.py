@@ -3,6 +3,7 @@ Convert UCI Raisin dataset to DT-GFN CSV format.
 Run from: /Users/timarni/Documents/dt-gfn/gfn/data/raisin/
     python prepare_raisin.py
 """
+
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -13,14 +14,21 @@ df = pd.read_excel("Raisin_Dataset.xlsx")
 class_map = {"Kecimen": 0, "Besni": 1}
 df["Class"] = df["Class"].map(class_map)
 
-feature_cols = ["Area", "MajorAxisLength", "MinorAxisLength",
-                "Eccentricity", "ConvexArea", "Extent", "Perimeter"]
+feature_cols = [
+    "Area",
+    "MajorAxisLength",
+    "MinorAxisLength",
+    "Eccentricity",
+    "ConvexArea",
+    "Extent",
+    "Perimeter",
+]
 X = df[feature_cols].values
 print(f"Shape of dataset is: {X.shape}")
 y = df["Class"].values
 
 print(f"Shape: {X.shape}")  # should be (900, 7)
-print(f"Class counts: {np.bincount(y).tolist()}") # should be [450, 450]
+print(f"Class counts: {np.bincount(y).tolist()}")  # should be [450, 450]
 
 for seed in [1, 2, 3, 4, 5]:
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=seed)
