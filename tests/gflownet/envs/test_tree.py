@@ -2388,11 +2388,10 @@ def env_tree_depth3_no_rescale():
     )
 
 
-def test__continuous__get_threshold_bounds__no_ancestors_returns_unit(
-    env_tree_depth2,
-):
+@parametrize_envs
+def test__continuous__get_threshold_bounds__no_ancestors_returns_unit(envs, request):
     """At the root the bounds are the node's full range [0, 1]."""
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     env.step(env._pad_action((0,), -1))  # activate root
     env.step((0, 0, 1, 0))  # choose feature 1
     env.step((0, 0, -1, 0))  # Choice EOS
@@ -2401,11 +2400,12 @@ def test__continuous__get_threshold_bounds__no_ancestors_returns_unit(
     assert upper == env.node_env.threshold_max
 
 
+@parametrize_envs_bigger_than_depth_1
 def test__continuous__get_threshold_bounds__different_feature_returns_unit(
-    env_tree_depth2,
+    envs, request
 ):
     """A child using a different feature should see the unrestricted range."""
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     _build_node_with_dtnode_subenv(env, 0, feature_idx=1, threshold_val=0.5)
     env.step(env._pad_action((1,), -1))
     env.step((0, 0, 2, 0))  # DIFFERENT feature
@@ -2415,11 +2415,10 @@ def test__continuous__get_threshold_bounds__different_feature_returns_unit(
     assert upper == env.node_env.threshold_max
 
 
-def test__continuous__get_threshold_bounds__left_child_same_feature(
-    env_tree_depth2,
-):
+@parametrize_envs_bigger_than_depth_1
+def test__continuous__get_threshold_bounds__left_child_same_feature(envs, request):
     """Left-subtree child sharing the parent feature has upper == parent."""
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     parent_threshold = 0.5
     _build_node_with_dtnode_subenv(
         env, 0, feature_idx=1, threshold_val=parent_threshold
@@ -2435,11 +2434,10 @@ def test__continuous__get_threshold_bounds__left_child_same_feature(
     assert upper == parent_threshold
 
 
-def test__continuous__get_threshold_bounds__right_child_same_feature(
-    env_tree_depth2,
-):
+@parametrize_envs_bigger_than_depth_1
+def test__continuous__get_threshold_bounds__right_child_same_feature(envs, request):
     """Right-subtree child sharing the parent feature has lower == parent."""
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     parent_threshold = 0.5
     _build_node_with_dtnode_subenv(
         env, 0, feature_idx=1, threshold_val=parent_threshold
@@ -2547,14 +2545,13 @@ def test__continuous__rescaled_threshold_arbitrary_raw_in_bounds(env_tree_depth2
     assert stored <= theta + 1e-12
 
 
-def test__continuous__rescaled_threshold_does_not_constrain_diff_feature(
-    env_tree_depth2,
-):
+@parametrize_envs_bigger_than_depth_1
+def test__continuous__rescaled_threshold_does_not_constrain_diff_feature(envs, request):
     """
     If the child splits on a different feature, the raw threshold is stored
     unchanged (no ancestor constraint applies).
     """
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     _build_node_with_dtnode_subenv(env, 0, feature_idx=1, threshold_val=0.3)
 
     raw = 0.85
@@ -2568,13 +2565,14 @@ def test__continuous__rescaled_threshold_does_not_constrain_diff_feature(
     assert abs(stored - raw) < 1e-10
 
 
-def test__continuous__rescale_unapply_roundtrip_on_node(env_tree_depth2):
+@parametrize_envs_bigger_than_depth_1
+def test__continuous__rescale_unapply_roundtrip_on_node(envs, request):
     """
     The node's own ``apply_threshold_rescale`` followed by
     ``unapply_threshold_rescale`` recovers the raw threshold (up to FP error
     for non-power-of-two spans).
     """
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     # Construct a fake substate with raw threshold 0.6
     substate = env.node_env.subenvs[0].source, [0.6]
     sub = {
@@ -2591,11 +2589,12 @@ def test__continuous__rescale_unapply_roundtrip_on_node(env_tree_depth2):
     assert abs(recovered - raw_before) < 1e-10
 
 
-def test__continuous__rescale_is_noop_when_bounds_are_trivial(env_tree_depth2):
+@parametrize_envs_bigger_than_depth_1
+def test__continuous__rescale_is_noop_when_bounds_are_trivial(envs, request):
     """
     ``apply_threshold_rescale(state, 0, 1)`` returns the substate unchanged.
     """
-    env = env_tree_depth2
+    env = request.getfixturevalue(envs)
     sub = {
         "_active": 1,
         env.node_env.stage_feature: copy(env.node_env.feature_env.source),
@@ -2631,7 +2630,7 @@ def test__continuous__rescale_disabled_by_tree_flag(env_tree_depth3_no_rescale):
     assert stored > parent_threshold
 
 
-@pytest.mark.repeat(5)
+@pytest.mark.repeat(10)
 def test__continuous__random_trajectory_respects_ancestor_bounds(env_tree_depth3):
     """
     Sampled continuous-node trees must produce same-feature descendants whose
