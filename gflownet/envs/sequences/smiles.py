@@ -2,13 +2,13 @@
 
 from typing import List, Union
 
+import numpy as np
 from torchtyping import TensorType
 
 from gflownet.envs.sequences.base import SequenceBase
-from gflownet.utils.common import tlong
-import numpy as np
-
 from gflownet.envs.sequences.smiles_vocab import vocab as SMILES_VOCAB
+from gflownet.utils.common import tlong
+
 
 class Smiles(SequenceBase):
     """
