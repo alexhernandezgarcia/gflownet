@@ -14,7 +14,7 @@ from ``n_thresholds`` evenly-spaced values in ``[cell_min, cell_max]`` rather
 than from a continuous interval.
 """
 
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 import numpy as np
 
@@ -73,7 +73,21 @@ class DecisionTreeNodeDiscrete(Stack):
             **self.grid_kwargs,
             **kwargs,
         )
+        # Active threshold bounds (set by the parent Tree before sampling each
+        # node). Initially equal to the full range so masking is a no-op.
+        self._tb_lower: float = float(self.cell_min)
+        self._tb_upper: float = float(self.cell_max)
         super().__init__(subenvs=tuple([self.feature, self.threshold]), **kwargs)
+
+    # Symmetric attribute names shared with DecisionTreeNode so that the
+    # Tree environment can interact with both nodes through a single interface.
+    @property
+    def threshold_min(self) -> float:
+        return float(self.cell_min)
+
+    @property
+    def threshold_max(self) -> float:
+        return float(self.cell_max)
 
     @property
     def feature_env(self) -> Choice:
@@ -190,3 +204,125 @@ class DecisionTreeNodeDiscrete(Stack):
         state[self.stage_feature] = feature_state
         state[self.stage_threshold] = threshold_state
         return state
+
+    # =========================================================================
+    # Threshold-constraint interface
+    #
+    # Called by the parent Tree environment to inform the node about the valid
+    # threshold range imposed by ancestor decisions. For the discrete node, the
+    # bounds are enforced directly during sampling by masking out invalid
+    # threshold cells in :py:meth:`get_mask_invalid_actions_forward`. No
+    # post-done rescaling is needed because every sampled threshold is already
+    # in ``[lower, upper]`` by construction.
+    # =========================================================================
+
+    def set_threshold_bounds(self, lower: float, upper: float) -> None:
+        """Stores the threshold bounds used for the next mask computation."""
+        self._tb_lower = float(lower)
+        self._tb_upper = float(upper)
+
+    def clear_threshold_bounds(self) -> None:
+        """Resets the threshold bounds to the full ``[cell_min, cell_max]`` range."""
+        self._tb_lower = float(self.cell_min)
+        self._tb_upper = float(self.cell_max)
+
+    def apply_threshold_rescale(
+        self, substate: Dict, lower: float, upper: float
+    ) -> Dict:
+        """No-op for the discrete node: thresholds are already in range."""
+        return substate
+
+    def unapply_threshold_rescale(
+        self, substate: Dict, lower: float, upper: float
+    ) -> Dict:
+        """No-op for the discrete node: thresholds are already in range."""
+        return substate
+
+    # =========================================================================
+    # Mask override: apply threshold-bound masking on the Grid sub-environment
+    # =========================================================================
+
+    def _threshold_subenv_bounds_mask(self, threshold_state: List[int]) -> List[bool]:
+        """
+        Returns an "out-of-bounds" mask over the Grid sub-environment's action
+        space given the currently active threshold bounds.
+
+        For a Grid in 1D with ``cells = linspace(cell_min, cell_max, length)``,
+        a forward action ``(k,)`` is invalid when:
+
+        - ``k > 0``: it would land on a cell whose value exceeds ``self._tb_upper``.
+        - ``k == 0`` (Grid EOS): the current cell's value is below ``self._tb_lower``.
+
+        The mask is ANDed with the Grid's intrinsic forward mask by the caller.
+        """
+        grid = self.threshold_env
+        current_idx = int(threshold_state[0])
+        cells = grid.cells
+        lower = self._tb_lower
+        upper = self._tb_upper
+        mask: List[bool] = []
+        for action in grid.action_space:
+            if action == grid.eos:
+                # EOS: terminating with a threshold strictly below the lower
+                # bound would produce an invalid split (degenerate routing).
+                mask.append(bool(cells[current_idx] < lower))
+            else:
+                k = int(action[0])
+                new_idx = current_idx + k
+                if new_idx >= grid.length:
+                    # Already invalid via the Grid's intrinsic mask, repeat
+                    # here for safety so an OR with this mask remains correct.
+                    mask.append(True)
+                else:
+                    mask.append(bool(cells[new_idx] > upper))
+        return mask
+
+    def get_mask_invalid_actions_forward(
+        self, state: Optional[Dict] = None, done: Optional[bool] = None
+    ) -> List[bool]:
+        """
+        Computes the forward mask for the Stack and additionally invalidates
+        actions that would lead to a threshold outside the active bounds.
+
+        The base Stack mask is computed first; if the active sub-environment is
+        the threshold (Grid), the threshold-bounds mask is OR-ed into the
+        relevant slice of the flat mask.
+        """
+        state = self._get_state(state)
+        mask = list(super().get_mask_invalid_actions_forward(state, done))
+
+        # Only apply bounds when the threshold stage is currently active.
+        active_subenv = self._get_active_subenv(state)
+        if active_subenv != self.stage_threshold:
+            return mask
+
+        threshold_state = self._get_substate(state, self.stage_threshold)
+        bounds_mask = self._threshold_subenv_bounds_mask(threshold_state)
+
+        # The Stack mask format is:
+        #   [one-hot subenv idx (n_subenvs)] + [active subenv mask] + [padding].
+        # The threshold sub-env mask starts right after the one-hot prefix.
+        offset = self.n_subenvs
+        for i, invalid in enumerate(bounds_mask):
+            if invalid:
+                mask[offset + i] = True
+        return mask
+
+    def get_valid_actions(
+        self,
+        mask: Optional[List[bool]] = None,
+        state: Optional[Dict] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ):
+        """
+        Returns the list of valid actions, ensuring that the customized forward
+        mask (which incorporates threshold-bound constraints) is used when no
+        mask is supplied. Without this override, ``Stack.get_valid_actions``
+        would compute the Grid sub-env's mask directly and miss the bounds.
+        """
+        if mask is None and not backward:
+            mask = self.get_mask_invalid_actions_forward(state, done)
+        return super().get_valid_actions(
+            mask=mask, state=state, done=done, backward=backward
+        )

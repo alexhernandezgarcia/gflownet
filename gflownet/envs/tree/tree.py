@@ -343,9 +343,11 @@ class Tree(CompositeBase):
 
         For each done ancestor of ``k`` that splits on the same feature:
         - If ``k`` is in the left subtree of that ancestor (the ``<=`` branch),
-          the threshold must be less than the ancestor's threshold (upper bound).
+          the threshold must be less than or equal to the ancestor's threshold
+          (upper bound).
         - If ``k`` is in the right subtree (the ``>`` branch), the threshold
-          must be greater than the ancestor's threshold (lower bound).
+          must be greater than or equal to the ancestor's threshold (lower
+          bound).
 
         Parameters
         ----------
@@ -357,14 +359,16 @@ class Tree(CompositeBase):
         Returns
         -------
         (lower, upper) : tuple of float
-            The valid threshold range in [0, 1].
+            The valid threshold range in
+            ``[node_env.threshold_min, node_env.threshold_max]``.
         """
+        lower = float(self.node_env.threshold_min)
+        upper = float(self.node_env.threshold_max)
+
         feature_idx = self.node_env.get_feature(state[k])
         if feature_idx is None:
-            return (0.0, 1.0)
+            return (lower, upper)
 
-        lower = 0.0
-        upper = 1.0
         current = k
         while current > 0:
             parent = self.parent_idx(current)
@@ -378,91 +382,89 @@ class Tree(CompositeBase):
                 parent_threshold = self.node_env.get_threshold(state[parent])
                 if parent_threshold is not None:
                     if self._is_in_left_subtree(k, parent):
-                        # k is on the <= side: threshold must be < parent's
+                        # k is on the <= side: threshold must be <= parent's
                         upper = min(upper, parent_threshold)
                     else:
-                        # k is on the > side: threshold must be > parent's
+                        # k is on the > side: threshold must be >= parent's
                         lower = max(lower, parent_threshold)
             current = parent
 
         return (lower, upper)
 
-    def _rescale_threshold(self, k: int, state: Dict) -> None:
+    def _node_apply_rescale(self, k: int, state: Dict) -> None:
         """
-        Rescales the threshold of done node ``k`` from the raw [0, 1] range
-        of the ContinuousCube to the valid range [lower, upper] determined by
-        ancestor constraints.
-
-        This ensures that the stored threshold respects the decision-tree
-        semantics: a child on the ``<=`` branch cannot have a threshold
-        higher than its ancestor's, and a child on the ``>`` branch cannot
-        have one lower.
-
-        Parameters
-        ----------
-        k : int
-            Index of the node whose threshold is to be rescaled.
-        state : dict
-            Current tree state. Node ``k`` must be done.
+        Asks the node sub-environment to rescale the threshold of done node
+        ``k`` from its raw range to the ancestor-constrained ``[lower, upper]``
+        range. Delegates to :py:meth:`node_env.apply_threshold_rescale`. No-op
+        when ``self.rescale_thresholds`` is False or for node types that
+        implement this as a no-op (e.g. the discrete node).
         """
-        # If wanted or for discrete grids, thresholds are not rescaled.
-        if self.node_type != "continuous" or not self.rescale_thresholds:
+        if not self.rescale_thresholds:
             return
-
         lower, upper = self._get_threshold_bounds(k, state)
-        if lower == 0.0 and upper == 1.0:
-            return  # No rescaling needed
+        state[k] = self.node_env.apply_threshold_rescale(state[k], lower, upper)
 
-        raw = self.node_env.get_threshold(state[k])
-        if raw is None:
+    def _node_unapply_rescale(self, k: int, state: Dict) -> None:
+        """Reverses :py:meth:`_node_apply_rescale` for node ``k``."""
+        if not self.rescale_thresholds:
             return
-
-        rescaled = lower + raw * (upper - lower)
-        # Update the threshold in the substate
-        threshold_key = self.node_env.stage_threshold
-        state[k][threshold_key] = [rescaled]
-
-    def _unrescale_threshold(self, k: int, state: Dict) -> None:
-        """
-        Reverses the threshold rescaling for node ``k``, converting back from
-        the [lower, upper] range to the raw [0, 1] range of the ContinuousCube.
-
-        This is needed when undoing a node's completion in a backward step.
-
-        Parameters
-        ----------
-        k : int
-            Index of the node whose threshold is to be unrescaled.
-        state : dict
-            Current tree state. Node ``k`` must be done and have its threshold
-            set.
-        """
-
-        # If wanted or for discrete grids, thresholds are not rescaled.
-        if self.node_type != "continuous" or not self.rescale_thresholds:
-            return
-
         lower, upper = self._get_threshold_bounds(k, state)
-        if lower == 0.0 and upper == 1.0:
-            return
-
-        actual = self.node_env.get_threshold(state[k])
-        if actual is None:
-            return
-
-        span = upper - lower
-        if span > 0:
-            raw = (actual - lower) / span
-        else:
-            raw = 0.0
-
-        threshold_key = self.node_env.stage_threshold
-        state[k][threshold_key] = [raw]
+        state[k] = self.node_env.unapply_threshold_rescale(state[k], lower, upper)
 
     def _get_max_trajectory_length(self) -> int:
         # Per node: 1 activate toggle + node_env trajectory + 1 deactivate toggle
         # Plus 1 global EOS
         return self.max_nodes * (self.node_env.max_traj_length + 2) + 1
+
+    # =========================================================================
+    # CompositeBase constraints framework
+    #
+    # Threshold bounds are a function of the tree structure (ancestor splits)
+    # but the *mechanism* to honor them is node-specific (discrete masks cells;
+    # continuous rescales the cube output). Tree therefore computes the bounds
+    # and dispatches them to the node via the constraints hooks defined below.
+    # =========================================================================
+
+    def _check_has_constraints(self) -> bool:
+        return True
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ) -> bool:
+        """
+        Publishes the threshold bounds of the currently-active, not-done node
+        on the shared ``node_env`` instance. This is what enables the discrete
+        node's :py:meth:`get_mask_invalid_actions_forward` to mask out cells
+        outside ``[lower, upper]``. For the continuous node the bounds are also
+        stored but only consumed at done-time by ``apply_threshold_rescale``.
+        """
+        state = self._get_state(state)
+        active = state.get("_active", -1)
+        if (
+            active != -1
+            and self._node_exists(active, state)
+            and not self._node_is_done(active, state)
+        ):
+            lower, upper = self._get_threshold_bounds(active, state)
+            self.node_env.set_threshold_bounds(lower, upper)
+        else:
+            self.node_env.clear_threshold_bounds()
+        return True
+
+    def _apply_constraints_backward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ) -> bool:
+        """
+        Mirrors :py:meth:`_apply_constraints_forward`. In the current Tree
+        implementation, the forward and backward bound publication is
+        identical: the bounds depend solely on the structural state, not on
+        the direction of the transition.
+        """
+        return self._apply_constraints_forward(action=action, state=state)
 
     # =========================================================================
     # Dataset loading
@@ -690,7 +692,13 @@ class Tree(CompositeBase):
         2. Building (node not done): building mask is mask of node env.
         3. Active done (node done, awaiting deactivation): meta-action mask with
            only the deactivation toggle for the active node as possibility.
+
+        Before delegating to the node sub-environment, the threshold-bound
+        constraints corresponding to the (possibly external) input state are
+        applied on the shared ``node_env``; they are reset to those of
+        ``self.state`` after the mask is computed.
         """
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -716,11 +724,17 @@ class Tree(CompositeBase):
             meta_mask.append(True)  # global EOS invalid while a node is active
             return self._format_mask_meta(meta_mask)
 
-        # Building: delegate to node env
-        # TODO: Apply constraints here?
+        # Building: publish ancestor-derived bounds on the node_env, then
+        # delegate to it.
+        if do_constraints:
+            self._apply_constraints(state=state)
+        else:
+            self._apply_constraints(state=self.state)
         substate = state[active]
-
         mask = self.node_env.get_mask_invalid_actions_forward(substate, False)
+        if do_constraints:
+            # Restore constraints based on self.state for subsequent calls
+            self._apply_constraints(state=self.state)
         return self._format_mask_building(mask)
 
     # =========================================================================
@@ -767,10 +781,11 @@ class Tree(CompositeBase):
 
         if self._node_is_done(active, state):
             # Active and done: backward = undo node env EOS.
-            # Unrescale threshold for the ContinuousCube.
+            # Unrescale threshold so the node sub-env sees the raw threshold
+            # value it produced before the rescale.
             substate = copy(state[active])
             temp_state = {**state, active: substate}
-            self._unrescale_threshold(active, temp_state)
+            self._node_unapply_rescale(active, temp_state)
             mask = self.node_env.get_mask_invalid_actions_backward(substate, done=True)
             return self._format_mask_building(mask)
 
@@ -784,7 +799,8 @@ class Tree(CompositeBase):
             meta_mask.append(True)
             return self._format_mask_meta(meta_mask)
 
-        # In progress: delegate to node env
+        # In progress: delegate to node env (no threshold-bound constraints
+        # affect the backward mask).
         mask = self.node_env.get_mask_invalid_actions_backward(substate, False)
         return self._format_mask_building(mask)
 
@@ -838,12 +854,16 @@ class Tree(CompositeBase):
                     return self.state, action, False
                 self.state["_active"] = target
                 self.state[target] = copy(self.node_env.source)
+                # Publish bounds for the newly-activated node so subsequent
+                # node-env mask queries reflect ancestor constraints.
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
             if active == target and self._node_is_done(active, self.state):
                 # Deactivation: go idle after node completion
                 self.state["_active"] = -1
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -861,6 +881,12 @@ class Tree(CompositeBase):
         ):  # env actions start with 0 (unique env idx 0 for all envs currently)
             return self.state, action, False
         action_subenv = self._depad_action(action, idx_unique)
+
+        # Refresh ancestor-derived threshold bounds on the shared node_env so
+        # that the node's mask / pre-step check reflects the current state
+        # (the feature of the active node may have just been chosen, which
+        # invalidates the bounds cached at activation time).
+        self._apply_constraints(state=self.state)
 
         # Prepare the node env
         substate = self.state[active]
@@ -883,10 +909,12 @@ class Tree(CompositeBase):
         # Update the substate in the tree
         self.state[active] = copy(self.node_env.state)
 
-        # If node env is now done, mark the node as done and rescale threshold
+        # If node env is now done, mark the node as done and ask the node
+        # implementation to rescale the stored threshold (no-op for the
+        # discrete node).
         if self.node_env.done:
             self.state["_dones"][active] = 1
-            self._rescale_threshold(active, self.state)
+            self._node_apply_rescale(active, self.state)
 
         return self.state, action, True
 
@@ -940,6 +968,7 @@ class Tree(CompositeBase):
                 ):
                     return self.state, action, False
                 self.state["_active"] = target
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -950,6 +979,7 @@ class Tree(CompositeBase):
                     return self.state, action, False
                 del self.state[active]
                 self.state["_active"] = -1
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -967,11 +997,16 @@ class Tree(CompositeBase):
 
         node_was_done = self._node_is_done(active, self.state)
 
-        # Prepare the node env. If the node was done, unrescale the threshold
-        # back to [0, 1] so the ContinuousCube can process the backward step.
+        # Refresh ancestor-derived threshold bounds so the node sub-env's
+        # backward mask / pre-step check reflects the current tree state.
+        self._apply_constraints(state=self.state)
+
+        # Prepare the node env. If the node was done, ask the node to
+        # unrescale the threshold back to its raw range so the sub-env can
+        # process the backward step (no-op for the discrete node).
         substate = copy(self.state[active])
         if node_was_done:
-            self._unrescale_threshold(
+            self._node_unapply_rescale(
                 active,
                 {
                     **self.state,
@@ -1051,10 +1086,11 @@ class Tree(CompositeBase):
         if self._node_is_done(active, state):
             # Active and done: parent has node not yet done (backward of node EOS)
             # Unrescale the threshold before passing to node env (which expects
-            # raw [0,1] ContinuousCube values).
+            # raw values, e.g. [0, 1] for the ContinuousCube). No-op for the
+            # discrete node.
             substate = copy(state[active])
             temp_state = {**state, active: substate}
-            self._unrescale_threshold(active, temp_state)
+            self._node_unapply_rescale(active, temp_state)
             parents_subenv, actions_subenv = self.node_env.get_parents(
                 substate, done=True
             )
@@ -1654,8 +1690,11 @@ class Tree(CompositeBase):
         Sets the environment state and done flag.
 
         Bypasses CompositeBase's subenv iteration since tree nodes are dynamic.
+        Publishes the threshold-bound constraints corresponding to the new
+        state on the shared ``node_env``.
         """
         GFlowNetEnv.set_state(self, state, done)
+        self._apply_constraints(state=self.state)
         return self
 
     def reset(self, env_id: Union[int, str] = None):
@@ -1665,6 +1704,8 @@ class Tree(CompositeBase):
         self.done = False
         self.n_actions = 0
         self.id = str(uuid.uuid4()) if env_id is None else env_id
+        # Clear any stale threshold bounds left on the shared node_env.
+        self.node_env.clear_threshold_bounds()
         return self
 
     # =========================================================================
