@@ -66,4 +66,8 @@ class SehMoleculeProxy(Proxy):
         # output of the model
         mols = [MolFromSmiles(m) if isinstance(m, str) else m for m in mols]
         preds, is_valid = self.compute_obj_properties(mols)
-        return preds.squeeze(-1).to(self.device)
+        # filter the output only for those valid molecules
+        output = torch.zeros(len(mols), dtype=self.float, device=self.device)
+        if is_valid.any():
+            output[is_valid] = preds.squeeze(-1).to(self.device)
+        return output
