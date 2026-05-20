@@ -3,6 +3,7 @@ from typing import Callable, List, Optional, Tuple
 import torch
 import torch_geometric.data as gd
 from rdkit.Chem import Mol as RDMol
+from rdkit.Chem import MolFromSmiles
 from torch import Tensor
 from torch_geometric.data import Data
 
@@ -55,6 +56,7 @@ class SehMoleculeProxy(Proxy):
         assert len(preds) == is_valid.sum()
         return preds, is_valid
 
-    def __call__(self, mols: List[RDMol]) -> Tuple[Tensor, Tensor]:
-        # output of the model   
+    def __call__(self, mols: List) -> Tuple[Tensor, Tensor]:
+        # output of the model
+        mols = [MolFromSmiles(m) if isinstance(m, str) else m for m in mols]
         return self.compute_obj_properties(mols)
