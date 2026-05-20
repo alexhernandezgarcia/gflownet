@@ -2,14 +2,14 @@ from typing import Callable, List, Optional, Tuple
 
 import torch
 import torch_geometric.data as gd
-from torch_geometric.data import Data
 from rdkit.Chem import Mol as RDMol
+from torch import Tensor
+from torch_geometric.data import Data
 
 from gflownet.proxy.base import Proxy
 from gflownet.proxy.bengio2021flow import load_original_model, mol2graph
-from torch import Tensor
 
-# CODE FROM: https://github.com/recursionpharma/gflownet/blob/trunk/src/gflownet/tasks/seh_frag.py 
+# CODE FROM: https://github.com/recursionpharma/gflownet/blob/trunk/src/gflownet/tasks/seh_frag.py
 
 
 class SEHTask(Proxy):
@@ -37,7 +37,6 @@ class SEHTask(Proxy):
         model = self._wrap_model(model)
         return {"seh": model}
 
-
     def compute_reward_from_graph(self, graphs: List[Data]) -> Tensor:
         batch = gd.Batch.from_data_list([i for i in graphs if i is not None])
         # batch.to(self.models["seh"].device if hasattr(self.models["seh"], "device") else get_worker_device())
@@ -55,7 +54,7 @@ class SEHTask(Proxy):
         preds = self.compute_reward_from_graph(graphs).reshape((-1, 1))
         assert len(preds) == is_valid.sum()
         return preds, is_valid
-    
+
     def __call__(self, mols: List[RDMol]) -> Tuple[Tensor, Tensor]:
-        # output of the model 
+        # output of the model
         return self.compute_obj_properties(mols)

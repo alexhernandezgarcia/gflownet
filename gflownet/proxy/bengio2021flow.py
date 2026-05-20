@@ -159,7 +159,11 @@ class MPNNet(nn.Module):
         self.set2set = Set2Set(dim, processing_steps=3)
         self.lin3 = nn.Linear(dim * 2, num_out_per_mol)
         self.bond2out = nn.Sequential(
-            nn.Linear(dim * 2, dim), self.act, nn.Linear(dim, dim), self.act, nn.Linear(dim, num_out_per_bond)
+            nn.Linear(dim * 2, dim),
+            self.act,
+            nn.Linear(dim, dim),
+            self.act,
+            nn.Linear(dim, num_out_per_bond),
         )
 
     def forward(self, data, do_dropout=False):
@@ -211,9 +215,18 @@ def load_weights(cache, location):
     return pickle.load(gz)  # nosec
 
 
-def load_original_model(cache=True, location=Path(__file__).parent / "cache" / "bengio2021flow_proxy.pkl.gz"):
+def load_original_model(
+    cache=True, location=Path(__file__).parent / "cache" / "bengio2021flow_proxy.pkl.gz"
+):
     num_feat = 14 + 1 + NUM_ATOMIC_NUMBERS
-    mpnn = MPNNet(num_feat=num_feat, num_vec=0, dim=64, num_out_per_mol=1, num_out_per_stem=105, num_conv_steps=12)
+    mpnn = MPNNet(
+        num_feat=num_feat,
+        num_vec=0,
+        dim=64,
+        num_out_per_mol=1,
+        num_out_per_stem=105,
+        num_conv_steps=12,
+    )
 
     params = load_weights(cache, location)
     param_map = {
@@ -244,9 +257,17 @@ def load_original_model(cache=True, location=Path(__file__).parent / "cache" / "
 _mpnn_feat_cache = [None]
 
 
-def mpnn_feat(mol, ifcoord=True, panda_fmt=False, one_hot_atom=False, donor_features=False):
+def mpnn_feat(
+    mol, ifcoord=True, panda_fmt=False, one_hot_atom=False, donor_features=False
+):
     atomtypes = {"H": 0, "C": 1, "N": 2, "O": 3, "F": 4}
-    bondtypes = {BT.SINGLE: 0, BT.DOUBLE: 1, BT.TRIPLE: 2, BT.AROMATIC: 3, BT.UNSPECIFIED: 0}
+    bondtypes = {
+        BT.SINGLE: 0,
+        BT.DOUBLE: 1,
+        BT.TRIPLE: 2,
+        BT.AROMATIC: 3,
+        BT.UNSPECIFIED: 0,
+    }
 
     natm = len(mol.GetAtoms())
     ntypes = len(atomtypes)
@@ -294,11 +315,15 @@ def mpnn_feat(mol, ifcoord=True, panda_fmt=False, one_hot_atom=False, donor_feat
                     atmfeat[k, ntypes + 2] = 1
     # get coord
     if ifcoord:
-        coord = np.asarray([mol.GetConformer(0).GetAtomPosition(j) for j in range(natm)])
+        coord = np.asarray(
+            [mol.GetConformer(0).GetAtomPosition(j) for j in range(natm)]
+        )
     else:
         coord = None
     # get bonds and bond features
-    bond = np.asarray([[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] for bond in mol.GetBonds()])
+    bond = np.asarray(
+        [[bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()] for bond in mol.GetBonds()]
+    )
     bondfeat = [bondtypes[bond.GetBondType()] for bond in mol.GetBonds()]
     bondfeat = onehot(bondfeat, num_classes=len(bondtypes) - 1)
 
@@ -311,8 +336,12 @@ def mol_to_graph_backend(atmfeat, coord, bond, bondfeat, props={}, data_cls=Data
     # transform to torch_geometric bond format; send edges both ways; sort bonds
     atmfeat = torch.tensor(atmfeat, dtype=torch.float32)
     if bond.shape[0] > 0:
-        edge_index = torch.tensor(np.concatenate([bond.T, np.flipud(bond.T)], axis=1), dtype=torch.int64)
-        edge_attr = torch.tensor(np.concatenate([bondfeat, bondfeat], axis=0), dtype=torch.float32)
+        edge_index = torch.tensor(
+            np.concatenate([bond.T, np.flipud(bond.T)], axis=1), dtype=torch.int64
+        )
+        edge_attr = torch.tensor(
+            np.concatenate([bondfeat, bondfeat], axis=0), dtype=torch.float32
+        )
         edge_index, edge_attr = coalesce(edge_index, edge_attr, natm, natm)
     else:
         edge_index = torch.zeros((0, 2), dtype=torch.int64)
@@ -321,7 +350,9 @@ def mol_to_graph_backend(atmfeat, coord, bond, bondfeat, props={}, data_cls=Data
     # make torch data
     if coord is not None:
         coord = torch.tensor(coord, dtype=torch.float32)
-        data = data_cls(x=atmfeat, pos=coord, edge_index=edge_index, edge_attr=edge_attr, **props)
+        data = data_cls(
+            x=atmfeat, pos=coord, edge_index=edge_index, edge_attr=edge_attr, **props
+        )
     else:
         data = data_cls(x=atmfeat, edge_index=edge_index, edge_attr=edge_attr, **props)
     return data
@@ -344,7 +375,9 @@ def mol2graph(mol, floatX=torch.float, bonds=False, nblocks=False):
             edge_index=torch.zeros((0, 2)).long(),
         )
     else:
-        atmfeat, _, bond, bondfeat = mpnn_feat(mol, ifcoord=False, one_hot_atom=True, donor_features=False)
+        atmfeat, _, bond, bondfeat = mpnn_feat(
+            mol, ifcoord=False, one_hot_atom=True, donor_features=False
+        )
         g = mol_to_graph_backend(atmfeat, None, bond, bondfeat)
     stem_mask = torch.zeros((g.x.shape[0], 1))
     g.x = torch.cat([g.x, stem_mask], 1).to(floatX)
