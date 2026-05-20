@@ -60,4 +60,4 @@ class SehMoleculeProxy(Proxy):
         # output of the model
         mols = [MolFromSmiles(m) if isinstance(m, str) else m for m in mols]
         preds, is_valid = self.compute_obj_properties(mols)
-        return preds.squeeze(-1)
+        return preds.squeeze(-1).to(self.device)
