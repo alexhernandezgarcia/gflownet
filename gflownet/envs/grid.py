@@ -114,7 +114,6 @@ class Grid(GFlowNetEnv):
         ``self.actions_np``, defined in
         :py:meth:`~gflownet.envs.grid.Grid.get_action_space`.
 
-
         Parameters
         ----------
         state : list
