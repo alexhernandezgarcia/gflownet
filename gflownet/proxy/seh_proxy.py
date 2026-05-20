@@ -46,7 +46,7 @@ class SehMoleculeProxy(Proxy):
         preds[preds.isnan()] = 0
         return preds.clip(1e-4, 100).reshape((-1,))
 
-    def catch_mol2graph(mol):
+    def catch_mol2graph(self, mol):
         try:
             return mol2graph(mol)
         except Exception:
