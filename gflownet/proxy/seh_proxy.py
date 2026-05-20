@@ -46,8 +46,14 @@ class SehMoleculeProxy(Proxy):
         preds[preds.isnan()] = 0
         return preds.clip(1e-4, 100).reshape((-1,))
 
+    def catch_mol2graph(mol):
+        try:
+            return mol2graph(mol)
+        except Exception:
+            return None
+
     def compute_obj_properties(self, mols: List[RDMol]) -> Tuple[Tensor, Tensor]:
-        graphs = [mol2graph(i) for i in mols]
+        graphs = [self.catch_mol2graph(i) if i is not None else None for i in mols]
         is_valid = torch.tensor([i is not None for i in graphs]).bool()
         if not is_valid.any():
             return torch.zeros((0, 1)), is_valid
