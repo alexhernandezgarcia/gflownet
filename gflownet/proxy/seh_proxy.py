@@ -12,7 +12,7 @@ from gflownet.proxy.bengio2021flow import load_original_model, mol2graph
 # CODE FROM: https://github.com/recursionpharma/gflownet/blob/trunk/src/gflownet/tasks/seh_frag.py
 
 
-class SEHTask(Proxy):
+class SehMoleculeProxy(Proxy):
     """Sets up a task where the reward is computed using a proxy for the binding energy of a molecule to
     Soluble Epoxide Hydrolases.
 
@@ -56,5 +56,5 @@ class SEHTask(Proxy):
         return preds, is_valid
 
     def __call__(self, mols: List[RDMol]) -> Tuple[Tensor, Tensor]:
-        # output of the model
+        # output of the model   
         return self.compute_obj_properties(mols)
