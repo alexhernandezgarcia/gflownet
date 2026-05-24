@@ -145,24 +145,6 @@ class SetFix(BaseSet):
         """
         n_states = len(states)
 
-        # Obtain torch tensors for the active subenvironments, the toggle flags and
-        # the done indicators
-        active_subenvs = torch.zeros((n_states, self.n_subenvs), dtype=self.float)
-        dones = []
-        for idx, state in enumerate(states):
-            active_subenv = self._get_active_subenv(state)
-            if active_subenv != -1:
-                active_subenvs[idx, active_subenv] = 1.0
-            dones.append(self._get_dones(state))
-        dones = torch.tensor(dones, dtype=self.float)
-
-        # Obtain the torch tensor containing the toggle flags
-        toggle_flags = torch.tensor(
-            [self._get_toggle_flag(s) for s in states], dtype=self.float
-        ).reshape(
-            (-1, 1)
-        )  # reshape to (n_states, 1)
-
         # Obtain the torch tensor containing the states2policy of the sub-environments
         substates = []
         for idx_subenv, subenv in enumerate(self.subenvs):
@@ -172,6 +154,29 @@ class SetFix(BaseSet):
             # Convert the subenv_states to policy format
             substates.append(subenv.states2policy(subenv_states))
         substates = torch.cat(substates, dim=1)
+        device = substates.device
+
+        # Obtain torch tensors for the active subenvironments, the toggle flags and
+        # the done indicators
+        active_subenvs = torch.zeros(
+            (n_states, self.n_subenvs), dtype=self.float, device=device
+        )
+        dones = []
+        for idx, state in enumerate(states):
+            active_subenv = self._get_active_subenv(state)
+            if active_subenv != -1:
+                active_subenvs[idx, active_subenv] = 1.0
+            dones.append(self._get_dones(state))
+        dones = torch.tensor(dones, dtype=self.float, device=device)
+
+        # Obtain the torch tensor containing the toggle flags
+        toggle_flags = torch.tensor(
+            [self._get_toggle_flag(s) for s in states],
+            dtype=self.float,
+            device=device,
+        ).reshape(
+            (-1, 1)
+        )  # reshape to (n_states, 1)
 
         return torch.cat([active_subenvs, toggle_flags, dones, substates], dim=1)
 

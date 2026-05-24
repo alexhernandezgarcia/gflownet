@@ -14,6 +14,7 @@ import pytest
 import torch
 from torch import Tensor
 
+import gflownet.envs.composite.setflex as setflex_module
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.setflex import SetFlex
 from gflownet.envs.composite.stack import Stack
@@ -5484,6 +5485,48 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
     env = request.getfixturevalue(env)
     states_policy = env.states2policy(states)
     assert torch.all(torch.isclose(states_policy_exp, env.states2policy(states)))
+
+
+def test__states2policy__creates_helper_tensors_on_env_device(monkeypatch):
+    recorded_devices = []
+
+    def tracked_zeros(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.zeros(*args, **kwargs)
+
+    def tracked_tensor(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.tensor(*args, **kwargs)
+
+    class TorchProxy:
+        def __getattr__(self, name):
+            if name == "zeros":
+                return tracked_zeros
+            if name == "tensor":
+                return tracked_tensor
+            return getattr(torch, name)
+
+    monkeypatch.setattr(setflex_module, "torch", TorchProxy())
+
+    env = SetFlex(
+        envs_unique=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+        ),
+        max_elements=2,
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+        ),
+        device="cpu",
+    )
+    states_policy = env.states2policy([env.state])
+
+    assert states_policy.device == env.device
+    assert recorded_devices
+    assert all(
+        device is not None and torch.device(device) == env.device
+        for device in recorded_devices
+    )
 
 
 class TestSetFlexTwoGrids(common.BaseTestsDiscrete):
