@@ -1410,7 +1410,7 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
-                True, False, False, # MASK
+                False, True, False, # MASK
             ]
             # fmt: on
         ),
@@ -1656,7 +1656,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
-                True, False, False, # MASK
+                False, True, False, # MASK
             ]
             # fmt: on
         ),
@@ -2001,7 +2001,7 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
-                False, False, True, # MASK
+                True, False, False, # MASK
                 False, False, # PAD
             ]
             # fmt: on
@@ -2227,7 +2227,7 @@ def test__get_mask_invalid_actions_backward__returns_expected(
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
-                False, False, True, # MASK
+                True, False, False, # MASK
                 False, False, # PAD
             ]
             # fmt: on
