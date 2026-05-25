@@ -6,7 +6,8 @@ import numpy as np
 from torchtyping import TensorType
 
 from gflownet.envs.sequences.base import SequenceBase
-from gflownet.envs.sequences.smiles_organic_vocab import vocab as SMILES_VOCAB
+# from gflownet.envs.sequences.smiles_organic_vocab import vocab as SMILES_VOCAB
+from gflownet.envs.sequences.smiles_organic_vocab_genetic_gfn import vocab as SMILES_VOCAB
 from gflownet.utils.common import tlong
 
 
