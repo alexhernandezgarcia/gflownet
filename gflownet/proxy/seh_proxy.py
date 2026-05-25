@@ -64,7 +64,7 @@ class SehMoleculeProxy(Proxy):
 
     def __call__(self, mols: List) -> Tensor:
         # output of the model
-        mols = [MolFromSmiles(m) if isinstance(m, str) else m for m in mols]
+        mols = [MolFromSmiles(m.replace(" ", "")) if isinstance(m, str) else m for m in mols]
         preds, is_valid = self.compute_obj_properties(mols)
         # filter the output only for those valid molecules
         output = torch.zeros(len(mols), dtype=self.float, device=self.device)
