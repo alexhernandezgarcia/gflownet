@@ -202,7 +202,6 @@ FAQ
     - `Sphinx Math Dollar <https://www.sympy.org/sphinx-math-dollar/>`_ enables the ``$...$`` math syntax
     - `Sphinx autodoc type ints <https://github.com/tox-dev/sphinx-autodoc-typehints>`_ enables more fine-grained control on how types are displayed in the docs
     - `MyST <https://myst-parser.readthedocs.io/en/latest/intro.html>`_ enables the parsing of enhanced Markdown syntax in the ``.rst`` documentation.
-    - `Hover X Ref <https://sphinx-hoverxref.readthedocs.io/en/latest/index.html>`_ Enables tooltips to display contents on the hover of links
     - `Napoleon <https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html>`_ enables the parsing of Google-style docstrings
 
 .. _about shpinx:

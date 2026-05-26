@@ -48,7 +48,6 @@ extensions = [
     "sphinx_markdown_tables",
     "sphinx_autodoc_typehints",
     "myst_nb",
-    "hoverxref.extension",
     "autoapi.extension",
     "sphinxext.opengraph",
     "code_include.extension",
@@ -170,11 +169,6 @@ myst_enable_extensions = [
     "dollarmath",
     "html_image",
 ]
-
-# Hover X Ref
-# https://sphinx-hoverxref.readthedocs.io/en/latest/index.html
-hoverxref_auto_ref = True
-hoverxref_mathjax = True
 
 # Open Graph
 
