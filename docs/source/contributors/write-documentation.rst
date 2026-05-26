@@ -32,9 +32,11 @@ To write documentation or test your changes, you'll want to **build the document
 
 **Install documentation dependencies:**
 
+The documentation dependencies are included in the `dev` extras:
+
 .. code-block:: bash
 
-    pip install -r docs/requirements-docs.txt
+    python -m pip install .[dev]
 
 **Build the documentation:**
 
