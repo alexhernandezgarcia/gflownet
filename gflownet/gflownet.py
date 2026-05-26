@@ -751,22 +751,22 @@ class GFlowNetAgent:
         bs_num_samples=10000,
     ):
         r"""
-        Estimates the log probabilities of sampling the objects in data set.
+        Estimates the log probabilities of sampling the objects in a data set.
 
         In particular, this method estimates the log probability of sampling each
         object in a data set given by the argument ``data`` according to the current
-        GFlowNet forward policy (``self.forward_policy``).
+        GFlowNet forward policy, ``self.forward_policy``.
 
-        The (log) probabilities are estimated through importance sampling with the
-        GFlowNet backward policy (``self.backward_policy``) as the proposal
+        The log probabilities are estimated through **importance sampling** with the
+        GFlowNet backward policy, ``self.backward_policy``, as the proposal
         distribution.
 
         Recall that the likelihood of a sample $x$ is the sum of the likelihoods of all
         trajectories that end in $x$:
         $$
-        p_T(x) = \int_{\tau:x \in \tau} P_F(\tau)d\tau \\
-        = \int \mathbb{1}[x \in \tau] P_F(\tau)d\tau \\
-        = \mathbb{E}_{P_F(\tau)}[\mathbb{1}[x \in \tau]].
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau} P_F(\tau)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau] P_F(\tau)d\tau \\
+        = \mathbb{E}_{P_F(\tau)}[\mathbb{1}[x \rightarrow \perp \in \tau]].
         $$
 
         However, this integral (or sum in the discrete case) is intractable in most
@@ -775,31 +775,35 @@ class GFlowNetAgent:
         Given $N$ samples $\tau_i$ from $P_F(\tau)$, an unbiased Monte Carlo estimator
         of the above expectation is
         $$
-        \hat{p}_T(x) = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}[x \in \tau_i].
+        \hat{p}_T(x) = \frac{1}{N} \sum_{i=1}^{N}
+        \mathbb{1}[x \rightarrow \perp \in \tau_i].
         $$
 
         However, sampling from $P_F$ to estimate $\hat{p}_T(x)$ is clearly inefficient
-        since most trajectories would not contain $x$.
+        since most trajectories would not end in $x$.
 
-        This motivates the use of importance sampling with a lower-variance proposal
-        distribution, such as the backward policy given sample $x$, $P_B(\tau|x)$:
+        This motivates the use of **importance sampling** with a lower-variance
+        proposal distribution, such as the backward policy given sample $x$,
+        $P_B(\tau|x)$:
 
         $$
-        p_T(x) = \int_{\tau:x \in \tau} \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x)d\tau \\
-        = \int \mathbb{1}[x \in \tau] \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x) \\
-        = \mathbb{E}_{P_B(\tau|x)}[\frac{P_F(\tau)}{P_B(\tau|x)}].
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau}
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau]
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x) \\
+        = \mathbb{E}_{P_B(\tau|x)} \left[ \frac{P_F(\tau)}{P_B(\tau|x)} \right].
         $$
 
-        If we sample $N$ trajectories (``n_trajectories``) using the backward policy,
-        starting from $x$, then we can estimate the log likelihood as
+        If we sample $N$ backward trajectories (``n_trajectories``) following the
+        backward policy, starting from $x$, then we can estimate the log likelihood as
         $$
-        \hat{\log p}_T(x) = \log \sum_{i=1}^{N} \frac{P_F(\tau_i)}{P_B(\tau_i|x)}
+        \log \hat{p}_T(x) = \log \sum_{i=1}^{N} \frac{P_F(\tau_i)}{P_B(\tau_i|x)}
         - \log N.
         $$
 
-        Note: torch.logsumexp is used to compute the log of the sum, in order to have
-        numerical stability, since we have log PF and log PB, instead of directly
-        PF and PB.
+        Note: ``torch.logsumexp`` is used to compute the log of the sum, in order to
+        have numerical stability, since we have $\log P_F$ and $\log P_B$, instead of
+        directly $P_F$ and $P_B$.
 
         Note: the correct indexing of data points and trajectories is ensured by the
         fact that the indices of the environments are set in a consistent way with the
