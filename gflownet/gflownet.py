@@ -751,47 +751,80 @@ class GFlowNetAgent:
         bs_num_samples=10000,
     ):
         r"""
-        Estimates the probability of sampling with current GFlowNet policy
-        (self.forward_policy) the objects in a data set given by the argument data. The
-        (log) probabilities are estimated by sampling a number of backward trajectories
-        (n_trajectories) through importance sampling and calculating the forward
-        probabilities of the trajectories.
+        Estimates the log probabilities of sampling the objects in a data set.
+
+        In particular, this method estimates the log probability of sampling each
+        object in a data set given by the argument ``data`` according to the current
+        GFlowNet forward policy, ``self.forward_policy``.
+
+        The log probabilities are estimated through **importance sampling** with the
+        GFlowNet backward policy, ``self.backward_policy``, as the proposal
+        distribution.
+
+        Recall that the likelihood of a sample $x$ is the sum of the likelihoods of all
+        trajectories that end in $x$:
+        $$
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau} P_F(\tau)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau] P_F(\tau)d\tau \\
+        = \mathbb{E}_{P_F(\tau)}[\mathbb{1}[x \rightarrow \perp \in \tau]].
+        $$
+
+        However, this integral (or sum in the discrete case) is intractable in most
+        practical cases.
+
+        Given $N$ samples $\tau_i$ from $P_F(\tau)$, an unbiased Monte Carlo estimator
+        of the above expectation is
+        $$
+        \hat{p}_T(x) = \frac{1}{N} \sum_{i=1}^{N}
+        \mathbb{1}[x \rightarrow \perp \in \tau_i].
+        $$
+
+        However, sampling from $P_F$ to estimate $\hat{p}_T(x)$ is clearly inefficient
+        since most trajectories would not end in $x$.
+
+        This motivates the use of **importance sampling** with a lower-variance
+        proposal distribution, such as the backward policy given sample $x$,
+        $P_B(\tau|x)$:
 
         $$
-        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
-        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
-        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
-        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau}
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau]
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x) \\
+        = \mathbb{E}_{P_B(\tau|x)} \left[ \frac{P_F(\tau)}{P_B(\tau|x)} \right].
         $$
 
-        Note: torch.logsumexp is used to compute the log of the sum, in order to have
-        numerical stability, since we have the log PF and log PB, instead of directly
-        PF and PB.
+        If we sample $N$ backward trajectories (``n_trajectories``) following the
+        backward policy, starting from $x$, then we can estimate the log likelihood as
+        $$
+        \log \hat{p}_T(x) = \log \sum_{i=1}^{N} \frac{P_F(\tau_i)}{P_B(\tau_i|x)}
+        - \log N.
+        $$
+
+        Note: ``torch.logsumexp`` is used to compute the log of the sum, in order to
+        have numerical stability, since we have $\log P_F$ and $\log P_B$, instead of
+        directly $P_F$ and $P_B$.
 
         Note: the correct indexing of data points and trajectories is ensured by the
         fact that the indices of the environments are set in a consistent way with the
         indexing when storing the log probabilities.
 
-        Args
-        ----
+        Parameters
+        ----------
         data : list or string
             A data set of terminating states. The data set may be passed directly as a
             list of states, or it may be a string defining the path to a pickled data
             set where the terminating states are stored in key "samples".
-
         n_trajectories : int
             The number of trajectories per object to sample for estimating the log
             probabilities.
-
         max_iters_per_traj : int
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
-
         max_data_size : int
             Maximum number of data points in the data set to avoid an accidental
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
-
         bs_num_samples: int
             Number of bootstrap resampling times for std estimation of logprobs_estimates.
             Doesn't require recomputing of log probabilities, so can be arbitrary large
@@ -801,10 +834,8 @@ class GFlowNetAgent:
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
-
         logprobs_std: torch.tensor
             Bootstrap std of the logprobs_estimates
-
         probs_std: torch.tensor
             Bootstrap std of the torch.exp(logprobs_estimates)
         """
