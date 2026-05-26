@@ -40,10 +40,11 @@ The documentation dependencies are included in the `dev` extras:
 
 **Build the documentation:**
 
+The documentation can be build from directory `./docs` with `make html`:
+
 .. code-block:: bash
 
-    cd docs/
-    make html
+    make -C docs/ html
 
 **View the documentation:**
 
@@ -54,10 +55,8 @@ Open the generated ``docs/_build/html/index.html`` file in your browser:
     # On most systems:
     open docs/_build/html/index.html
     
-    # Or use a simple HTTP server:
-    cd docs/_build/html
-    python -m http.server 8000
-    # Then visit http://localhost:8000
+    # Or run a simple HTTP server and visit http://localhost:8000:
+    python -m http.server 8000 --directory docs/_build/html
 
 .. note::
 
