@@ -67,6 +67,11 @@ class SequenceBase(GFlowNetEnv):
         # Set device because it is needed in the init
         self.device = set_device(kwargs["device"])
         print("SELF DEVICE GFLOWNET ENVS SEQUENCES BASE:", self.device)
+        try:
+            print("STATE DEVICE inside init of gfn>envs>sequences:", self.state.device)
+        except:
+            print("NO STATE DEVICE inside init of gfn>envs>sequences")
+            None
         # Main attributes
         self.tokens = tuple(tokens)
         self.pad_token = pad_token
