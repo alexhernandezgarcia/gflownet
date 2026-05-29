@@ -541,8 +541,10 @@ class GFlowNetEnv:
             False, if the action is not allowed for the current state.
         """
         # THIS IS THE ERROR
+        print("\n DEBUGGING inside step_backwards")
+        print("STATE DEVICE:", self.state.device, "SELF DEVICE:", self.device)
         do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
-        print("\n DEBUGGING:")
+        print("\n DEBUGGING in step backwards:")
         print("[SELF STATE]:", self.state)
         print("[SELF STATE DEVICE]:", self.state.device)
         if not do_step:
