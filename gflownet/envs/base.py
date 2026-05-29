@@ -1112,8 +1112,7 @@ class GFlowNetEnv:
         at all states (intermediate states are not fully constructed objects) should
         overwrite this method and check for validity.
         """
-        self.state = copy(state)
-        self.state.device = self.device
+        self.state = copy(state).to(self.device)
         self.done = done
         return self
 
