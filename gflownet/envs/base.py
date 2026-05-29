@@ -82,10 +82,6 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        print("\n DEBUGGING ENVS BASE:")
-        print("SELF SOURCE DEVICE:")
-        print(self.source)
-        print(self.source.device)
 
     @abstractmethod
     def get_action_space(self):
