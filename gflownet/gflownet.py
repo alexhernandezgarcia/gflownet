@@ -887,6 +887,8 @@ class GFlowNetAgent:
                     compute_reversed_logprobs=True,
                 )
                 # Update environments with sampled actions
+                print("\n DEBUGGING in ESTIMATE_LOGPROBS_DATA before SELF.STEP:")
+                print("SELF DEVICE:", self.device)
                 envs, actions, valids = self.step(envs, actions, backward=True)
                 # Add to batch
                 batch.add_to_batch(
