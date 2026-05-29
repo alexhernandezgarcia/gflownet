@@ -529,7 +529,6 @@ class GFlowNetAgent:
         if not isinstance(envs, list):
             envs = [envs]
         if backward:
-            for env, action in zip(envs, actions):
             _, actions, valids = zip(
                 *[env.step_backwards(action) for env, action in zip(envs, actions)]
             )
