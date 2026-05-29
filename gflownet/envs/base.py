@@ -1081,6 +1081,7 @@ class GFlowNetEnv:
         self
         """
         self.state = copy(self.source)
+        print("[DEBUGGING] GFN>ENVS>BASE>GFNENV>RESET SELF.STATE.DEVICE", self.state.device)
         self.n_actions = 0
         self.done = False
         if env_id is None:
