@@ -82,6 +82,10 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        print("\n DEBUGGING ENVS BASE:")
+        print("SELF SOURCE DEVICE:")
+        print(self.source)
+        print(self.source.device)
 
     @abstractmethod
     def get_action_space(self):
@@ -459,6 +463,7 @@ class GFlowNetEnv:
             )
         # If backward and state is source, step should not proceed.
         if backward is True:
+            # THIS IS THE ERROR self.state is in cpu while self.source is in cuda
             if self.equal(self.state, self.source) and action != self.eos:
                 return False, self.state, action
         # If forward and env is done, step should not proceed.
@@ -536,6 +541,7 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # THIS IS THE ERROR
         do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
         if not do_step:
             return self.state, action, False

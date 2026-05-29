@@ -83,6 +83,9 @@ class SequenceBase(GFlowNetEnv):
         self.source = tlong(
             torch.full((self.max_length,), self.pad_idx), device=self.device
         )
+        print("\n DEBUGGING ENVS>SEQUENCES>BASE:")
+        print("SOURCE:", self.source)
+        print("SOURCE DEVICE:", self.source.device)
         # End-of-sequence action
         self.eos = (self.eos_idx,)
         # Base class init
