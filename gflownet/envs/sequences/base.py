@@ -216,6 +216,7 @@ class SequenceBase(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
+        print("INSIDE SEQUENCES DEV")
         do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
