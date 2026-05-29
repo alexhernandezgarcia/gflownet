@@ -528,11 +528,8 @@ class GFlowNetAgent:
         assert len(envs) == len(actions)
         if not isinstance(envs, list):
             envs = [envs]
-        print("AGENT DEVICE:", self.device)
         if backward:
-            print("ALL ENVS DEVICE:")
             for env, action in zip(envs, actions):
-                print("TYPE ENV:", type(env), "ENV DEVICE:", env.device, "TYPE ACTION:", type(action), "STATE DEVICE:", env.state.device)
             _, actions, valids = zip(
                 *[env.step_backwards(action) for env, action in zip(envs, actions)]
             )
@@ -890,8 +887,6 @@ class GFlowNetAgent:
                     compute_reversed_logprobs=True,
                 )
                 # Update environments with sampled actions
-                print("\n DEBUGGING in ESTIMATE_LOGPROBS_DATA before SELF.STEP:")
-                print("SELF DEVICE:", self.device)
                 envs, actions, valids = self.step(envs, actions, backward=True)
                 # Add to batch
                 batch.add_to_batch(
