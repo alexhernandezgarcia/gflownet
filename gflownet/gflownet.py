@@ -129,6 +129,8 @@ class GFlowNetAgent:
         self.rng = np.random.default_rng(seed)
         # Device
         self.device = set_device(device)
+        print("\n DEBUGGING:")
+        print("AGENT DEVICE:", self.device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
@@ -528,6 +530,7 @@ class GFlowNetAgent:
         assert len(envs) == len(actions)
         if not isinstance(envs, list):
             envs = [envs]
+        print("AGENT DEVICE:", self.device)
         if backward:
             _, actions, valids = zip(
                 *[env.step_backwards(action) for env, action in zip(envs, actions)]
