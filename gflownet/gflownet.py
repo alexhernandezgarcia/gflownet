@@ -530,6 +530,13 @@ class GFlowNetAgent:
             envs = [envs]
         print("AGENT DEVICE:", self.device)
         if backward:
+            print("ALL ENVS DEVICE:")
+            for env, action in zip(envs, actions):
+                print("TYPE ENV:", type(env), "ENV DEVICE:", env.device, "TYPE ACTION:", type(action))
+                try:
+                    print("ACTION DEVICE:", action.device)
+                except:
+                    None
             _, actions, valids = zip(
                 *[env.step_backwards(action) for env, action in zip(envs, actions)]
             )
