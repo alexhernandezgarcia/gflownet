@@ -59,6 +59,7 @@ class GFlowNetEnv:
         self.reset()
         # Device
         self.device = set_device(device)
+        print("[DEBUGGING] SELF DEVICE GFLOWNET ENVS BASE INIT:", self.device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Flag to skip checking if action is valid (computing mask) before step
@@ -504,6 +505,7 @@ class GFlowNetEnv:
             root state
         """
         _, self.state, action = self._pre_step(action, skip_mask_check)
+        print("[DEBUGGING] GFLOWNET ENVS BASE GFLOWNETENV STEP SELF.STATE.DEVICE:", self.state.device)
         return None, None, None
 
     def step_backwards(
@@ -542,7 +544,7 @@ class GFlowNetEnv:
         """
         # THIS IS THE ERROR
         print("\n DEBUGGING inside step_backwards")
-        print("STATE DEVICE:", self.state.device, "SELF DEVICE:", self.device)
+        print("[DEBUGGING] STATE DEVICE:", self.state.device, "SELF DEVICE:", self.device)
         do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
         print("\n DEBUGGING in step backwards:")
         print("[SELF STATE]:", self.state)
