@@ -1113,12 +1113,7 @@ class GFlowNetEnv:
         overwrite this method and check for validity.
         """
         self.state = copy(state)
-        try:
-            print("[DEBUGGING:] GFN>ENVS>BASE>GFNENV>SET_STATE:")
-            print("STATE DEVICE:", state.device)
-            print("SELF STATE DEVICE:", self.state.device)
-        except:
-            None
+        self.state.device = self.device
         self.done = done
         return self
 
