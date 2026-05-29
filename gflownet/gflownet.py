@@ -129,8 +129,6 @@ class GFlowNetAgent:
         self.rng = np.random.default_rng(seed)
         # Device
         self.device = set_device(device)
-        print("\n DEBUGGING:")
-        print("AGENT DEVICE:", self.device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
