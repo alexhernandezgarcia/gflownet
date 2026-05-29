@@ -59,8 +59,6 @@ class GFlowNetEnv:
         self.reset()
         # Device
         self.device = set_device(device)
-        print("\n DEBUGGING IN GFLOWNET>ENVS>BASE>INIT")
-        print("SELF DEVICE:", self.device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Flag to skip checking if action is valid (computing mask) before step
