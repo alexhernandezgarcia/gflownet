@@ -529,6 +529,11 @@ class GFlowNetAgent:
         if not isinstance(envs, list):
             envs = [envs]
         if backward:
+            print("\n DEBUGGING IN STEP:")
+            for env, action in zip(envs, actions):
+                print("ENV DEVICE:", env.device)
+                print(env.__class__.__name__)
+                print(type(env).__name__)
             _, actions, valids = zip(
                 *[env.step_backwards(action) for env, action in zip(envs, actions)]
             )
@@ -872,6 +877,10 @@ class GFlowNetAgent:
                     idx = int(mult_indices * state_idx + traj_idx)
                     env = env_instances.pop().reset(idx)
                     env.set_state(states_term[state_idx], done=True)
+                    print("\n DEBUGGING ESTIMATE LOG PROBS DATA:")
+                    print("ENV DEVICE:", env.device)
+                    print(env.__class__.__name__)
+                    print(type(env).__name__)
                     envs.append(env)
                     pbar2.update(1)
             # Sample trajectories
