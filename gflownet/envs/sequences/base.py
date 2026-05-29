@@ -66,6 +66,7 @@ class SequenceBase(GFlowNetEnv):
             )
         # Set device because it is needed in the init
         self.device = set_device(kwargs["device"])
+        print("SELF DEVICE GFLOWNET ENVS SEQUENCES BASE:", self.device)
         # Main attributes
         self.tokens = tuple(tokens)
         self.pad_token = pad_token
