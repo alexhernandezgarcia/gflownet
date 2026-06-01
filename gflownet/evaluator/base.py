@@ -639,7 +639,10 @@ class BaseEvaluator(AbstractEvaluator):
             fig_scatter_rewards_probs, ax = plt.subplots(
                 nrows=1, ncols=2, figsize=(8, 4), dpi=150
             )
-            ax[0].scatter(rewards.detach().cpu().numpy(), probs.detach().cpu().numpy())
+            ax[0].scatter(
+                rewards.detach().cpu().numpy() if hasattr(rewards, 'detach') else rewards,
+                probs.detach().cpu().numpy() if hasattr(probs, 'detach') else probs,
+            )
             ax[0].set_xlabel(f"Rewards")
             ax[0].set_ylabel(f"Probs")
             ax[1].scatter(logrewards, logprobs)
