@@ -298,7 +298,7 @@ class BaseEvaluator(AbstractEvaluator):
                     probs_x_tt, rewards_x_tt.detach().cpu().numpy()
                 )[0, 1]
                 lp_metrics["corr_logprobs_logrewards"] = np.corrcoef(
-                    logprobs_x_tt, logrewards_x_tt
+                    logprobs_x_tt.detach().cpu().numpy(), logrewards_x_tt.detach().cpu().numpy()
                 )[0, 1]
                 lp_data["probs"] = probs_x_tt
                 lp_data["logprobs"] = logprobs_x_tt
