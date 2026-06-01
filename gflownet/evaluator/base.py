@@ -645,7 +645,10 @@ class BaseEvaluator(AbstractEvaluator):
             )
             ax[0].set_xlabel(f"Rewards")
             ax[0].set_ylabel(f"Probs")
-            ax[1].scatter(logrewards, logprobs)
+            ax[1].scatter(
+                logrewards.detach().cpu().numpy() if hasattr(logrewards, 'detach') else logrewards,
+                logprobs.detach().cpu().numpy() if hasattr(logprobs, 'detach') else logprobs,
+            )
             ax[1].set_xlabel(f"Log-rewards")
             ax[1].set_ylabel(f"Log-probs")
             fig_scatter_rewards_probs.tight_layout()
