@@ -315,13 +315,6 @@ class BaseBuffer:
             if self.replay_capacity > 0:
                 self.replay_updated = False
                 if criterion == "greater":
-                    print("DEBUGGING")
-                    for sample_state in samples:
-                        try:
-                            print("SAMPLE STATE DEVICE:", sample_state.device)
-                            print("SAMPLE STATE", sample_state)
-                        except:
-                            None
                     self.replay = self._add_greater(samples, trajectories, rewards, it)
                 else:
                     raise ValueError(

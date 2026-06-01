@@ -216,7 +216,6 @@ class SequenceBase(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        print("INSIDE SEQUENCES DEV")
         do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
@@ -328,16 +327,6 @@ class SequenceBase(GFlowNetEnv):
         A string of space-separated tokens.
         """
         state = self._get_state(state)
-        print("DEBUGGING:")
-        print("STATE:", state)
-        try:
-            print("UNPAD STATE:", self._unpad(state))
-        except:
-            None
-        try:
-            print("STATE DEVICE:", state.device)
-        except:
-            None
         state = self._unpad(state.tolist() if torch.is_tensor(state) else state)
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
