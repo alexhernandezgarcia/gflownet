@@ -330,7 +330,14 @@ class SequenceBase(GFlowNetEnv):
         state = self._get_state(state)
         print("DEBUGGING:")
         print("STATE:", state)
-        print("UNPAD STATE:", self._unpad(state))
+        try:
+            print("UNPAD STATE:", self._unpad(state))
+        except:
+            None
+        try:
+            print("STATE DEVICE:", state.device)
+        except:
+            None
         state = self._unpad(state.tolist())
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
