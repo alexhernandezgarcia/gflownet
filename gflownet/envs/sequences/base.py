@@ -328,6 +328,9 @@ class SequenceBase(GFlowNetEnv):
         A string of space-separated tokens.
         """
         state = self._get_state(state)
+        print("DEBUGGING:")
+        print("STATE:", state)
+        print("UNPAD STATE:", self._unpad(state))
         state = self._unpad(state.tolist())
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
