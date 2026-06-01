@@ -287,7 +287,7 @@ class BaseEvaluator(AbstractEvaluator):
             lp_metrics["mean_probs_std"] = probs_std.mean().item()
 
         if "reward_batch" in reqs:
-            rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt)).cpu().numpy()
+            rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
             logrewards_x_tt = torch.log(rewards_x_tt)
             lp_data["rewards"] = rewards_x_tt
             lp_data["logrewards"] = logrewards_x_tt
@@ -295,7 +295,7 @@ class BaseEvaluator(AbstractEvaluator):
             if "corr_probs_rewards" in metrics:
                 probs_x_tt = np.exp(logprobs_x_tt.cpu().numpy())
                 lp_metrics["corr_probs_rewards"] = np.corrcoef(
-                    probs_x_tt, rewards_x_tt
+                    probs_x_tt, rewards_x_tt.detach().cpu().numpy()
                 )[0, 1]
                 lp_metrics["corr_logprobs_logrewards"] = np.corrcoef(
                     logprobs_x_tt, logrewards_x_tt
