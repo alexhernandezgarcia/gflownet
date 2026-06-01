@@ -338,7 +338,7 @@ class SequenceBase(GFlowNetEnv):
             print("STATE DEVICE:", state.device)
         except:
             None
-        state = self._unpad(state.tolist())
+        state = self._unpad(state.tolist() if torch.is_tensor(state) else state)
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
     def readable2state(self, readable: str) -> TensorType["max_length"]:  # noqa: F821
