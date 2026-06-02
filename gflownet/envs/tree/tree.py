@@ -47,16 +47,28 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from sklearn.preprocessing import MinMaxScaler
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
+from gflownet.envs.tree.discrete_choice_node import \
+    DecisionTreeNodeDiscreteChoice
+from gflownet.envs.tree.discrete_node import DecisionTreeNodeDiscrete
 from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.utils.common import copy, tfloat
 
+_NODE_CLASSES = {
+    "continuous": DecisionTreeNode,
+    "discrete": DecisionTreeNodeDiscrete,
+    "discrete_choice": DecisionTreeNodeDiscreteChoice,
+}
+
 
 class Tree(CompositeBase):
+    _node_kwargs_logged = False
+
     """
     Composite environment that constructs a binary decision tree by iteratively
     expanding leaf positions into internal nodes.
@@ -79,6 +91,8 @@ class Tree(CompositeBase):
     def __init__(
         self,
         max_depth: int = 3,
+        node_type: str = "continuous",
+        rescale_thresholds: bool = True,
         node_kwargs: dict = None,
         X_train: Optional[npt.NDArray] = None,
         y_train: Optional[npt.NDArray] = None,
@@ -131,6 +145,7 @@ class Tree(CompositeBase):
             )
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
+        self.rescale_thresholds = rescale_thresholds
 
         # Dataset loading and preprocessing
         node_kwargs = node_kwargs or {}
@@ -162,7 +177,7 @@ class Tree(CompositeBase):
                 if self.X_test is not None:
                     self.X_test = self.scaler.transform(self.X_test)
             # Derive features from dataset if not explicitly provided
-            if "features" not in node_kwargs:
+            if "features" not in node_kwargs or node_kwargs["features"] == None:
                 n_features = self.X_train.shape[1]
                 if self.feature_names is not None:
                     node_kwargs["features"] = list(self.feature_names)
@@ -176,7 +191,16 @@ class Tree(CompositeBase):
                 "or X_train/y_train from which features can be derived."
             )
 
-        self.node_env = DecisionTreeNode(**node_kwargs)
+        node_cls = _NODE_CLASSES[node_type]
+        self.node_env = node_cls(**node_kwargs)
+        self.node_type = node_type
+
+        if not Tree._node_kwargs_logged:
+            print("\n", 20 * "*", "ARGUMENTS PASSED TO SUBENV", 20 * "*")
+            print(f"Initialized node_env with the following arguments: {node_kwargs}")
+            print(60 * "*", "\n")
+            Tree._node_kwargs_logged = True
+
         self.subenvs = None  # Dynamic; nodes are created on demand
 
         # Max internal nodes: levels 0 to max_depth - 1
@@ -322,9 +346,11 @@ class Tree(CompositeBase):
 
         For each done ancestor of ``k`` that splits on the same feature:
         - If ``k`` is in the left subtree of that ancestor (the ``<=`` branch),
-          the threshold must be less than the ancestor's threshold (upper bound).
+          the threshold must be less than or equal to the ancestor's threshold
+          (upper bound).
         - If ``k`` is in the right subtree (the ``>`` branch), the threshold
-          must be greater than the ancestor's threshold (lower bound).
+          must be greater than or equal to the ancestor's threshold (lower
+          bound).
 
         Parameters
         ----------
@@ -336,14 +362,16 @@ class Tree(CompositeBase):
         Returns
         -------
         (lower, upper) : tuple of float
-            The valid threshold range in [0, 1].
+            The valid threshold range in
+            ``[node_env.threshold_min, node_env.threshold_max]``.
         """
+        lower = float(self.node_env.threshold_min)
+        upper = float(self.node_env.threshold_max)
+
         feature_idx = self.node_env.get_feature(state[k])
         if feature_idx is None:
-            return (0.0, 1.0)
+            return (lower, upper)
 
-        lower = 0.0
-        upper = 1.0
         current = k
         while current > 0:
             parent = self.parent_idx(current)
@@ -357,82 +385,89 @@ class Tree(CompositeBase):
                 parent_threshold = self.node_env.get_threshold(state[parent])
                 if parent_threshold is not None:
                     if self._is_in_left_subtree(k, parent):
-                        # k is on the <= side: threshold must be < parent's
+                        # k is on the <= side: threshold must be <= parent's
                         upper = min(upper, parent_threshold)
                     else:
-                        # k is on the > side: threshold must be > parent's
+                        # k is on the > side: threshold must be >= parent's
                         lower = max(lower, parent_threshold)
             current = parent
 
         return (lower, upper)
 
-    def _rescale_threshold(self, k: int, state: Dict) -> None:
+    def _node_apply_rescale(self, k: int, state: Dict) -> None:
         """
-        Rescales the threshold of done node ``k`` from the raw [0, 1] range
-        of the ContinuousCube to the valid range [lower, upper] determined by
-        ancestor constraints.
-
-        This ensures that the stored threshold respects the decision-tree
-        semantics: a child on the ``<=`` branch cannot have a threshold
-        higher than its ancestor's, and a child on the ``>`` branch cannot
-        have one lower.
-
-        Parameters
-        ----------
-        k : int
-            Index of the node whose threshold is to be rescaled.
-        state : dict
-            Current tree state. Node ``k`` must be done.
+        Asks the node sub-environment to rescale the threshold of done node
+        ``k`` from its raw range to the ancestor-constrained ``[lower, upper]``
+        range. Delegates to :py:meth:`node_env.apply_threshold_rescale`. No-op
+        when ``self.rescale_thresholds`` is False or for node types that
+        implement this as a no-op (e.g. the discrete node).
         """
+        if not self.rescale_thresholds:
+            return
         lower, upper = self._get_threshold_bounds(k, state)
-        if lower == 0.0 and upper == 1.0:
-            return  # No rescaling needed
+        state[k] = self.node_env.apply_threshold_rescale(state[k], lower, upper)
 
-        raw = self.node_env.get_threshold(state[k])
-        if raw is None:
+    def _node_unapply_rescale(self, k: int, state: Dict) -> None:
+        """Reverses :py:meth:`_node_apply_rescale` for node ``k``."""
+        if not self.rescale_thresholds:
             return
-
-        rescaled = lower + raw * (upper - lower)
-        # Update the threshold in the substate
-        threshold_key = self.node_env.stage_threshold
-        state[k][threshold_key] = [rescaled]
-
-    def _unrescale_threshold(self, k: int, state: Dict) -> None:
-        """
-        Reverses the threshold rescaling for node ``k``, converting back from
-        the [lower, upper] range to the raw [0, 1] range of the ContinuousCube.
-
-        This is needed when undoing a node's completion in a backward step.
-
-        Parameters
-        ----------
-        k : int
-            Index of the node whose threshold is to be unrescaled.
-        state : dict
-            Current tree state. Node ``k`` must be done and have its threshold
-            set.
-        """
         lower, upper = self._get_threshold_bounds(k, state)
-        if lower == 0.0 and upper == 1.0:
-            return
-
-        actual = self.node_env.get_threshold(state[k])
-        if actual is None:
-            return
-
-        span = upper - lower
-        if span > 0:
-            raw = (actual - lower) / span
-        else:
-            raw = 0.0
-
-        threshold_key = self.node_env.stage_threshold
-        state[k][threshold_key] = [raw]
+        state[k] = self.node_env.unapply_threshold_rescale(state[k], lower, upper)
 
     def _get_max_trajectory_length(self) -> int:
         # Per node: 1 activate toggle + node_env trajectory + 1 deactivate toggle
         # Plus 1 global EOS
         return self.max_nodes * (self.node_env.max_traj_length + 2) + 1
+
+    # =========================================================================
+    # CompositeBase constraints framework
+    #
+    # Threshold bounds are a function of the tree structure (ancestor splits)
+    # but the *mechanism* to honor them is node-specific (discrete masks cells;
+    # continuous rescales the cube output). Tree therefore computes the bounds
+    # and dispatches them to the node via the constraints hooks defined below.
+    # =========================================================================
+
+    def _check_has_constraints(self) -> bool:
+        return True
+
+    def _apply_constraints_forward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ) -> bool:
+        """
+        Publishes the threshold bounds of the currently-active, not-done node
+        on the shared ``node_env`` instance. This is what enables the discrete
+        node's :py:meth:`get_mask_invalid_actions_forward` to mask out cells
+        outside ``[lower, upper]``. For the continuous node the bounds are also
+        stored but only consumed at done-time by ``apply_threshold_rescale``.
+        """
+        state = self._get_state(state)
+        active = state.get("_active", -1)
+        if (
+            active != -1
+            and self._node_exists(active, state)
+            and not self._node_is_done(active, state)
+        ):
+            lower, upper = self._get_threshold_bounds(active, state)
+            self.node_env.set_threshold_bounds(lower, upper)
+        else:
+            self.node_env.clear_threshold_bounds()
+        return True
+
+    def _apply_constraints_backward(
+        self,
+        action: Tuple = None,
+        state: Optional[Dict] = None,
+    ) -> bool:
+        """
+        Mirrors :py:meth:`_apply_constraints_forward`. In the current Tree
+        implementation, the forward and backward bound publication is
+        identical: the bounds depend solely on the structural state, not on
+        the direction of the transition.
+        """
+        return self._apply_constraints_forward(action=action, state=state)
 
     # =========================================================================
     # Dataset loading
@@ -470,8 +505,6 @@ class Tree(CompositeBase):
         Returns
         -------
         X_train : np.ndarray
-        y_train : np.ndarray
-        X_test : np.ndarray or None
         y_test : np.ndarray or None
         feature_names : list of str or None
             Column names of the feature columns (from CSV only).
@@ -662,7 +695,13 @@ class Tree(CompositeBase):
         2. Building (node not done): building mask is mask of node env.
         3. Active done (node done, awaiting deactivation): meta-action mask with
            only the deactivation toggle for the active node as possibility.
+
+        Before delegating to the node sub-environment, the threshold-bound
+        constraints corresponding to the (possibly external) input state are
+        applied on the shared ``node_env``; they are reset to those of
+        ``self.state`` after the mask is computed.
         """
+        do_constraints = state is not None and id(state) != id(self.state)
         state = self._get_state(state)
         done = self._get_done(done)
 
@@ -688,11 +727,17 @@ class Tree(CompositeBase):
             meta_mask.append(True)  # global EOS invalid while a node is active
             return self._format_mask_meta(meta_mask)
 
-        # Building: delegate to node env
-        # TODO: Apply constraints here?
+        # Building: publish ancestor-derived bounds on the node_env, then
+        # delegate to it.
+        if do_constraints:
+            self._apply_constraints(state=state)
+        else:
+            self._apply_constraints(state=self.state)
         substate = state[active]
-
         mask = self.node_env.get_mask_invalid_actions_forward(substate, False)
+        if do_constraints:
+            # Restore constraints based on self.state for subsequent calls
+            self._apply_constraints(state=self.state)
         return self._format_mask_building(mask)
 
     # =========================================================================
@@ -739,10 +784,11 @@ class Tree(CompositeBase):
 
         if self._node_is_done(active, state):
             # Active and done: backward = undo node env EOS.
-            # Unrescale threshold for the ContinuousCube.
+            # Unrescale threshold so the node sub-env sees the raw threshold
+            # value it produced before the rescale.
             substate = copy(state[active])
             temp_state = {**state, active: substate}
-            self._unrescale_threshold(active, temp_state)
+            self._node_unapply_rescale(active, temp_state)
             mask = self.node_env.get_mask_invalid_actions_backward(substate, done=True)
             return self._format_mask_building(mask)
 
@@ -756,7 +802,8 @@ class Tree(CompositeBase):
             meta_mask.append(True)
             return self._format_mask_meta(meta_mask)
 
-        # In progress: delegate to node env
+        # In progress: delegate to node env (no threshold-bound constraints
+        # affect the backward mask).
         mask = self.node_env.get_mask_invalid_actions_backward(substate, False)
         return self._format_mask_building(mask)
 
@@ -810,12 +857,16 @@ class Tree(CompositeBase):
                     return self.state, action, False
                 self.state["_active"] = target
                 self.state[target] = copy(self.node_env.source)
+                # Publish bounds for the newly-activated node so subsequent
+                # node-env mask queries reflect ancestor constraints.
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
             if active == target and self._node_is_done(active, self.state):
                 # Deactivation: go idle after node completion
                 self.state["_active"] = -1
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -833,6 +884,12 @@ class Tree(CompositeBase):
         ):  # env actions start with 0 (unique env idx 0 for all envs currently)
             return self.state, action, False
         action_subenv = self._depad_action(action, idx_unique)
+
+        # Refresh ancestor-derived threshold bounds on the shared node_env so
+        # that the node's mask / pre-step check reflects the current state
+        # (the feature of the active node may have just been chosen, which
+        # invalidates the bounds cached at activation time).
+        self._apply_constraints(state=self.state)
 
         # Prepare the node env
         substate = self.state[active]
@@ -855,10 +912,12 @@ class Tree(CompositeBase):
         # Update the substate in the tree
         self.state[active] = copy(self.node_env.state)
 
-        # If node env is now done, mark the node as done and rescale threshold
+        # If node env is now done, mark the node as done and ask the node
+        # implementation to rescale the stored threshold (no-op for the
+        # discrete node).
         if self.node_env.done:
             self.state["_dones"][active] = 1
-            self._rescale_threshold(active, self.state)
+            self._node_apply_rescale(active, self.state)
 
         return self.state, action, True
 
@@ -912,6 +971,7 @@ class Tree(CompositeBase):
                 ):
                     return self.state, action, False
                 self.state["_active"] = target
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -922,6 +982,7 @@ class Tree(CompositeBase):
                     return self.state, action, False
                 del self.state[active]
                 self.state["_active"] = -1
+                self._apply_constraints(state=self.state)
                 self.n_actions += 1
                 return self.state, action, True
 
@@ -939,11 +1000,16 @@ class Tree(CompositeBase):
 
         node_was_done = self._node_is_done(active, self.state)
 
-        # Prepare the node env. If the node was done, unrescale the threshold
-        # back to [0, 1] so the ContinuousCube can process the backward step.
+        # Refresh ancestor-derived threshold bounds so the node sub-env's
+        # backward mask / pre-step check reflects the current tree state.
+        self._apply_constraints(state=self.state)
+
+        # Prepare the node env. If the node was done, ask the node to
+        # unrescale the threshold back to its raw range so the sub-env can
+        # process the backward step (no-op for the discrete node).
         substate = copy(self.state[active])
         if node_was_done:
-            self._unrescale_threshold(
+            self._node_unapply_rescale(
                 active,
                 {
                     **self.state,
@@ -1023,10 +1089,11 @@ class Tree(CompositeBase):
         if self._node_is_done(active, state):
             # Active and done: parent has node not yet done (backward of node EOS)
             # Unrescale the threshold before passing to node env (which expects
-            # raw [0,1] ContinuousCube values).
+            # raw values, e.g. [0, 1] for the ContinuousCube). No-op for the
+            # discrete node.
             substate = copy(state[active])
             temp_state = {**state, active: substate}
-            self._unrescale_threshold(active, temp_state)
+            self._node_unapply_rescale(active, temp_state)
             parents_subenv, actions_subenv = self.node_env.get_parents(
                 substate, done=True
             )
@@ -1323,12 +1390,12 @@ class Tree(CompositeBase):
         Checks whether two Tree states are equal, using approximate comparison
         for floating-point threshold values.
 
-        The threshold rescale/unrescale roundtrip introduces IEEE 754 errors
+        The threshold rescale/unrescale roundtrip introduces floating-point errors
         of order ~1e-16 per operation. When same-feature ancestor chains create
         tight threshold bounds (small spans), the error is amplified by 1/span
         and can reach ~1e-12 at depth 3 or ~1e-10 at deeper trees. This override
         uses atol=1e-8 to absorb these errors with margin, while remaining far
-        below any meaningful threshold difference (>1e-4 in practice).
+        below any meaningful threshold difference.
         """
         return GFlowNetEnv.isclose(state_x, state_y, rtol=0.0, atol=1e-8)
 
@@ -1345,6 +1412,279 @@ class Tree(CompositeBase):
         return True
 
     # =========================================================================
+    # Evaluation: train/test accuracy of sampled trees
+    # =========================================================================
+
+    def _route_samples(self, state: Dict, X: npt.NDArray) -> Dict[int, List[int]]:
+        """
+        Routes each row of ``X`` through the tree ``state`` and returns a mapping
+        ``leaf_node_index -> list of sample row indices`` that reach it.
+
+        A "leaf" of the current tree is any position that is reachable from the
+        root but whose sub-env is not done (either the root has no node yet, or
+        an internal done node's child that does not exist / is not done).
+        """
+        leaf_samples: Dict[int, List[int]] = {}
+        for i, x in enumerate(X):
+            k = 0
+            while self._node_is_done(k, state):
+                feature_idx = self.node_env.get_feature(state[k])
+                threshold = self.node_env.get_threshold(state[k])
+                if feature_idx is None or threshold is None:
+                    break
+                # feature_idx is 1-based (0 is reserved by the Choice env)
+                if x[feature_idx - 1] <= threshold:
+                    k = self.left_child_idx(k)
+                else:
+                    k = self.right_child_idx(k)
+            leaf_samples.setdefault(k, []).append(i)
+        return leaf_samples
+
+    def _sample_leaf_dirichlet(
+        self,
+        state: Dict,
+        alpha: npt.NDArray,
+        n_classes: int,
+        rng: np.random.Generator,
+    ) -> Dict[int, npt.NDArray]:
+        """
+        Draws a posterior-predictive Dirichlet sample of the class probabilities
+        at every leaf of ``state``, using routing on ``self.X_train``.
+
+        For each leaf reached by some training sample with class counts ``c``,
+        the returned probability vector is a draw from ``Dirichlet(alpha + c)``.
+        For leaves that no training sample reaches, the prior ``Dirichlet(alpha)``
+        is used (still a proper sample — not just the prior mean).
+        """
+        leaf_samples = self._route_samples(state, self.X_train)
+        probs: Dict[int, npt.NDArray] = {}
+        for k, idx in leaf_samples.items():
+            counts = np.bincount(self.y_train[idx], minlength=n_classes).astype(float)
+            probs[k] = rng.dirichlet(alpha + counts)
+        return probs
+
+    def _predict_proba(
+        self,
+        state: Dict,
+        leaf_probs: Dict[int, npt.NDArray],
+        X: npt.NDArray,
+        n_classes: int,
+    ) -> npt.NDArray:
+        """
+        Returns a ``(n_samples, n_classes)`` matrix of class probabilities for
+        ``X`` routed through ``state`` with leaf probabilities ``leaf_probs``.
+
+        Samples landing at a leaf never visited during training (i.e. absent
+        from ``leaf_probs``) get a uniform prediction.
+        """
+        leaf_samples = self._route_samples(state, X)
+        proba = np.full((len(X), n_classes), 1.0 / n_classes, dtype=float)
+        for k, idx in leaf_samples.items():
+            if k in leaf_probs:
+                proba[idx] = leaf_probs[k]
+        return proba
+
+    @staticmethod
+    def _compute_tree_scores(proba: npt.NDArray, y: npt.NDArray) -> Dict[str, float]:
+        """
+        Given a ``(n_trees, n_samples, n_classes)`` tensor of predicted
+        probabilities and the target vector, returns:
+
+        - ``mean_tree_acc`` / ``mean_tree_bac``: mean of per-tree scores
+          (each tree's prediction is ``argmax`` over classes).
+        - ``forest_acc`` / ``forest_bac``: score of the ensemble prediction
+          obtained by averaging probabilities across trees, then ``argmax``.
+          This is the Bayesian-posterior ensemble (correct for multi-class;
+          equivalent to majority vote for binary with symmetric priors).
+        """
+        per_tree = np.argmax(proba, axis=-1)  # (n_trees, n_samples)
+        mean_tree_acc = float(
+            np.mean([accuracy_score(y, per_tree[i]) for i in range(per_tree.shape[0])])
+        )
+        mean_tree_bac = float(
+            np.mean(
+                [
+                    balanced_accuracy_score(y, per_tree[i])
+                    for i in range(per_tree.shape[0])
+                ]
+            )
+        )
+        forest_pred = np.argmax(proba.mean(axis=0), axis=-1)  # (n_samples,)
+        forest_acc = float(accuracy_score(y, forest_pred))
+        forest_bac = float(balanced_accuracy_score(y, forest_pred))
+        return {
+            "mean_tree_acc": mean_tree_acc,
+            "mean_tree_bac": mean_tree_bac,
+            "forest_acc": forest_acc,
+            "forest_bac": forest_bac,
+        }
+
+    def test(
+        self,
+        samples: List[Dict],
+        alpha: Optional[npt.NDArray] = None,
+        alpha_value: float = 1.0,
+        top_k_trees: int = 0,
+        plot_top_k: bool = True,
+        seed: Optional[int] = None,
+    ) -> Dict[str, object]:
+        """
+        Evaluates a batch of sampled terminating trees.
+
+        The procedure mirrors the legacy ``Tree.test`` (``tree_acc.py``):
+
+        1. For each sampled tree, draw one posterior-predictive sample of the
+           per-leaf class probabilities from ``Dirichlet(alpha + train_counts)``.
+        2. Compute class-probability predictions for ``X_train`` (and
+           ``X_test`` if available).
+        3. Compute, for each split:
+
+           - ``mean_tree_acc`` / ``mean_tree_bac``: per-tree scores averaged
+             over the ensemble.
+           - ``forest_acc`` / ``forest_bac``: accuracy of the ensembled
+             (probability-averaged) forest prediction.
+
+        4. If ``top_k_trees > 0``, rank the trees by train accuracy, and
+           additionally report metrics on the top-k subset and on the top-1
+           tree. Optionally plot these top trees with ``self.display``.
+
+        Parameters
+        ----------
+        samples : list of dict
+            Terminating tree states sampled from the policy.
+        alpha : np.ndarray, optional
+            Dirichlet concentration vector of length ``n_classes``. If None,
+            uses a uniform ``alpha_value`` on each class.
+        alpha_value : float
+            Value used when ``alpha`` is None.
+        top_k_trees : int
+            If > 0, additionally report top-k and top-1 metrics and plots.
+        plot_top_k : bool
+            If True and ``top_k_trees > 0``, include figures of the top-k
+            trees in the returned ``figs`` dict (uses ``self.display``).
+        seed : int, optional
+            RNG seed for the Dirichlet draws (reproducibility).
+
+        Returns
+        -------
+        dict
+            ``{"metrics": {...}, "figs": {...}}``.
+        """
+        if not samples:
+            return {"metrics": {}, "figs": {}}
+        if self.X_train is None or self.y_train is None:
+            return {"metrics": {}, "figs": {}}
+
+        # Accept both a tensor-like and a plain list of dict states
+        if isinstance(samples, torch.Tensor):
+            samples = list(samples)
+        states: List[Dict] = list(samples)
+        n_states = len(states)
+
+        n_classes = int(max(np.max(self.y_train) + 1, len(np.unique(self.y_train))))
+        if alpha is None:
+            alpha = np.ones(n_classes, dtype=float) * alpha_value
+        else:
+            alpha = np.asarray(alpha, dtype=float)
+
+        rng = np.random.default_rng(seed)
+
+        # --- Per-state Dirichlet draw of leaf probabilities (from train data) ---
+        leaf_probs_list = [
+            self._sample_leaf_dirichlet(s, alpha, n_classes, rng) for s in states
+        ]
+
+        # --- Train probabilities / scores ---
+        train_proba = np.stack(
+            [
+                self._predict_proba(
+                    states[i], leaf_probs_list[i], self.X_train, n_classes
+                )
+                for i in range(n_states)
+            ],
+            axis=0,
+        )  # (n_states, n_train, n_classes)
+        train_scores = Tree._compute_tree_scores(train_proba, self.y_train)
+
+        result_metrics: Dict[str, float] = {
+            "mean_n_nodes": float(np.mean([sum(s["_dones"]) for s in states]))
+        }
+        for key, val in train_scores.items():
+            result_metrics[f"train_{key}"] = val
+
+        # --- Top-k ranking by per-tree train accuracy ---
+        top_k_indices = None
+        figs: Dict[str, object] = {}
+        if top_k_trees > 0 and n_states > 0:
+            top_k_trees_eff = min(top_k_trees, n_states)
+            per_tree_train = np.argmax(train_proba, axis=-1)
+            per_tree_acc = np.array(
+                [
+                    accuracy_score(self.y_train, per_tree_train[i])
+                    for i in range(n_states)
+                ]
+            )
+            order = np.argsort(per_tree_acc)[::-1]
+            top_k_indices = order[:top_k_trees_eff]
+
+            top_k_scores = Tree._compute_tree_scores(
+                train_proba[top_k_indices], self.y_train
+            )
+            for key, val in top_k_scores.items():
+                result_metrics[f"train_top_k_{key}"] = val
+
+            top_1_idx = int(top_k_indices[0])
+            top_1_scores = Tree._compute_tree_scores(
+                train_proba[[top_1_idx]], self.y_train
+            )
+            for key, val in top_1_scores.items():
+                result_metrics[f"train_top_1_{key}"] = val
+
+            # Plot top-k trees. display() works unchanged: it reads _dones and
+            # per-node substates that are unmodified by the Dirichlet draw.
+            if plot_top_k:
+                for rank, idx in enumerate(top_k_indices):
+                    try:
+                        fig = self.display(state=states[int(idx)])
+                    except Exception:
+                        fig = None
+                    if fig is not None:
+                        figs[
+                            f"top_{rank + 1}_tree_acc_{per_tree_acc[int(idx)]:.4f}"
+                        ] = fig
+
+        # --- Test split, if available ---
+        if self.X_test is not None and self.y_test is not None:
+            if np.array_equal(np.unique(self.y_test), np.unique(self.y_train)):
+                test_proba = np.stack(
+                    [
+                        self._predict_proba(
+                            states[i], leaf_probs_list[i], self.X_test, n_classes
+                        )
+                        for i in range(n_states)
+                    ],
+                    axis=0,
+                )
+                test_scores = Tree._compute_tree_scores(test_proba, self.y_test)
+                for key, val in test_scores.items():
+                    result_metrics[f"test_{key}"] = val
+
+                if top_k_indices is not None:
+                    top_k_scores = Tree._compute_tree_scores(
+                        test_proba[top_k_indices], self.y_test
+                    )
+                    for key, val in top_k_scores.items():
+                        result_metrics[f"test_top_k_{key}"] = val
+
+                    top_1_scores = Tree._compute_tree_scores(
+                        test_proba[[int(top_k_indices[0])]], self.y_test
+                    )
+                    for key, val in top_1_scores.items():
+                        result_metrics[f"test_top_1_{key}"] = val
+
+        return {"metrics": result_metrics, "figs": figs}
+
+    # =========================================================================
     # State management
     # =========================================================================
 
@@ -1353,8 +1693,11 @@ class Tree(CompositeBase):
         Sets the environment state and done flag.
 
         Bypasses CompositeBase's subenv iteration since tree nodes are dynamic.
+        Publishes the threshold-bound constraints corresponding to the new
+        state on the shared ``node_env``.
         """
         GFlowNetEnv.set_state(self, state, done)
+        self._apply_constraints(state=self.state)
         return self
 
     def reset(self, env_id: Union[int, str] = None):
@@ -1364,6 +1707,8 @@ class Tree(CompositeBase):
         self.done = False
         self.n_actions = 0
         self.id = str(uuid.uuid4()) if env_id is None else env_id
+        # Clear any stale threshold bounds left on the shared node_env.
+        self.node_env.clear_threshold_bounds()
         return self
 
     # =========================================================================

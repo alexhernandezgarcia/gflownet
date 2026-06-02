@@ -21,6 +21,12 @@ from gflownet.utils.common import copy, tfloat
 
 class DecisionTreeNode(Stack):
 
+    # Lower/upper bounds for the threshold sub-environment. Stored on the
+    # instance and re-set per active node by the parent Tree environment via the
+    # threshold-constraint interface (see ``set_threshold_bounds``).
+    threshold_min: float = 0.0
+    threshold_max: float = 1.0
+
     def __init__(
         self,
         features: Sequence,
@@ -44,6 +50,11 @@ class DecisionTreeNode(Stack):
         self.feature = Choice(self.features, **kwargs)
         self.stage_threshold = 1
         self.threshold = ContinuousCube(n_dim=1, **self.cube_kwargs)
+        # Active threshold bounds (set by the parent Tree before sampling /
+        # finishing a node). The ContinuousCube always samples in [0, 1] so the
+        # bounds are only consumed at done-time by ``apply_threshold_rescale``.
+        self._tb_lower: float = self.threshold_min
+        self._tb_upper: float = self.threshold_max
         super().__init__(subenvs=tuple([self.feature, self.threshold]), **kwargs)
 
     # Properties for convenient access to sub-environments
@@ -175,3 +186,63 @@ class DecisionTreeNode(Stack):
         state[self.stage_feature] = feature_state
         state[self.stage_threshold] = threshold_state
         return state
+
+    # =========================================================================
+    # Threshold-constraint interface
+    #
+    # Called by the parent Tree environment to inform the node about the valid
+    # threshold range imposed by ancestor decisions. For the continuous node,
+    # the ContinuousCube always samples in ``[0, 1]``, so the bounds cannot be
+    # honored during sampling and are instead applied as a rescaling at
+    # done-time. The bounds are stored on the instance for symmetry with the
+    # discrete node, but are not consumed by the mask methods.
+    # =========================================================================
+
+    def set_threshold_bounds(self, lower: float, upper: float) -> None:
+        """Stores the threshold bounds for the currently active node."""
+        self._tb_lower = float(lower)
+        self._tb_upper = float(upper)
+
+    def clear_threshold_bounds(self) -> None:
+        """Resets the threshold bounds to the full ``[threshold_min, threshold_max]`` range."""
+        self._tb_lower = self.threshold_min
+        self._tb_upper = self.threshold_max
+
+    def apply_threshold_rescale(
+        self, substate: Dict, lower: float, upper: float
+    ) -> Dict:
+        """
+        Rescales the threshold from the raw ``[0, 1]`` cube range to the valid
+        ``[lower, upper]`` range determined by ancestor constraints.
+
+        Returns the same ``substate`` reference, mutated in place. If the bounds
+        are the trivial ``[0, 1]`` or the threshold is not yet set, returns the
+        substate unchanged.
+        """
+        if lower == self.threshold_min and upper == self.threshold_max:
+            return substate
+        raw = self.get_threshold(substate)
+        if raw is None:
+            return substate
+        rescaled = lower + raw * (upper - lower)
+        substate[self.stage_threshold] = [rescaled]
+        return substate
+
+    def unapply_threshold_rescale(
+        self, substate: Dict, lower: float, upper: float
+    ) -> Dict:
+        """
+        Reverses :py:meth:`apply_threshold_rescale`: maps a threshold stored in
+        ``[lower, upper]`` back to the raw ``[0, 1]`` cube range.
+
+        Returns the same ``substate`` reference, mutated in place.
+        """
+        if lower == self.threshold_min and upper == self.threshold_max:
+            return substate
+        actual = self.get_threshold(substate)
+        if actual is None:
+            return substate
+        span = upper - lower
+        raw = (actual - lower) / span if span > 0 else 0.0
+        substate[self.stage_threshold] = [raw]
+        return substate
