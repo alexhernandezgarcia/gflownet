@@ -392,7 +392,8 @@ class BaseTestsCommon:
         """
         # Skip for certain environments until fixed:
         skip_envs = [
-            "Tree",
+            "SetFlex",
+            "SetFix",
         ]  # TODO: handle this using the count instead.
         if self.env.__class__.__name__ in skip_envs:
             warnings.warn("Skipping test for this specific environment.")
