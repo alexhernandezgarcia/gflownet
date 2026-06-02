@@ -14,15 +14,12 @@ device: cpu
 env:
   max_depth: 5
   data_path: null
-  node_type: discrete
+  node_type: discrete_choice
   node_kwargs:
     features: # If feature names and a dataset are provided, the provided feature names will overwrite the dataset ones
-    n_thresholds: 20
+    n_thresholds: 19
     cell_min: 0.0
     cell_max: 1.0
-    grid_kwargs:
-      max_increment: 1
-      max_dim_per_action: 1
 
 # Proxy
 proxy:
@@ -120,7 +117,7 @@ logger:
   tags:
     - gflownet
     - tree
-    - discrete
+    - discrete_choice
   do:
     online: True
 

@@ -18,4 +18,5 @@ docs/_build/
 logs
 gflownet-env/
 .claude/
+wandb/
 dt-gfn/

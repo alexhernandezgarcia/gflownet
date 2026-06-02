@@ -105,8 +105,8 @@ policy:
 # Evaluator
 evaluator:
   first_it: True
-  period: 500
-  checkpoints_period: 5000
+  period: 100
+  checkpoints_period: 500
   n_trajs_logprobs: 10
   logprobs_batch_size: 10
   n: 10
