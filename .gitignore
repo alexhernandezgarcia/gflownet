@@ -17,3 +17,5 @@ playground/
 docs/_build/
 logs
 gflownet-env/
+wandb/
+dt-gfn/

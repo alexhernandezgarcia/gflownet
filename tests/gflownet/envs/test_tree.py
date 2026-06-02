@@ -96,6 +96,41 @@ def env_tree_discrete_depth3():
     )
 
 
+# ---------------------------------------------------------------------------
+# Discrete-choice-node fixtures (DecisionTreeNodeDiscreteChoice: Choice + Choice)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def env_tree_discrete_choice_depth1():
+    features = ["feat_a", "feat_b", "feat_c"]
+    return Tree(
+        max_depth=1,
+        node_type="discrete_choice",
+        node_kwargs={"features": features, "n_thresholds": 9},
+    )
+
+
+@pytest.fixture
+def env_tree_discrete_choice_depth2():
+    features = ["feat_a", "feat_b", "feat_c"]
+    return Tree(
+        max_depth=2,
+        node_type="discrete_choice",
+        node_kwargs={"features": features, "n_thresholds": 9},
+    )
+
+
+@pytest.fixture
+def env_tree_discrete_choice_depth3():
+    features = ["feat_a", "feat_b", "feat_c", "feat_d", "feat_e"]
+    return Tree(
+        max_depth=3,
+        node_type="discrete_choice",
+        node_kwargs={"features": features, "n_thresholds": 19},
+    )
+
+
 # ===========================================================================
 # Initialization tests
 # ===========================================================================
@@ -300,6 +335,67 @@ def _unbuild_discrete_node(tree, node_idx, feature_idx, cell_idx):
     assert v, f"Failed backward Choice EOS for node {node_idx}"
     # Backward choose feature
     s, _, v = tree.step_backwards((0, 0, feature_idx, 0))
+    assert v, f"Failed backward choose feature for node {node_idx}"
+    # Backward activate (removes node)
+    s, _, v = tree.step_backwards(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed backward activate (removal) for node {node_idx}"
+
+
+def _build_discrete_choice_node(tree, node_idx, feature_idx, threshold_idx):
+    """
+    Builds a complete node in a discrete-choice-node tree by selecting the
+    feature and the threshold via single Choice actions (each followed by EOS).
+
+    Parameters
+    ----------
+    tree : Tree
+        The tree environment with ``node_type='discrete_choice'``.
+    node_idx : int
+        The node position (breadth-first index) to build.
+    feature_idx : int
+        The feature index to select (1-based as used by Choice).
+    threshold_idx : int
+        The 1-based threshold Choice index to select (value =
+        ``threshold_values[threshold_idx - 1]``).
+    """
+    # Activate
+    s, _, v = tree.step(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed to activate node {node_idx}"
+    # Choose feature
+    s, _, v = tree.step((0, 0, feature_idx))
+    assert v, f"Failed to choose feature {feature_idx} for node {node_idx}"
+    # Feature Choice EOS
+    s, _, v = tree.step((0, 0, -1))
+    assert v, f"Failed feature Choice EOS for node {node_idx}"
+    # Choose threshold
+    s, _, v = tree.step((0, 1, threshold_idx))
+    assert v, f"Failed to choose threshold {threshold_idx} for node {node_idx}"
+    # Threshold Choice EOS
+    s, _, v = tree.step((0, 1, -1))
+    assert v, f"Failed threshold Choice EOS for node {node_idx}"
+    # Deactivate
+    s, _, v = tree.step(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed to deactivate node {node_idx}"
+
+
+def _unbuild_discrete_choice_node(tree, node_idx, feature_idx, threshold_idx):
+    """
+    Reverses :py:func:`_build_discrete_choice_node`.
+    """
+    # Reactivate
+    s, _, v = tree.step_backwards(tree._pad_action((node_idx,), -1))
+    assert v, f"Failed to reactivate node {node_idx}"
+    # Backward threshold Choice EOS
+    s, _, v = tree.step_backwards((0, 1, -1))
+    assert v, f"Failed backward threshold Choice EOS for node {node_idx}"
+    # Backward choose threshold
+    s, _, v = tree.step_backwards((0, 1, threshold_idx))
+    assert v, f"Failed backward choose threshold for node {node_idx}"
+    # Backward feature Choice EOS
+    s, _, v = tree.step_backwards((0, 0, -1))
+    assert v, f"Failed backward feature Choice EOS for node {node_idx}"
+    # Backward choose feature
+    s, _, v = tree.step_backwards((0, 0, feature_idx))
     assert v, f"Failed backward choose feature for node {node_idx}"
     # Backward activate (removes node)
     s, _, v = tree.step_backwards(tree._pad_action((node_idx,), -1))
@@ -2339,6 +2435,402 @@ def test__discrete__rescale_is_noop(env_tree_discrete_depth2):
     assert before == after
     after_u = env.node_env.unapply_threshold_rescale(env.state[0], 0.0, 0.4)
     assert before == after_u
+
+
+# ===========================================================================
+# Discrete-choice-node tests
+#
+# The discrete-choice node uses a Choice (one-shot selection) for the
+# threshold instead of an incremental 1D Grid. The threshold-bound machinery
+# from Tree is enforced by masking out forbidden Choice options. These tests
+# mirror the discrete-node tests above but operate on the choice-based
+# action format (Tree.action_dim == 3).
+# ===========================================================================
+
+
+parametrize_discrete_choice_envs = pytest.mark.parametrize(
+    "envs",
+    [
+        "env_tree_discrete_choice_depth1",
+        "env_tree_discrete_choice_depth2",
+        "env_tree_discrete_choice_depth3",
+    ],
+)
+
+
+parametrize_discrete_choice_envs_bigger_than_depth_1 = pytest.mark.parametrize(
+    "envs",
+    [
+        "env_tree_discrete_choice_depth2",
+        "env_tree_discrete_choice_depth3",
+    ],
+)
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__environment_initializes(envs, request):
+    env = request.getfixturevalue(envs)
+    assert env.node_type == "discrete_choice"
+    # Stack of two Choice sub-envs is not continuous.
+    assert env.continuous is False
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__source_state(envs, request):
+    env = request.getfixturevalue(envs)
+    expected = {
+        "_active": -1,
+        "_dones": [0] * env.max_nodes,
+        "_envs_unique": 1,
+    }
+    assert env.source == expected
+    assert env.is_source()
+
+
+def test__discrete_choice__threshold_values_are_interior_points(
+    env_tree_discrete_choice_depth2,
+):
+    """With cell_min=0, cell_max=1, n=9 the values are 0.1, 0.2, ..., 0.9."""
+    env = env_tree_discrete_choice_depth2
+    cells = env.node_env.threshold_values
+    assert cells.shape == (env.node_env.n_thresholds,)
+    expected = np.arange(1, 10) / 10.0
+    assert np.allclose(cells, expected)
+    # No degenerate boundary values.
+    assert cells[0] > env.node_env.cell_min
+    assert cells[-1] < env.node_env.cell_max
+
+
+def test__discrete_choice__node_env_continuous_flag(env_tree_discrete_choice_depth2):
+    env = env_tree_discrete_choice_depth2
+    assert env.node_env.continuous is False
+
+
+def test__discrete_choice__threshold_bounds_attribute_defaults(
+    env_tree_discrete_choice_depth2,
+):
+    """At init the cached bounds equal the full [cell_min, cell_max] range."""
+    env = env_tree_discrete_choice_depth2
+    assert env.node_env._tb_lower == env.node_env.cell_min
+    assert env.node_env._tb_upper == env.node_env.cell_max
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__build_root_and_terminate(envs, request):
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    assert env._node_is_done(0, env.state)
+    feature = env.node_env.get_feature(env.state[0])
+    threshold = env.node_env.get_threshold(env.state[0])
+    assert feature == 1
+    assert threshold == env.node_env.threshold_values[3 - 1]
+    _, _, valid = env.step(env.eos)
+    assert valid
+    assert env.done
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__forward_then_backward_reaches_source(envs, request):
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    env.step(env.eos)
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            assert va, f"No backward actions; state={env.state2readable()}"
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+    assert env.is_source()
+
+
+@parametrize_discrete_choice_envs_bigger_than_depth_1
+def test__discrete_choice__threshold_bounds_left_child_upper(envs, request):
+    """
+    Building the root with feature f at threshold T should make any child on
+    the <= branch (left subtree) using the same feature unable to pick a
+    threshold strictly greater than T.
+    """
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    parent_threshold = env.node_env.get_threshold(env.state[0])
+
+    env.step(env._pad_action((1,), -1))  # Activate left child of root
+    env.step((0, 0, 1))  # Same feature
+    env.step((0, 0, -1))  # Feature Choice EOS
+
+    lower, upper = env._get_threshold_bounds(1, env.state)
+    assert lower == env.node_env.cell_min
+    assert upper == parent_threshold
+
+    # No valid threshold-Choice action should select a value > parent_threshold.
+    valid = env.get_valid_actions()
+    for action in valid:
+        if action[0] != 0:  # Skip meta-actions
+            continue
+        if action[1] != env.node_env.stage_threshold:
+            continue
+        if action[2] == -1:  # Choice EOS (handled by Choice's intrinsic mask)
+            continue
+        idx = action[2]
+        value = env.node_env.threshold_values[idx - 1]
+        assert value <= parent_threshold + 1e-12
+
+
+@parametrize_discrete_choice_envs_bigger_than_depth_1
+def test__discrete_choice__threshold_bounds_right_child_lower(envs, request):
+    """Right subtree: thresholds must be >= ancestor's threshold."""
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    parent_threshold = env.node_env.get_threshold(env.state[0])
+
+    env.step(env._pad_action((2,), -1))  # Activate right child of root
+    env.step((0, 0, 1))
+    env.step((0, 0, -1))
+
+    lower, upper = env._get_threshold_bounds(2, env.state)
+    assert lower == parent_threshold
+    assert upper == env.node_env.cell_max
+
+    # No valid threshold-Choice action should select a value < parent_threshold.
+    valid = env.get_valid_actions()
+    for action in valid:
+        if action[0] != 0:
+            continue
+        if action[1] != env.node_env.stage_threshold:
+            continue
+        if action[2] == -1:
+            continue
+        idx = action[2]
+        value = env.node_env.threshold_values[idx - 1]
+        assert value >= parent_threshold - 1e-12
+
+
+@parametrize_discrete_choice_envs_bigger_than_depth_1
+def test__discrete_choice__bounds_enforced_during_step(envs, request):
+    """Tree.step must reject out-of-range threshold-Choice selections."""
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    parent_threshold = env.node_env.get_threshold(env.state[0])
+
+    env.step(env._pad_action((1,), -1))  # activate left child
+    env.step((0, 0, 1))  # same feature
+    env.step((0, 0, -1))  # feature Choice EOS
+
+    # Find an in-range threshold idx and the smallest out-of-range one.
+    values = env.node_env.threshold_values
+    in_range_idx = None
+    out_of_range_idx = None
+    for i, v in enumerate(values, start=1):
+        if v <= parent_threshold + 1e-12 and in_range_idx is None:
+            in_range_idx = i
+        if v > parent_threshold + 1e-12 and out_of_range_idx is None:
+            out_of_range_idx = i
+
+    if out_of_range_idx is not None:
+        _, _, valid = env.step((0, 1, out_of_range_idx))
+        assert valid is False
+
+    # In-range selection must succeed; then Choice EOS terminates the node.
+    _, _, valid = env.step((0, 1, in_range_idx))
+    assert valid is True
+    _, _, valid = env.step((0, 1, -1))
+    assert valid is True
+    assert env._node_is_done(1, env.state)
+
+
+@parametrize_discrete_choice_envs_bigger_than_depth_1
+def test__discrete_choice__bounds_unchanged_for_different_feature(envs, request):
+    """
+    Threshold bounds are scoped to ancestors splitting on the same feature.
+    A child using a different feature must see the full range.
+    """
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+
+    env.step(env._pad_action((1,), -1))
+    env.step((0, 0, 2))  # DIFFERENT feature
+    env.step((0, 0, -1))
+
+    lower, upper = env._get_threshold_bounds(1, env.state)
+    assert lower == env.node_env.cell_min
+    assert upper == env.node_env.cell_max
+
+
+@parametrize_discrete_choice_envs_bigger_than_depth_1
+def test__discrete_choice__build_and_unbuild_two_nodes(envs, request):
+    """End-to-end forward then backward via the build/unbuild helpers."""
+    env = request.getfixturevalue(envs)
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    _build_discrete_choice_node(env, 1, feature_idx=2, threshold_idx=2)
+    assert env._node_is_done(0, env.state)
+    assert env._node_is_done(1, env.state)
+
+    _unbuild_discrete_choice_node(env, 1, feature_idx=2, threshold_idx=2)
+    assert 1 not in env.state
+    _unbuild_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    assert env.is_source()
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__random_trajectory_reaches_done(envs, request):
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    assert env.done
+    # When idle the shared node_env bounds must be back to the full range.
+    assert env.node_env._tb_lower == env.node_env.cell_min
+    assert env.node_env._tb_upper == env.node_env.cell_max
+
+
+@pytest.mark.repeat(5)
+@parametrize_discrete_choice_envs
+def test__discrete_choice__random_forward_then_backward_reaches_source(envs, request):
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    assert env.done
+    while not env.is_source():
+        if env.done:
+            a = env.eos
+        else:
+            va = env.get_valid_actions(backward=True)
+            assert va, f"No backward actions; state={env.state2readable()}"
+            a = va[0]
+        _, _, v = env.step_backwards(a)
+        assert v
+    assert env.is_source()
+
+
+@pytest.mark.repeat(5)
+@parametrize_discrete_choice_envs
+def test__discrete_choice__random_trajectory_respects_ancestor_bounds(envs, request):
+    """
+    Sampled trees must never produce a (same-feature) descendant whose
+    threshold violates the parent's split direction.
+    """
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    assert env.done
+
+    for k in range(env.max_nodes):
+        if not env._node_is_done(k, env.state):
+            continue
+        feature_k = env.node_env.get_feature(env.state[k])
+        threshold_k = env.node_env.get_threshold(env.state[k])
+        if feature_k is None or threshold_k is None:
+            continue
+        current = k
+        while current > 0:
+            parent = env.parent_idx(current)
+            parent_feature = env.node_env.get_feature(env.state[parent])
+            parent_threshold = env.node_env.get_threshold(env.state[parent])
+            if parent_feature == feature_k and parent_threshold is not None:
+                if env._is_in_left_subtree(k, parent):
+                    assert threshold_k <= parent_threshold + 1e-12, (
+                        f"Left child {k} threshold {threshold_k} > ancestor "
+                        f"{parent} threshold {parent_threshold}"
+                    )
+                else:
+                    assert threshold_k >= parent_threshold - 1e-12, (
+                        f"Right child {k} threshold {threshold_k} < ancestor "
+                        f"{parent} threshold {parent_threshold}"
+                    )
+            current = parent
+
+
+@parametrize_discrete_choice_envs
+def test__discrete_choice__get_mask_is_consistent_regardless_of_inputs(envs, request):
+    """
+    Mask computed with an explicit state argument must match the mask computed
+    against self.state. Validates the bound-publication / reset machinery on
+    the shared node_env for the choice-based threshold.
+    """
+    env = request.getfixturevalue(envs)
+    env.reset()
+    env.trajectory_random()
+    if env.done:
+        env.step_backwards(env.eos)
+    for _ in range(3):
+        va = env.get_valid_actions(backward=True)
+        if va:
+            env.step_backwards(va[0])
+
+    state = copy(env.state)
+    done = env.done
+
+    mask_f_self = env.get_mask_invalid_actions_forward()
+    mask_f_arg = env.get_mask_invalid_actions_forward(state, done)
+    assert mask_f_self == mask_f_arg
+
+    mask_b_self = env.get_mask_invalid_actions_backward()
+    mask_b_arg = env.get_mask_invalid_actions_backward(state, done)
+    assert mask_b_self == mask_b_arg
+
+
+@pytest.mark.parametrize("n_backwards_steps", list(range(1, 11)))
+def test__discrete_choice__get_mask_consistent_depth3_varying_backwards_steps(
+    n_backwards_steps, env_tree_discrete_choice_depth3
+):
+    env = env_tree_discrete_choice_depth3
+    env.reset()
+    env.trajectory_random()
+    if env.done:
+        env.step_backwards(env.eos)
+    for _ in range(n_backwards_steps):
+        if env.is_source():
+            break
+        va = env.get_valid_actions(backward=True)
+        if not va:
+            break
+        env.step_backwards(va[0])
+
+    state = copy(env.state)
+    done = env.done
+
+    mask_f_self = env.get_mask_invalid_actions_forward()
+    mask_f_arg = env.get_mask_invalid_actions_forward(state, done)
+    assert mask_f_self == mask_f_arg, (
+        f"Forward mask mismatch at n_backwards_steps={n_backwards_steps}; "
+        f"state={env.state2readable()}"
+    )
+
+    mask_b_self = env.get_mask_invalid_actions_backward()
+    mask_b_arg = env.get_mask_invalid_actions_backward(state, done)
+    assert mask_b_self == mask_b_arg, (
+        f"Backward mask mismatch at n_backwards_steps={n_backwards_steps}; "
+        f"state={env.state2readable()}"
+    )
+
+
+def test__discrete_choice__rescale_is_noop(env_tree_discrete_choice_depth2):
+    """
+    apply_threshold_rescale / unapply_threshold_rescale must be no-ops on the
+    discrete-choice node: sampled thresholds are already in range.
+    """
+    env = env_tree_discrete_choice_depth2
+    _build_discrete_choice_node(env, 0, feature_idx=1, threshold_idx=3)
+    before = copy(env.state[0])
+    after = env.node_env.apply_threshold_rescale(env.state[0], 0.0, 0.4)
+    assert before == after
+    after_u = env.node_env.unapply_threshold_rescale(env.state[0], 0.0, 0.4)
+    assert before == after_u
+
+
+def test__discrete_choice__node_exposes_threshold_bounds_interface(
+    env_tree_discrete_choice_depth2,
+):
+    """The discrete-choice node implements the shared threshold-bounds interface."""
+    env = env_tree_discrete_choice_depth2
+    env.node_env.set_threshold_bounds(0.1, 0.9)
+    assert env.node_env._tb_lower == 0.1
+    assert env.node_env._tb_upper == 0.9
+    env.node_env.clear_threshold_bounds()
+    assert env.node_env._tb_lower == env.node_env.threshold_min
+    assert env.node_env._tb_upper == env.node_env.threshold_max
 
 
 # ---------------------------------------------------------------------------
