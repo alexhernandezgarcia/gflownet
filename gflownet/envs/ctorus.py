@@ -36,7 +36,9 @@ class ContinuousTorus(GFlowNetEnv):
 
     Attributes
     ----------
-    ndim : int
+    distr_type: str
+            Type of the policy distribution, either "von_mises" or "diffusion"
+    n_dim : int
         Dimensionality of the torus
     length_traj : int
        Fixed length of the trajectory.
@@ -48,23 +50,30 @@ class ContinuousTorus(GFlowNetEnv):
     vonmises_min_concentration : float
         Minimum value allowed for the concentration parameter of the von Mises
         distributions.
+    exp_vonmises_concentration: bool
+        A flag indicating whether to exponentiate concentrations for von Mises distribution.
+        Default is True.
+    state_space_atol: float
+        Tolerance for comparing states similarity.
+    start_uniform : bool
+        If True, the first step of the trajectory is sampled from the uniform distribution.
+    n_params_per_dim: int
+        Number of policy parameters per dimention
     """
 
     def __init__(
         self,
+        distr_type: str = "von_mises",
         n_dim: int = 2,
         length_traj: int = 1,
         n_comp: int = 1,
         policy_encoding_dim_per_angle: int = None,
+        fixed_distr_params: dict = None,
+        random_distr_params: dict = None,
         vonmises_min_concentration: float = 1e-3,
-        fixed_distr_params: dict = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 0.5,
-        },
-        random_distr_params: dict = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 0.001,
-        },
+        exp_vonmises_concentration: bool = True,
+        state_space_atol=1e-1,
+        start_uniform=False,
         **kwargs,
     ):
         """
@@ -72,37 +81,71 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        ndim : int
+        distr_type: str
+            Type of the policy distribution, either "von_mises" or "diffusion"
+        n_dim : int
             Dimensionality of the torus
         length_traj : int
            Fixed length of the trajectory.
         n_comp : int
-           Number of components in the mixture of von Mises distributions used to
+           Number of components in the mixture of distributions used to
            sample angle increments.
         policy_encoding_dim_per_angle : int
             Dimensionality of the policy encodings of the angles.
+        fixed_distr_params : dict
+            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
+            fixed distribution of the environment. For von Mises, it must contain two keys with float
+            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
+            keys with float values ``means`` and ``stds``.
+        random_distr_params : dict
+            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
+            random distribution of the environment. For von Mises, it must contain two keys with float
+            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
+            keys with float values ``means`` and ``stds``.
         vonmises_min_concentration : float
             Minimum value allowed for the concentration parameter of the von Mises
             distributions.
-        fixed_distr_params : dict
-            Dictionary of parameters of the von Mises distribution that defines the
-            fixed distribution of the environment. It must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``.
-        random_distr_params : dict
-            Dictionary of parameters of the von Mises distribution that defines the
-            random distribution of the environment. It must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``.
+        exp_vonmises_concentration: bool
+            A flag indicating whether to exponentiate concentrations for von Mises distribution.
+            Default is True
+        state_space_atol: float
+            Tolerance for comparing states similarity.
+        start_uniform : bool
+            If True, the first step of the trajectory is sampled from the uniform distribution.
         """
         assert n_dim > 0
         assert length_traj > 0
         assert n_comp > 0
         # Main environment properties
         self.n_dim = n_dim
+        self.distr_type = distr_type
         self.length_traj = length_traj
+        self.state_space_atol = state_space_atol
         # Policy properties
         self.n_comp = n_comp
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
-        self.vonmises_min_concentration = vonmises_min_concentration
+        if self.distr_type == "diffusion":
+            self.n_params_per_dim = 1
+            assert (
+                self.n_comp == 1
+            ), "Diffusion distribution only supports 1 component (both forward and backward policies are parametrized as **unimodal** wrapped normal distributions), with a learned mean and a fixed variance"
+            self.sigma_max = np.pi
+            self.sigma_min = 0.01 * np.pi
+            fixed_distr_params = {"means": 0.0, "stds": 0.5}
+            random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
+        elif self.distr_type == "von_mises":
+            self.n_params_per_dim = 3
+            fixed_distr_params = {"vonmises_mean": 0.0, "vonmises_concentration": 0.5}
+            random_distr_params = {
+                "vonmises_mean": 0.0,
+                "vonmises_concentration": 0.001,
+            }
+            self.vonmises_min_concentration = vonmises_min_concentration
+            self.exp_vonmises_concentration = exp_vonmises_concentration
+        else:
+            raise ValueError(
+                f"Unknown distribution type: {self.distr_type}. Supported types are 'diffusion' and 'von_mises'."
+            )
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
@@ -115,6 +158,7 @@ class ContinuousTorus(GFlowNetEnv):
             **kwargs,
         )
         self.continuous = True
+        self.start_uniform = start_uniform
 
     @property
     def mask_dim(self):
@@ -162,23 +206,31 @@ class ContinuousTorus(GFlowNetEnv):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension d of the hyper-torus and component c of the mixture, the
-        output of the policy should return
+        For each dimension d of the torus and component c of the mixture, the
+        output of the policy should return (if self.distr_type == "von_mises"):
           1) the weight of the component in the mixture
           2) the location of the von Mises distribution to sample the angle increment
           3) the log concentration of the von Mises distribution to sample the angle
           increment
+        (if self.distr_type == "diffusion"):
+          1) the mean of the Gaussian distribution
 
-        Therefore, the output of the policy model has dimensionality D x C x 3, where D
-        is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). The first 3 x C entries in the policy output correspond to the
+        Therefore, the output of the policy model has dimensionality D x C x n_params_per_dim ,
+        where D is the number of dimensions (self.n_dim) and C is the number of components
+        (self.n_comp). The first n_params_per_dim x C entries in the policy output correspond to the
         first dimension, and so on.
         """
-        policy_output = torch.ones(
-            self.n_dim * self.n_comp * 3, dtype=self.float, device=self.device
-        )
-        policy_output[1::3] = params["vonmises_mean"]
-        policy_output[2::3] = params["vonmises_concentration"]
+        if self.distr_type == "von_mises":
+            policy_output = torch.ones(
+                self.n_dim * self.n_params_per_dim + 1,
+                dtype=self.float,
+                device=self.device,
+            )
+            policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
+            policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
+        elif self.distr_type == "diffusion":
+            policy_output = torch.ones(self.n_dim, dtype=self.float, device=self.device)
+            policy_output[::1] = params["means"]
         return policy_output
 
     def get_mask_invalid_actions_forward(
