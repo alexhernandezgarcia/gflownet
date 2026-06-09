@@ -46,9 +46,20 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, start_uniform=False, **kwargs):
         super().__init__(**kwargs)
-        # Mask dimensionality:
-        self.mask_dim = 2
         self.start_uniform = start_uniform
+
+    @property
+    def mask_dim(self):
+        """
+        Returns the dimensionality of the masks.
+
+        The mask consists of two fixed flags.
+
+        Returns
+        -------
+        The dimensionality of the masks.
+        """
+        return 2
 
     def get_action_space(self):
         """
@@ -124,50 +135,65 @@ class ContinuousTorus(HybridTorus):
         else:
             return [False, False]
 
+    def get_valid_actions(
+        self,
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        As a continuous environment, the returned actions are "representatives", that
+        is the actions represented in the action space.
+
+        Parameters
+        ----------
+        mask : list (optional)
+            The mask of a state. If None, it is computed in place.
+        state : list (optional)
+            A state in GFlowNet format. If None, self.state is used.
+        done : bool (optional)
+            Whether the trajectory is done. If None, self.done is used.
+        backward : bool
+            True if the transtion is backwards; False if forward.
+
+        Returns
+        -------
+        list
+            The list of representatives of the valid actions.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+
+        # If EOS is valid (mask[1] is True), only EOS is valid.
+        if mask[1]:
+            return [self.eos]
+        # Otherwise, only the representative action of generic actions is valid.
+        else:
+            return [self.representative_action]
+
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
     ) -> Tuple[List[List], List[Tuple[int, float]]]:
         """
-        Determines all parents and actions that lead to state.
-
-        Parameters
-        ----------
-        state : list
-            Representation of a state, as a list of length n_angles where each element
-            is the position at each dimension.
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-        action : int
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-        actions : list
-            List of actions that lead to state for each parent in parents
+        Defined only because it is required. A ContinuousEnv should be created to avoid
+        this issue.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.eos]
-        # If source state
-        elif state[-1] == 0:
-            return [], []
-        else:
-            for dim, angle in enumerate(action):  # this requires action to not be None
-                state[int(dim)] = (state[int(dim)] - angle) % (2 * np.pi)
-            state[-1] -= 1
-            parents = [state]
-            return parents, [action]
+        pass
 
     def action2representative(self, action: Tuple) -> Tuple:
         """
         Returns the arbirary, representative action in the action space, so that the
-        action can be contrasted with the action space and masks.
+        action can be contrasted with the action space and masks. If EOS, action return
+        EOS.
         """
+        if action == self.eos:
+            return self.eos
         return self.representative_action
 
     def _extract_distribution_parameters(
@@ -277,10 +303,20 @@ class ContinuousTorus(HybridTorus):
 
         elif self.distr_type == "uniform":
             distr_angles = Uniform(
-                torch.zeros(len(policy_outputs), self.n_dim).to(policy_outputs.device),
+                torch.zeros(
+                    len(policy_outputs),
+                    self.n_dim,
+                    dtype=self.float,
+                    device=self.device,
+                ),
                 2
                 * torch.pi
-                * torch.ones(len(policy_outputs), self.n_dim).to(policy_outputs.device),
+                * torch.ones(
+                    len(policy_outputs),
+                    self.n_dim,
+                    dtype=self.float,
+                    device=self.device,
+                ),
             )
 
         # assert that distr_angles has the methods logpprob and sample()
@@ -293,6 +329,7 @@ class ContinuousTorus(HybridTorus):
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
+        random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -329,9 +366,6 @@ class ContinuousTorus(HybridTorus):
         device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(
-            (n_states, self.n_dim), dtype=self.float, device=self.device
-        )
         # Initialize actions tensor with EOS actions (inf) since these will be the
         # actions for several special cases in both forward and backward actions.
         actions_tensor = torch.full(
@@ -340,25 +374,42 @@ class ContinuousTorus(HybridTorus):
         # Sample angle increments
         if torch.any(do_sample):
 
-            # TODO: seems like this is never used, figure out if it could be removed
+            # TODO: update this one as in cond_ctorus
             if sampling_method == "uniform":
                 distr_angles = Uniform(
-                    torch.zeros(len(ns_range_noeos), self.n_dim).to(actions_tensor),
+                    torch.zeros(
+                        len(ns_range_noeos),
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    ),
                     2
                     * torch.pi
-                    * torch.ones(len(ns_range_noeos), self.n_dim).to(actions_tensor),
+                    * torch.ones(
+                        len(ns_range_noeos),
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    ),
                 )
-            timesteps = tfloat(
-                [x[-1] for x in states_from], float_type=self.float, device=self.device
-            )
-            distr_angles = self.get_distr(
-                policy_outputs[do_sample],
-                timesteps[do_sample],
-                is_backward,
-            )
+
+            elif sampling_method == "policy":
+                timesteps = tfloat(
+                    [x[-1] for x in states_from],
+                    float_type=self.float,
+                    device=self.device,
+                )
+                logits_sampling = policy_outputs.clone().detach()
+                logits_sampling = self.randomize_and_temper_sampling_distribution(
+                    logits_sampling, random_action_prob, temperature_logits
+                )
+                distr_angles = self.get_distr(
+                    logits_sampling[do_sample],
+                    timesteps[do_sample],
+                    is_backward,
+                )
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
-            logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
             # Start from uniform distribution. #TODO rewrite better
             if sampling_method == "policy" and self.start_uniform:
                 idx = []
@@ -368,19 +419,23 @@ class ContinuousTorus(HybridTorus):
                 if len(idx) > 0:
                     first_step_idx = torch.tensor(idx, device=device)
                     distr_fs_angles = Uniform(
-                        torch.zeros(len(first_step_idx), self.n_dim).to(actions_tensor),
+                        torch.zeros(
+                            len(first_step_idx),
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
+                        ),
                         2
                         * torch.pi
-                        * torch.ones(len(first_step_idx), self.n_dim).to(
-                            actions_tensor
+                        * torch.ones(
+                            len(first_step_idx),
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
                         ),
                     )
                     actions_tensor[first_step_idx] = distr_fs_angles.sample()
-                    logprobs[first_step_idx] = distr_fs_angles.log_prob(
-                        actions_tensor[first_step_idx]
-                    )
-        logprobs = torch.sum(logprobs, axis=1)
-        # Catch special case for backwards backt-to-source (BTS) actions
+        # Catch special case for backwards back-to-source (BTS) actions
         if is_backward:
             do_bts = mask[:, 0]
             if torch.any(do_bts):
@@ -392,15 +447,12 @@ class ContinuousTorus(HybridTorus):
                 )[do_bts, : self.n_dim]
                 actions_bts = states_from_angles - source_angles
                 actions_tensor[do_bts] = actions_bts
-                logprobs[do_bts] = 0.0
-        # TODO: is this too inefficient because of the multiple data transfers?
-        actions = [tuple(a.tolist()) for a in actions_tensor]
-        return actions, logprobs
+        return [tuple(a) for a in actions_tensor.tolist()]
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
         mask: TensorType["n_states", "1"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
@@ -414,7 +466,7 @@ class ContinuousTorus(HybridTorus):
             The output of the GFlowNet policy model.
         mask : tensor
             The mask containing information special cases.
-        actions : tensor
+        actions : list or tensor
             The actions (angle increments) from each state in the batch for which to
             compute the log probability.
         states_from : list
@@ -424,10 +476,12 @@ class ContinuousTorus(HybridTorus):
             True if the actions are backward, False if the actions are forward
             (default).
         """
-        device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
+        actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
+        logprobs = torch.zeros(
+            n_states, self.n_dim, dtype=self.float, device=self.device
+        )
         if torch.any(do_sample):
             timesteps = tfloat(
                 [x[-1] for x in states_from], float_type=self.float, device=self.device
@@ -445,12 +499,22 @@ class ContinuousTorus(HybridTorus):
                     if state[-1] == 0 and do_sample[i]:
                         idx.append(i)
                 if len(idx) > 0:
-                    first_step_idx = torch.tensor(idx, device=device)
+                    first_step_idx = torch.tensor(idx, device=self.device)
                     distr_fs_angles = Uniform(
-                        torch.zeros(len(first_step_idx), self.n_dim).to(actions),
+                        torch.zeros(
+                            len(first_step_idx),
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
+                        ),
                         2
                         * torch.pi
-                        * torch.ones(len(first_step_idx), self.n_dim).to(actions),
+                        * torch.ones(
+                            len(first_step_idx),
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
+                        ),
                     )
                     logprobs[first_step_idx] = distr_fs_angles.log_prob(
                         actions[first_step_idx]
@@ -748,7 +812,11 @@ class ContinuousTorus(HybridTorus):
             self._step(action, backward=True)
             return self.state, action, True
 
-    def get_max_traj_length(self):
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action.
+        """
         return int(self.length_traj) + 1
 
     def convert_timesteps_to_stds(
