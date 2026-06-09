@@ -489,6 +489,8 @@ class SequenceBase(GFlowNetEnv):
         Single element int tensor.
         """
         state = self._get_state(state)
+        if not torch.is_tensor(state):
+            print("DEBUGGING: TYPE OF STATE AFTER _GET_SEQ_LENGTH:", type(state))
         if state[-1] == self.pad_idx:
             return torch.where(state == self.pad_idx)[0][0]
         else:
