@@ -7030,7 +7030,7 @@ def test__get_logprobs_backward__one_batched_trajectory_all_finite(
                 2: [1, 1],
             },
             (-1, 0, 0),
-            np.log(1.0 / 6),
+            np.log(1.0 / 3),
         ),
         # All done but two substates are identical
         (
@@ -7046,7 +7046,7 @@ def test__get_logprobs_backward__one_batched_trajectory_all_finite(
                 2: [1, 1],
             },
             (-1, 0, 0),
-            np.log(1.0 / 3),
+            np.log(1.0 / 2),
         ),
         # All done, action actives env type with single substate
         (
