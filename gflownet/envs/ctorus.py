@@ -506,7 +506,7 @@ class ContinuousTorus(GFlowNetEnv):
                     if state[-1] == 0 and do_sample[i]:
                         idx.append(i)
                 if len(idx) > 0:
-                    first_step_idx = torch.tensor(idx, device=device)
+                    first_step_idx = torch.tensor(idx, device=self.device)
                     distr_fs_angles = Uniform(
                         torch.zeros(
                             len(first_step_idx),
