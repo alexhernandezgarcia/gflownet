@@ -1285,7 +1285,6 @@ class BaseSet(CompositeBase):
         keys[idx_selected] = keys[idx_last]
         keys[idx_last] = key_selected
         state = self._set_keys(keys, state)
-
         return state, indices_relevant
 
     def sample_actions_batch(

@@ -918,7 +918,7 @@ def test__permute_substates__changes_keys_if_substates_are_different(
             break
 
 
-@pytest.mark.repeat(10)
+@pytest.mark.repeat(100)
 @pytest.mark.parametrize(
     "env, state, idx_unique, done_only, permutations_keys",
     [
@@ -1031,10 +1031,14 @@ def test__permute_substates__generates_correct_keys(
     env, state, idx_unique, done_only, permutations_keys, request
 ):
     env = request.getfixturevalue(env)
-    state_permuted, idx_last_done = env._permute_substates(idx_unique, state, done_only)
+    # Copy state because the keys will change across random repetitions
+    state_copy = copy(state)
+    state_permuted, idx_last_done = env._permute_substates(
+        idx_unique, state_copy, done_only
+    )
     assert state_permuted["_keys"] in permutations_keys
     # Check that key permutation is done in-place
-    assert id(state_permuted) == id(state)
+    assert id(state_permuted) == id(state_copy)
 
 
 @pytest.mark.parametrize(
