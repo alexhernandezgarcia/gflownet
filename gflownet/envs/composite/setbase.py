@@ -1218,10 +1218,10 @@ class BaseSet(CompositeBase):
         Permutes the sub-states of a given unique environment.
 
         This method does not perform a full permutation. Since actions always take
-        place on the last substate, only the last substate is permuted swapped with
-        another substate. Furthermore, if the state contains identical substates, these
-        are considered only once in the permutation. Concretely, the permutation
-        consists of the following steps:
+        place on the last substate, only the last substate is swapped with another
+        substate. Furthermore, if the state contains identical substates, these are
+        considered only once in the permutation. Concretely, the permutation consists
+        of the following steps:
             1. Identify the unique substates corresponding to the relevant unique
             environment.
             2. Among the unique substates, one of the them is selected randomly.
