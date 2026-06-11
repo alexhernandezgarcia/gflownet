@@ -1,163 +1,51 @@
 """
-Classes to represent continuous hyper-torus environments.
+Classes to represent hyper-torus environments
 """
 
 import itertools
-import re
-from copy import deepcopy
+import warnings
 from typing import List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
+import pandas as pd
 import torch
-from sklearn.neighbors import KernelDensity
 from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMises
 from torchtyping import TensorType
 
-from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tfloat, torch2np
+from gflownet.envs.htorus import HybridTorus
+from gflownet.utils.common import copy, tfloat
+from gflownet.utils.metrics import angles_allclose
+from gflownet.utils.molecule.distributions import (
+    WrappedNormal,
+    estimate_entropy,
+    estimate_gap_entropy_mixture_von_mises,
+    upper_bond_entropy_mixture_von_mises,
+)
 
 
-class ContinuousTorus(GFlowNetEnv):
-    r"""
-    Continuous hyper-torus environment.
+class ContinuousTorus(HybridTorus):
+    """
+    Purely continuous (no discrete actions) hyper-torus environment in which the
+    action space consists of the increment Delta theta of the angle at each dimension.
+    The trajectory is of fixed length length_traj.
 
-    The action space consists of the increment of the angle $\theta_i$ of each
-    dimension $i$.
-
-    Trajectories have a fixed length ``length_traj`` and the time step is included in
-    the state. This allows for increments of any magnitude and any sign without
-    creating cycles.
-
-    States are represented by the concatenation of the angles (in radians and within
-    $[0, 2\pi]$) for all dimensions with the time step or action number.
-
-    The increments of the angles are sampled from a mixture of von Mises distributions.
+    The states space is the concatenation of the angle (in radians and within [0, 2 *
+    pi]) at each dimension and the number of actions.
 
     Attributes
     ----------
-    distr_type: str
-            Type of the policy distribution, either "von_mises" or "diffusion"
-    n_dim : int
+    ndim : int
         Dimensionality of the torus
     length_traj : int
        Fixed length of the trajectory.
-    n_comp : int
-       Number of components in the mixture of von Mises distributions used to sample
-       angle increments.
-    policy_encoding_dim_per_angle : int
-        Dimensionality of the policy encodings of the angles.
-    vonmises_min_concentration : float
-        Minimum value allowed for the concentration parameter of the von Mises
-        distributions.
-    exp_vonmises_concentration: bool
-        A flag indicating whether to exponentiate concentrations for von Mises distribution.
-        Default is True.
-    state_space_atol: float
-        Tolerance for comparing states similarity.
+
     start_uniform : bool
         If True, the first step of the trajectory is sampled from the uniform distribution.
-    n_params_per_dim: int
-        Number of policy parameters per dimention
     """
 
-    def __init__(
-        self,
-        distr_type: str = "von_mises",
-        n_dim: int = 2,
-        length_traj: int = 1,
-        n_comp: int = 1,
-        policy_encoding_dim_per_angle: int = None,
-        fixed_distr_params: dict = None,
-        random_distr_params: dict = None,
-        vonmises_min_concentration: float = 1e-3,
-        exp_vonmises_concentration: bool = True,
-        state_space_atol=1e-1,
-        start_uniform=False,
-        **kwargs,
-    ):
-        """
-        Initializes a ContinuousCube environent.
-
-        Parameters
-        ----------
-        distr_type: str
-            Type of the policy distribution, either "von_mises" or "diffusion"
-        n_dim : int
-            Dimensionality of the torus
-        length_traj : int
-           Fixed length of the trajectory.
-        n_comp : int
-           Number of components in the mixture of distributions used to
-           sample angle increments.
-        policy_encoding_dim_per_angle : int
-            Dimensionality of the policy encodings of the angles.
-        fixed_distr_params : dict
-            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
-            fixed distribution of the environment. For von Mises, it must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
-            keys with float values ``means`` and ``stds``.
-        random_distr_params : dict
-            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
-            random distribution of the environment. For von Mises, it must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
-            keys with float values ``means`` and ``stds``.
-        vonmises_min_concentration : float
-            Minimum value allowed for the concentration parameter of the von Mises
-            distributions.
-        exp_vonmises_concentration: bool
-            A flag indicating whether to exponentiate concentrations for von Mises distribution.
-            Default is True
-        state_space_atol: float
-            Tolerance for comparing states similarity.
-        start_uniform : bool
-            If True, the first step of the trajectory is sampled from the uniform distribution.
-        """
-        assert n_dim > 0
-        assert length_traj > 0
-        assert n_comp > 0
-        # Main environment properties
-        self.n_dim = n_dim
-        self.distr_type = distr_type
-        self.length_traj = length_traj
-        self.state_space_atol = state_space_atol
-        # Policy properties
-        self.n_comp = n_comp
-        self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
-        if self.distr_type == "diffusion":
-            self.n_params_per_dim = 1
-            assert (
-                self.n_comp == 1
-            ), "Diffusion distribution only supports 1 component (both forward and backward policies are parametrized as **unimodal** wrapped normal distributions), with a learned mean and a fixed variance"
-            self.sigma_max = np.pi
-            self.sigma_min = 0.01 * np.pi
-            fixed_distr_params = {"means": 0.0, "stds": 0.5}
-            random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
-        elif self.distr_type == "von_mises":
-            self.n_params_per_dim = 3
-            fixed_distr_params = {"vonmises_mean": 0.0, "vonmises_concentration": 0.5}
-            random_distr_params = {
-                "vonmises_mean": 0.0,
-                "vonmises_concentration": 0.001,
-            }
-            self.vonmises_min_concentration = vonmises_min_concentration
-            self.exp_vonmises_concentration = exp_vonmises_concentration
-        else:
-            raise ValueError(
-                f"Unknown distribution type: {self.distr_type}. Supported types are 'diffusion' and 'von_mises'."
-            )
-        # Source state: position 0 at all dimensions and number of actions 0
-        self.source_angles = [0.0 for _ in range(self.n_dim)]
-        self.source = self.source_angles + [0]
-        # End-of-sequence action: (n_dim, 0)
-        self.eos = (self.n_dim, 0)
-        # Base class init
-        super().__init__(
-            fixed_distr_params=fixed_distr_params,
-            random_distr_params=random_distr_params,
-            **kwargs,
-        )
-        self.continuous = True
+    def __init__(self, start_uniform=False, **kwargs):
+        super().__init__(**kwargs)
         self.start_uniform = start_uniform
 
     @property
@@ -209,8 +97,10 @@ class ContinuousTorus(GFlowNetEnv):
           length, then only EOS is valid and the mask is True.
         - Otherwise, any continuous action is valid (except EOS) and the mask is False.
         """
-        state = self._get_state(state)
-        done = self._get_done(done)
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
         if done:
             return [True] * 2
         elif state[-1] >= self.length_traj:
@@ -234,8 +124,10 @@ class ContinuousTorus(GFlowNetEnv):
             - True, if only the EOS action is valid, that is if done is True.
             - False otherwise.
         """
-        state = self._get_state(state)
-        done = self._get_done(done)
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
         if done:
             return [False, True]
         elif state[-1] == 1:
@@ -436,12 +328,15 @@ class ContinuousTorus(GFlowNetEnv):
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs. The angle increments
-        that form the actions are sampled from a mixture of Von Mises distributions.
+        that form the actions are sampled from either a mixture of Von Mises or a
+        Wrapped Normal.
 
         A distinction between forward and backward actions is made and specified by the
         argument is_backward, in order to account for the following special cases:
@@ -467,46 +362,62 @@ class ContinuousTorus(GFlowNetEnv):
         is_backward : bool
             True if the actions are backward, False if the actions are forward
             (default).
-        random_action_prob : float, optional
-            The probability of sampling a random action.
-        temperature_logits : float, optional
-            A scalar by which the model outputs are divided to temper the sampling
-            distribution.
         """
+        device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
         # Initialize actions tensor with EOS actions (inf) since these will be the
         # actions for several special cases in both forward and backward actions.
         actions_tensor = torch.full(
-            (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
+            (n_states, self.n_dim), torch.inf, dtype=self.float, device=device
         )
         # Sample angle increments
         if torch.any(do_sample):
-            timesteps = tfloat(
-                [x[-1] for x in states_from],
-                float_type=self.float,
-                device=self.device,
-            )
-            logits_sampling = policy_outputs.clone().detach()
-            logits_sampling = self.randomize_and_temper_sampling_distribution(
-                logits_sampling, random_action_prob, temperature_logits
-            )
-            distr_angles = self.get_distr(
-                logits_sampling[do_sample],
-                timesteps[do_sample],
-                is_backward,
-            )
+
+            # TODO: update this one as in cond_ctorus
+            if sampling_method == "uniform":
+                distr_angles = Uniform(
+                    torch.zeros(
+                        len(ns_range_noeos),
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    ),
+                    2
+                    * torch.pi
+                    * torch.ones(
+                        len(ns_range_noeos),
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    ),
+                )
+
+            elif sampling_method == "policy":
+                timesteps = tfloat(
+                    [x[-1] for x in states_from],
+                    float_type=self.float,
+                    device=self.device,
+                )
+                logits_sampling = policy_outputs.clone().detach()
+                logits_sampling = self.randomize_and_temper_sampling_distribution(
+                    logits_sampling, random_action_prob, temperature_logits
+                )
+                distr_angles = self.get_distr(
+                    logits_sampling[do_sample],
+                    timesteps[do_sample],
+                    is_backward,
+                )
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
-
-            # Start from uniform distribution
-            if self.start_uniform:
+            # Start from uniform distribution. #TODO rewrite better
+            if sampling_method == "policy" and self.start_uniform:
                 idx = []
                 for i, state in enumerate(states_from):
                     if state[-1] == 0 and do_sample[i]:
                         idx.append(i)
                 if len(idx) > 0:
-                    first_step_idx = torch.tensor(idx, device=self.device)
+                    first_step_idx = torch.tensor(idx, device=device)
                     distr_fs_angles = Uniform(
                         torch.zeros(
                             len(first_step_idx),
@@ -635,38 +546,139 @@ class ContinuousTorus(GFlowNetEnv):
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+    def get_policy_output(
+        self, params: dict
+    ):  # TODO change: I am hardcoding distr_type
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension d of the torus and component c of the mixture, the
-        output of the policy should return (if self.distr_type == "von_mises"):
-          1) the weight of the component in the mixture
-          2) the location of the von Mises distribution to sample the angle increment
-          3) the log concentration of the von Mises distribution to sample the angle
-          increment
-        (if self.distr_type == "diffusion"):
-          1) the mean of the wrapped Gaussian distribution
+        If Von Mises:
+            For each dimension d of the hyper-torus and component c of the mixture, the
+            output of the policy should return
+            1) the weight of the component in the mixture
+            2) the location of the von Mises distribution to sample the angle increment
+            3) the log concentration of the von Mises distribution to sample the angle
+            increment.
+            Therefore, the output of the policy model has dimensionality D x C x 3,
+            where D is the number of dimensions (self.n_dim) and C is the number of
+            components (self.n_comp). The first 3 x C entries in the policy output
+            correspond to the first dimension, and so on.
+        If Diffusion:
+            For each dimension d of the hyper-torus, the output of the policy should
+            return
+            1) the mean of the wrapped normal distribution to sample the angle increment
+            Therefore, the output of the policy model has dimensionality D, where D
+            is the number of dimensions (self.n_dim).
 
-        Therefore, the output of the policy model has dimensionality D x C x n_params_per_dim ,
-        where D is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). The first n_params_per_dim x C entries in the policy output correspond to the
-        first dimension, and so on. Note that for "diffusion" C == 1, i.e. only one component is possible.
+
         """
+
         if self.distr_type == "von_mises":
             policy_output = torch.ones(
-                self.n_dim * self.n_comp * self.n_params_per_dim,
-                dtype=self.float,
-                device=self.device,
+                self.n_dim * self.n_comp * 3, dtype=self.float, device=self.device
             )
-            policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
-            policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
+            policy_output[1::3] = params["vonmises_mean"]
+            policy_output[2::3] = params["vonmises_concentration"]
+            return policy_output
         elif self.distr_type == "diffusion":
             policy_output = torch.ones(self.n_dim, dtype=self.float, device=self.device)
             policy_output[::1] = params["means"]
-        return policy_output
+            return policy_output
+
+    def get_policy_entropy(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: TensorType["n_states"],
+        mc_estimation: bool = False,
+        n_samples: int = 1000,
+    ) -> TensorType["n_states"]:
+        """
+        Computes the entropy of the policy distribution given the policy outputs.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model.
+        mc_estimation : bool
+            If True, estimate the entropy using Monte Carlo sampling. Otherwise, use
+            the upper bound.
+        n_samples : int
+            Number of samples to use for Monte Carlo estimation
+
+        Returns
+        -------
+        entropy : tensor["n_states"]
+            The entropy of the policy distribution for each state in the batch.
+        """
+
+        params = self._extract_distribution_parameters(policy_outputs, timesteps)
+        if self.distr_type == "von_mises":
+            mix_logits, concentrations, locations = (
+                params["mix_logits"],
+                params["concentrations"],
+                params["locations"],
+            )
+            if mc_estimation:
+                mix = Categorical(logits=mix_logits)
+                vonmises = VonMises(locations, concentrations)
+                distr = MixtureSameFamily(mix, vonmises)
+                entropy = estimate_entropy(distr, n_samples=n_samples)
+            else:
+                entropy = upper_bond_entropy_mixture_von_mises(
+                    mix_logits, concentrations, locations
+                )
+
+        elif self.distr_type == "diffusion":
+            means, stds = params["means"], params["stds"]
+            distr = WrappedNormal(means, stds)
+            entropy = estimate_entropy(distr, n_samples=n_samples)
+
+        assert entropy.shape[0] == policy_outputs.shape[0]
+        assert entropy.shape[1] == self.n_dim
+        assert len(entropy.shape) == 2
+        entropy = torch.sum(entropy, axis=1)
+        return entropy
+
+    def get_policy_entropy_gap(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: TensorType["n_states"],
+        n_samples: int = 1000,
+    ):
+        """
+        Estimates the gap between upper bound for the entropy of the policy distribution
+        and its entropy given the policy outputs. Monte Carlo sampling is used to
+        estimate the intergal of the KL divergence terms.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model.
+        n_samples : int
+            Number of samples to use for Monte Carlo estimation
+
+        Returns
+        -------
+        gap : tensor["n_states"]
+            The gap between the upper bound and the entropy of the policy distribution
+            for each state in the batch.
+        """
+        if self.distr_type == "von_mises":
+            params = self._extract_distribution_parameters(policy_outputs, timesteps)
+            mix_logits, concentrations, locations = (
+                params["mix_logits"],
+                params["concentrations"],
+                params["locations"],
+            )
+            gap = estimate_gap_entropy_mixture_von_mises(
+                mix_logits, concentrations, locations, n_samples=n_samples
+            )
+            gap = torch.sum(gap, axis=1)
+        elif self.distr_type == "diffusion":
+            gap = torch.zeros(len(policy_outputs), device=policy_outputs.device)
+        return gap
 
     def _step(
         self,
@@ -689,7 +701,6 @@ class ContinuousTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
-
         backward : bool
             If True, perform backward step. Otherwise (default), perform forward step.
 
@@ -697,10 +708,8 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
@@ -733,7 +742,6 @@ class ContinuousTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
-
         skip_mask_check : bool
             Ignored because the action space space is fully continuous, therefore there
             is nothing to check.
@@ -742,10 +750,8 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
@@ -779,7 +785,6 @@ class ContinuousTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
-
         skip_mask_check : bool
             Ignored because the action space space is fully continuous, therefore there
             is nothing to check.
@@ -788,10 +793,8 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
@@ -878,364 +881,3 @@ class ContinuousTorus(GFlowNetEnv):
         return angles_allclose(
             first_state[:-1], second_state[:-1], atol=self.state_space_atol
         )
-
-    def states2proxy(
-        self, states: Union[List[List], TensorType["batch", "state_dim"]]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "environment format" for the proxy: each state is
-        a vector of length n_dim where each value is an angle in radians. The n_actions
-        item is removed.
-
-        Args
-        ----
-        states : list or tensor
-            A batch of states in environment format, either as a list of states or as a
-            single tensor.
-
-        Returns
-        -------
-        A tensor containing all the states in the batch.
-        """
-        return tfloat(states, device=self.device, float_type=self.float)[:, :-1]
-
-    def states2policy(
-        self, states: Union[List, TensorType["batch", "state_dim"]]
-    ) -> TensorType["batch", "policy_input_dim"]:
-        """
-        Prepares a batch of states in "environment format" for the policy model: if
-        policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
-        trigonometric components.
-
-        Args
-        ----
-        states : list or tensor
-            A batch of states in environment format, either as a list of states or as a
-            single tensor.
-
-        Returns
-        -------
-        A tensor containing all the states in the batch.
-        """
-        states = tfloat(states, float_type=self.float, device=self.device)
-        if (
-            self.policy_encoding_dim_per_angle is None
-            or self.policy_encoding_dim_per_angle < 2
-        ):
-            return states
-        step = states[:, -1]
-        code_half_size = self.policy_encoding_dim_per_angle // 2
-        int_coeff = (
-            torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
-        )
-        encoding = (
-            torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
-            * int_coeff
-        )
-        return torch.cat(
-            [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
-            dim=1,
-        )
-
-    def state2readable(self, state: List) -> str:
-        """
-        Converts a state (a list of positions) into a human-readable string
-        representing a state. Angles are converted into degrees in [0, 360]
-        """
-        angles = np.array(state[:-1])
-        angles = angles * 180 / np.pi
-        angles = str(angles).replace("(", "[").replace(")", "]").replace(",", "")
-        n_actions = str(int(state[-1]))
-        return angles + " | " + n_actions
-
-    def readable2state(self, readable: str) -> List:
-        """
-        Converts a human-readable string representing a state into a state as a list of
-        positions. Angles are converted back to radians.
-        """
-        # Preprocess
-        pattern = re.compile(r"\s+")
-        readable = re.sub(pattern, " ", readable)
-        readable = readable.replace(" ]", "]")
-        readable = readable.replace("[ ", "[")
-        # Process
-        pair = readable.split(" | ")
-        angles = [np.float32(el) * np.pi / 180 for el in pair[0].strip("[]").split(" ")]
-        n_actions = [int(pair[1])]
-        return angles + n_actions
-
-    def copy(self):
-        return deepcopy(self)
-
-    def get_grid_terminating_states(
-        self, n_states: int, n_dim: Optional[int] = None
-    ) -> List[List]:
-        r"""
-        Samples n terminating states by sub-sampling the state space as a grid, where
-        each dimension is sampled uniformly in $[0, 2 * pi]$. The number of points per
-        dimension is determined by the number of terminating states to sample, such
-        that the total number of points is at least n_states and at most $2 ** n_dim$.
-
-        Parameters
-        ----------
-        n_states : int
-            The number of terminating states to sample.
-        n_dim : int, optional
-            The number of dimensions in the state space. If None, the number of
-            dimensions of the environment is used. Passed to the function to allow for
-            conditional environments with different number of dimensions.
-
-        Returns
-        -------
-        states : list
-            A list of randomly sampled terminating states.
-        """
-        if n_dim is None:
-            n_dim = self.n_dim
-        # Compute the number of points per dimension
-        n_per_dim = int(np.ceil(n_states ** (1 / n_dim)))
-        # linspace on a circle (accounting for 0 == 2pi)
-        linspace = np.linspace(0, 2 * np.pi, n_per_dim + 1)[:-1]
-        angles = np.meshgrid(*[linspace] * n_dim)
-        angles = np.stack(angles).reshape((n_dim, -1)).T
-        states = np.concatenate(
-            (angles, self.length_traj * np.ones((angles.shape[0], 1))), axis=1
-        ).tolist()
-        return states
-
-    def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, n_dim=None
-    ) -> List[List]:
-        r"""
-        Samples ``n_states`` terminating states uniformly in the state space.  The
-        angles are sampled uniformly in $[0, 2 * pi]$. The number of steps is set to
-        the length of the trajectory.
-
-        Parameters
-        ----------
-        n_states : int
-            The number of terminating states to sample.
-        seed : int
-            Random seed for the sampling.
-        n_dim : int, optional
-            The number of dimensions in the state space. If None, the number of
-            dimensions of the environment is used. Passed to the function to allow for
-            conditional environments with different number of dimensions.
-
-        Returns
-        -------
-        states : list
-            A list of sampled terminating states.
-        """
-        if n_dim is None:
-            n_dim = self.n_dim
-        rng = np.random.default_rng(seed)
-        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, n_dim))
-        states = np.concatenate(
-            (angles, self.length_traj * np.ones((n_states, 1))), axis=1
-        )
-        return states.tolist()
-
-    def fit_kde(
-        self,
-        samples: TensorType["batch_size", "state_proxy_dim"],
-        kernel: str = "gaussian",
-        bandwidth: float = 0.1,
-    ):
-        r"""
-        Fits a Kernel Density Estimator on a batch of samples.
-
-        The samples are previously augmented in order to account for the periodic
-        aspect of the sample space.
-
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples in proxy format.
-        kernel : str
-            An identifier of the kernel to use for the density estimation. It must be a
-            valid kernel for the scikit-learn method
-            :py:meth:`sklearn.neighbors.KernelDensity`.
-        bandwidth : float
-            The bandwidth of the kernel.
-        """
-        # TODO: review if torch2np is needed
-        samples = torch2np(samples)
-        samples_aug = self.augment_samples(samples)
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
-        return kde
-
-    def plot_reward_samples(
-        self,
-        samples: TensorType["batch_size", "state_proxy_dim"],
-        samples_reward: TensorType["batch_size", "state_proxy_dim"],
-        rewards: TensorType["batch_size"],
-        min_domain: float = -np.pi,
-        max_domain: float = 3 * np.pi,
-        alpha: float = 0.5,
-        dpi: int = 150,
-        max_samples: int = 500,
-        **kwargs,
-    ):
-        """
-        Plots the reward contour alongside a batch of samples.
-
-        The samples are previously augmented in order to visualise the periodic aspect
-        of the sample space. It is assumed that the rewards are sorted from left to
-        right (first) and top to bottom of the grid of samples.
-
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples from the GFlowNet policy in proxy format. These samples
-            will be plotted on top of the reward density.
-        samples_reward : tensor
-            A batch of samples containing a grid over the sample space, from which the
-            reward has been obtained. Ignored by this method.
-        rewards : tensor
-            The rewards of samples_reward. It should be a vector of dimensionality
-            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
-            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
-            row of the grid of samples, from top to bottom.
-        min_domain : float
-            Minimum value of the domain to keep in the plot.
-        max_domain : float
-            Maximum value of the domain to keep in the plot.
-        alpha : float
-            Transparency of the reward contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
-        max_samples : int
-            Maximum of number of samples to include in the plot.
-        """
-        if self.n_dim != 2:
-            return None
-        # TODO: review if torch2np is needed
-        samples = torch2np(samples)
-        rewards = torch2np(rewards)
-        n_per_dim = int(np.sqrt(rewards.shape[0]))
-        assert n_per_dim**2 == rewards.shape[0]
-        # Augment rewards to apply periodic boundary conditions
-        rewards = rewards.reshape((n_per_dim, n_per_dim))
-        rewards = np.tile(rewards, (3, 3))
-        # Create mesh grid from samples_reward
-        x = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
-        y = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
-        x_coords, y_coords = np.meshgrid(x, y)
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot reward contour
-        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
-        ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
-        ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
-        ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
-        ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
-        ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
-        # Randomize and subsample samples
-        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
-        samples = samples[random_indices, :]
-        # Augment samples
-        samples_aug = self.augment_samples(samples, exclude_original=True)
-        ax.scatter(
-            samples_aug[:, 0], samples_aug[:, 1], alpha=1.5 * alpha, color="white"
-        )
-        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
-        # Set axes limits
-        ax.set_xlim([min_domain, max_domain])
-        ax.set_ylim([min_domain, max_domain])
-        # Set ticks and labels
-        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
-        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
-        ax.set_xticks(ticks, labels)
-        ax.set_yticks(ticks, labels)
-        ax.grid()
-        # Set tight layout
-        plt.tight_layout()
-        return fig
-
-    def plot_kde(
-        self,
-        samples: TensorType["batch_size", "state_proxy_dim"],
-        kde,
-        alpha: float = 0.5,
-        dpi=150,
-        colorbar: bool = True,
-        **kwargs,
-    ):
-        """
-        Plots the density previously estimated from a batch of samples via KDE over the
-        entire sample space.
-
-        Parameters
-        ----------
-        samples : tensor
-            A batch of samples containing a grid over the sample space. These samples
-            are used to plot the contour of the estimated density.
-        kde : KDE
-            A scikit-learn KDE object fit with a batch of samples.
-        alpha : float
-            Transparency of the density contour.
-        dpi : int
-            Dots per inch, indicating the resolution of the plot.
-        """
-        if self.n_dim != 2:
-            return None
-        # TODO: review if torch2np is needed
-        samples = torch2np(samples)
-        # Create mesh grid from samples
-        n_per_dim = int(np.sqrt(samples.shape[0]))
-        assert n_per_dim**2 == samples.shape[0]
-        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
-        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
-        # Score samples with KDE and reshape
-        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot KDE
-        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
-        ax.axis("scaled")
-        if colorbar:
-            fig.colorbar(h, ax=ax)
-        # Set ticks and labels
-        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
-        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
-        ax.set_xticks(ticks, labels)
-        ax.set_yticks(ticks, labels)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        # Set tight layout
-        plt.tight_layout()
-        return fig
-
-    @staticmethod
-    def augment_samples(samples: np.array, exclude_original: bool = False) -> np.array:
-        """
-        Augments a batch of samples by applying the periodic boundary conditions from
-        [0, 2pi) to [-2pi, 4pi) for all dimensions.
-        """
-        samples_aug = []
-        for offsets in itertools.product(
-            [-2 * np.pi, 0.0, 2 * np.pi], repeat=samples.shape[-1]
-        ):
-            if exclude_original and all([offset == 0.0 for offset in offsets]):
-                continue
-            samples_aug.append(
-                np.stack(
-                    [samples[:, dim] + offset for dim, offset in enumerate(offsets)],
-                    axis=-1,
-                )
-            )
-        samples_aug = np.concatenate(samples_aug, axis=0)
-        return samples_aug
-
-    # TODO: extend docstrings
-    def process_data_set(self, samples):
-        """
-        Process dataset loaded from a file inside Buffer init.
-        """
-        if hasattr(samples, "tolist"):
-            return samples.tolist()
-        return samples

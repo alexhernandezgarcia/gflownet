@@ -1216,19 +1216,57 @@ class GFlowNetAgent:
 
         return self.sample_space_batch, self.rewards_sample_space
 
-    # TODO: implement other proposal distributions
-    # TODO: rethink whether it is needed to convert to reward
     def sample_from_reward(
         self,
         n_samples: int,
         proposal_distribution: str = "uniform",
-        epsilon=1e-4,
+        epsilon: float = 1e-4,
+        method: str = "rejection",
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Sampling from reward using rejection sampling or nested sampling.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution for rejection sampling. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+        method : str
+            Identifier of the sampling method. Currently only `rejection` and `nested` are
+            implemented.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        if method == "rejection":
+            return self.sample_from_reward_rejection(
+                n_samples, proposal_distribution, epsilon
+            )
+        elif method == "nested":
+            return self.sample_from_reward_nested(n_samples)
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward_rejection(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon: float = 1e-4,
     ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
         """
         Rejection sampling with proposal the uniform distribution defined over the
         sample space.
 
-        Returns a tensor in GFloNet (state) format.
+        Returns a tensor in GFlowNet (state) format.
 
         Parameters
         ----------
@@ -1269,6 +1307,77 @@ class GFlowNetAgent:
             samples_accepted = [samples_uniform[idx] for idx in indices_accept]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return samples_final
+
+    def sample_from_reward_nested(
+        self, n_samples: int
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Nested sampling from reward, using ultranest.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        import ultranest
+        from wurlitzer import pipes
+
+        def reward_func(angles):
+            # angles here is np array
+            states = np.concatenate(
+                [angles, np.ones((angles.shape[0], 1))], axis=1
+            ).tolist()
+            rewards = (
+                self.proxy.proxy2reward(self.proxy(self.env.states2proxy(states)))
+                .detach()
+                .cpu()
+                .numpy()
+            )
+            return np.log(rewards)
+
+        def prior_transform(cube):
+            params = cube.copy()
+            # transform location parameter: uniform prior
+            low = 0
+            high = 2 * np.pi
+            for idx, elem in enumerate(cube):
+                params[idx] = elem * (high - low) + low
+            return params
+
+        samples = []
+        n_sampled = 0
+        iteration = 0
+        print(f"Running nested sampling (until {n_samples} samples are obtained)...")
+        while n_sampled < n_samples:
+            param_names = [f"theta_{i}" for i in range(self.env.n_dim)]
+
+            with pipes():
+                sampler = ultranest.ReactiveNestedSampler(
+                    param_names,
+                    reward_func,
+                    prior_transform,
+                    vectorized=True,
+                    ndraw_min=1000,
+                )
+                result = sampler.run()
+
+            samples.append(result["samples"])
+            n_sampled += result["samples"].shape[0]
+            print(f"Total samples (iteration #{iteration}): {n_sampled}.")
+            iteration += 1
+        samples = np.concatenate(samples, axis=0)
+        # add dummy step dimension
+        samples = np.concatenate([samples, np.ones((samples.shape[0], 1))], axis=1)
+        np.random.shuffle(samples)
+        return torch.Tensor(samples[:n_samples])
 
     def load_checkpoint(self, checkpoint: dict):
         """
