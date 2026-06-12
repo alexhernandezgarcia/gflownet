@@ -459,7 +459,6 @@ class GFlowNetEnv:
             )
         # If backward and state is source, step should not proceed.
         if backward is True:
-            # THIS IS THE ERROR self.state is in cpu while self.source is in cuda
             if self.equal(self.state, self.source) and action != self.eos:
                 return False, self.state, action
         # If forward and env is done, step should not proceed.
@@ -537,7 +536,6 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # THIS IS THE ERROR
         do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
         if not do_step:
             return self.state, action, False
