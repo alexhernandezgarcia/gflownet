@@ -87,6 +87,11 @@ class SequenceBase(GFlowNetEnv):
         self.eos = (self.eos_idx,)
         # Base class init
         super().__init__(**kwargs)
+    
+    def set_state(self, state, done=False):
+        self.state = tlong(state, device=self.device)
+        self.done = done
+        return self
 
     def get_action_space(self) -> List[Tuple]:
         """
@@ -327,7 +332,7 @@ class SequenceBase(GFlowNetEnv):
         A string of space-separated tokens.
         """
         state = self._get_state(state)
-        state = self._unpad(state.tolist())
+        state = self._unpad(state.tolist() if torch.is_tensor(state) else state)
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
     def readable2state(self, readable: str) -> TensorType["max_length"]:  # noqa: F821
