@@ -93,6 +93,11 @@ class SequenceBase(GFlowNetEnv):
         self.done = done
         return self
 
+    def set_state(self, state, done=False):
+        self.state = tlong(state, device=self.device)
+        self.done = done
+        return self
+
     def get_action_space(self) -> List[Tuple]:
         """
         Construct the list of all possible actions, including EOS.
