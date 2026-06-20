@@ -2,7 +2,7 @@
 Sequence composite meta-environment.
 
 The Sequence environment arranges a variable number of sub-environments (up to a
-maximum) into an *ordered* list, where new sub-environments are inserted either at the
+maximum) into an ordered list, where new sub-environments are inserted either at the
 front or at the end of the sequence. It can be seen as a hybrid between the Stack (an
 ordered, fixed list of sub-environments) and the SetFlex (an unordered, variable-length
 collection):
@@ -22,7 +22,7 @@ as follows (the insertion order index of each element is shown in brackets)::
     insert C at front   -> C(2), A(0), B(1)
     insert C at front   -> C(3), C(2), A(0), B(1)
 
-The dictionary state keeps the elements keyed by their *insertion* order (0, 1, 2, ...)
+The dictionary state keeps the elements keyed by their insertion order (0, 1, 2, ...)
 and records the spatial arrangement in ``_indices``. For the final sequence above,
 ``_indices == [3, 2, 0, 1]``.
 """
@@ -61,11 +61,14 @@ class Sequence(CompositeBase):
         - **Free-growth** (``subenvs`` is None and ``do_random_subenvs`` is False): the
           sequence is grown from an empty source by inserting any type from
           ``envs_unique``, up to ``max_sequence_length`` elements. The global EOS is
-          valid at any sequence-level state with at least one element.
+          valid at any sequence-level state with at least one element. The generate sequence
+          can be of length 1 - ``max_sequence_length``.
         - **Fixed-bag** (``subenvs`` is given, or ``do_random_subenvs`` is True): a
           fixed multiset of element types (the "bag") must all be placed and completed.
-          Inserting a type is only valid while there remain unplaced elements of that
-          type, and the global EOS is valid only once the bag has been fully placed.
+          So the sequence generates how to organize all the provided elements in a sequence
+          of length exactly = len(bag). Inserting a type is only valid while there remain
+          unplaced elements of that type, and the global EOS is valid only once the bag has
+          been fully placed.
 
     Meta-actions
     ------------
@@ -81,9 +84,8 @@ class Sequence(CompositeBase):
     the unique, reversible action that activates a sub-environment, and a
     sub-environment's EOS is the unique action that returns control to the sequence.
 
-    Note (deferred): with duplicate element types, different insertion orders that yield
-    the same spatial sequence are currently treated as distinct states. Merging such
-    equivalent states (as in SetFlex) is left as future work.
+    TODO: Different insertion orders that yield the same spatial sequence are currently
+    treated as distinct states. Such equivalent states need to be merged (as in SetFlex).
     """
 
     def __init__(
@@ -266,7 +268,10 @@ class Sequence(CompositeBase):
         return Counter(state["_bag"]) - Counter(state["_envs_unique"])
 
     def _insert_id(self, direction: int, idx_unique: int) -> int:
-        """Returns the meta-action insert id for a direction and unique type."""
+        """Returns the meta-action insert id for a direction and unique type.
+        To keep the trajectory length short, meta-actions encode both the insert
+        position (first, front or end) and the sub-env to be inserted. If there are
+        e.g. 2 sub-env types available, there are 7 meta-actions: 2x3 + EOS."""
         return direction * self.n_unique_envs + idx_unique
 
     def _reverse_insert_id(self, state: Dict) -> int:
@@ -275,7 +280,7 @@ class Sequence(CompositeBase):
         the insertion of the currently active (most recently inserted) sub-environment.
         """
         length = self._seq_length(state)
-        idx_unique = state["_envs_unique"][length - 1]
+        idx_unique = state["_envs_unique"][length - 1]  # Most recent sub-env
         if length == 1:
             direction = _FIRST
         elif state["_active"] == _ACTIVE_FRONT:
@@ -303,8 +308,8 @@ class Sequence(CompositeBase):
             - The concatenation of the actions of all unique environments, prefixed by
               the unique-type index.
 
-        Placing the meta-actions first allows reusing the base sampling and log-prob
-        machinery for them (as in the Set environments).
+        Meta-actions are in the first n_meta_actions spot, followed by sub-env actions ordered
+        by their unique-env index.
         """
         action_space = []
         # Insert meta-actions
@@ -328,23 +333,27 @@ class Sequence(CompositeBase):
 
     def _compute_mask_dim(self) -> int:
         """
-        The mask consists of a one-hot prefix of the active unique-environment type
-        followed by either the meta-actions mask or the active sub-environment's mask.
+        Mask format: [ prefix | core | padding ]. With prefix = one-hot of the active
+        unique-environment type (so e.g. if there are 3 different possible subenv types
+        then the prefix is of size 3) or all False for if at meta/sequence level, core =
+        either the meta-actions mask or the active sub-environment's mask and padding =
+        FALSE padded up to mask_dim.
         """
         mask_dim_envs_unique = [env.mask_dim for env in self.envs_unique]
         return self._prefix_dim + max(mask_dim_envs_unique + [self.n_meta_actions])
 
     def _format_mask(self, mask: List[bool], idx_unique: int) -> List[bool]:
         """
-        Formats a core mask into a full sequence mask: a one-hot prefix of the active
-        unique-environment type (all False if ``idx_unique`` is -1), the core mask, and
-        False-padding up to ``self.mask_dim``.
+        Mask format: [ prefix | core | padding ]. Formats a core mask into a full
+        sequence mask: a one-hot prefix of the active unique-environment type
+        (all False if ``idx_unique`` is -1), the core mask and False-padding up to
+        ``self.mask_dim``.
         """
-        prefix = [False] * self._prefix_dim
+        prefix = [False] * self._prefix_dim  # Prefix
         if idx_unique != -1:
             prefix[idx_unique] = True
-        mask = prefix + list(mask)
-        return mask + [False] * (self.mask_dim - len(mask))
+        mask = prefix + list(mask)  # Prefix + core
+        return mask + [False] * (self.mask_dim - len(mask))  # Add False padding
 
     def _extract_core_mask(
         self,
@@ -364,16 +373,22 @@ class Sequence(CompositeBase):
         return mask[:, self._prefix_dim : self._prefix_dim + mask_dim]
 
     def _meta_forward_mask(self, state: Dict, done: bool) -> List[bool]:
-        """Builds the core meta-actions mask for a forward transition."""
+        """Builds the core meta-actions mask for a forward transition. Valid
+        actions have a mask entry False to not mask them. Mask entry = True means
+        that this action will be masked. The logic in the prefix and padding part
+        of the mask are different, because there True/False indicates something
+        different."""
         U = self.n_unique_envs
         core = [True] * self.n_meta_actions
         if done:
             return core
         length = self._seq_length(state)
         remaining = self._remaining_bag(state)
-        if remaining is None:
+        if (
+            remaining is None
+        ):  # In the "normal" sequence case, always all sub-envs can be inserted
             allowed = list(range(U))
-        else:
+        else:  # In the bag sequence case only the remaining sub-envs can be inserted
             allowed = [t for t in range(U) if remaining.get(t, 0) > 0]
         # Inserts (only if there is room)
         if length < self.max_elements:
@@ -392,7 +407,7 @@ class Sequence(CompositeBase):
         else:
             eos_ok = length >= 1 and sum(remaining.values()) == 0
         if eos_ok:
-            core[3 * U] = False
+            core[3 * U] = False  # Allow EOS which is at position n_meta_actions - 1
         return core
 
     def get_mask_invalid_actions_forward(
@@ -437,14 +452,15 @@ class Sequence(CompositeBase):
         if done:
             core = [True] * self.n_meta_actions
             core[3 * U] = False  # only EOS valid
-            return self._format_mask(core, -1)
+            return self._format_mask(core, -1)  # -1 is idx_unique of meta actions
 
         length = self._seq_length(state)
         if state["_active"] == -1:
             if length == 0:
+                # No backwards action possible for source state (=empty sequence)
                 return self._format_mask([True] * self.n_meta_actions, -1)
             # Re-enter the most recently inserted sub-environment (undo its EOS)
-            key = length - 1
+            key = length - 1  # Most recently inserted subenv always has index len-1
             idx_unique = state["_envs_unique"][key]
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
@@ -452,10 +468,14 @@ class Sequence(CompositeBase):
             return self._format_mask(core, idx_unique)
 
         # A sub-environment is active
-        key = self._get_active_key(state)
-        idx_unique = state["_envs_unique"][key]
-        subenv = self._get_env_unique(idx_unique)
-        substate = self._get_substate(state, key)
+        key = self._get_active_key(state)  # Get active subenv (always biggest index)
+        idx_unique = state["_envs_unique"][key]  # Return subenv type of active subenv
+        subenv = self._get_env_unique(
+            idx_unique
+        )  # Return a stateless object of type idx_unique
+        substate = self._get_substate(
+            state, key
+        )  # Return acctual state of the subenv at position key
         if subenv.is_source(substate):
             # Only the reverse-insertion meta-action is valid
             core = [True] * self.n_meta_actions
@@ -480,7 +500,7 @@ class Sequence(CompositeBase):
             mask = self.get_mask(state, done, backward)
 
         if not any(mask[: self._prefix_dim]):
-            # Meta-actions
+            # Meta-actions because prefix = all False
             core = self._extract_core_mask(mask, -1)
             return [
                 action
@@ -489,11 +509,15 @@ class Sequence(CompositeBase):
             ]
 
         # Sub-environment actions
-        idx_unique = list(mask[: self._prefix_dim]).index(True)
-        subenv = self._get_env_unique(idx_unique)
+        idx_unique = list(mask[: self._prefix_dim]).index(
+            True
+        )  # Get unique subenv type
+        subenv = self._get_env_unique(
+            idx_unique
+        )  # Get stateless object of this subenv type
         key = self._seq_length(state) - 1
         substate = self._get_substate(state, key)
-        sub_done = bool(state["_dones"][key])
+        sub_done = bool(state["_dones"][key])  # 0 = False / not done, 1 = True / done
         core = self._extract_core_mask(mask, idx_unique)
         return [
             self._pad_action(action, idx_unique)
@@ -502,13 +526,17 @@ class Sequence(CompositeBase):
 
     def get_policy_output(self, params: list) -> TensorType["policy_output_dim"]:
         """
-        Policy output: the concatenation of the unique-environment policy outputs and a
-        block of ones for the meta-actions.
-        """
+        Policy output structure: the concatenation of the unique-environment policy outputs
+        and a block of ones for the meta-actions. For discrete actions the policy output
+        size is equal to the number of actions (one logit per discrete action). For continous
+        actions, the policy can not generate one logit per action (since there are inf many)
+        but generates the values of parameters of the action distribution. This functions
+        defines the shape and default values for the policy output."""
         policy_outputs_subenvs = super().get_policy_output(params)
         policy_outputs_meta = torch.ones(
             self.n_meta_actions, dtype=self.float, device=self.device
         )
+        # Policy output is [ sub-env 0 block | ... | sub-env U-1 block | meta-action block ]
         return torch.cat((policy_outputs_subenvs, policy_outputs_meta))
 
     def _get_policy_outputs_of_meta_actions(
