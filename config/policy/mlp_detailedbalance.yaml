@@ -1,6 +1,0 @@
-defaults:
-  - mlp
-
-backward:
-  shared_weights: True
-  checkpoint: null
