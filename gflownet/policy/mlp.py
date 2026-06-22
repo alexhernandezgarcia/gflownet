@@ -70,6 +70,3 @@ class MLPPolicy(Policy):
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
-
-    def __call__(self, states):
-        return self.model(states)
