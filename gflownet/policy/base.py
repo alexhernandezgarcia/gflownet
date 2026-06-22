@@ -96,7 +96,20 @@ class Policy:
         else:
             raise "Policy model type not defined"
 
-    def __call__(self, states):
+    def __call__(self, states: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the policy outputs corresponding to a batch of states.
+
+        Parameters
+        ----------
+        states : tensor
+            A batch of states in policy format.
+
+        Returns
+        -------
+        tensor
+            The policy outputs corresponding to the input states.
+        """
         return self.model(states)
 
     def fixed_distribution(self, states):
@@ -106,7 +119,8 @@ class Policy:
         Parameters
         ----------
         states : tensor
-            The states for which the fixed distribution is to be returned
+            A batch of states in policy format. Since the distribution is fixed, only
+            the batch size is used.
         """
         return torch.tile(self.fixed_output, (len(states), 1)).to(
             dtype=self.float, device=self.device
@@ -119,7 +133,8 @@ class Policy:
         Parameters
         ----------
         states : tensor
-            The states for which the random distribution is to be returned
+            A batch of states in policy format. Since the distribution is random, only
+            the batch size is used.
         """
         return torch.tile(self.random_output, (len(states), 1)).to(
             dtype=self.float, device=self.device
@@ -132,7 +147,8 @@ class Policy:
         Parameters
         ----------
         states : tensor
-            The states for which the uniform distribution is to be returned
+            A batch of states in policy format. Since the distribution is random, only
+            the batch size is used.
         """
         return torch.ones(
             (len(states), self.output_dim), dtype=self.float, device=self.device
