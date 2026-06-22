@@ -7,8 +7,6 @@ from gflownet.policy.base import Policy
 class MLPPolicy(Policy):
     def __init__(self, **kwargs):
         config = self._get_config(kwargs["config"])
-        # Reload checkpoint, defaults to False
-        self.reload_ckpt = config.get("reload_ckpt", False)
         # MLP features: number of layers, number of hidden units, tail, etc.
         self.n_layers = config.get("n_layers", 2)
         self.n_hid = config.get("n_hid", 128)

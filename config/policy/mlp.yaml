@@ -6,6 +6,5 @@ forward:
   n_hid: 128
   n_layers: 2
   checkpoint: null
-  reload_ckpt: False
 
 backward: null

@@ -8,8 +8,6 @@ from gflownet.policy.base import Policy
 class CNNPolicy(Policy):
     def __init__(self, **kwargs):
         config = self._get_config(kwargs["config"])
-        # Reload checkpoint, defaults to False
-        self.reload_ckpt = config.get("reload_ckpt", False)
         # CNN features: number of layers, number of channels, kernel sizes, strides
         self.n_layers = config.get("n_layers", 3)
         self.channels = config.get("channels", [16] * self.n_layers)
