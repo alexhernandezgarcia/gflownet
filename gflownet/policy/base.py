@@ -52,6 +52,8 @@ class Policy:
         self.base = base
         # Policy type, defaults to uniform
         self.type = config.get("type", "uniform")
+        # Shared weights, defaults to False
+        self.shared_weights = config.get("shared_weights", False)
         # Checkpoint, defaults to None
         self.checkpoint = config.get("checkpoint", None)
         # Instantiate the model

@@ -7,8 +7,6 @@ from gflownet.policy.base import Policy
 class MLPPolicy(Policy):
     def __init__(self, **kwargs):
         config = self._get_config(kwargs["config"])
-        # Shared weights, defaults to False
-        self.shared_weights = config.get("shared_weights", False)
         # Reload checkpoint, defaults to False
         self.reload_ckpt = config.get("reload_ckpt", False)
         # MLP features: number of layers, number of hidden units, tail, etc.
