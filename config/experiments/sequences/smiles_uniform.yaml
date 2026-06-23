@@ -1,0 +1,64 @@
+# @package _global_
+
+defaults:
+   - override /env: sequences/smiles
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: uniform
+   - override /logger: wandb
+
+# Environment
+env:
+  min_length: 1
+  max_length: 30
+  pad_token: "<unk>"
+
+# Buffer
+buffer:
+  train: null
+  test: null
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 500
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "smiles"
+  run_name: "Smiles Uniform default"
+  tags: 
+    - gflownet
+    - smiles
+    - uniform
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 100
+  n: 500
+  checkpoints_period: 100
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/sequence/smiles/${now:%Y-%m-%d_%H-%M-%S_%f}
