@@ -555,7 +555,7 @@ class Sequence(CompositeBase):
         self,
         state: Optional[Dict] = None,
         done: Optional[bool] = None,
-        #action: Optional[Tuple] = None,
+        # action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
         """Determines all parents and the actions that lead to ``state``.
         Return is list of parents and action that led from parent to the
@@ -576,14 +576,16 @@ class Sequence(CompositeBase):
                 return [], []
             # Case 1b: Only forward action that ends in meta state is EOS of the most
             # recently inserted sub-environment
-            key = length - 1 # most recently inserted sub-environment
+            key = length - 1  # most recently inserted sub-environment
             idx_unique = state["_envs_unique"][key]
             subenv = self._get_env_unique(idx_unique)
             parent = copy(state)
             parent["_active"] = (
                 _ACTIVE_FRONT if parent["_indices"][0] == key else _ACTIVE_END
             )
-            parent["_dones"][key] = 0 # Re-active most recently inserted sub-environment
+            parent["_dones"][
+                key
+            ] = 0  # Re-active most recently inserted sub-environment
             return [parent], [self._pad_action(subenv.eos, idx_unique)]
 
         # Case 2: A sub-environment is active
@@ -610,13 +612,17 @@ class Sequence(CompositeBase):
             actions = []
             for parent_subenv, parent_action in zip(parents_subenv, parent_actions):
                 parent = copy(state)
-                parent = self._set_substate(key, parent_subenv, parent) # Modify full sequence state
+                parent = self._set_substate(
+                    key, parent_subenv, parent
+                )  # Modify full sequence state
                 parents.append(parent)
                 actions.append(self._pad_action(parent_action, idx_unique))
             return parents, actions
-        
+
         # Other cases should not exist
-        raise ValueError(f"For state: {state} the _active flag has an impossible value: {state['_active']}")
+        raise ValueError(
+            f"For state: {state} the _active flag has an impossible value: {state['_active']}"
+        )
 
     # ------------------------------------------------------------------ #
     # Steps
@@ -644,7 +650,6 @@ class Sequence(CompositeBase):
         if action[0] != -1 and not (0 <= action[0] < self.n_unique_envs):
             raise ValueError(f"Prefix of {action} is impossible")
 
-
         # Case 0: If env is done no action is possible
         if self.done:
             return self.state, action, False
@@ -671,7 +676,9 @@ class Sequence(CompositeBase):
             self.state[key] = copy(new_subenv.source)
             if direction == _FIRST:
                 self.state["_indices"] = [key]
-                self.state["_active"] = _ACTIVE_FRONT # TODO: Is it an issue that _ACTIVE_FRONT is used also for _FIRST
+                self.state["_active"] = (
+                    _ACTIVE_FRONT  # TODO: Is it an issue that _ACTIVE_FRONT is used also for _FIRST
+                )
             elif direction == _FRONT:
                 self.state["_indices"] = [key] + self.state["_indices"]
                 self.state["_active"] = _ACTIVE_FRONT
@@ -690,7 +697,8 @@ class Sequence(CompositeBase):
             if subenv.continuous:
                 skip_mask_check = True
             do_step, _, _ = subenv._pre_step(
-                action_to_check, skip_mask_check=(skip_mask_check or self.skip_mask_check)
+                action_to_check,
+                skip_mask_check=(skip_mask_check or self.skip_mask_check),
             )
             if not do_step:
                 return self.state, action, False
@@ -731,8 +739,8 @@ class Sequence(CompositeBase):
             if do_step and not skip_mask_check:
                 do_step = self._meta_action_is_valid(action, backward=True)
             if not do_step:
-                return self.state, action, False            
-            
+                return self.state, action, False
+
             key = self._seq_length(self.state) - 1
             self.subenvs = list(self.subenvs)[:-1]
             del self.state[key]
@@ -745,9 +753,11 @@ class Sequence(CompositeBase):
 
         # Case 2: Sub-environment action
         else:
-            was_inactive = self.state["_active"] == -1  # Needed because there are two cases:
-                                                        # Case 2a: Sub-env active and undoing a sub-env action
-                                                        # Case 2b: At meta-level and action is to undo EOS of most recent sub-env
+            was_inactive = (
+                self.state["_active"] == -1
+            )  # Needed because there are two cases:
+            # Case 2a: Sub-env active and undoing a sub-env action
+            # Case 2b: At meta-level and action is to undo EOS of most recent sub-env
             key = self._seq_length(self.state) - 1  # most recently inserted element
             idx_unique = action[0]
             subenv = self.subenvs[key]
@@ -768,7 +778,7 @@ class Sequence(CompositeBase):
             self.n_actions += 1
             self._set_substate(key, subenv.state)
             self._set_subdone(key, subenv.done)
-            if was_inactive: # Case 2b: need to change _active flag
+            if was_inactive:  # Case 2b: need to change _active flag
                 # We re-entered the element to undo its EOS: activate it (front/end)
                 self.state["_active"] = (
                     _ACTIVE_FRONT if self.state["_indices"][0] == key else _ACTIVE_END
