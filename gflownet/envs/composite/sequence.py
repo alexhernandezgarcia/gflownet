@@ -86,6 +86,8 @@ class Sequence(CompositeBase):
 
     TODO: Different insertion orders that yield the same spatial sequence are currently
     treated as distinct states. Such equivalent states need to be merged (as in SetFlex).
+
+    TODO: Add min_sequence_length variable
     """
 
     def __init__(
@@ -553,59 +555,68 @@ class Sequence(CompositeBase):
         self,
         state: Optional[Dict] = None,
         done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
+        #action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
-        """Determines all parents and the actions that lead to ``state``."""
+        """Determines all parents and the actions that lead to ``state``.
+        Return is list of parents and action that led from parent to the
+        current state."""
+
         state = self._get_state(state)
         done = self._get_done(done)
+        length = self._seq_length(state)
 
+        # Case 0: sequence is done
         if done:
             return [state], [self.eos]
 
-        length = self._seq_length(state)
-
-        if state["_active"] == -1:
+        # Case 1: Meta-level (sequence) active
+        elif state["_active"] == _ACTIVE_NONE:
             if length == 0:
+                # Case 1a: Source state has no parent
                 return [], []
-            # Parent: the most recently inserted sub-environment was active and not
-            # done; the action that reached this state is its EOS.
-            key = length - 1
+            # Case 1b: Only forward action that ends in meta state is EOS of the most
+            # recently inserted sub-environment
+            key = length - 1 # most recently inserted sub-environment
             idx_unique = state["_envs_unique"][key]
             subenv = self._get_env_unique(idx_unique)
             parent = copy(state)
             parent["_active"] = (
                 _ACTIVE_FRONT if parent["_indices"][0] == key else _ACTIVE_END
             )
-            parent["_dones"][key] = 0
+            parent["_dones"][key] = 0 # Re-active most recently inserted sub-environment
             return [parent], [self._pad_action(subenv.eos, idx_unique)]
 
-        # A sub-environment is active
-        key = self._get_active_key(state)
-        idx_unique = state["_envs_unique"][key]
-        subenv = self._get_env_unique(idx_unique)
-        substate = self._get_substate(state, key)
+        # Case 2: A sub-environment is active
+        elif state["_active"] in (_ACTIVE_FRONT, _ACTIVE_END):
+            key = self._get_active_key(state)
+            idx_unique = state["_envs_unique"][key]
+            subenv = self._get_env_unique(idx_unique)
+            substate = self._get_substate(state, key)
 
-        if subenv.is_source(substate):
-            # Parent: the state before this element was inserted.
-            insert_id = self._reverse_insert_id(state)
-            parent = copy(state)
-            del parent[key]
-            parent["_envs_unique"].pop()
-            parent["_dones"].pop()
-            parent["_indices"].remove(key)
-            parent["_active"] = -1
-            return [parent], [self._pad_action((insert_id,), -1)]
+            # 2a: Subenv is at its source state, parent state is the state before this element was inserted.
+            if subenv.is_source(substate):
+                insert_id = self._reverse_insert_id(state)
+                parent = copy(state)
+                del parent[key]
+                parent["_envs_unique"].pop()
+                parent["_dones"].pop()
+                parent["_indices"].remove(key)
+                parent["_active"] = -1
+                return [parent], [self._pad_action((insert_id,), -1)]
 
-        # Parents from the active sub-environment's own parents
-        parents_subenv, parent_actions = subenv.get_parents(substate, False)
-        parents = []
-        actions = []
-        for parent_subenv, parent_action in zip(parents_subenv, parent_actions):
-            parent = copy(state)
-            parent = self._set_substate(key, parent_subenv, parent)
-            parents.append(parent)
-            actions.append(self._pad_action(parent_action, idx_unique))
-        return parents, actions
+            # 2b: Parent states are from the active sub-environment, meta state remains unchanged
+            parents_subenv, parent_actions = subenv.get_parents(substate, False)
+            parents = []
+            actions = []
+            for parent_subenv, parent_action in zip(parents_subenv, parent_actions):
+                parent = copy(state)
+                parent = self._set_substate(key, parent_subenv, parent) # Modify full sequence state
+                parents.append(parent)
+                actions.append(self._pad_action(parent_action, idx_unique))
+            return parents, actions
+        
+        # Other cases should not exist
+        raise ValueError(f"For state: {state} the _active flag has an impossible value: {state['_active']}")
 
     # ------------------------------------------------------------------ #
     # Steps
@@ -626,23 +637,31 @@ class Sequence(CompositeBase):
     def step(
         self, action: Tuple, skip_mask_check: bool = False
     ) -> Tuple[Dict, Tuple, bool]:
-        """Executes a forward step given an action."""
+        """Executes a forward step given an action. Returns new state, action atempted
+        and True/False if the action execution was succesful or not."""
+
+        # Check
+        if action[0] != -1 and not (0 <= action[0] < self.n_unique_envs):
+            raise ValueError(f"Prefix of {action} is impossible")
+
+
+        # Case 0: If env is done no action is possible
         if self.done:
             return self.state, action, False
 
-        # Meta-action (insert or global EOS)
-        if action[0] == -1:
+        # Case 1: Meta-action (insert or global EOS)
+        elif action[0] == -1:
             do_step, _, _ = self._pre_step(action, skip_mask_check=True)
             if do_step and not skip_mask_check:
                 do_step = self._meta_action_is_valid(action, backward=False)
             if not do_step:
                 return self.state, action, False
             self.n_actions += 1
-            # Global EOS
+            # 1a: Global EOS
             if action == self.eos:
                 self.done = True
                 return self.state, action, True
-            # Insertion
+            # 1b: Insert sub-env
             direction, idx_unique = divmod(action[1], self.n_unique_envs)
             key = self._seq_length(self.state)
             new_subenv = self._make_subenv_instance(idx_unique, key)
@@ -652,7 +671,7 @@ class Sequence(CompositeBase):
             self.state[key] = copy(new_subenv.source)
             if direction == _FIRST:
                 self.state["_indices"] = [key]
-                self.state["_active"] = _ACTIVE_FRONT
+                self.state["_active"] = _ACTIVE_FRONT # TODO: Is it an issue that _ACTIVE_FRONT is used also for _FIRST
             elif direction == _FRONT:
                 self.state["_indices"] = [key] + self.state["_indices"]
                 self.state["_active"] = _ACTIVE_FRONT
@@ -661,35 +680,41 @@ class Sequence(CompositeBase):
                 self.state["_active"] = _ACTIVE_END
             return self.state, action, True
 
-        # Sub-environment action
-        key = self._get_active_key(self.state)
-        idx_unique = action[0]
-        subenv = self.subenvs[key]
-        action_subenv = self._depad_action(action, idx_unique)
-        action_to_check = subenv.action2representative(action_subenv)
-        if subenv.continuous:
-            skip_mask_check = True
-        do_step, _, _ = subenv._pre_step(
-            action_to_check, skip_mask_check=(skip_mask_check or self.skip_mask_check)
-        )
-        if not do_step:
-            return self.state, action, False
-        _, action_subenv, valid = subenv.step(action_subenv)
-        if not valid:
-            return self.state, action, False
-        self.n_actions += 1
-        if action_subenv == subenv.eos:
-            self._set_subdone(key, True)
-            self.state["_active"] = -1
+        # Case 2: Sub-environment action
         else:
-            self._set_substate(key, subenv.state)
-        return self.state, action, True
+            key = self._get_active_key(self.state)
+            idx_unique = action[0]
+            subenv = self.subenvs[key]
+            action_subenv = self._depad_action(action, idx_unique)
+            action_to_check = subenv.action2representative(action_subenv)
+            if subenv.continuous:
+                skip_mask_check = True
+            do_step, _, _ = subenv._pre_step(
+                action_to_check, skip_mask_check=(skip_mask_check or self.skip_mask_check)
+            )
+            if not do_step:
+                return self.state, action, False
+            _, action_subenv, valid = subenv.step(action_subenv)
+            if not valid:
+                return self.state, action, False
+            self.n_actions += 1
+            if action_subenv == subenv.eos:
+                self._set_subdone(key, True)
+                self.state["_active"] = -1
+            else:
+                self._set_substate(key, subenv.state)
+            return self.state, action, True
 
     def step_backwards(
         self, action: Tuple, skip_mask_check: bool = False
     ) -> Tuple[Dict, Tuple, bool]:
-        """Executes a backward step given an action."""
-        # Global EOS (undo done)
+        """Executes a backward step given an action. Returns the new state, the
+        backwards action attempted and if it was succesful."""
+
+        if action[0] != -1 and not (0 <= action[0] < self.n_unique_envs):
+            raise ValueError(f"Prefix of {action} is impossible")
+
+        # Case 0: Global EOS (undo done)
         if action == self.eos:
             do_step, _, _ = self._pre_step(action, backward=True, skip_mask_check=True)
             if do_step and not skip_mask_check:
@@ -700,13 +725,14 @@ class Sequence(CompositeBase):
             self.n_actions += 1
             return self.state, action, True
 
-        # Meta-action (undo an insertion)
-        if action[0] == -1:
+        # Case 1: Meta-action (undo an insertion)
+        elif action[0] == -1:
             do_step, _, _ = self._pre_step(action, backward=True, skip_mask_check=True)
             if do_step and not skip_mask_check:
                 do_step = self._meta_action_is_valid(action, backward=True)
             if not do_step:
-                return self.state, action, False
+                return self.state, action, False            
+            
             key = self._seq_length(self.state) - 1
             self.subenvs = list(self.subenvs)[:-1]
             del self.state[key]
@@ -717,34 +743,37 @@ class Sequence(CompositeBase):
             self.n_actions += 1
             return self.state, action, True
 
-        # Sub-environment action
-        was_inactive = self.state["_active"] == -1
-        key = self._seq_length(self.state) - 1  # most recently inserted element
-        idx_unique = action[0]
-        subenv = self.subenvs[key]
-        action_subenv = self._depad_action(action, idx_unique)
-        action_to_check = subenv.action2representative(action_subenv)
-        if subenv.continuous:
-            skip_mask_check = True
-        do_step, _, _ = subenv._pre_step(
-            action_to_check,
-            backward=True,
-            skip_mask_check=(skip_mask_check or self.skip_mask_check),
-        )
-        if not do_step:
-            return self.state, action, False
-        _, _, valid = subenv.step_backwards(action_subenv)
-        if not valid:
-            return self.state, action, False
-        self.n_actions += 1
-        self._set_substate(key, subenv.state)
-        self._set_subdone(key, subenv.done)
-        if was_inactive:
-            # We re-entered the element to undo its EOS: activate it (front/end)
-            self.state["_active"] = (
-                _ACTIVE_FRONT if self.state["_indices"][0] == key else _ACTIVE_END
+        # Case 2: Sub-environment action
+        else:
+            was_inactive = self.state["_active"] == -1  # Needed because there are two cases:
+                                                        # Case 2a: Sub-env active and undoing a sub-env action
+                                                        # Case 2b: At meta-level and action is to undo EOS of most recent sub-env
+            key = self._seq_length(self.state) - 1  # most recently inserted element
+            idx_unique = action[0]
+            subenv = self.subenvs[key]
+            action_subenv = self._depad_action(action, idx_unique)
+            action_to_check = subenv.action2representative(action_subenv)
+            if subenv.continuous:
+                skip_mask_check = True
+            do_step, _, _ = subenv._pre_step(
+                action_to_check,
+                backward=True,
+                skip_mask_check=(skip_mask_check or self.skip_mask_check),
             )
-        return self.state, action, True
+            if not do_step:
+                return self.state, action, False
+            _, _, valid = subenv.step_backwards(action_subenv)
+            if not valid:
+                return self.state, action, False
+            self.n_actions += 1
+            self._set_substate(key, subenv.state)
+            self._set_subdone(key, subenv.done)
+            if was_inactive: # Case 2b: need to change _active flag
+                # We re-entered the element to undo its EOS: activate it (front/end)
+                self.state["_active"] = (
+                    _ACTIVE_FRONT if self.state["_indices"][0] == key else _ACTIVE_END
+                )
+            return self.state, action, True
 
     # ------------------------------------------------------------------ #
     # Batched sampling and log-probabilities
