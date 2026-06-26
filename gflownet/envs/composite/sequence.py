@@ -25,6 +25,27 @@ as follows (the insertion order index of each element is shown in brackets)::
 The dictionary state keeps the elements keyed by their insertion order (0, 1, 2, ...)
 and records the spatial arrangement in ``_indices``. For the final sequence above,
 ``_indices == [3, 2, 0, 1]``.
+
+-----------------------------
+STATE
+-----
+self.state dict used
+
+Required:
+``_envs_unique``: list of GFlowNetEnv objects (from initialization)
+``_active``: int -1/0
+    - value of -1 = composite or sequence level; 0 = subenvironment is active
+``_dones``: list of int; 0/1 boolean done flag refering to the subenvironments
+``_indices``: list of int; 
+    - refers to the order of the keys in the state
+    - example:
+        (1) self.state = {_indices:[2,0,1], 0:'A', 1:'B', 2:'C', other_keys:...}
+            sequence = CAB
+        (2) self.state = {_indices:[1,0,2,3], 0:'A', 1:'B', 2:'C', 3:'D', other_keys:...}
+            sequence = BACD
+other keys: 
+    - 0,1,2,...(int): (dict/str/int) 
+        refers to the state of the subenvironment
 """
 
 import ast
@@ -1099,3 +1120,4 @@ class Sequence(CompositeBase):
         if self.do_random_subenvs:
             ignored_keys = ignored_keys + ["subenvs", "state", "source"]
         return super().__eq__(other, ignored_keys=ignored_keys)
+    
