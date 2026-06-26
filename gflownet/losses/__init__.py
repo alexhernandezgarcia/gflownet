@@ -18,4 +18,10 @@
 
 """
 
-__all__ = ["flowmatching", "trajectorybalance", "detailedbalance", "forwardlooking"]
+__all__ = [
+    "flowmatching",
+    "trajectorybalance",
+    "detailedbalance",
+    "forwardlooking",
+    "s3gfn",
+]
