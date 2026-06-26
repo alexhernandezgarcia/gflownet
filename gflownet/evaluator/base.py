@@ -372,17 +372,25 @@ class BaseEvaluator(AbstractEvaluator):
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
 
-            if "density_true" in dict_tt:
+            feasible = np.array(self.gfn.env.check_feasibility(x_tt), dtype=bool)
+            has_infeasible = not np.all(feasible)
+
+            if "density_true" in dict_tt and not has_infeasible:
                 density_true = torch2np(dict_tt["density_true"])
             else:
                 rewards = torch2np(
                     self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
                 )
+                rewards = rewards * feasible
                 z_true = rewards.sum()
-                density_true = rewards / z_true
-                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
-                    dict_tt["density_true"] = density_true
-                    pickle.dump(dict_tt, f)
+                if z_true <= 0:
+                    density_true = np.zeros_like(rewards)
+                else:
+                    density_true = rewards / z_true
+                    if not has_infeasible:
+                        with open(self.gfn.buffer.test_config.pkl, "wb") as f:
+                            dict_tt["density_true"] = density_true
+                            pickle.dump(dict_tt, f)
             hist = defaultdict(int)
             for x in x_sampled:
                 hist[tuple(x)] += 1
