@@ -1121,3 +1121,64 @@ class Sequence(CompositeBase):
             ignored_keys = ignored_keys + ["subenvs", "state", "source"]
         return super().__eq__(other, ignored_keys=ignored_keys)
     
+    # In this part, we create a function that checks if two sequences are equal: 
+    # inspired by gflownet.envs.composite.setbase.BaseSet().equal()
+    def equal(self, state_x: Dict, state_y: Dict) -> bool:
+        """
+        Checks whether the two input states refer to THE SAME SEQUENCE.
+
+        Returns True if the substates in the state dictionary
+        ordered according to _indices have totally the same value
+        **same sequence**
+
+        orders the state into a list and compares the two states using 
+        gflownet.envs.base.GFlowNetEnv().equal()
+
+        Parameters
+        ----------
+        state_x: dict
+            One of the Set states to be compared.
+        state_y: dict
+            The other Set state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+        """
+        # Check if keys of meta data are present and that they contain the same
+        # elements
+        if "_active" not in state_x and "_active" not in state_y:
+            # invalid state
+            return False
+        if state_x["_active"] == -1 and state_y["_active"] != -1:
+            return False
+        if "_dones" not in state_x and "_dones" not in state_y:
+            return False
+        if Counter(state_x["_dones"]) != Counter(state_y["_dones"]):
+            return False
+        # !! it doesn't matter if the initialized _envs_unique is not the same
+        # if "_envs_unique" not in state_x and "_envs_unique" not in state_y:
+        #     return False
+        # if Counter(state_x["_envs_unique"]) != Counter(state_y["_envs_unique"]):
+        #     return False
+        if "_indices" not in state_x and "_indices" not in state_y:
+            return False
+        if set(state_x["_indices"]) != set(state_y["_indices"]):
+            # should already compare the number of substates
+            return False
+        # Compare substates: the state is considered equal if the formed sequence of substates is
+        # the same, regardless of the temporal order they were formed
+        # For each substate in state_x, an equal substate must be found in state_y;
+        # otherwise the states are not equal. 
+        # Furthermore, the corresponding values of done and envs_unique must coincide.
+        # Finally, if the active flag is not -1, it must refer to the same substate in
+        # order to return True.
+        # 1 construct the two sequences considering the _dones for each
+        sequence_x = [state_x[i] for i in state_x["_indices"].copy()]
+        sequence_y = [state_y[i] for i in state_y["_indices"].copy()]
+        # 2 compare
+        if GFlowNetEnv.equal(sequence_x, sequence_y):
+            return True 
+        else: 
+            return False
