@@ -34,7 +34,7 @@ from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class BaseEvaluator(AbstractEvaluator):
-    def __init__(self, gfn_agent=None, **config):
+    def __init__(self, gfn_agent=None, reward_sampling_method="rejection", do_plot_density=False, **config):
         """
         Base evaluator class for GFlowNetAgent.
 
@@ -55,10 +55,12 @@ class BaseEvaluator(AbstractEvaluator):
         details about other methods and attributes, including the
         :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
         """
+        self.reward_sampling_method = reward_sampling_method
+        self.do_plot_density = do_plot_density
         super().__init__(gfn_agent, **config)
 
     def define_new_metrics(self):
-        return {
+        metrics_density = {
             "l1": {
                 "display_name": "L1 error",
                 "requirements": ["density"],
@@ -71,14 +73,16 @@ class BaseEvaluator(AbstractEvaluator):
                 "display_name": "Jensen Shannon Div.",
                 "requirements": ["density"],
             },
-            "corr_probs_rewards": {
+        }
+        metrics_logprobs = {
+            "corr_prob_traj_rewards": {
                 "display_name": "Corr. (test probs., rewards)",
                 "requirements": ["log_probs", "reward_batch"],
             },
-            "corr_logprobs_logrewards": {
-                "display_name": "Corr. (test logprobs., logrewards)",
-                "requirements": ["log_probs", "reward_batch"],
-            },
+            # "corr_logprobs_logrewards": {
+            #     "display_name": "Corr. (test logprobs., logrewards)",
+            #     "requirements": ["log_probs", "reward_batch"],
+            # },
             "var_logrewards_logp": {
                 "display_name": "Var(logR - logp) test",
                 "requirements": ["log_probs", "reward_batch"],
@@ -99,7 +103,18 @@ class BaseEvaluator(AbstractEvaluator):
                 "display_name": "BS Std(logp) / NLL",
                 "requirements": ["log_probs"],
             },
+            "corr_log_prob_traj_log_rewards": {
+                "display_name": "Corr. (test log probs., log rewards)",
+                "requirements": ["log_probs", "reward_batch"],
+            },
+            "beta_log_prob_traj_log_rewards": {
+                "display_name": "Beta (test log probs., log rewards)",
+                "requirements": ["log_probs", "reward_batch"],
+            },
         }
+        if self.do_plot_density:
+            metrics_logprobs.update(metrics_density)
+        return metrics_logprobs
 
     # TODO: this method will most likely crash if used (top_k_period != -1) because
     # self.gfn.env.top_k_metrics_and_plots still makes use of env.proxy.
@@ -237,10 +252,12 @@ class BaseEvaluator(AbstractEvaluator):
 
         - ``mean_logprobs_std``: Mean of the standard deviation of the log-probabilities.
         - ``mean_probs_std``: Mean of the standard deviation of the probabilities.
-        - ``corr_probs_rewards``: Correlation between the probabilities and the
+        - ``corr_prob_traj_rewards``: Correlation between the probabilities and the
             rewards.
-        - ``corr_logprobs_logrewards``: Correlation between the log-probabilities and
+        - ``corr_log_prob_traj_log_rewards``: Correlation between the log-probabilities and
             the log-rewards.
+        - ``beta_log_prob_traj_log_rewards``: Proportionality coefficient between the 
+            log-probabilities and the log-rewards.
         - ``var_logrewards_logp``: Variance of the log-rewards minus the log-probabilities.
         - ``nll_tt``: Negative log-likelihood of the test data.
         - ``logprobs_std_nll_ratio``: Ratio of the mean of the standard deviation of the
@@ -394,9 +411,9 @@ class BaseEvaluator(AbstractEvaluator):
         elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states(proxy=True)
+            x_sampled = self.gfn.env.states2kde(batch.get_terminating_states())
             # TODO make it work with conditional env
-            x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
+            x_tt = self.gfn.env.states2kde(x_tt)
             kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
                 kernel=self.config.kde.kernel,
@@ -407,8 +424,10 @@ class BaseEvaluator(AbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.gfn.env.states2proxy(
-                    self.gfn.sample_from_reward(n_samples=self.config.n)
+                x_from_reward = self.gfn.env.states2kde(
+                    self.gfn.sample_from_reward(
+                        n_samples=self.config.n, method=self.reward_sampling_method
+                    )
                 )
                 # Fit KDE with samples from reward
                 kde_true = self.gfn.env.fit_kde(
