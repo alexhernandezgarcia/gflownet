@@ -2,9 +2,7 @@
 Tests for the Sequence composite environment.
 
 The common test battery (``common.BaseTestsDiscrete`` / ``common.BaseTestsContinuous``)
-is wired in at the bottom of the file, mirroring ``test_setflex.py`` and
-``test_stack.py``. ``test__gflownet_minimal_runs`` is disabled (set to 0) because, as
-with the SetFlex, running it would require a proxy tailored to the composite states.
+is wired in at the bottom of the file.
 """
 
 import common
@@ -25,7 +23,7 @@ def env_grid():
     """Free-growth sequence of up to 3 grids (single unique type)."""
     return Sequence(
         envs_unique=(Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-        max_sequence_length=3,
+        max_sequence_length=5,
     )
 
 
@@ -37,7 +35,7 @@ def env_two_grids():
             Grid(n_dim=1, length=3, cell_min=-1.0, cell_max=1.0),
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
-        max_sequence_length=3,
+        max_sequence_length=6,
     )
 
 
@@ -67,7 +65,7 @@ def env_grid_fixed_bag():
             Grid(n_dim=1, length=3, cell_min=-1.0, cell_max=1.0),
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
-        max_sequence_length=3,
+        max_sequence_length=5,
         do_random_subenvs=True,
     )
 
@@ -77,7 +75,7 @@ def env_cube():
     """Free-growth sequence of up to 2 continuous cubes."""
     return Sequence(
         envs_unique=(ContinuousCube(n_dim=2, n_comp=2, min_incr=0.1),),
-        max_sequence_length=2,
+        max_sequence_length=6,
     )
 
 
@@ -89,7 +87,7 @@ def env_cube_grid():
             ContinuousCube(n_dim=2, n_comp=2, min_incr=0.1),
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
-        max_sequence_length=2,
+        max_sequence_length=6,
     )
 
 
@@ -97,7 +95,7 @@ def env_cube_grid():
 def env_cube_fixed_bag():
     return Sequence(
         envs_unique=(ContinuousCube(n_dim=2, n_comp=2, min_incr=0.1),),
-        max_sequence_length=2,
+        max_sequence_length=4,
         do_random_subenvs=True,
     )
 
@@ -230,7 +228,7 @@ _REPEATS = {
     "test__get_parents_step_get_mask__are_compatible": 10,
     "test__sample_backwards_reaches_source": 10,
     "test__state2readable__is_reversible": 20,
-    "test__gflownet_minimal_runs": 0,
+    "test__gflownet_minimal_runs": 3,
 }
 _N_STATES = {
     "test__backward_actions_have_nonzero_forward_prob": 3,
@@ -293,6 +291,10 @@ class TestSequenceGridFixedBag(common.BaseTestsDiscrete):
     def setup(self, env_grid_fixed_bag):
         self.env = env_grid_fixed_bag
         self.repeats = dict(_REPEATS)
+        # Disabled: with do_random_subenvs, trajectories start at a random-bag
+        # state, not at env.source, which the Batch assumes for the first
+        # transition of every trajectory.
+        self.repeats["test__gflownet_minimal_runs"] = 0
         self.n_states = dict(_N_STATES)
         self.batch_size = dict(_BATCH_SIZE)
 
@@ -324,5 +326,10 @@ class TestSequenceCubeFixedBag(common.BaseTestsContinuous):
     def setup(self, env_cube_fixed_bag):
         self.env = env_cube_fixed_bag
         self.repeats = dict(_REPEATS)
+        # Disabled: see TestSequenceGridFixedBag.
+        self.repeats["test__gflownet_minimal_runs"] = 0
         self.n_states = dict(_N_STATES)
         self.batch_size = dict(_BATCH_SIZE)
+
+
+# TODO: add this test: readable2state(state2readable(s)) == s
