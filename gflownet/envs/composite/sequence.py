@@ -61,7 +61,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
-from gflownet.utils.common import copy, tbool, tfloat, tlong
+from gflownet.utils.common import copy, tfloat, tlong, tbool
 
 # Insert directions (used to encode the insert meta-actions).
 _FIRST = 0
@@ -813,7 +813,7 @@ class Sequence(CompositeBase):
     # ------------------------------------------------------------------ #
 
     # make our own randomize sampling of the actions on choosing the next meta action
-    # based on gfn.envs.base.GFlowNetEnv
+    # based on gfn.envs.base.GFlowNetEnv 
     def randomize_and_temper_sampling_distribution_meta(
         self, policy_outputs, probability_random_action=0.0, temperature=1.0
     ):
@@ -839,9 +839,7 @@ class Sequence(CompositeBase):
                 ).sample(),
                 device=self.device,
             )
-            logits_sampling[idx_random, :] = self._get_policy_outputs_of_meta_actions(
-                self.random_policy_output.unsqueeze(0)
-            ).squeeze(0)
+            logits_sampling[idx_random, :] = self._get_policy_outputs_of_meta_actions(self.random_policy_output.unsqueeze(0)).squeeze(0)
         return logits_sampling
 
     def sample_actions_batch_meta(
@@ -853,7 +851,8 @@ class Sequence(CompositeBase):
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
-        """ """
+        """
+        """
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution_meta(
             policy_outputs, random_action_prob, temperature_logits
