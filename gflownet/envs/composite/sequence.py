@@ -49,17 +49,19 @@ other keys:
 """
 
 import ast
+import math
 import uuid
 from collections import Counter
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torch.distributions import Bernoulli, Categorical
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
-from gflownet.utils.common import copy, tfloat, tlong
+from gflownet.utils.common import copy, tfloat, tlong, tbool
 
 # Insert directions (used to encode the insert meta-actions).
 _FIRST = 0
@@ -810,6 +812,66 @@ class Sequence(CompositeBase):
     # Batched sampling and log-probabilities
     # ------------------------------------------------------------------ #
 
+    # make our own randomize sampling of the actions on choosing the next meta action
+    # based on gfn.envs.base.GFlowNetEnv 
+    def randomize_and_temper_sampling_distribution_meta(
+        self, policy_outputs, probability_random_action=0.0, temperature=1.0
+    ):
+        if not math.isclose(temperature, 1.0, abs_tol=1e-08):
+            do_temper = True
+        else:
+            do_temper = False
+        if not math.isclose(probability_random_action, 0.0, abs_tol=1e-08):
+            do_random = True
+        else:
+            do_random = False
+        if not do_temper and not do_random:
+            return policy_outputs
+
+        # Clone the sampling logits in order not to change the original tensor
+        logits_sampling = policy_outputs.clone().detach()
+        if do_temper:
+            logits_sampling /= temperature
+        if do_random:
+            idx_random = tbool(
+                Bernoulli(
+                    probability_random_action * torch.ones(policy_outputs.shape[0])
+                ).sample(),
+                device=self.device,
+            )
+            logits_sampling[idx_random, :] = self._get_policy_outputs_of_meta_actions(self.random_policy_output.unsqueeze(0)).squeeze(0)
+        return logits_sampling
+
+    def sample_actions_batch_meta(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        random_action_prob: Optional[float] = 0.0,
+        temperature_logits: Optional[float] = 1.0,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        """
+        # Randomize actions and temper the logits
+        logits_sampling = self.randomize_and_temper_sampling_distribution_meta(
+            policy_outputs, random_action_prob, temperature_logits
+        )
+
+        # Make the logits of invalid actions equal to -inf.
+        if mask is not None:
+            if torch.all(mask, dim=1).any():
+                raise RuntimeError(
+                    "All actions in the mask are invalid for some states in the batch."
+                )
+            logits_sampling[mask] = -torch.inf
+
+        # Sample actions from the Categorical distributions defined by the logits
+        action_indices = Categorical(logits=logits_sampling).sample()
+        # Build actions
+        actions = [self.action_space[idx] for idx in action_indices]
+        return actions
+
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -826,9 +888,8 @@ class Sequence(CompositeBase):
         is_meta = torch.logical_not(is_active)
 
         # Sample actions states that are active at meta-level
-        actions_meta = []
         if torch.any(is_meta):
-            actions_meta = super().sample_actions_batch(
+            actions_meta = self.sample_actions_batch_meta(
                 self._get_policy_outputs_of_meta_actions(policy_outputs[is_meta]),
                 self._extract_core_mask(mask[is_meta], -1),
                 None,
@@ -836,6 +897,8 @@ class Sequence(CompositeBase):
                 random_action_prob,
                 temperature_logits,
             )
+        else:
+            actions_meta = []
 
         # Extract column idx of one-hot encoding = unique env idx
         indices_active = torch.where(mask[is_active, : self._prefix_dim])[1]
