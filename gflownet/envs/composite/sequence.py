@@ -61,7 +61,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
-from gflownet.utils.common import copy, tbool, tfloat, tlong
+from gflownet.utils.common import copy, tfloat, tlong, tbool
 
 # Insert directions (used to encode the insert meta-actions).
 _FIRST = 0
@@ -813,11 +813,10 @@ class Sequence(CompositeBase):
     # ------------------------------------------------------------------ #
 
     # make our own randomize sampling of the actions on choosing the next meta action
-    # based on gfn.envs.base.GFlowNetEnv DONE!
+    # based on gfn.envs.base.GFlowNetEnv 
     def randomize_and_temper_sampling_distribution_meta(
         self, policy_outputs, probability_random_action=0.0, temperature=1.0
     ):
-        """DONE AND PASSED TEST"""
         if not math.isclose(temperature, 1.0, abs_tol=1e-08):
             do_temper = True
         else:
@@ -840,9 +839,7 @@ class Sequence(CompositeBase):
                 ).sample(),
                 device=self.device,
             )
-            logits_sampling[idx_random, :] = self._get_policy_outputs_of_meta_actions(
-                self.random_policy_output.unsqueeze(0)
-            ).squeeze(0)
+            logits_sampling[idx_random, :] = self._get_policy_outputs_of_meta_actions(self.random_policy_output.unsqueeze(0)).squeeze(0)
         return logits_sampling
 
     def sample_actions_batch_meta(
@@ -854,7 +851,8 @@ class Sequence(CompositeBase):
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
-        """DONE AND PASSED TEST"""
+        """
+        """
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution_meta(
             policy_outputs, random_action_prob, temperature_logits
@@ -1207,10 +1205,6 @@ class Sequence(CompositeBase):
             ignored_keys = ignored_keys + ["subenvs", "state", "source"]
         return super().__eq__(other, ignored_keys=ignored_keys)
 
-    ########################################################################################
-    ###
-    ########################################################################################
-    # FUNCTIONS NEEDED TO IMPLICITLY MERGE STATES OF THE SAME SEQUENCE BY MERGING IN GET_PARENTS BACKWARDS STEP and GET_LOG_PROBS
     # In this part, we create a function that checks if two sequences are equal:
     # inspired by gflownet.envs.composite.setbase.BaseSet().equal()
     def equal(self, state_x: Dict, state_y: Dict) -> bool:
@@ -1267,43 +1261,3 @@ class Sequence(CompositeBase):
             return True
         else:
             return False
-
-    def _get_random_equivalent_sequence(self, state, merge_states=False):
-        """NOT DONE NOT YET IMPLEMENTED"""
-        if not merge_states:
-            # return the original state
-            return state
-        else:
-            return state
-
-    def _enumerate_all_states_for_the_sequence(self, state):
-        """DONE NOT TESTED
-        input: state dict
-        output: list of states
-        """
-        # here, we will use indices to arrange the possible representations of the state that will correspond to the same sequence
-        # representations are used with the condition that the next number can only be inserted in front or at the end
-        # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
-        indices = state["_indices"]
-        n_indices = max(indices)
-        # enumerate all the possible index order
-        if n_indices < 2:
-            return [state]
-        all_representations = [[0, 1], [1, 0]]  # initialize
-        new_representations = []
-        for i in range(len(n_indices)):
-            for j in range(len(all_representations)):
-                # append infront
-                new_representations.append([n_indices[i]] + all_representations[j])
-                # append at the back
-                new_representations.append(all_representations[j] + [n_indices[i]])
-            all_representations = new_representations
-        new_state_representations = []
-        # then form the state based on the new_representaions
-        for k in range(len(new_representations)):
-            new_state = state.copy()
-            for ind in range(len(n_indices)):
-                new_state[new_representations[k][ind]] = state.copy()["_indices"][ind]
-            new_state["_indices"] = new_representations[k]
-            new_state_representations.append(new_state)
-        return new_state_representations
