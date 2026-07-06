@@ -90,6 +90,19 @@ def env_cube_grid():
         max_sequence_length=6,
     )
 
+@pytest.fixture
+def env_grid_cube_5():
+    """Free-growth sequence of up to 5 elements, two distinct grid and cube"""
+    return Sequence(
+        envs_unique=(
+            Grid(n_dim=1, length=3, cell_min=-1.0, cell_max=1.0),
+            # ContinuousCube(n_dim=2, n_comp=2, min_incr=0.1),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
+        ),
+        max_sequence_length=20,
+        front_only=True
+    )
+
 
 @pytest.fixture
 def env_cube_fixed_bag():
@@ -210,6 +223,86 @@ def test__front_only_and_end_only_cannot_be_combined():
             front_only=True,
             end_only=True,
         )
+
+@pytest.mark.parametrize(
+    "env, state, parents_exp, parent_actions_exp",
+    [
+        (
+            "env_grid_cube_5",
+            {
+                "_active": 1,
+                "_dones": [1,1,1,0],
+                "_envs_unique": [1,2,2,0],
+                "_indices": [0,1,2,3],
+                0: [0.98, 0.94],
+                1: [0,2],
+                2: [0,0],
+                3: [0]
+            },
+            [
+                {
+                    "_active": -1,
+                    "_dones": [1,1,1],
+                    "_envs_unique": [1,2,2],
+                    "_indices": [0,1,2],
+                    0: [0.98, 0.94],
+                    1: [0,2],
+                    2: [0,0]
+                },
+                {
+                    "_active": -1,
+                    "_dones": [1,1,1],
+                    "_envs_unique": [2,1,2],
+                    "_indices": [1,0,2],
+                    0: [0,2],
+                    1: [0.98, 0.94],
+                    2: [0,0]
+                },
+                {
+                    "_active": -1,
+                    "_dones": [1,1,1],
+                    "_envs_unique": [2,2,1],
+                    "_indices": [2,0,1],
+                    0: [0,2],
+                    1: [0,0],
+                    2: [0.98, 0.94]
+                },
+                {
+                    "_active": -1,
+                    "_dones": [1,1,1],
+                    "_envs_unique": [2,2,1],
+                    "_indices": [2,1,0],
+                    0: [0,0],
+                    1: [0,2],
+                    2: [0.98, 0.94]
+                },
+            ],
+            [
+                (-1, 4, 0),
+                (-1, 4, 0),
+                (-1, 4, 0),
+                (-1, 4, 0),
+            ],
+        ),
+    ],
+)
+def test__get_parents__returns_expected(
+    env, state, parents_exp, parent_actions_exp, request
+):
+    env = request.getfixturevalue(env)
+    parents, parent_actions = env.get_parents(state)
+    # Create dictionaries of parent_action: parent for comparison
+    parents_actions_exp_tuple = []
+    for parent, action in zip(parents_exp, parent_actions_exp):
+        parent_action = parent.copy()
+        parent_action["action"] = action
+        parents_actions_exp_tuple.append(parent_action)
+    parents_actions_tuple = []
+    for parent, action in zip(parents, parent_actions):
+        parent_action = parent.copy()
+        parent_action["action"] = action
+        parents_actions_tuple.append(parent_action)
+    assert parents_actions_tuple == parents_actions_exp_tuple
 
 
 # --------------------------------------------------------------------------- #
