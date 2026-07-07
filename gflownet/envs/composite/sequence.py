@@ -121,6 +121,7 @@ class Sequence(CompositeBase):
         front_only: Optional[bool] = False,
         end_only: Optional[bool] = False,
         do_random_subenvs: Optional[bool] = False,
+        merge_representations: bool = True,
         **kwargs,
     ):
         """
@@ -155,6 +156,7 @@ class Sequence(CompositeBase):
         self.front_only = front_only
         self.end_only = end_only
         self.do_random_subenvs = do_random_subenvs
+        self.merge_states = merge_representations
 
         # Determine the unique environments
         if envs_unique is None:
