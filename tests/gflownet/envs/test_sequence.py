@@ -90,6 +90,7 @@ def env_cube_grid():
         max_sequence_length=6,
     )
 
+
 @pytest.fixture
 def env_grid_cube_5():
     """Free-growth sequence of up to 5 elements, two distinct grid and cube"""
@@ -100,7 +101,7 @@ def env_grid_cube_5():
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
         max_sequence_length=20,
-        front_only=True
+        front_only=True,
     )
 
 
@@ -224,6 +225,7 @@ def test__front_only_and_end_only_cannot_be_combined():
             end_only=True,
         )
 
+
 @pytest.mark.parametrize(
     "env, state, parents_exp, parent_actions_exp",
     [
@@ -231,50 +233,50 @@ def test__front_only_and_end_only_cannot_be_combined():
             "env_grid_cube_5",
             {
                 "_active": 1,
-                "_dones": [1,1,1,0],
-                "_envs_unique": [1,2,2,0],
-                "_indices": [0,1,2,3],
+                "_dones": [1, 1, 1, 0],
+                "_envs_unique": [1, 2, 2, 0],
+                "_indices": [0, 1, 2, 3],
                 0: [0.98, 0.94],
-                1: [0,2],
-                2: [0,0],
-                3: [0]
+                1: [0, 2],
+                2: [0, 0],
+                3: [0],
             },
             [
                 {
                     "_active": -1,
-                    "_dones": [1,1,1],
-                    "_envs_unique": [1,2,2],
-                    "_indices": [0,1,2],
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [1, 2, 2],
+                    "_indices": [0, 1, 2],
                     0: [0.98, 0.94],
-                    1: [0,2],
-                    2: [0,0]
+                    1: [0, 2],
+                    2: [0, 0],
                 },
                 {
                     "_active": -1,
-                    "_dones": [1,1,1],
-                    "_envs_unique": [2,1,2],
-                    "_indices": [1,0,2],
-                    0: [0,2],
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [2, 1, 2],
+                    "_indices": [1, 0, 2],
+                    0: [0, 2],
                     1: [0.98, 0.94],
-                    2: [0,0]
+                    2: [0, 0],
                 },
                 {
                     "_active": -1,
-                    "_dones": [1,1,1],
-                    "_envs_unique": [2,2,1],
-                    "_indices": [2,0,1],
-                    0: [0,2],
-                    1: [0,0],
-                    2: [0.98, 0.94]
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [2, 2, 1],
+                    "_indices": [2, 0, 1],
+                    0: [0, 2],
+                    1: [0, 0],
+                    2: [0.98, 0.94],
                 },
                 {
                     "_active": -1,
-                    "_dones": [1,1,1],
-                    "_envs_unique": [2,2,1],
-                    "_indices": [2,1,0],
-                    0: [0,0],
-                    1: [0,2],
-                    2: [0.98, 0.94]
+                    "_dones": [1, 1, 1],
+                    "_envs_unique": [2, 2, 1],
+                    "_indices": [2, 1, 0],
+                    0: [0, 0],
+                    1: [0, 2],
+                    2: [0.98, 0.94],
                 },
             ],
             [
