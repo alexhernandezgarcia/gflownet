@@ -115,12 +115,12 @@ class Sequence(CompositeBase):
 
     def __init__(
         self,
-        envs_unique: Iterable[GFlowNetEnv] = None,
-        subenvs: Iterable[GFlowNetEnv] = None,
+        envs_unique: Optional[Iterable[GFlowNetEnv]] = None,
+        subenvs: Optional[Iterable[GFlowNetEnv]] = None,
         max_sequence_length: Optional[int] = None,
-        front_only: bool = False,
-        end_only: bool = False,
-        do_random_subenvs: bool = False,
+        front_only: Optional[bool] = False,
+        end_only: Optional[bool] = False,
+        do_random_subenvs: Optional[bool] = False,
         **kwargs,
     ):
         """
