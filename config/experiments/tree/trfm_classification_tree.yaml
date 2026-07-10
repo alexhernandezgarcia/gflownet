@@ -1,4 +1,7 @@
 # @package _global_
+# Same experiment as classification_tree.yaml, but with the forward and
+# backward policies modeled as Transformer encoders over per-node tokens
+# (see gflownet/policy/tree_transformer.py) instead of MLPs.
 
 defaults:
   - override /env: tree/tree
@@ -7,6 +10,7 @@ defaults:
   - override /proxy: tree
   - override /logger: wandb
   - override /evaluator: tree
+  - override /policy: tree_transformer
 
 device: cpu
 
@@ -90,16 +94,20 @@ gflownet:
   replay_sampling: weighted
   train_sampling: permutation
 
-# Policy
+# Policy: Transformer encoder over per-node tokens (CLS readout)
 policy:
   forward:
-    type: mlp
-    n_hid: 256
+    d_model: 128
     n_layers: 3
+    n_heads: 4
+    ff_mult: 4
+    dropout: 0.0
   backward:
-    type: mlp
-    n_hid: 256
+    d_model: 128
     n_layers: 3
+    n_heads: 4
+    ff_mult: 4
+    dropout: 0.0
     shared_weights: False
 
 # Evaluator
@@ -126,7 +134,7 @@ evaluator:
 logger:
   lightweight: True
   run_name: null
-  project_name: "dt-gfn"
+  project_name: "dtgfn"
   entity: alex-hg
   tags:
     - gflownet

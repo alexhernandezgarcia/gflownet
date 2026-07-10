@@ -1,0 +1,22 @@
+_target_: gflownet.policy.tree_transformer.TreeTransformerPolicy
+
+shared: null
+
+forward:
+  d_model: 128
+  n_layers: 3
+  n_heads: 4
+  ff_mult: 4
+  dropout: 0.0
+  checkpoint: null
+  reload_ckpt: False
+
+backward:
+  d_model: 128
+  n_layers: 3
+  n_heads: 4
+  ff_mult: 4
+  dropout: 0.0
+  shared_weights: False
+  checkpoint: null
+  reload_ckpt: False
