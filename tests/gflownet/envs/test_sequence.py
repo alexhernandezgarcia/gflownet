@@ -101,7 +101,7 @@ def env_grid_cube_5():
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
         ),
         max_sequence_length=20,
-        merge_representations=True
+        merge_representations=True,
     )
 
 
@@ -307,6 +307,7 @@ def test__get_parents__returns_expected(
     parents_actions_tuple.sort(key=lambda d: d["_indices"])
     parents_actions_exp_tuple.sort(key=lambda d: d["_indices"])
     assert parents_actions_tuple == parents_actions_exp_tuple
+
 
 # --------------------------------------------------------------------------- #
 # Common test battery

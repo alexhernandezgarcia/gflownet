@@ -629,12 +629,12 @@ class Sequence(CompositeBase):
                 parent["_dones"].pop()
                 parent["_indices"].remove(key)
                 parent["_active"] = -1
-                # after removing the recently active substate, we also get all the states that correspond to the parent 
+                # after removing the recently active substate, we also get all the states that correspond to the parent
                 if not self.merge_states:
                     parents = [parent]
                 else:
-                    parents = self._enumerate_all_states_for_the_sequence(state=parent) 
-                return parents, [self._pad_action((insert_id,), -1)]*len(parents)
+                    parents = self._enumerate_all_states_for_the_sequence(state=parent)
+                return parents, [self._pad_action((insert_id,), -1)] * len(parents)
 
             # 2b: Parent states are from the active sub-environment, meta state remains unchanged
             parents_subenv, parent_actions = subenv.get_parents(substate, False)
@@ -1312,7 +1312,7 @@ class Sequence(CompositeBase):
         all_representations = [[0, 1], [1, 0]]  # initialize
         # all_representations = [[0, 1]]  # initialize
         new_representations = []
-        for i in range(2,n_indices+1):
+        for i in range(2, n_indices + 1):
             for j in range(len(all_representations)):
                 # append infront
                 new_representations.append([indices[i]] + all_representations[j])
@@ -1325,9 +1325,15 @@ class Sequence(CompositeBase):
             new_state = copy(state)
             new_envs_unique = copy(state)["_envs_unique"]
             old_indices = copy(state)["_indices"]
-            for ind in range(n_indices+1):
-                new_state[new_representations[k][ind]] = copy(state)[old_indices[ind]] # this is not yet correct
-                new_envs_unique[new_representations[k][ind]] = copy(state)["_envs_unique"][old_indices[ind]] # this is correct
+            for ind in range(n_indices + 1):
+                new_state[new_representations[k][ind]] = copy(state)[
+                    old_indices[ind]
+                ]  # this is not yet correct
+                new_envs_unique[new_representations[k][ind]] = copy(state)[
+                    "_envs_unique"
+                ][
+                    old_indices[ind]
+                ]  # this is correct
             new_state["_indices"] = new_representations[k]
             new_state["_envs_unique"] = new_envs_unique
             new_state_representations.append(new_state)
