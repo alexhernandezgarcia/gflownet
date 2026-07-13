@@ -121,7 +121,7 @@ class Sequence(CompositeBase):
         front_only: Optional[bool] = False,
         end_only: Optional[bool] = False,
         do_random_subenvs: Optional[bool] = False,
-        merge_representations: bool = True,
+        merge_representations: bool = False,
         **kwargs,
     ):
         """
@@ -629,7 +629,12 @@ class Sequence(CompositeBase):
                 parent["_dones"].pop()
                 parent["_indices"].remove(key)
                 parent["_active"] = -1
-                return [parent], [self._pad_action((insert_id,), -1)]
+                # after removing the recently active substate, we also get all the states that correspond to the parent 
+                if not self.merge_states:
+                    parents = [parent]
+                else:
+                    parents = self._enumerate_all_states_for_the_sequence(state=parent) 
+                return parents, [self._pad_action((insert_id,), -1)]*len(parents)
 
             # 2b: Parent states are from the active sub-environment, meta state remains unchanged
             parents_subenv, parent_actions = subenv.get_parents(substate, False)
@@ -777,9 +782,9 @@ class Sequence(CompositeBase):
 
             # here insert other variations of the 1-step-backward-state that represents the same sequence
             # merge states indicate if the states that can represent the same sequence will be enumerated
-            self.state = self._get_random_equivalent_sequence(
-                self.state, self.merge_states
-            )
+            # self.state = self._get_random_equivalent_sequence(
+            #     self.state, self.merge_states
+            # )
             return self.state, action, True
 
         # Case 2: Sub-environment action
@@ -1277,7 +1282,7 @@ class Sequence(CompositeBase):
             return False
 
     def _get_random_equivalent_sequence(self, state, merge_states=False):
-        """NOT DONE NOT YET IMPLEMENTED"""
+        """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         if not merge_states:
             # return the original state
@@ -1285,15 +1290,14 @@ class Sequence(CompositeBase):
         else:
             # first get all the possible states
             all_possible_states = self._enumerate_all_states_for_the_sequence(state)
-            # then choose among the possible states with uniform probability
-            # then choose a random state
+            # then choose a random state among the possible states with uniform probability
             chosen_state = all_possible_states[
                 np.random.choice(len(all_possible_states))
             ]
             return chosen_state
 
     def _enumerate_all_states_for_the_sequence(self, state):
-        """DONE NOT TESTED
+        """DONE and TESTED
         input: state dict
         output: list of states
         """
@@ -1306,20 +1310,25 @@ class Sequence(CompositeBase):
         if n_indices < 2:
             return [state]
         all_representations = [[0, 1], [1, 0]]  # initialize
+        # all_representations = [[0, 1]]  # initialize
         new_representations = []
-        for i in range(len(n_indices)):
+        for i in range(2,n_indices+1):
             for j in range(len(all_representations)):
                 # append infront
-                new_representations.append([n_indices[i]] + all_representations[j])
+                new_representations.append([indices[i]] + all_representations[j])
                 # append at the back
-                new_representations.append(all_representations[j] + [n_indices[i]])
+                new_representations.append(all_representations[j] + [indices[i]])
             all_representations = new_representations
         new_state_representations = []
         # then form the state based on the new_representaions
         for k in range(len(new_representations)):
-            new_state = state.copy()
-            for ind in range(len(n_indices)):
-                new_state[new_representations[k][ind]] = state.copy()["_indices"][ind]
+            new_state = copy(state)
+            new_envs_unique = copy(state)["_envs_unique"]
+            old_indices = copy(state)["_indices"]
+            for ind in range(n_indices+1):
+                new_state[new_representations[k][ind]] = copy(state)[old_indices[ind]] # this is not yet correct
+                new_envs_unique[new_representations[k][ind]] = copy(state)["_envs_unique"][old_indices[ind]] # this is correct
             new_state["_indices"] = new_representations[k]
+            new_state["_envs_unique"] = new_envs_unique
             new_state_representations.append(new_state)
         return new_state_representations
