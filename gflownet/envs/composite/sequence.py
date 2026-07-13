@@ -1338,11 +1338,10 @@ class Sequence(CompositeBase):
         # representations are used with the condition that the next number can only be inserted in front or at the end
         # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
         indices = state["_indices"]
-        n_indices = len(indices)
+        n_indices = max(indices)
         # enumerate all the possible index order
         if n_indices < 2:
             return [state]
-        # first, check if the substates are the same or not
         all_representations = [[0, 1], [1, 0]]  # initialize
         # all_representations = [[0, 1]]  # initialize
         new_representations = []
