@@ -782,9 +782,10 @@ class Sequence(CompositeBase):
 
             # here insert other variations of the 1-step-backward-state that represents the same sequence
             # merge states indicate if the states that can represent the same sequence will be enumerated
-            # self.state = self._get_random_equivalent_sequence(
-            #     self.state, self.merge_states
-            # )
+            if self.merge_states:
+                self.state = self._get_random_equivalent_sequence(
+                    self.state, self.merge_states
+                )
             return self.state, action, True
 
         # Case 2: Sub-environment action
@@ -962,6 +963,21 @@ class Sequence(CompositeBase):
                 actions.append(actions_meta.pop(0))
         return actions
 
+    def _get_logprobs_of_same_sequences(
+        self,
+        states: List,
+    ) -> TensorType["n_set_states"]:
+        """
+        Follows the implementation of BaseSet
+        """
+        logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
+        for idx, state in enumerate(states):
+            n_unique = len(self._enumerate_all_states_for_the_sequence(state))
+            logprobs[idx] = -torch.log(
+                tfloat(n_unique, device=self.device, float_type=self.float)
+            )
+        return logprobs
+
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -987,6 +1003,23 @@ class Sequence(CompositeBase):
                 None,
                 is_backward,
             )
+
+            # here we also recompute probabilities for states representing equivalent sequences
+            if is_backward and self.merge_states:
+                eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+                # filter out eos actions
+                is_eos_state = torch.zeros_like(is_meta)
+                is_eos_state[is_meta] = torch.any(actions[is_meta] != eos_tensor, dim=1)
+                if torch.any(is_eos_state):
+                    # remove the eos actions
+                    states_stochastic = [
+                        s for s, f in zip(states_from, is_eos_state) if f
+                    ]
+                    # log(n) correction for multiple states of the parent of the same sequences
+                    # not sure yet if it is the parent that should be considered
+                    logprobs[is_eos_state] += self._get_logprobs_of_same_sequences(
+                        states_stochastic
+                    )
 
         # Extract unique env idx for states active at sub-env level
         indices_active = torch.where(mask[is_active, : self._prefix_dim])[1]
@@ -1305,10 +1338,11 @@ class Sequence(CompositeBase):
         # representations are used with the condition that the next number can only be inserted in front or at the end
         # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
         indices = state["_indices"]
-        n_indices = max(indices)
+        n_indices = len(indices)
         # enumerate all the possible index order
         if n_indices < 2:
             return [state]
+        # first, check if the substates are the same or not
         all_representations = [[0, 1], [1, 0]]  # initialize
         # all_representations = [[0, 1]]  # initialize
         new_representations = []
