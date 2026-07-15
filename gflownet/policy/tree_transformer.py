@@ -16,8 +16,7 @@ idle flag is injected.
 
 Conceptually inspired by the Set Transformer policy of the legacy DT-GFN
 codebase, but implemented with standard PyTorch Transformer modules and
-position-aware, since in the heap layout a node's index encodes its identity
-and ancestry (permutation invariance would be harmful here).
+position-aware encoding.
 """
 
 from typing import Optional
@@ -28,6 +27,7 @@ from torch import nn
 from gflownet.policy.base import Policy
 
 
+# Helper function for positional embeddings (return 1D torch tensor of len max_nodes)
 def _heap_depths(max_nodes: int) -> torch.Tensor:
     """Depth of each node in the heap layout: depth(k) = floor(log2(k + 1))."""
     return torch.tensor(
@@ -56,11 +56,11 @@ class TreeTransformerTrunk(nn.Module):
         self,
         per_node_dim: int,
         max_nodes: int,
-        d_model: int = 128,
-        n_layers: int = 3,
-        n_heads: int = 4,
-        ff_mult: int = 4,
-        dropout: float = 0.0,
+        d_model: int,
+        n_layers: int,
+        n_heads: int,
+        ff_mult: int,
+        dropout: float,
     ):
         super().__init__()
 
@@ -105,7 +105,7 @@ class TreeTransformerTrunk(nn.Module):
             CLS representation of each state.
         """
         batch_size = x.shape[0]
-        idle_flag = x[:, :1]
+        idle_flag = x[:, :1]  # For whole batch, take the first element
         tokens = x[:, 1:].reshape(batch_size, self.max_nodes, self.per_node_dim)
 
         h = (
@@ -119,13 +119,15 @@ class TreeTransformerTrunk(nn.Module):
         ).unsqueeze(1)
         h = torch.cat([cls, h], dim=1)
         h = self.encoder(h)
-        return h[:, 0]
+        return h[:, 0]  # For whole batch, take cls token (at position 0)
 
 
 class TreeTransformerModel(nn.Module):
     """
-    Trunk plus a linear head mapping the CLS representation to the flat
-    policy output vector expected by the composite Tree environment.
+    Trunk + linear head. Maps the CLS representation to the output_dim
+    expected by the composite Tree environment. Separated from TreeTransformerTrunk
+    to allow weight sharing of the trunk by the forward and backward policy (if wanted)
+    by just having different linear heads on top of the shared trunk.
     """
 
     def __init__(self, trunk: TreeTransformerTrunk, output_dim: int):
@@ -134,7 +136,7 @@ class TreeTransformerModel(nn.Module):
         self.head = nn.Linear(trunk.d_model, output_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.shape[0] == 0:
+        if x.shape[0] == 0:  # Handle empty batches
             return torch.zeros(
                 (0, self.head.out_features), dtype=x.dtype, device=x.device
             )
@@ -143,7 +145,10 @@ class TreeTransformerModel(nn.Module):
 
 class TreeTransformerPolicy(Policy):
     """
-    Policy wrapper using TreeTransformerModel as the policy model.
+    Adapter between the TreeTransformerModel policy model and the GFlowNet framework. Handles
+    loading hyperparams from the .yaml config, loading input/output sizes
+    from the gflownet-env etc. And exposes the interface the gflownet trainer
+    expects: policy.model, policy.is_model and policy(states).
 
     If ``shared_weights`` is True (only valid for the backward policy, which
     receives the forward policy as ``base``), the trunk is shared with the
@@ -171,8 +176,6 @@ class TreeTransformerPolicy(Policy):
     def parse_config(self, config):
         if config is None:
             config = {}
-        self.checkpoint = config.get("checkpoint", None)
-        self.reload_ckpt = config.get("reload_ckpt", False)
         self.shared_weights = config.get("shared_weights", False)
         self.d_model = config.get("d_model", 128)
         self.n_layers = config.get("n_layers", 3)
@@ -199,6 +202,26 @@ class TreeTransformerPolicy(Policy):
             )
         self.model = TreeTransformerModel(trunk, self.output_dim).to(
             device=self.device, dtype=self.float
+        )
+
+    def n_parameters(self, trainable_only: bool = True) -> int:
+        """
+        Returns the number of parameters of the policy model.
+
+        Note that if the trunk is shared with the forward policy
+        (``shared_weights: True``), its parameters are included in the count
+        of both policies, so summing the counts of the forward and backward
+        policies would count the trunk twice.
+
+        Parameters
+        ----------
+        trainable_only : bool
+            If True (default), count only parameters with requires_grad=True.
+        """
+        return sum(
+            p.numel()
+            for p in self.model.parameters()
+            if p.requires_grad or not trainable_only
         )
 
     def __call__(self, states):
