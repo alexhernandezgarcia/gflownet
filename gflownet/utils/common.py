@@ -298,7 +298,6 @@ def gflownet_from_config(config, env=None):
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
 
-    import ipdb; ipdb.set_trace()
     forward_policy = instantiate(
         forward_config,
         env=env,
