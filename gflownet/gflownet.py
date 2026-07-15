@@ -191,12 +191,11 @@ class GFlowNetAgent:
 
         # Optimizer
         if self.forward_policy.is_model:
-            self.target = copy.deepcopy(self.forward_policy.model)
             self.opt, self.lr_scheduler = make_opt(
                 self.parameters(), self.logZ, optimizer
             )
         else:
-            self.opt, self.lr_scheduler, self.target = None, None, None
+            self.opt, self.lr_scheduler = None, None
 
         # Evaluator
         self.evaluator = evaluator
