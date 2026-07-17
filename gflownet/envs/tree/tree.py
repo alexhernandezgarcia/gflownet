@@ -53,8 +53,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.base import CompositeBase
-from gflownet.envs.tree.discrete_choice_node import \
-    DecisionTreeNodeDiscreteChoice
+from gflownet.envs.tree.discrete_choice_node import DecisionTreeNodeDiscreteChoice
 from gflownet.envs.tree.discrete_node import DecisionTreeNodeDiscrete
 from gflownet.envs.tree.node import DecisionTreeNode
 from gflownet.utils.common import copy, tfloat
