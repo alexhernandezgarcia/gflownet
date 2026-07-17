@@ -1542,6 +1542,15 @@ class ContinuousCube(CubeBase):
             else:
                 state[dim] += incr
 
+        # TODO: Remove, because added by timarni for the composite tree env
+        # Clamp floating-point rounding errors (e.g. 1.0000000003 → 1.0)
+        _FP_TOL = 1e-6
+        for dim in range(len(action) - 1):  # iterate over actual dimensions
+            if 1.0 < state[dim] <= 1.0 + _FP_TOL:
+                state[dim] = 1.0
+            elif -_FP_TOL <= state[dim] < 0.0:
+                state[dim] = 0.0
+
         # If state is out of bounds, return invalid
         effective_dims = self._get_effective_dims(state)
         if any([s > 1.0 for s in effective_dims]) or any(
