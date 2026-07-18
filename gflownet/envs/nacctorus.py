@@ -1,0 +1,432 @@
+from torch.distributions import Bernoulli
+
+from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.utils.common import tfloat
+from gflownet.utils.metrics import angles_allclose
+
+"""
+Myabe bettter to inherit from ctorus to avoid copypasting the code
+
+Hpwever, diffusion will not be possible (it needs fixed number of steps)
+"""
+
+
+class NonAcyclicContinuousTorus(ContinuousTorus):
+    r"""
+    Non-acyclic continuous hyper-torus environment.
+
+    The action space consists of the increment of the angle $\theta_i$ of each
+    dimension $i$. Increments of any magnitude and any sign are allowed
+
+    Trajectories can have various lengths and the time step is NOT included in
+    the state. This can create cycles.
+
+    States are represented by the angles (in radians and within
+    $[0, 2\pi]$) for all dimensions.
+
+    The increments of the angles are sampled from a mixture of von Mises distributions.
+
+    """
+
+    def __init__(
+        self,
+        n_dim: int = 2,
+        n_comp: int = 1,
+        policy_encoding_dim_per_angle: int = None,
+        fixed_distr_params: dict = None,
+        random_distr_params: dict = None,
+        vonmises_min_concentration: float = 1e-3,
+        exp_vonmises_concentration: bool = True,
+        state_space_atol=1e-6,
+        start_uniform=False,
+        **kwargs,
+    ):
+        """
+        Initializes a NonAcyclicContinuousTorus environent.
+
+        Parameters
+        ----------
+        n_dim : int
+            Dimensionality of the torus
+        n_comp : int
+           Number of components in the mixture of distributions used to
+           sample angle increments.
+        policy_encoding_dim_per_angle : int
+            Dimensionality of the policy encodings of the angles.
+        fixed_distr_params : dict
+            Dictionary of parameters of the Bernoulli and the von Mises distributions
+            that defines the fixed policy of the environment. It must contain the following keys
+            with float values: ``vonmises_mean``, ``vonmises_concentration``,
+            ``bernoulli_logit``.
+        random_distr_params : dict
+            Dictionary of parameters of the Bernoulli and the von Mises distributions
+            that defines the random policy of the environment. It must contain the following keys
+            with float values: ``vonmises_mean``, ``vonmises_concentration``,
+            ``bernoulli_logit``.
+        vonmises_min_concentration : float
+            Minimum value allowed for the concentration parameter of the von Mises
+            distributions.
+        exp_vonmises_concentration: bool
+            A flag indicating whether to exponentiate concentrations for von Mises distribution.
+            Default is True
+        state_space_atol: float
+            Tolerance for comparing states similarity.
+        start_uniform : bool
+            If True, the first step of the trajectory is sampled from the uniform distribution.
+        """
+        distr_type = "von_mises"
+        if fixed_distr_params is None:
+            fixed_distr_params = {
+                "vonmises_mean": 0.0,
+                "vonmises_concentration": 0.5,
+                "bernoulli_logit": 0.0,  # prob to sample 1 is 0.5
+            }
+        if random_distr_params is None:
+            random_distr_params = {
+                "vonmises_mean": 0.0,
+                "vonmises_concentration": 0.001,
+                "bernoulli_logit": 0.0,  # prob to sample 1 is 0.5
+            }
+        super().__init__(
+            distr_type=distr_type,
+            n_dim=n_dim,
+            length_traj=1,  # ? maybe np.inf?
+            n_comp=n_comp,
+            policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
+            vonmises_min_concentration=vonmises_min_concentration,
+            exp_vonmises_concentration=exp_vonmises_concentration,
+            state_space_atol=state_space_atol,
+            start_uniform=start_uniform,
+            **kwargs,
+        )
+
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
+        """
+        The action space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements: the first one identifies if continious inclement
+        is invalid, the second one identifies if EOS is invalid. There're three cases
+
+        - If done is True, then the mask is [True, True], everything is invalid.
+        - If state is source, then only continious action is valid and EOS is invalid, i.e.
+          the mask is [False, True]
+        - Otherwise, both the continuous action and EOS are valid and the mask is [False, False]
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if done:
+            return [True] * 2
+        elif self.is_source(state):
+            return [False, True]
+        else:
+            return [False] * 2
+
+    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
+        """
+        The action is space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements - to match the mask of forward actions - but only
+        one is needed for backward actions, thus both elements take the same value,
+        according to the following:
+
+        - if done is True, then the mask is True, meaning that only EOS action is valid
+        - othervise the mask is False, meaning that EOS is invalid while a continious
+        increment or a back-to-source actions are valid.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if done:
+            return [True, True]
+        else:
+            return [False, False]
+
+    # TODO: is this method ever used?
+    def get_valid_actions(
+        self,
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        As a continuous environment, the returned actions are "representatives", that
+        is the actions represented in the action space.
+
+        Parameters
+        ----------
+        mask : list (optional)
+            The mask of a state. If None, it is computed in place.
+        state : list (optional)
+            A state in GFlowNet format. If None, self.state is used.
+        done : bool (optional)
+            Whether the trajectory is done. If None, self.done is used.
+        backward : bool
+            True if the transtion is backwards; False if forward.
+
+        Returns
+        -------
+        list
+            The list of representatives of the valid actions.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+
+        if backward:
+            if mask[0]:
+                return [self.eos]
+            else:
+                return [self.representative_action]
+        else:
+            actions = []
+            if not mask[0]:
+                actions.append(self.representative_action)
+            if not mask[1]:
+                actions.append(self.eos)
+            return actions
+
+    # def _extract_distribution_parameters(
+    #     self,
+    #     policy_outputs: TensorType["n_states", "policy_output_dim"],
+    #     timesteps: Optional[TensorType["n_states"]] = None,
+    # ):
+    #     """
+    #     Helper function to extract the parameters of the distributions from the
+    #     policy_output tensor.
+
+    #     Parameters
+    #     ----------
+    #     policy_outputs : tensor["n_states", "policy_output_dim"]
+    #         The output of the GFlowNet policy model.
+
+    #     Returns
+    #     -------
+    #     mix_logits : tensor["n_states", "n_dim", "n_comp"]
+    #         The logits of the mixture components.
+
+    #     concentrations : tensor["n_states", "n_dim", "n_comp"]
+    #         The concentrations of the von Mises distributions.
+
+    #     locations : tensor["n_states", "n_dim", "n_comp"]
+    #         The locations of the von Mises distributions
+
+    #     end_logit : tensor["n_states", 1]
+    #         The logit of the probability to end the trajecotry (either
+    #         by sampling EOS or back-to-source action)
+    #     """
+    #     end_logits = policy_outputs[:, -1].reshape(-1, 1)
+    #     params = super()._extract_distribution_parameters(policy_outputs{:, :-1})
+    #     params.update({
+    #         "end_logits": end_logits,
+    #     })
+    #     return params
+
+    def get_end_logits(self, policy_outputs):
+        return policy_outputs[:, :-1]
+
+    def get_end_distr(
+        self,
+        end_logits: TensorType["n_states"],
+    ):
+        distr_end = Bernoulli(logits=end_logits)
+        return distr_end
+
+    # TODO: test this
+    def sample_actions_batch(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        random_action_prob: Optional[float] = 0.0,
+        temperature_logits: Optional[float] = 1.0,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs. First,
+        a discrete action is sampled determining whether the trajectory will be terminated
+        (from a Bernoulli distribution).
+        Then, if it is not terminated, the angle increments are sampled from a mixture
+        of Von Mises distributions.
+
+        A distinction between forward and backward actions is made and specified by the
+        argument is_backward, in order to account for the following specifics:
+
+        Forward:
+
+        - If state is source, EOS is not possible, only continuous increment is valid.
+        - The termination action is EOS
+
+        Backward:
+
+        - if done is True, only EOS is valid
+        - Te termination action is back-to-source
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+        mask : tensor
+            The mask containing information about special cases.
+        states_from : tensor
+            The states originating the actions, in GFlowNet format.
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
+        random_action_prob : float, optional
+            The probability of sampling a random action.
+        temperature_logits : float, optional
+            A scalar by which the model outputs are divided to temper the sampling
+            distribution.
+        """
+        # Sample end of the trajectory (EOS or back-to-source) where it is allowed by mask
+        if not backward:
+            end_is_possible = ~mask[:, 1]
+        else:
+            end_is_possible = torch.all(~mask, dim=1)
+
+        end_logits_sampling = (
+            get_end_logits(policy_outputs[end_is_possible]).clone().detach()
+        )
+        end_logits_sampling = self.randomize_and_temper_sampling_distribution(
+            end_logits_sampling, random_action_prob, temperature_logits
+        )
+        disr_end = get_end_distr(end_logits_sampling)
+        end_is_sampled = disr_end.sample()
+
+        if not backward:
+            mask_incremet_invalid = mask[:, 0]
+            # invalidate increments where eos is sampled
+            mask_incremet_invalid[end_is_possible] = end_is_sampled
+            # broadcast the mask to match the format of the ctorus env mask
+            mask_super = torch.stack(
+                [mask_incremet_invalid, mask_incremet_invalid], dim=1
+            )
+        else:
+            n_states = policy_outputs.shape[0]
+            do_bts = torch.full((n_states,), False, device=self.device)
+            do_bts[end_is_possible] = end_is_sampled
+
+            do_eos = torch.all(mask, dim=1)
+            mask_super = torch.stack([do_bts, do_eos], dim=1)
+
+        # Sample increments using the parent method
+        actions = super().sample_actions_batch(
+            policy_outputs=policy_outputs[:, :-1],
+            mask=mask_super,
+            states_from=states_from,
+            is_backward=is_backward,
+            random_action_prob=random_action_prob,
+            temperature_logits=temperature_logits,
+        )
+        return actions
+
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: Union[List, TensorType["n_states", "action_dim"]],
+        mask: TensorType["n_states", "mask_dim"],
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+
+        Parameters
+        ----------
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+        mask : tensor
+            The mask containing information special cases.
+        actions : list or tensor
+            The actions (angle increments) from each state in the batch for which to
+            compute the log probability.
+        states_from : list
+            The states originating the actions, in GFlowNet format. Used to determine
+            the log probability of the first step if start from uniform.
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
+        """
+        n_states = policy_outputs.shape[0]
+        logprobs = torch.zeros(
+            n_states, self.n_dim, dtype=self.float, device=self.device
+        )
+
+        if not backward:
+            end_is_possible = ~mask[:, 1]
+        else:
+            end_is_possible = torch.all(~mask, dim=1)
+
+        end_is_sampled = torch.zeros_like(end_is_possible)
+
+        if torch.any(end_is_possible):
+            end_logits_sampling = get_end_logits(policy_outputs[end_is_possible])
+            disr_end = get_end_distr(end_logits_sampling)
+            actions = tfloat(actions, float_type=self.float, device=self.device)
+            if not backward:
+                eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+                end_is_sampled = torch.all(
+                    actions[end_is_possible] == eos_tensor, dim=1
+                )
+            else:
+                source_angles = tfloat(
+                    self.source, float_type=self.float, device=self.device
+                )
+                states_from_angles = tfloat(
+                    states_from, float_type=self.float, device=self.device
+                )[end_is_possible]
+                expected_actions_bts = (states_from_angles - source_angles) % (
+                    2 * torch.pi
+                )
+                end_is_sampled = angles_allclose(
+                    expected_actions_bts,
+                    actions[end_is_possible],
+                    atol=self.state_space_atol,
+                )
+            logprobs[end_is_possible] = disr_end.log_prob(end_is_sampled)
+
+        if not backward:
+            mask_incremet_invalid = mask[:, 0]
+            # invalidate increments where eos is sampled
+            mask_incremet_invalid[end_is_possible] = end_is_sampled
+            # broadcast the mask to match the format of the ctorus env mask
+            mask_super = torch.stack(
+                [mask_incremet_invalid, mask_incremet_invalid], dim=1
+            )
+        else:
+            do_bts = torch.full((n_states,), False, device=self.device)
+            do_bts[end_is_possible] = end_is_sampled
+
+            do_eos = torch.all(mask, dim=1)
+            mask_super = torch.stack([do_bts, do_eos], dim=1)
+
+        logprobs_increments = super().get_logprobs(
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask_super,
+            states_from=states_from,
+            is_backward=is_backward,
+        )
+        return logprobs + logprobs_increments
+
+    # TODO: move it to ctorus later
+    # this method is very important as it is usd to stop bkw sampling
+    def equal(self, state_x, state_y):
+        return angles_allclose(state_x, state_y, atol=self.state_space_atol)
+
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+        pass
