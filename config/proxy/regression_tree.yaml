@@ -1,0 +1,39 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.regression_tree.NormalGammaTreeProxy
+
+# The proxy returns log-posterior values, so we exponentiate to get positive rewards.
+# reward = alpha * exp(beta * log_posterior)
+# beta < 1 acts as a temperature: p(x) ∝ posterior^beta. This prevents underflow
+# when the log-posterior is very negative.
+reward_function: exponential
+reward_function_kwargs:
+  beta: 0.1
+  alpha: 1.0
+
+# Structure prior type: "node_count", "exponential", "bcart", or "none"
+prior_type: node_count
+
+# Normal-Inverse-Gamma prior over the leaf parameters (mu, sigma^2):
+#   mu | sigma^2 ~ N(mu_0, sigma^2 / kappa_0)
+#   sigma^2 ~ InvGamma(alpha_0, beta_0)
+# null values are resolved from the training targets at setup:
+#   mu_0 -> mean(y_train)
+#   beta_0 -> (alpha_0 - 1) * var(y_train), so that E[sigma^2] = var(y_train)
+mu_0: null
+kappa_0: 0.1
+alpha_0: 2.0
+beta_0: null
+
+# Prior-specific parameters
+# - beta: coefficient for "exponential" prior (log_prior = -beta * n_internal_nodes)
+beta: 1.0
+# - sigma: base split probability for "bcart" prior
+sigma: 0.95
+# - phi: depth decay exponent for "bcart" prior (p_split = sigma * (1+depth)^(-phi))
+phi: 2.0
+
+# If True, divide the marginal log-likelihood by N_train (average per-sample
+# log-likelihood), making reward_function_kwargs.beta invariant to dataset size.
+normalize_likelihood: False
