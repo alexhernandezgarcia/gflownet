@@ -4,6 +4,7 @@ Classes to represent continuous hyper-torus environments.
 
 import itertools
 import re
+import warnings
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
@@ -16,6 +17,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tfloat, torch2np
+from gflownet.utils.metrics import angles_allclose
 
 
 class ContinuousTorus(GFlowNetEnv):
@@ -32,7 +34,9 @@ class ContinuousTorus(GFlowNetEnv):
     States are represented by the concatenation of the angles (in radians and within
     $[0, 2\pi]$) for all dimensions with the time step or action number.
 
-    The increments of the angles are sampled from a mixture of von Mises distributions.
+    The increments of the angles are sampled from a mixture of von Mises distributions
+    (distr_type == "von_mises") or from a single Gaussian distribution (distr_type ==
+    "diffusion").
 
     Attributes
     ----------
@@ -131,15 +135,22 @@ class ContinuousTorus(GFlowNetEnv):
             ), "Diffusion distribution only supports 1 component (both forward and backward policies are parametrized as **unimodal** wrapped normal distributions), with a learned mean and a fixed variance"
             self.sigma_max = np.pi
             self.sigma_min = 0.01 * np.pi
-            fixed_distr_params = {"means": 0.0, "stds": 0.5}
-            random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
+            if fixed_distr_params is None:
+                fixed_distr_params = {"means": 0.0, "stds": 0.5}
+            if random_distr_params is None:
+                random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
         elif self.distr_type == "von_mises":
             self.n_params_per_dim = 3
-            fixed_distr_params = {"vonmises_mean": 0.0, "vonmises_concentration": 0.5}
-            random_distr_params = {
-                "vonmises_mean": 0.0,
-                "vonmises_concentration": 0.001,
-            }
+            if fixed_distr_params is None:
+                fixed_distr_params = {
+                    "vonmises_mean": 0.0,
+                    "vonmises_concentration": 0.5,
+                }
+            if random_distr_params is None:
+                random_distr_params = {
+                    "vonmises_mean": 0.0,
+                    "vonmises_concentration": 0.001,
+                }
             self.vonmises_min_concentration = vonmises_min_concentration
             self.exp_vonmises_concentration = exp_vonmises_concentration
         else:
@@ -393,7 +404,6 @@ class ContinuousTorus(GFlowNetEnv):
             distr_angles = MixtureSameFamily(mix, vonmises)
 
         elif self.distr_type == "diffusion":
-
             stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
             assert self.n_comp == 1
             if is_backward == False:
@@ -409,31 +419,12 @@ class ContinuousTorus(GFlowNetEnv):
                 )  # For diffusion models, the backwards policy is fixed and not learned. Here, we force the backwards variance-exploding policy, i.e. x_{t-1} = x_t + N(0, std_t^2)
             distr_angles = WrappedNormal(means, stds)
 
-        elif self.distr_type == "uniform":
-            distr_angles = Uniform(
-                torch.zeros(
-                    len(policy_outputs),
-                    self.n_dim,
-                    dtype=self.float,
-                    device=self.device,
-                ),
-                2
-                * torch.pi
-                * torch.ones(
-                    len(policy_outputs),
-                    self.n_dim,
-                    dtype=self.float,
-                    device=self.device,
-                ),
-            )
-
-        # assert that distr_angles has the methods logpprob and sample()
         return distr_angles
 
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
@@ -542,7 +533,7 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: Union[List, TensorType["n_states", "action_dim"]],
-        mask: TensorType["n_states", "1"],
+        mask: TensorType["n_states", "mask_dim"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -622,7 +613,7 @@ class ContinuousTorus(GFlowNetEnv):
                 )[do_bts, : self.n_dim]
                 actions_bts = (states_from_angles - source_angles) % (2 * torch.pi)
                 actions_bts_input = actions[do_bts] % (2 * torch.pi)
-                mask_inf = ~torch.isclose(actions_bts_input, actions_bts, atol=1e-6)
+                mask_inf = ~self.isclose(actions_bts_input, actions_bts, atol=1e-6)
                 if torch.any(mask_inf):
                     # weird, but needed to assign walues to a tensor using 2 masks
                     logprobs_tmp = logprobs[do_bts]
@@ -858,25 +849,32 @@ class ContinuousTorus(GFlowNetEnv):
             stds = g * np.sqrt(dt)
             return stds
 
-    def isclose(self, first_state: List, second_state: List) -> bool:
+    def isclose(
+        self,
+        first_state: Union[List, TensorType["n_states", "state_dim"]],
+        second_state: Union[List, TensorType["n_states", "state_dim"]],
+        atol: Optional[float] = None,
+    ) -> Union[bool, List, TensorType["n_states",]]:
         """
-        Check if two states are close in the state space.
-        States are in environment format.
+        Check if two states or batches of states are close in the state space.
 
         Parameters
         ----------
         first_state : list
-            First state to compare
+            First (batch of) state(s) to compare
         second_state : list
-            Second state to compare
+            Second (batch of) state(s) to compare
 
         Returns
         -------
-        bool
-            True if the two states are close, False otherwise
+        bool or iterable
+            True if the two states are close, False otherwise.
+            If the input is a batch of states, the output is a sequence of bools
         """
+        if atol is None:
+            atol = self.state_space_atol
         return angles_allclose(
-            first_state[:-1], second_state[:-1], atol=self.state_space_atol
+            first_state[: self.n_dim], second_state[: self.n_dim], atol=atol
         )
 
     def states2proxy(
