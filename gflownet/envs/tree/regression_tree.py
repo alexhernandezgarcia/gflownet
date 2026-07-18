@@ -148,9 +148,7 @@ class RegressionTree(Tree):
     # Normal-Inverse-Gamma leaf model
     # =========================================================================
 
-    def _leaf_posterior(
-        self, y_leaf: npt.NDArray
-    ) -> Tuple[float, float, float, float]:
+    def _leaf_posterior(self, y_leaf: npt.NDArray) -> Tuple[float, float, float, float]:
         """
         Computes the NIG posterior parameters at a leaf given the targets
         ``y_leaf`` of the training samples that reach it.
