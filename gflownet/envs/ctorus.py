@@ -529,21 +529,28 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        return tfloat(states, device=self.device, float_type=self.float)[:, :-1]
+        return tfloat(states, device=self.device, float_type=self.float)[
+            :, : self.n_dim
+        ]
 
     def states2policy(
-        self, states: Union[List, TensorType["batch", "state_dim"]]
+        self,
+        states: Union[List, TensorType["batch", "state_dim"]],
+        encode_step=True,
     ) -> TensorType["batch", "policy_input_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: if
         policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
         trigonometric components.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list or tensor
             A batch of states in environment format, either as a list of states or as a
             single tensor.
+        encode_step: bool
+            If True (default), information about the step will be encoded into the
+            output states.
 
         Returns
         -------
@@ -555,19 +562,20 @@ class ContinuousTorus(GFlowNetEnv):
             or self.policy_encoding_dim_per_angle < 2
         ):
             return states
-        step = states[:, -1]
+        if encode_step:
+            step = states[:, -1]
         code_half_size = self.policy_encoding_dim_per_angle // 2
-        int_coeff = (
-            torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
-        )
+        int_coeff = torch.arange(1, code_half_size + 1).repeat(self.n_dim).to(states)
         encoding = (
-            torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
+            torch.repeat_interleave(
+                states[:, : self.n_dim], repeats=code_half_size, dim=1
+            )
             * int_coeff
         )
-        return torch.cat(
-            [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
-            dim=1,
-        )
+        tensors = [torch.cos(encoding), torch.sin(encoding)]
+        if encode_step:
+            tensors.append(torch.unsqueeze(step, 1))
+        return torch.cat(tensors, dim=1)
 
     def state2readable(self, state: List) -> str:
         """
