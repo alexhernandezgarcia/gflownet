@@ -656,19 +656,23 @@ class ContinuousTorus(GFlowNetEnv):
         )
         # Sample angle increments
         if torch.any(do_sample):
-            timesteps = tfloat(
-                [x[-1] for x in states_from],
-                float_type=self.float,
-                device=self.device,
-            )
+            if self.distr_type == "diffusion":
+                timesteps = tfloat(
+                    [x[-1] for x in states_from],
+                    float_type=self.float,
+                    device=self.device,
+                )
+
             logits_sampling = policy_outputs.clone().detach()
             logits_sampling = self.randomize_and_temper_sampling_distribution(
                 logits_sampling, random_action_prob, temperature_logits
             )
             distr_angles = self.get_distr(
                 logits_sampling[do_sample],
-                timesteps[do_sample],
-                is_backward,
+                timesteps=(
+                    timesteps[do_sample] if self.distr_type == "diffusion" else None
+                ),
+                is_backward=is_backward,
             )
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
