@@ -279,6 +279,84 @@ class TestActionIsValid:
         assert env.action_is_valid(action_incr, backward=True)
 
 
+# --------------------------------------------------------------------------- #
+# sample_actions_batch
+# --------------------------------------------------------------------------- #
+
+
+class TestSampleActionsBatch:
+    def test_fist_action_increment_forward(self, env):
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()])
+        states_from = [env.state]
+        actions = env.sample_actions_batch(
+            policy_outputs=policy_outputs,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        assert env.eos != actions[0]
+
+    def test_later_actions_eos_or_increment_forward(self, env):
+        env.state = [0.1, 0.2]
+        env.done = False
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()])
+        states_from = [env.state]
+        encountered_eos = False
+        encountered_increment = False
+        for _ in range(50):
+            actions = env.sample_actions_batch(
+                policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                is_backward=False,
+            )
+            if env.eos != actions[0]:
+                encountered_increment = True
+            else:
+                encountered_eos = True
+        assert encountered_eos and encountered_increment
+
+    def test_first_action_eos_backward(self, env):
+        env.state = [0.1, 0.2]
+        env.done = True
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()])
+        states_from = [env.state]
+        actions = env.sample_actions_batch(
+            policy_outputs=policy_outputs,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        assert env.eos == actions[0]
+
+    def test_later_actions_only_increment_backward_with_back_to_source(self, env):
+        env.state = [0.1, 0.2]
+        env.done = False
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()])
+        states_from = [env.state]
+        encountered_eos = False
+        encountered_increment = False
+        encountered_bts = False
+        for _ in range(50):
+            actions = env.sample_actions_batch(
+                policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                is_backward=True,
+            )
+            if env.eos != actions[0]:
+                encountered_increment = True
+                if env.isclose(env.state, actions[0]):
+                    encountered_bts = True
+            else:
+                encountered_eos = True
+        assert not encountered_eos and encountered_increment and encountered_bts
+
+
 if __name__ == "__main__":
     import sys
 
