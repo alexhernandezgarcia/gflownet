@@ -1,14 +1,16 @@
 import numpy as np
+import torch
+
 from torch.distributions import Bernoulli
+from typing import List, Optional, Tuple, Union
+from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.common import tfloat
 from gflownet.utils.metrics import angles_allclose
 
 """
-Myabe bettter to inherit from ctorus to avoid copypasting the code
-
-Hpwever, diffusion will not be possible (it needs fixed number of steps)
+TBD
 """
 
 
@@ -26,7 +28,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
     $[0, 2\pi]$) for all dimensions.
 
     The increments of the angles are sampled from a mixture of von Mises distributions.
-
     """
 
     def __init__(
@@ -256,7 +257,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             distribution.
         """
         # Sample end of the trajectory (EOS or back-to-source) where it is allowed by mask
-        if not backward:
+        if not is_backward:
             end_is_possible = ~mask[:, 1]
         else:
             end_is_possible = torch.all(~mask, dim=1)
@@ -270,7 +271,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         disr_end = get_end_distr(end_logits_sampling)
         end_is_sampled = disr_end.sample()
 
-        if not backward:
+        if not is_backward:
             mask_incremet_invalid = mask[:, 0]
             # invalidate increments where eos is sampled
             mask_incremet_invalid[end_is_possible] = end_is_sampled
@@ -329,7 +330,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             n_states, self.n_dim, dtype=self.float, device=self.device
         )
 
-        if not backward:
+        if not is_backward:
             end_is_possible = ~mask[:, 1]
         else:
             end_is_possible = torch.all(~mask, dim=1)
@@ -340,7 +341,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             end_logits_sampling = get_end_logits(policy_outputs[end_is_possible])
             disr_end = get_end_distr(end_logits_sampling)
             actions = tfloat(actions, float_type=self.float, device=self.device)
-            if not backward:
+            if not is_backward:
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
                 end_is_sampled = torch.all(
                     actions[end_is_possible] == eos_tensor, dim=1
@@ -480,7 +481,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             action, skip_mask_check, backward=False
         )
         if valid:
-            self._step(acton, backward=False)
+            self._step(action, backward=False)
         return self.state, action, valid
 
     def step_backwards(
@@ -520,7 +521,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             if self.done:
                 self.done = False
             else:
-                self._step(acton, backward=True)
+                self._step(action, backward=True)
         return self.state, action, valid
 
     def _get_max_trajectory_length(self) -> int:
@@ -575,10 +576,10 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             A list of sampled terminating states.
         """
         samples = super().get_grid_terminating_states(n_states, n_dim)
-        # remove the last (step) element from the states
-        for state in states:
+        # remove the last (step) element from the samples
+        for state in samples:
             state.pop()
-        return states
+        return samples
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None, n_dim=None
@@ -603,7 +604,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             A list of sampled terminating states.
         """
         samples = super().get_uniform_terminating_states(n_states, n_dim)
-        # remove the last (step) element from the states
-        for state in states:
+        # remove the last (step) element from the samples
+        for state in samples:
             state.pop()
-        return states
+        return samples
