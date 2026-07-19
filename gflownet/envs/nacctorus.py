@@ -6,7 +6,7 @@ from torch.distributions import Bernoulli
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
-from gflownet.utils.common import tfloat
+from gflownet.utils.common import tbool, tfloat
 from gflownet.utils.metrics import angles_allclose
 
 """
@@ -268,8 +268,8 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
-        states_from: Optional[List] = None,
+        mask: TensorType["n_states", "mask_dim"],
+        states_from: List,
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
@@ -300,7 +300,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             The output of the GFlowNet policy model.
         mask : tensor
             The mask containing information about special cases.
-        states_from : tensor
+        states_from : list
             The states originating the actions, in GFlowNet format.
         is_backward : bool
             True if the actions are backward, False if the actions are forward
@@ -318,13 +318,13 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             end_is_possible = torch.all(~mask, dim=1)
 
         end_logits_sampling = (
-            get_end_logits(policy_outputs[end_is_possible]).clone().detach()
+            self.get_end_logits(policy_outputs[end_is_possible]).clone().detach()
         )
         end_logits_sampling = self.randomize_and_temper_sampling_distribution(
             end_logits_sampling, random_action_prob, temperature_logits
         )
-        disr_end = get_end_distr(end_logits_sampling)
-        end_is_sampled = disr_end.sample()
+        disr_end = self.get_end_distr(end_logits_sampling)
+        end_is_sampled = tbool(disr_end.sample(), device=self.device)
 
         if not is_backward:
             mask_incremet_invalid = mask[:, 0]
