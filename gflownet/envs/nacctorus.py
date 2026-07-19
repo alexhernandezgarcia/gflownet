@@ -255,7 +255,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         return True
 
     def get_end_logits(self, policy_outputs):
-        return policy_outputs[:, :-1]
+        return policy_outputs[:, -1]
 
     def get_end_distr(
         self,
