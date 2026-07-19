@@ -216,6 +216,69 @@ class TestGetValidActions:
         assert actions == [env.eos]
 
 
+# --------------------------------------------------------------------------- #
+# action_is_valid
+# --------------------------------------------------------------------------- #
+
+
+class TestActionIsValid:
+    def test_eos_and_increment_are_valid_forward(self, env):
+        state = [0.1, 0.2]
+        done = False
+        mask = env.get_mask_invalid_actions_forward(state=state, done=done)
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert env.action_is_valid(action_eos, mask, state, done, backward=False)
+        assert env.action_is_valid(action_incr, mask, state, done, backward=False)
+
+    def test_eos_and_increment_are_valid_forward_computed_internally(self, env):
+        env.state = [0.1, 0.2]
+        env.done = False
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert env.action_is_valid(action_eos, backward=False)
+        assert env.action_is_valid(action_incr, backward=False)
+
+    def test_eos_invalid_and_increment_valid_forward_computed_internally(self, env):
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert not env.action_is_valid(action_eos, backward=False)
+        assert env.action_is_valid(action_incr, backward=False)
+
+    def test_all_invalid_forward_computed_internally(self, env):
+        env.state = [0.1, 0.2]
+        env.done = True
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert not env.action_is_valid(action_eos, backward=False)
+        assert not env.action_is_valid(action_incr, backward=False)
+
+    def test_eos_valid_and_increment_invalid_backward(self, env):
+        state = [0.1, 0.2]
+        done = True
+        mask = env.get_mask_invalid_actions_backward(state=state, done=done)
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert env.action_is_valid(action_eos, mask, state, done, backward=True)
+        assert not env.action_is_valid(action_incr, mask, state, done, backward=True)
+
+    def test_eos_valid_and_increment_invalid_backward_computed_internally(self, env):
+        env.state = [0.1, 0.2]
+        env.done = True
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert env.action_is_valid(action_eos, backward=True)
+        assert not env.action_is_valid(action_incr, backward=True)
+
+    def test_eos_vinalid_and_increment_valid_backward_computed_internally(self, env):
+        env.state = [0.1, 0.2]
+        env.done = False
+        action_eos = env.eos
+        action_incr = [0.01, -0.3]
+        assert not env.action_is_valid(action_eos, backward=True)
+        assert env.action_is_valid(action_incr, backward=True)
+
+
 if __name__ == "__main__":
     import sys
 
