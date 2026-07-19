@@ -1,3 +1,4 @@
+import numpy as np
 from torch.distributions import Bernoulli
 
 from gflownet.envs.ctorus import ContinuousTorus
@@ -150,7 +151,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         else:
             return [False, False]
 
-    # TODO: is this method ever used?
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
@@ -185,7 +185,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         done = self._get_done(done)
         if mask is None:
             mask = self.get_mask(state, done, backward)
-
         if backward:
             if mask[0]:
                 return [self.eos]
@@ -198,42 +197,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             if not mask[1]:
                 actions.append(self.eos)
             return actions
-
-    # def _extract_distribution_parameters(
-    #     self,
-    #     policy_outputs: TensorType["n_states", "policy_output_dim"],
-    #     timesteps: Optional[TensorType["n_states"]] = None,
-    # ):
-    #     """
-    #     Helper function to extract the parameters of the distributions from the
-    #     policy_output tensor.
-
-    #     Parameters
-    #     ----------
-    #     policy_outputs : tensor["n_states", "policy_output_dim"]
-    #         The output of the GFlowNet policy model.
-
-    #     Returns
-    #     -------
-    #     mix_logits : tensor["n_states", "n_dim", "n_comp"]
-    #         The logits of the mixture components.
-
-    #     concentrations : tensor["n_states", "n_dim", "n_comp"]
-    #         The concentrations of the von Mises distributions.
-
-    #     locations : tensor["n_states", "n_dim", "n_comp"]
-    #         The locations of the von Mises distributions
-
-    #     end_logit : tensor["n_states", 1]
-    #         The logit of the probability to end the trajecotry (either
-    #         by sampling EOS or back-to-source action)
-    #     """
-    #     end_logits = policy_outputs[:, -1].reshape(-1, 1)
-    #     params = super()._extract_distribution_parameters(policy_outputs{:, :-1})
-    #     params.update({
-    #         "end_logits": end_logits,
-    #     })
-    #     return params
 
     def get_end_logits(self, policy_outputs):
         return policy_outputs[:, :-1]
@@ -349,11 +312,11 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         ----------
         policy_outputs : tensor
             The output of the GFlowNet policy model.
-        mask : tensor
-            The mask containing information special cases.
         actions : list or tensor
             The actions (angle increments) from each state in the batch for which to
             compute the log probability.
+        mask : tensor
+            The mask containing information special cases.
         states_from : list
             The states originating the actions, in GFlowNet format. Used to determine
             the log probability of the first step if start from uniform.
@@ -426,7 +389,221 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
     # TODO: move it to ctorus later
     # this method is very important as it is usd to stop bkw sampling
     def equal(self, state_x, state_y):
-        return angles_allclose(state_x, state_y, atol=self.state_space_atol)
+        return self.isclose(state_x, state_y, atol=self.state_space_atol).all()
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
-        pass
+        """
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled, by returning a vector with a fixed
+        random policy.
+
+        For each dimension d of the torus and component c of the mixture, the
+        output of the policy should return:
+          1) the weight of the component in the mixture
+          2) the location of the von Mises distribution to sample the angle increment
+          3) the log concentration of the von Mises distribution to sample the angle
+          increment
+        The last element of the policy output vector is the logit for the bernouilli distribution
+        defining the probability to end the trajectory.
+
+        Therefore, the output of the policy model has dimensionality D x C x n_params_per_dim + 1,
+        where D is the number of dimensions (self.n_dim) and C is the number of components
+        (self.n_comp). The first n_params_per_dim x C entries in the policy output correspond to the
+        first dimension, and so on
+        """
+        policy_output = torch.ones(
+            self.n_dim * self.n_comp * self.n_params_per_dim + 1,
+            dtype=self.float,
+            device=self.device,
+        )
+        policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
+        policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
+        policy_output[-1] = params["bernoulli_logit"]
+        return policy_output
+
+    def _step(
+        self,
+        action: Tuple[float],
+        backward: bool,
+    ) -> Tuple[List[float], Tuple[float], bool]:
+        """
+        Updates self.state given a non-EOS action. This method is called by both step()
+        and step_backwards(), with the corresponding value of argument backward.
+
+        Parameters
+        ----------
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        backward : bool
+            If True, perform backward step. Otherwise, perform forward step.
+        """
+        for dim, angle in enumerate(action):
+            if backward:
+                self.state[int(dim)] -= angle
+            else:
+                self.state[int(dim)] += angle
+            self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
+
+    def step(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[float], bool]:
+        """
+        Executes forward step given an action, if possible (i.e. the action is
+        valid in the current state)
+
+        Parameters
+        ----------
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+
+        Returns
+        -------
+        self.state : list
+            The state after executing the action, if it was valid. Othervise,
+            the current state
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state
+        """
+        # check validity of the action
+        valid, self.state, action = self._pre_step(
+            action, skip_mask_check, backward=False
+        )
+        if valid:
+            self._step(acton, backward=False)
+        return self.state, action, valid
+
+    def step_backwards(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[float], bool]:
+        """
+        Executes backward step given an action, if possible (i.e. the action is
+        valid in the current state)
+
+        Parameters
+        ----------
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action if it was valid. Othervise,
+            the current state
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        # check validity of the action
+        valid, self.state, action = self._pre_step(
+            action, skip_mask_check, backward=True
+        )
+        if valid:
+            if self.done:
+                self.done = False
+            else:
+                self._step(acton, backward=True)
+        return self.state, action, valid
+
+    def _get_max_trajectory_length(self) -> int:
+        """
+        Returns the maximum trajectory length of the environment, including the EOS
+        action (used in the base env). As this env is non-acyclic,
+        the max trajectory is infinite.
+        """
+        return np.inf
+
+    def states2policy(
+        self,
+        states: Union[List, TensorType["batch", "state_dim"]],
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: if
+        policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        return super().states2policy(states, encode_step=False)
+
+    # TODO: add step2readable, readable2 state
+    # TODO: test this
+    def get_grid_terminating_states(
+        self, n_states: int, n_dim: Optional[int] = None
+    ) -> List[List]:
+        r"""
+        Samples n terminating states by sub-sampling the state space as a grid. See
+        ContinuousTorus.get_grid_terminating_states for more details
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used.
+
+        Returns
+        -------
+        states : list
+            A list of sampled terminating states.
+        """
+        samples = super().get_grid_terminating_states(n_states, n_dim)
+        # remove the last (step) element from the states
+        for state in states:
+            state.pop()
+        return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None, n_dim=None
+    ) -> List[List]:
+        r"""
+        Samples ``n_states`` terminating states uniformly in the state space. See
+        ContinuousTorus.get_grid_terminating_states for more details
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+        seed : int
+            Random seed for the sampling.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used.
+
+        Returns
+        -------
+        states : list
+            A list of sampled terminating states.
+        """
+        samples = super().get_uniform_terminating_states(n_states, n_dim)
+        # remove the last (step) element from the states
+        for state in states:
+            state.pop()
+        return states
