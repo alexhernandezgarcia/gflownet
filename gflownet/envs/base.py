@@ -467,10 +467,56 @@ class GFlowNetEnv:
             if self.done:
                 return False, self.state, action
         # If action is in invalid mask (not in valid actions), step should not proceed.
+        # Note that this works only for discrete envs
         if not (self.skip_mask_check or skip_mask_check):
-            if action not in self.get_valid_actions(backward=backward):
+            if not self.action_is_valid(action, backward=backward):
                 return False, self.state, action
         return True, self.state, action
+
+    def action_is_valid(
+        self,
+        action: Tuple[int],
+        mask: Optional[bool] = None,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> bool:
+        """
+        Determines whether an action is valid at the given state of the environment.
+
+        Note, this method must be overwritten in the continuous environments.
+
+        Parameters
+        ----------
+        action : tuple
+            Action from the action space
+
+        mask : bool
+            Mask of the actions from the given state. If not given, will be computed
+        state : tuple
+            The given state of the env. If not given, self.state is used
+        done : bool
+            Whether env is done. If not give, self.done is used.
+        backward : bool
+            True if the action is applied backward. Default is False
+
+        Returns
+        -------
+        bool :
+            True if the action is valid
+        """
+        if not self.continuous:
+            valid_actions = self.get_valid_actions(
+                mask=mask,
+                state=state,
+                done=done,
+                backward=backward,
+            )
+            return action in valid_actions
+        else:
+            raise NotImplementedError(
+                f"Cannot verify if action {action} is valid, the env is continuous and has to override the method action_is_valid"
+            )
 
     @abstractmethod
     def step(
