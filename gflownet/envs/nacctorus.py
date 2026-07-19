@@ -1,8 +1,8 @@
+from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import torch
-
 from torch.distributions import Bernoulli
-from typing import List, Optional, Tuple, Union
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
@@ -389,8 +389,24 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
 
     # TODO: move it to ctorus later
     # this method is very important as it is usd to stop bkw sampling
-    def equal(self, state_x, state_y):
-        return self.isclose(state_x, state_y, atol=self.state_space_atol).all()
+    def equal(self, state_x: Tuple[float], state_y: Tuple[float]) -> bool:
+        """
+        Checks if two states are equal, upto self.state_space_atol.
+        Note that it compares single states, not batches
+
+        Parameters
+        ----------
+        state_x :  tuple
+            First state to compare
+        state_y : tuple
+            Second state to compare.
+
+        Returns
+        -------
+        bool :
+            True if states are equal
+        """
+        return self.isclose(state_x, state_y, atol=self.state_space_atol)
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
