@@ -1,0 +1,16 @@
+{
+  "method": "gp",
+  "dataset": "diabetes",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 50.349258303469824,
+  "train_r2": 0.5787556955576554,
+  "test_rmse": 55.07752148065594,
+  "test_r2": 0.45096038234930047,
+  "params": {
+    "kernel": "1**2 * RBF(length_scale=[4.56, 4.16, 4.05, 6.44, 13.3, 1.22e+04, 10.4, 3.22e+04, 2.65, 5.8e+03]) + WhiteKernel(noise_level=0.445)",
+    "log_marginal_likelihood": -379.15814518012235
+  },
+  "runtime_s": 8.38,
+  "timestamp": "2026-07-21 14:05:41"
+}

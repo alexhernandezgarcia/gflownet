@@ -1,0 +1,16 @@
+{
+  "method": "xgboost",
+  "dataset": "energy",
+  "split": 4,
+  "seed": 4,
+  "train_rmse": 0.1256392346206598,
+  "train_r2": 0.9998459324301745,
+  "test_rmse": 0.34149804626885205,
+  "test_r2": 0.9988139058987692,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 671
+  },
+  "runtime_s": 0.33,
+  "timestamp": "2026-07-21 14:09:29"
+}

@@ -1,0 +1,15 @@
+{
+  "method": "ridge",
+  "dataset": "concrete",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 10.388422713065983,
+  "train_r2": 0.623845337611048,
+  "test_rmse": 10.291609198169219,
+  "test_r2": 0.5694736184208613,
+  "params": {
+    "alpha": 1.7782794100389228
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

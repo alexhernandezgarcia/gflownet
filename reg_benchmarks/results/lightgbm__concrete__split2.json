@@ -1,0 +1,16 @@
+{
+  "method": "lightgbm",
+  "dataset": "concrete",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 1.8773604175457297,
+  "train_r2": 0.9877153570921973,
+  "test_rmse": 4.431851739901087,
+  "test_r2": 0.9201631041131335,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 865
+  },
+  "runtime_s": 0.45,
+  "timestamp": "2026-07-21 14:12:44"
+}

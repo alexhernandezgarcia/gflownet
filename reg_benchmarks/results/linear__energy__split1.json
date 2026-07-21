@@ -1,0 +1,13 @@
+{
+  "method": "linear",
+  "dataset": "energy",
+  "split": 1,
+  "seed": 1,
+  "train_rmse": 2.847634404279666,
+  "train_r2": 0.9202391640968165,
+  "test_rmse": 3.1968911683483356,
+  "test_r2": 0.898296840967786,
+  "params": {},
+  "runtime_s": 0.01,
+  "timestamp": "2026-07-21 14:05:24"
+}

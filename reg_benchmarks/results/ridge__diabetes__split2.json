@@ -1,0 +1,15 @@
+{
+  "method": "ridge",
+  "dataset": "diabetes",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 53.06605034788434,
+  "train_r2": 0.532069432094139,
+  "test_rmse": 55.540852018502946,
+  "test_r2": 0.4416841183489133,
+  "params": {
+    "alpha": 1.0
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

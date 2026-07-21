@@ -1,0 +1,15 @@
+{
+  "method": "lasso",
+  "dataset": "diabetes",
+  "split": 5,
+  "seed": 5,
+  "train_rmse": 53.88539442899081,
+  "train_r2": 0.5014850412622518,
+  "test_rmse": 55.6402141043307,
+  "test_r2": 0.5090378255617662,
+  "params": {
+    "alpha": 2.106715416635723
+  },
+  "runtime_s": 0.06,
+  "timestamp": "2026-07-21 14:05:25"
+}
