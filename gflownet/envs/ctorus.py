@@ -174,8 +174,6 @@ class ContinuousTorus(GFlowNetEnv):
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        # End-of-sequence action: (n_dim, 0)
-        self.eos = (self.n_dim, 0)
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -776,10 +774,33 @@ class ContinuousTorus(GFlowNetEnv):
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
-                        )
+                        ),
                     )
                     distr_fs_angles = Uniform(start, end)
-                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform])
+                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform] % (2 * torch.pi))
+        if is_backward:
+            do_bts = mask[:, 0]
+            if torch.any(do_bts):
+                # correct back-to-source actions have logprob 0, others are -inf
+                logprobs[do_bts] = 0.0
+
+                source_angles = tfloat(
+                    self.source[: self.n_dim], float_type=self.float, device=self.device
+                )
+                states_from_angles = tfloat(
+                    states_from, float_type=self.float, device=self.device
+                )[do_bts, : self.n_dim]
+                actions_bts = (states_from_angles - source_angles) % (2 * torch.pi)
+                actions_bts_input = actions[do_bts] % (2 * torch.pi)
+                mask_inf = ~angles_allclose(actions_bts_input, actions_bts, atol=1e-6)
+                if torch.any(mask_inf):
+                    # weird, but needed to assign walues to a tensor using 2 masks
+                    logprobs_tmp = logprobs[do_bts]
+                    logprobs_tmp[mask_inf] = -torch.inf
+                    logprobs[do_bts] = logprobs_tmp
+                    warnings.warn(
+                        "Warning: logprobs for invalid back-to-source actions set to -inf."
+                    )
 
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
