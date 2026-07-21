@@ -6,6 +6,7 @@ import torch
 from torch.distributions import Bernoulli
 
 from gflownet.envs.nacctorus import NonAcyclicContinuousTorus
+from gflownet.envs.ctorus import ContinuousTorus
 
 # --------------------------------------------------------------------------- #
 # Fixtures
@@ -355,6 +356,336 @@ class TestSampleActionsBatch:
             else:
                 encountered_eos = True
         assert not encountered_eos and encountered_increment and encountered_bts
+
+
+# --------------------------------------------------------------------------- #
+# get_logprobs
+# --------------------------------------------------------------------------- #
+
+
+class TestGetLogprobs:
+    def test_increment_from_source_action_forward(self, env):
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()])
+        actions = [[0.1, 0.2]]
+        states_from = [env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        assert len(logprobs) == 1
+        assert logprobs[0] < 0
+
+        mask = torch.tensor([[False, False]])
+        states_from = [env.state + [0]]
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        # logprobs should be the same as only the increment is possible from source
+        assert logprobs == logprobs_ctorus
+
+    def test_increment_action_not_from_source_forward(self, env):
+        env.state = [0.1, 0.2]
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()])
+        actions = [[0.1, 0.2]]
+        states_from = [env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+
+        mask = torch.tensor([[False, False]])
+        states_from = [env.state + [0]]
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        # the nac logrpob should be smaller as EOS is also allowed fron non-source state
+        assert logprobs < logprobs_ctorus
+
+    def test_eos_action_not_from_source_forward(self, env):
+        env.state = [0.1, 0.2]
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()])
+        actions = [env.eos]
+        states_from = [env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        assert len(logprobs) == 1
+        assert logprobs[0] < 0.0
+
+    def test_increment_action_from_done_backward(self, env):
+        actions = [[0.1, 0.2], [0.3, -0.5]]
+        n_actions = len(actions)
+        env.state = [0.1, 0.1]
+        env.done = True
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_actions, dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()] * n_actions)
+        states_from = [env.state] * n_actions
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, True]] * n_actions)
+        states_from = [env.state + [0]] * n_actions
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        # TODO: not sure if we want it to be 0., this action is invalid and should not have lp=0.
+        assert logprobs[0] == logprobs_ctorus[0] == 0.0
+
+    def test_eos_action_from_done_backward(self, env):
+        env.state = [0.1, 0.1]
+        env.done = True
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()])
+        actions = [env.done]
+        states_from = [env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, True]])
+        states_from = [env.state + [0]]
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        assert logprobs == logprobs_ctorus == 0.0
+
+    def test_increment_bts_action_backward(self, env):
+        env.state = [0.1, 0.1]
+        env.done = False
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs, policy_outputs], dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()] * 2)
+        # increment and back-to-source actions
+        actions = [[0.2, 0.4], [0.1, 0.1]]
+        states_from = [env.state, env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, False]] * 2)
+        states_from = [env.state + [0]] * 2
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        # logp(bts) has only discrete component where p = 1/2 according to
+        # the fixed policy. Therefore, (1-p) = 1/2 and logp(incr) =
+        # logp_continuous(incr) + log(1/2) = logp_continuous(incr) +
+        # + logp(bts)
+        assert logprobs[0] == logprobs_ctorus[0] + logprobs[1]
+
+    def test_increment_from_source_action_forward_start_uniform(self, env):
+        env.start_uniform = True
+        actions = [[0.1, 0.2], [-0.2, 1.4], [1.0, -0.3]]
+        n_actions = len(actions)
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_actions, dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()] * n_actions)
+        states_from = [env.state] * n_actions
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        assert len(logprobs) == 3
+        assert logprobs[0] < 0
+        assert logprobs[0] == logprobs[1] == logprobs[2]
+
+        mask = torch.tensor([[False, False]] * n_actions)
+        states_from = [env.state + [0]] * n_actions
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        # logprobs should be the same as only the increment is possible from source
+        assert (logprobs == logprobs_ctorus).all()
+
+    def test_increment_action_not_from_source_forward_start_uniform(self, env):
+        env.state = [0.1, 0.2]
+        env.start_uniform = True
+        actions = [[0.1, 0.2], [-0.2, 1.4], [1.0, -0.3], env.eos]
+        n_actions = len(actions)
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_actions, dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()] * n_actions)
+        states_from = [env.state] * n_actions
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        assert len(logprobs) == n_actions
+        assert logprobs[3] < 0
+        # discrete action p = 1/2 for the fixed policy
+        assert logprobs[3] == torch.log(torch.tensor(0.5))
+        assert logprobs[0] != logprobs[1] != logprobs[2] != logprobs[3]
+
+        mask = torch.tensor([[False, False]] * n_actions)
+        states_from = [env.state + [0]] * n_actions
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+
+        assert logprobs[0] < logprobs_ctorus[0]
+        assert logprobs[1] < logprobs_ctorus[1]
+        assert logprobs[2] < logprobs_ctorus[2]
+
+    def test_increment_action_from_done_backward_start_uniform(self, env):
+        actions = [[0.1, 0.2], [0.3, -0.5]]
+        env.start_uniform = True
+        n_actions = len(actions)
+        env.state = [0.1, 0.1]
+        env.done = True
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_actions, dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()] * n_actions)
+        states_from = [env.state] * n_actions
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, True]] * n_actions)
+        states_from = [env.state + [0]] * n_actions
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        # TODO: not sure if we want it to be 0., this action is invalid and should not have lp=0.
+        assert logprobs[0] == logprobs_ctorus[0] == 0.0
+
+    def test_eos_action_from_done_backward_start_uniform(self, env):
+        env.start_uniform = True
+        env.state = [0.1, 0.1]
+        env.done = True
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()])
+        actions = [env.done]
+        states_from = [env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, True]])
+        states_from = [env.state + [0]]
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        assert logprobs == logprobs_ctorus == 0.0
+
+    def test_increment_bts_action_backward_start_uniform(self, env):
+        env.start_uniform = True
+        env.state = [0.1, 0.1]
+        env.done = False
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs, policy_outputs], dim=0)
+        mask = torch.tensor([env.get_mask_invalid_actions_backward()] * 2)
+        # increment and back-to-source actions
+        actions = [[0.2, 0.4], [0.1, 0.1]]
+        states_from = [env.state, env.state]
+        logprobs = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+
+        mask = torch.tensor([[False, False]] * 2)
+        states_from = [env.state + [0]] * 2
+        logprobs_ctorus = ContinuousTorus.get_logprobs(
+            self=env,
+            policy_outputs=policy_outputs[:, :-1],
+            actions=actions,
+            mask=mask,
+            states_from=states_from,
+            is_backward=True,
+        )
+        # logp(bts) has only discrete component where p = 1/2 according to
+        # the fixed policy. Therefore, (1-p) = 1/2 and logp(incr) =
+        # logp_continuous(incr) + log(1/2) = logp_continuous(incr) +
+        # + logp(bts)
+        assert logprobs[0] == logprobs_ctorus[0] + logprobs[1]
 
 
 if __name__ == "__main__":
