@@ -40,12 +40,29 @@
 # To rerun a subset, e.g. only tasks 6-17:
 #   sbatch --array=6-17 mila/sbatch/trfm_tree_remaining.sh
 #
-# Preemption: long-cpu jobs can be preempted; --requeue restarts them (same
-# job id) once resources free up. On restart, a task that finds checkpoints in
-# its run dir continues training from the latest one via resume.py (models,
-# optimizer, logZ and step are all restored; checkpoints are written every
-# evaluator.checkpoints_period=500 steps, so at most ~500 steps are lost). A
-# task that already produced eval_results.json exits immediately.
+# Preemption/robustness (hardened 2026-07-21 after the first pass, array
+# 10135737, exposed two failure modes):
+# - A task preempted BEFORE its first checkpoint (step 500 back then)
+#   restarted from scratch and opened a NEW wandb run under the same name --
+#   that is where the duplicate depth-5 wandb runs came from. Checkpoints are
+#   now written every 100 steps (fresh starts via override below; resumed
+#   runs via an idempotent sed of the stored run config), so at most ~100
+#   steps are lost per preemption and the from-scratch window is small.
+# - A one-off wandb init timeout made task 11 (breast_cancer depth5 split3)
+#   exit FAILED on 2026-07-18 -- and SLURM never requeues FAILED tasks, so it
+#   sat dead. resume.py is therefore retried up to 3x per invocation, and if
+#   it still fails the task requeues ITSELF (capped via
+#   $run_dir/.auto_requeue_count) instead of dying silently.
+# - Otherwise: a task whose run dir has checkpoints always resumes via
+#   resume.py (models, optimizer, logZ and step restored; wandb re-attaches
+#   to the run id stored in the checkpoint, i.e. the most-progressed chain).
+#   Unloadable checkpoints (a write cut short by preemption) are renamed to
+#   *.corrupt and the next-newest one is used. A task that already produced
+#   eval_results.json exits immediately.
+# - The submit wrapper first scancels EVERY job named trfm_tree, so rerunning
+#   this script is always safe: nothing can double-write a run dir, and all
+#   tasks continue from their newest checkpoint (a running task only loses
+#   the steps since its last checkpoint write).
 
 set -u
 
@@ -64,7 +81,12 @@ WANDB_ONLINE="${WANDB_ONLINE:-True}"
 # already set) queues the array and exits.
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
     mkdir -p "$SLURM_LOG_DIR"
-    echo "[submit] queueing 18-task array on partitions long-cpu,long-cpu-eek"
+    echo "[submit] cancelling existing trfm_tree jobs (they resume from their latest checkpoint):"
+    squeue -u "$USER" -n trfm_tree || true
+    scancel -u "$USER" -n trfm_tree
+    echo "[submit] waiting 20s for cancelled tasks to release their run dirs..."
+    sleep 20
+    echo "[submit] queueing depth-5 tasks 6-17 on partitions long-cpu,long-cpu-eek"
     exec sbatch --export=ALL "$REPO/mila/sbatch/trfm_tree_remaining.sh"
 fi
 
@@ -134,6 +156,10 @@ cd "$REPO"
 export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 
+# Be patient with wandb: a 90s init timeout is what killed task 11.
+export WANDB_INIT_TIMEOUT=300
+export WANDB__SERVICE_WAIT=300
+
 t_run=$SECONDS
 if [ -f "$run_dir/samples/gfn_samples.pkl" ]; then
     # Training and final sampling already completed; only eval was missing.
@@ -145,11 +171,37 @@ elif compgen -G "$run_dir/ckpts/*.ckpt" > /dev/null; then
     # re-attaches the same wandb run and keeps checkpointing into $run_dir;
     # the final samples are written to $run_dir/resume/<jobid>/<timestamp>/.
     echo "$run_name found checkpoints -- resuming from latest"
-    python resume.py \
-        rundir="$run_dir" \
-        n_samples=1000 \
-        seed="$SEED"
-    train_status=$?
+
+    # Checkpoint every 100 steps from now on (idempotent edit of the stored
+    # run config): caps the work lost per preemption at ~100 steps.
+    sed -i -E "s/^([[:space:]]*)checkpoints_period: [0-9]+/\1checkpoints_period: 100/" \
+        "$run_dir/.hydra/config.yaml"
+
+    # Quarantine unloadable checkpoints (e.g. a write cut short by
+    # preemption): probe newest-first, rename broken ones to *.corrupt so
+    # find_latest_checkpoint() falls back to the next-newest good one.
+    for ckpt in $(ls "$run_dir"/ckpts/iter_*.ckpt 2>/dev/null | sort -rV); do
+        if python -c "import sys, torch; torch.load(sys.argv[1], map_location='cpu')" \
+                "$ckpt" > /dev/null 2>&1; then
+            echo "$run_name resuming from checkpoint: $(basename "$ckpt")"
+            break
+        fi
+        echo "$run_name WARNING: $(basename "$ckpt") unreadable -- renamed to .corrupt"
+        mv "$ckpt" "$ckpt.corrupt"
+    done
+
+    # Retry transient failures (wandb outages etc.) before giving up.
+    train_status=1
+    for attempt in 1 2 3; do
+        python resume.py \
+            rundir="$run_dir" \
+            n_samples=1000 \
+            seed="$SEED"
+        train_status=$?
+        [ $train_status -eq 0 ] && break
+        echo "$run_name resume attempt $attempt failed (exit $train_status)"
+        [ $attempt -lt 3 ] && sleep 90
+    done
     samples_pkl="$(ls -t "$run_dir"/resume/*/*/gfn_samples.pkl 2>/dev/null | head -n 1)"
 else
     python train.py +experiments=tree/trfm_classification_tree \
@@ -157,6 +209,7 @@ else
         env.max_depth="$depth" \
         seed="$SEED" \
         gflownet.optimizer.n_train_steps="$n_train_steps" \
+        evaluator.checkpoints_period=100 \
         n_samples=1000 \
         logger.do.online="$WANDB_ONLINE" \
         logger.run_name="$run_name" \
@@ -169,9 +222,22 @@ fi
 echo "$run_name training finished in $((SECONDS - t_run))s (exit $train_status)"
 
 if [ $train_status -ne 0 ]; then
-    echo "$run_name FAIL (training error, see above)"
+    # SLURM never requeues a FAILED task (that is how breast_cancer split3
+    # silently died on 2026-07-18), so requeue ourselves -- capped, to avoid
+    # an infinite crash loop on a persistent error.
+    requeue_count_file="$run_dir/.auto_requeue_count"
+    count=$(( $(cat "$requeue_count_file" 2>/dev/null || echo 0) + 1 ))
+    echo "$count" > "$requeue_count_file"
+    if [ "$count" -le 3 ]; then
+        echo "$run_name training failed (exit $train_status) -- self-requeue #$count"
+        scontrol requeue "${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+        sleep 60  # the requeue kills this script; do not fall through meanwhile
+        exit 0
+    fi
+    echo "$run_name FAIL (training error persisted through $count requeues, see above)"
     exit "$train_status"
 fi
+rm -f "$run_dir/.auto_requeue_count"
 
 if [ -z "$samples_pkl" ] || [ ! -f "$samples_pkl" ]; then
     echo "$run_name FAIL (no gfn_samples.pkl found)"
