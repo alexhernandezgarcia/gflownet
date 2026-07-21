@@ -171,6 +171,7 @@ def test__init_from_arrays__keeps_continuous_targets():
         X_test=X_test,
         y_test=y_test,
         scale_data=False,
+        scale_y=False,
     )
     assert env.y_train.dtype == float
     assert env.y_test.dtype == float
@@ -186,7 +187,7 @@ def test__init_from_csv__keeps_continuous_targets(tmp_path):
     csv_path = tmp_path / "regression_data.csv"
     df.to_csv(csv_path, index=False)
 
-    env = RegressionTree(max_depth=2, data_path=str(csv_path))
+    env = RegressionTree(max_depth=2, data_path=str(csv_path), scale_y=False)
     assert env.y_train.dtype == float
     np.testing.assert_allclose(env.y_train, y)
     # Feature names are read from the CSV headers
@@ -201,11 +202,31 @@ def test__init_from_csv_with_split__keeps_continuous_targets(tmp_path):
     csv_path = tmp_path / "regression_data_split.csv"
     df.to_csv(csv_path, index=False)
 
-    env = RegressionTree(max_depth=2, data_path=str(csv_path))
+    env = RegressionTree(max_depth=2, data_path=str(csv_path), scale_y=False)
     assert env.y_train.dtype == float
     assert env.y_test.dtype == float
     np.testing.assert_allclose(env.y_train, y[:20])
     np.testing.assert_allclose(env.y_test, y[20:])
+
+
+def test__scale_y__standardizes_targets_with_train_stats():
+    X_train, y_train = _make_step_data(n=80, seed=42)
+    X_test, y_test = _make_step_data(n=20, seed=43)
+    env = RegressionTree(
+        max_depth=2,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+        scale_data=False,
+    )  # scale_y=True by default
+    assert env.y_mean_ == pytest.approx(float(np.mean(y_train)))
+    assert env.y_std_ == pytest.approx(float(np.std(y_train)))
+    # Train targets standardized to zero mean / unit variance
+    assert float(np.mean(env.y_train)) == pytest.approx(0.0, abs=1e-12)
+    assert float(np.std(env.y_train)) == pytest.approx(1.0)
+    # Test targets transformed with the *train* statistics
+    np.testing.assert_allclose(env.y_test, (y_test - env.y_mean_) / env.y_std_)
 
 
 def test__init_without_data__has_no_targets(env_reg_depth2):

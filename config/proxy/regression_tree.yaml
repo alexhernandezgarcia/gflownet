@@ -5,11 +5,13 @@ _target_: gflownet.proxy.regression_tree.NormalGammaTreeProxy
 
 # The proxy returns log-posterior values, so we exponentiate to get positive rewards.
 # reward = alpha * exp(beta * log_posterior)
-# beta < 1 acts as a temperature: p(x) ∝ posterior^beta. This prevents underflow
-# when the log-posterior is very negative.
+# beta < 1 acts as a temperature: p(x) ∝ posterior^beta. Keep
+# beta * |log_posterior| within the float32 exp range (~[-87, 88]); the
+# regression log-posterior magnitude is roughly 1.4 * N_train nats with
+# standardized targets, so beta = 0.05 is safe for N_train ~< 1200.
 reward_function: exponential
 reward_function_kwargs:
-  beta: 0.1
+  beta: 0.05
   alpha: 1.0
 
 # Structure prior type: "node_count", "exponential", "bcart", or "none"

@@ -13,6 +13,7 @@ device: cpu
 # Environment
 env:
   max_depth: 5
+  scale_y: True # Standardize targets (train-split stats); RMSE still reported in original units
   rescale_thresholds: True # If True, trivially unnecessary splits are not considered during training
   data_path: null
   node_kwargs:
@@ -61,9 +62,16 @@ proxy:
 
   # --- Reward function (proxy value -> reward) ---
   # Log-posterior is passed through an exponential: reward = alpha * exp(beta * proxy)
+  # beta acts as a temperature: p(T) ∝ posterior^beta. Even with standardized
+  # targets (env.scale_y) the regression log-posterior magnitude is roughly
+  # 1.4 * N_train nats, and rewards are computed in float32, whose exp range is
+  # ~[-87, 88]: beta * |log_posterior| beyond that under/overflows to 0/inf and
+  # NaNs the weighted replay sampling. beta = 0.05 is safe for N_train ~< 1200
+  # (all bundled regression datasets); lower it further (or set
+  # normalize_likelihood: True) for larger datasets.
   reward_function: exponential
   reward_function_kwargs:
-    beta: 0.1
+    beta: 0.05
     alpha: 1.0
   reward_min: 0.0
   do_clip_rewards: False

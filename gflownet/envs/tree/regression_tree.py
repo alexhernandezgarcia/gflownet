@@ -4,12 +4,18 @@ Regression tree composite environment.
 A RegressionTree is a :class:`~gflownet.envs.tree.tree.Tree` whose targets are
 continuous instead of categorical. The MDP (states, actions, masks, steps) is
 identical to the classification Tree: the environment only constructs the tree
-*structure* (decision rules), and leaf parameters are never part of the state.
+*structure* (decision rules) and (currently) not the leaf parameters, they are
+only sampled at inference.
 
 The differences with respect to the classification Tree are:
 
-- The targets ``y_train`` / ``y_test`` are kept as floats (the parent class
-  casts them to integer class labels).
+- The targets ``y_train`` / ``y_test`` are kept as floats.
+- The targets are standardized (zero mean, unit variance, computed on the
+  train split) by default, as is standard practice for Bayesian CART/BART.
+  Besides making the default NIG hyper-parameters sensible, this keeps the
+  magnitude of the marginal log-likelihood small enough that the exponential
+  reward ``exp(beta * log_posterior)`` does not underflow to zero (which
+  breaks GFlowNet training, e.g. NaNs in weighted replay sampling).
 - The evaluation pass (:py:meth:`test`) reports regression metrics (RMSE, R2)
   instead of accuracies. Leaf predictions are drawn from the posterior of a
   Normal-Inverse-Gamma (NIG) leaf model, mirroring how the classification Tree
@@ -19,7 +25,7 @@ The differences with respect to the classification Tree are:
       mu | sigma^2 ~ N(mu_0, sigma^2 / kappa_0), sigma^2 ~ InvGamma(alpha_0, beta_0)
 
 This is the standard conjugate leaf model of Bayesian CART for regression
-(Chipman et al., 1998), and matches the marginal likelihood computed by
+(Chipman et al., 1997), and matches the marginal likelihood computed by
 ``gflownet.proxy.regression_tree.NormalGammaTreeProxy``.
 """
 
@@ -50,11 +56,16 @@ class RegressionTree(Tree):
         X_test: Optional[npt.NDArray] = None,
         y_test: Optional[npt.NDArray] = None,
         data_path: Optional[str] = None,
+        scale_y: bool = True,
         **kwargs,
     ):
         """
-        See :py:meth:`Tree.__init__` for all parameters. The only difference is
-        that ``y_train`` / ``y_test`` are interpreted as continuous targets.
+        See :py:meth:`Tree.__init__` for all parameters. The differences are
+        that ``y_train`` / ``y_test`` are interpreted as continuous targets,
+        and that ``scale_y`` (True by default) standardizes them with the
+        train-split mean and standard deviation (stored as ``y_mean_`` /
+        ``y_std_``). RMSE metrics reported by :py:meth:`test` are rescaled
+        back to the original target units.
         """
         # Keep a float copy of the targets before the parent casts them to int.
         # The feature matrices and feature names are handled by the parent.
@@ -84,6 +95,18 @@ class RegressionTree(Tree):
             self.y_train = y_train_cont
         if y_test_cont is not None:
             self.y_test = y_test_cont
+
+        # Standardize the targets with the train-split statistics
+        self.scale_y = scale_y
+        self.y_mean_ = 0.0
+        self.y_std_ = 1.0
+        if scale_y and self.y_train is not None:
+            self.y_mean_ = float(np.mean(self.y_train))
+            std = float(np.std(self.y_train))
+            self.y_std_ = std if std > 0.0 else 1.0
+            self.y_train = (self.y_train - self.y_mean_) / self.y_std_
+            if self.y_test is not None:
+                self.y_test = (self.y_test - self.y_mean_) / self.y_std_
 
     # =========================================================================
     # Normal-Inverse-Gamma leaf model
@@ -370,5 +393,12 @@ class RegressionTree(Tree):
                 )
                 for key, val in top_1_scores.items():
                     result_metrics[f"test_top_1_{key}"] = val
+
+        # Report RMSE metrics in the original target units (R2 is invariant
+        # under the linear target standardization)
+        if self.y_std_ != 1.0:
+            for key in result_metrics:
+                if "rmse" in key:
+                    result_metrics[key] *= self.y_std_
 
         return {"metrics": result_metrics, "figs": figs}
