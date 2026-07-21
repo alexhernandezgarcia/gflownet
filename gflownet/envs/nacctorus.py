@@ -103,6 +103,9 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             start_uniform=start_uniform,
             **kwargs,
         )
+        # remove step dimention from the source
+        self.source = self.source_angles
+        self.reset()
 
     def get_mask_invalid_actions_forward(
         self,
@@ -381,20 +384,18 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             (default).
         """
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(
-            n_states, self.n_dim, dtype=self.float, device=self.device
-        )
+        logprobs = torch.zeros(n_states, dtype=self.float, device=self.device)
 
         if not is_backward:
             end_is_possible = ~mask[:, 1]
         else:
             end_is_possible = torch.all(~mask, dim=1)
 
-        end_is_sampled = torch.zeros_like(end_is_possible)
+        end_is_sampled = tbool(torch.zeros(end_is_possible.sum()), device=self.device)
 
         if torch.any(end_is_possible):
-            end_logits_sampling = get_end_logits(policy_outputs[end_is_possible])
-            disr_end = get_end_distr(end_logits_sampling)
+            end_logits_sampling = self.get_end_logits(policy_outputs[end_is_possible])
+            disr_end = self.get_end_distr(end_logits_sampling)
             actions = tfloat(actions, float_type=self.float, device=self.device)
             if not is_backward:
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
@@ -416,9 +417,11 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
                     actions[end_is_possible],
                     atol=self.state_space_atol,
                 )
-            logprobs[end_is_possible] = disr_end.log_prob(end_is_sampled)
+            logprobs[end_is_possible] = disr_end.log_prob(
+                tfloat(end_is_sampled, float_type=self.float, device=self.device)
+            )
 
-        if not backward:
+        if not is_backward:
             mask_incremet_invalid = mask[:, 0]
             # invalidate increments where eos is sampled
             mask_incremet_invalid[end_is_possible] = end_is_sampled
