@@ -1,0 +1,16 @@
+{
+  "method": "lightgbm",
+  "dataset": "energy",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 0.3486612165057169,
+  "train_r2": 0.99882712189956,
+  "test_rmse": 0.4994420432358164,
+  "test_r2": 0.997322784326233,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 404
+  },
+  "runtime_s": 0.13,
+  "timestamp": "2026-07-21 14:09:28"
+}

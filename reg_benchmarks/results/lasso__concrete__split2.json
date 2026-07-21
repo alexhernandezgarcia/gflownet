@@ -1,0 +1,15 @@
+{
+  "method": "lasso",
+  "dataset": "concrete",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 10.400058395158634,
+  "train_r2": 0.6230022322920161,
+  "test_rmse": 10.326266218233254,
+  "test_r2": 0.5665691388574249,
+  "params": {
+    "alpha": 0.06582665789685282
+  },
+  "runtime_s": 0.05,
+  "timestamp": "2026-07-21 14:05:25"
+}

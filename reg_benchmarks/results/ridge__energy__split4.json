@@ -1,0 +1,15 @@
+{
+  "method": "ridge",
+  "dataset": "energy",
+  "split": 4,
+  "seed": 4,
+  "train_rmse": 2.9446671739321872,
+  "train_r2": 0.9153682934599117,
+  "test_rmse": 2.849154070344333,
+  "test_r2": 0.9174390714681743,
+  "params": {
+    "alpha": 0.1
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

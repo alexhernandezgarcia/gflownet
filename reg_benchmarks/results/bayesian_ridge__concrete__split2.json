@@ -1,0 +1,15 @@
+{
+  "method": "bayesian_ridge",
+  "dataset": "concrete",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 10.389570165145399,
+  "train_r2": 0.6237622367787656,
+  "test_rmse": 10.295340326553418,
+  "test_r2": 0.5691613950639315,
+  "params": {
+    "alpha": 0.009175747323695062
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

@@ -86,6 +86,7 @@ python train.py +experiments=tree/regression_tree \
     env.max_depth="$DEPTH" \
     seed="$SEED" \
     gflownet.optimizer.n_train_steps="$N_TRAIN_STEPS" \
+    proxy.reward_function_kwargs.beta=0.1 \
     n_samples=1000 \
     logger.do.online="$WANDB_ONLINE" \
     logger.run_name="$run_name" \

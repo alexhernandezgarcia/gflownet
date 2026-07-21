@@ -1,0 +1,16 @@
+{
+  "method": "xgboost",
+  "dataset": "concrete",
+  "split": 3,
+  "seed": 3,
+  "train_rmse": 1.364343264411801,
+  "train_r2": 0.9932365024471037,
+  "test_rmse": 3.477140206627431,
+  "test_r2": 0.9586976685532407,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 542
+  },
+  "runtime_s": 0.59,
+  "timestamp": "2026-07-21 14:12:45"
+}

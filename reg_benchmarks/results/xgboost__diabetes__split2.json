@@ -1,0 +1,16 @@
+{
+  "method": "xgboost",
+  "dataset": "diabetes",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 27.799589306529437,
+  "train_r2": 0.8715823709969106,
+  "test_rmse": 61.29378459493393,
+  "test_r2": 0.3200330849010392,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 64
+  },
+  "runtime_s": 0.07,
+  "timestamp": "2026-07-21 14:06:12"
+}

@@ -1,0 +1,16 @@
+{
+  "method": "lightgbm",
+  "dataset": "diabetes",
+  "split": 5,
+  "seed": 5,
+  "train_rmse": 40.47762298263167,
+  "train_r2": 0.7187023757956934,
+  "test_rmse": 51.21322258737288,
+  "test_r2": 0.584056197248543,
+  "params": {
+    "max_depth": 5,
+    "n_estimators": 78
+  },
+  "runtime_s": 0.03,
+  "timestamp": "2026-07-21 14:06:13"
+}

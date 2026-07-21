@@ -1,0 +1,16 @@
+{
+  "method": "gp",
+  "dataset": "concrete",
+  "split": 5,
+  "seed": 5,
+  "train_rmse": 3.528750279599155,
+  "train_r2": 0.9570425675325153,
+  "test_rmse": 4.922830953394127,
+  "test_r2": 0.896672487838889,
+  "params": {
+    "kernel": "1.53**2 * RBF(length_scale=[2.95, 3.72, 2.08, 1.19, 3.39, 5.82, 4.35, 0.728]) + WhiteKernel(noise_level=0.0573)",
+    "log_marginal_likelihood": -294.7683882648957
+  },
+  "runtime_s": 74.34,
+  "timestamp": "2026-07-21 14:12:31"
+}
