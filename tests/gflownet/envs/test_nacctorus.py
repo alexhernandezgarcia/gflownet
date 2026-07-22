@@ -5,8 +5,8 @@ import pytest
 import torch
 from torch.distributions import Bernoulli
 
-from gflownet.envs.nacctorus import NonAcyclicContinuousTorus
 from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.envs.nacctorus import NonAcyclicContinuousTorus
 
 # --------------------------------------------------------------------------- #
 # Fixtures
