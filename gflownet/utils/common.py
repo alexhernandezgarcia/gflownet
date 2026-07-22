@@ -294,35 +294,12 @@ def gflownet_from_config(config, env=None):
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
 
-    # The policy is used to model the probability of a forward/backward action
-    forward_config = parse_policy_config(config, kind="forward")
-    backward_config = parse_policy_config(config, kind="backward")
-
-    forward_policy = instantiate(
-        forward_config,
-        env=env,
+    # The policy is used to model the probabilities of forward/backward transitions
+    policy = instantiate(
+        config.policy,
         device=config.device,
         float_precision=config.float_precision,
     )
-    backward_policy = instantiate(
-        backward_config,
-        env=env,
-        device=config.device,
-        float_precision=config.float_precision,
-        base=forward_policy,
-    )
-
-    # State flow
-    if config.gflownet.state_flow is not None:
-        state_flow = instantiate(
-            config.gflownet.state_flow,
-            env=env,
-            device=config.device,
-            float_precision=config.float_precision,
-            base=forward_policy,
-        )
-    else:
-        state_flow = None
 
     # Loss
     loss = instantiate(
@@ -341,10 +318,8 @@ def gflownet_from_config(config, env=None):
         float_precision=config.float_precision,
         env_maker=env_maker,
         proxy=proxy,
+        policy=policy,
         loss=loss,
-        forward_policy=forward_policy,
-        backward_policy=backward_policy,
-        state_flow=state_flow,
         buffer=buffer,
         logger=logger,
         evaluator=evaluator,

@@ -307,13 +307,13 @@ class Logger:
             print(f"\t{ckpt_path}")
 
         # Forward model
-        if forward_policy.is_model:
+        if forward_policy.is_trainable:
             forward_ckpt = forward_policy.model.state_dict()
         else:
             forward_ckpt = None
 
         # Backward model
-        if backward_policy and backward_policy.is_model:
+        if backward_policy and backward_policy.is_trainable:
             backward_ckpt = backward_policy.model.state_dict()
         else:
             backward_ckpt = None

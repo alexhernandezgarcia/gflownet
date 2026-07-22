@@ -3,7 +3,7 @@ defaults:
   - env: grid
   - gflownet: trajectorybalance
   - loss: trajectorybalance
-  - policy: mlp
+  - policy: base
   - proxy: uniform
   - logger: wandb
   - user: default
