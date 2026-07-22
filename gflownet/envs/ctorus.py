@@ -1313,3 +1313,23 @@ class ContinuousTorus(GFlowNetEnv):
         if hasattr(samples, "tolist"):
             return samples.tolist()
         return samples
+
+    # this method is very important as it is usd to stop bkw sampling
+    def equal(self, state_x: Tuple[float], state_y: Tuple[float]) -> bool:
+        """
+        Checks if two states are equal, upto self.state_space_atol.
+        Note that it compares single states, not batches
+
+        Parameters
+        ----------
+        state_x :  tuple
+            First state to compare
+        state_y : tuple
+            Second state to compare.
+
+        Returns
+        -------
+        bool :
+            True if states are equal
+        """
+        return self.isclose(state_x, state_y, atol=self.state_space_atol)

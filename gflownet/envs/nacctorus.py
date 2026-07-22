@@ -267,7 +267,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         distr_end = Bernoulli(logits=end_logits)
         return distr_end
 
-    # TODO: test this
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -445,27 +444,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         )
         return logprobs + logprobs_increments
 
-    # TODO: move it to ctorus later
-    # this method is very important as it is usd to stop bkw sampling
-    def equal(self, state_x: Tuple[float], state_y: Tuple[float]) -> bool:
-        """
-        Checks if two states are equal, upto self.state_space_atol.
-        Note that it compares single states, not batches
-
-        Parameters
-        ----------
-        state_x :  tuple
-            First state to compare
-        state_y : tuple
-            Second state to compare.
-
-        Returns
-        -------
-        bool :
-            True if states are equal
-        """
-        return self.isclose(state_x, state_y, atol=self.state_space_atol)
-
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
@@ -628,7 +606,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         return super().states2policy(states, encode_step=False)
 
     # TODO: add step2readable, readable2 state
-    # TODO: test this
     def get_grid_terminating_states(
         self, n_states: int, n_dim: Optional[int] = None
     ) -> List[List]:
