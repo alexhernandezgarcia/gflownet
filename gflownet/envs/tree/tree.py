@@ -1633,11 +1633,10 @@ class Tree(CompositeBase):
                 result_metrics[f"train_top_k_{key}"] = val
 
             top_1_idx = int(top_k_indices[0])
-            top_1_scores = Tree._compute_tree_scores(
-                train_proba[[top_1_idx]], self.y_train
+            result_metrics["train_top_1_acc"] = float(per_tree_acc[top_1_idx])
+            result_metrics["train_top_1_bac"] = float(
+                balanced_accuracy_score(self.y_train, per_tree_train[top_1_idx])
             )
-            for key, val in top_1_scores.items():
-                result_metrics[f"train_top_1_{key}"] = val
 
             # Plot top-k trees. display() works unchanged: it reads _dones and
             # per-node substates that are unmodified by the Dirichlet draw.
@@ -1675,11 +1674,13 @@ class Tree(CompositeBase):
                     for key, val in top_k_scores.items():
                         result_metrics[f"test_top_k_{key}"] = val
 
-                    top_1_scores = Tree._compute_tree_scores(
-                        test_proba[[int(top_k_indices[0])]], self.y_test
+                    top_1_pred = np.argmax(test_proba[top_1_idx], axis=-1)
+                    result_metrics["test_top_1_acc"] = float(
+                        accuracy_score(self.y_test, top_1_pred)
                     )
-                    for key, val in top_1_scores.items():
-                        result_metrics[f"test_top_1_{key}"] = val
+                    result_metrics["test_top_1_bac"] = float(
+                        balanced_accuracy_score(self.y_test, top_1_pred)
+                    )
 
         return {"metrics": result_metrics, "figs": figs}
 
