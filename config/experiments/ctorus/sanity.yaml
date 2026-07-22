@@ -28,7 +28,6 @@ buffer:
     type: grid
     n: 100
 
-
 # Proxy
 proxy:
   normalize: False
