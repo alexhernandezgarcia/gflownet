@@ -172,7 +172,8 @@ class RegressionTree(Tree):
 
         For each leaf reached by some training samples ``y``, draws
         ``sigma^2 ~ InvGamma(alpha_n, beta_n)`` and then
-        ``mu ~ N(mu_n, sigma^2 / kappa_n)``. This is the regression analogue of
+        ``mu ~ N(mu_n, sigma^2 / kappa_n)``. The sampled mu is the predicted value
+        for samples that land in this leaf. This is the regression analogue of
         :py:meth:`Tree._sample_leaf_dirichlet`.
         """
         leaf_samples = self._route_samples(state, self.X_train)
@@ -304,13 +305,14 @@ class RegressionTree(Tree):
         )
         rng = np.random.default_rng(seed)
 
-        # --- Per-state NIG draw of leaf means (from train data) ---
+        # Per-state NIG draw of leaf means (from train data)
         leaf_means_list = [
             self._sample_leaf_nig(s, mu_0, kappa_0, alpha_0, beta_0, rng)
             for s in states
         ]
 
-        # --- Train predictions / scores ---
+        # Train predictions / scores (avg tree and forest)
+        # Adds train_mean_rmse, train_mean_r2, train_forest_rmse, train_forest_r2, mean_node
         train_preds = np.stack(
             [
                 self._predict(states[i], leaf_means_list[i], self.X_train, mu_0)
@@ -328,7 +330,9 @@ class RegressionTree(Tree):
         for key, val in train_scores.items():
             result_metrics[f"train_{key}"] = val
 
-        # --- Top-k ranking by per-tree train RMSE (lower is better) ---
+        # Top-k ranking by per-tree train RMSE (lower is better)
+        # Adds top_k_mean_rmse, top_k_forest_rmse, top_k_mean_r2, top_k_forest_r2
+        # Adds top_1_rmse, toop_1_r2
         top_k_indices = None
         figs: Dict[str, object] = {}
         if top_k_trees > 0 and n_states > 0:
@@ -349,11 +353,10 @@ class RegressionTree(Tree):
                 result_metrics[f"train_top_k_{key}"] = val
 
             top_1_idx = int(top_k_indices[0])
-            top_1_scores = RegressionTree._compute_tree_scores_regression(
-                train_preds[[top_1_idx]], self.y_train
+            result_metrics["train_top_1_rmse"] = float(per_tree_rmse[top_1_idx])
+            result_metrics["train_top_1_r2"] = float(
+                r2_score(self.y_train, train_preds[top_1_idx])
             )
-            for key, val in top_1_scores.items():
-                result_metrics[f"train_top_1_{key}"] = val
 
             if plot_top_k:
                 for rank, idx in enumerate(top_k_indices):
@@ -366,7 +369,7 @@ class RegressionTree(Tree):
                             f"top_{rank + 1}_tree_rmse_{per_tree_rmse[int(idx)]:.4f}"
                         ] = fig
 
-        # --- Test split, if available ---
+        # Test split metrics
         if self.X_test is not None and self.y_test is not None:
             test_preds = np.stack(
                 [
@@ -388,11 +391,12 @@ class RegressionTree(Tree):
                 for key, val in top_k_scores.items():
                     result_metrics[f"test_top_k_{key}"] = val
 
-                top_1_scores = RegressionTree._compute_tree_scores_regression(
-                    test_preds[[int(top_k_indices[0])]], self.y_test
+                result_metrics["test_top_1_rmse"] = float(
+                    math.sqrt(mean_squared_error(self.y_test, test_preds[top_1_idx]))
                 )
-                for key, val in top_1_scores.items():
-                    result_metrics[f"test_top_1_{key}"] = val
+                result_metrics["test_top_1_r2"] = float(
+                    r2_score(self.y_test, test_preds[top_1_idx])
+                )
 
         # Report RMSE metrics in the original target units (R2 is invariant
         # under the linear target standardization)
