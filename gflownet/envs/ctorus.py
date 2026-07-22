@@ -613,7 +613,7 @@ class ContinuousTorus(GFlowNetEnv):
                 )[do_bts, : self.n_dim]
                 actions_bts = (states_from_angles - source_angles) % (2 * torch.pi)
                 actions_bts_input = actions[do_bts] % (2 * torch.pi)
-                mask_inf = ~self.isclose(actions_bts_input, actions_bts, atol=1e-6)
+                mask_inf = ~angles_allclose(actions_bts_input, actions_bts, atol=1e-6)
                 if torch.any(mask_inf):
                     # weird, but needed to assign walues to a tensor using 2 masks
                     logprobs_tmp = logprobs[do_bts]
@@ -851,31 +851,31 @@ class ContinuousTorus(GFlowNetEnv):
 
     def isclose(
         self,
-        first_state: Union[List, TensorType["n_states", "state_dim"]],
-        second_state: Union[List, TensorType["n_states", "state_dim"]],
+        first_state: List,
+        second_state: List,
         atol: Optional[float] = None,
-    ) -> Union[bool, List, TensorType["n_states",]]:
+    ) -> bool:
         """
-        Check if two states or batches of states are close in the state space.
+        Check if two states are close in the state space.
 
         Parameters
         ----------
         first_state : list
-            First (batch of) state(s) to compare
+            First state to compare
         second_state : list
-            Second (batch of) state(s) to compare
+            Second state to compare
 
         Returns
         -------
         bool or iterable
             True if the two states are close, False otherwise.
-            If the input is a batch of states, the output is a sequence of bools
         """
         if atol is None:
             atol = self.state_space_atol
+        # Compare the full states, including the step number (last dimention)
         return angles_allclose(
             first_state[: self.n_dim], second_state[: self.n_dim], atol=atol
-        )
+        ) and int(first_state[-1]) == int(second_state[-1])
 
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
