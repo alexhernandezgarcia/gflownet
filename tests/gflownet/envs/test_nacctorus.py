@@ -688,6 +688,73 @@ class TestGetLogprobs:
         assert logprobs[0] == logprobs_ctorus[0] + logprobs[1]
 
 
+# --------------------------------------------------------------------------- #
+# _step
+# --------------------------------------------------------------------------- #
+
+
+class TestStepInternal:
+    def test_forward_step_adds_and_wraps(self, env):
+        env.state = [0.1, 6.2]
+        env._step((0.2, 0.2), backward=False)
+        assert env.state[0] == pytest.approx(0.3)
+        # 6.2 + 0.2 = 6.4 > 2*pi (~6.283) -> should wrap around
+        assert env.state[1] == pytest.approx((6.2 + 0.2) % (2 * np.pi))
+
+    def test_backward_step_subtracts_and_wraps(self, env):
+        env.state = [0.1, 0.1]
+        env._step((0.2, 0.5), backward=True)
+        assert env.state[0] == pytest.approx((0.1 - 0.2) % (2 * np.pi))
+        assert env.state[1] == pytest.approx((0.1 - 0.5) % (2 * np.pi))
+
+    def test_result_always_in_0_2pi_range(self, env):
+        env.state = [0.0, 0.0]
+        env._step((-100.0, 100.0), backward=False)
+        for angle in env.state:
+            assert 0.0 <= angle < 2 * np.pi + 1e-9
+
+
+# --------------------------------------------------------------------------- #
+# step / step_backwards
+# --------------------------------------------------------------------------- #
+
+
+class TestStep:
+    def test_step_valid_action_updates_state_from_source(self, env):
+        new_state, action, valid = env.step((0.1, 0.2))
+        assert valid is True
+        assert new_state[0] == pytest.approx(0.1)
+        assert new_state[1] == pytest.approx(0.2)
+
+    def test_step_invalid_action_from_source(self, env):
+        new_state, action, valid = env.step(env.eos)
+        assert valid is False
+        assert new_state == env.source
+
+    def test_step_backwards_valid_action_updates_state(self, env):
+        env.state = [0.5, 0.5]
+        env.done = False
+        new_state, action, valid = env.step_backwards((0.1, 0.2))
+        assert valid is True
+        assert new_state[0] == pytest.approx(0.4)
+        assert new_state[1] == pytest.approx(0.3)
+
+    def test_step_backwards_from_done_just_clears_done_flag(self, env):
+        env.state = [0.5, 0.5]
+        env.done = True
+        new_state, action, valid = env.step_backwards(env.eos)
+        assert valid is True
+        assert env.done is False
+        assert new_state == [0.5, 0.5]
+
+    def test_step_backwards_invalid_action_returns_unchanged(self, env):
+        env.state = [0.5, 0.5]
+        env.done = False
+        new_state, action, valid = env.step_backwards(env.eos)
+        assert valid is False
+        assert new_state == [0.5, 0.5]
+
+
 if __name__ == "__main__":
     import sys
 
