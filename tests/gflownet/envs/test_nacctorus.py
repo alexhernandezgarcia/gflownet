@@ -755,6 +755,25 @@ class TestStep:
         assert new_state == [0.5, 0.5]
 
 
+# --------------------------------------------------------------------------- #
+# get_grid_terminating_states / get_uniform_terminating_states
+# --------------------------------------------------------------------------- #
+
+
+class TestTerminatingStates:
+    def test_pops_step_element_and_returns_n_states_grid(self, env):
+        n = 10
+        out = env.get_grid_terminating_states(n)
+        assert len(out) >= n
+        assert all(len(s) == 2 for s in out)  # step element removed
+
+    def test_pops_step_element_and_returns_n_states_uniform(self, env):
+        n = 10
+        out = env.get_uniform_terminating_states(n)
+        assert len(out) == n
+        assert all(len(s) == 2 for s in out)  # step element removed
+
+
 if __name__ == "__main__":
     import sys
 
