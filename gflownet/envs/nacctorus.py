@@ -552,7 +552,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         """
         # check validity of the action
         valid, self.state, action = self._pre_step(
-            action, skip_mask_check, backward=False
+            action, skip_mask_check=skip_mask_check, backward=False
         )
         if valid:
             self._step(action, backward=False)
@@ -589,7 +589,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         """
         # check validity of the action
         valid, self.state, action = self._pre_step(
-            action, skip_mask_check, backward=True
+            action, skip_mask_check=skip_mask_check, backward=True
         )
         if valid:
             if self.done:
