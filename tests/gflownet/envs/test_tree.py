@@ -1,4 +1,5 @@
-from copy import copy
+import warnings
+from copy import copy, deepcopy
 from pathlib import Path
 
 import common
@@ -6,7 +7,9 @@ import numpy as np
 import pytest
 import torch
 
+from gflownet.buffer.base import BaseBuffer
 from gflownet.envs.tree.tree import Tree
+from gflownet.proxy.uniform import Uniform
 
 # Path to the test dataset
 IRIS_CSV_PATH = str(
@@ -3183,3 +3186,157 @@ def test__continuous__threshold_bounds_published_after_set_state(env_tree_depth2
     # And these bounds match what the root threshold would dictate.
     root_threshold = env.node_env.get_threshold(state_after_root[0])
     assert expected_upper == root_threshold
+
+
+# ---------------------------------------------------------------------------
+# Replay buffer with log-domain rewards (numerical stability)
+# ---------------------------------------------------------------------------
+#
+# The Bayesian tree proxies return log-posteriors whose magnitude grows
+# linearly with the size of the training set (roughly -N * log(n_classes) for
+# an uninformative tree), so at reward temperature beta = 1 the linear rewards
+# exp(log-posterior) underflow to exactly 0.0 in float32 for any log-reward
+# below ~-103 (float64: ~-745). All-zero rewards freeze the replay buffer
+# insertion criterion (0.0 > 0.0 is never True) and make weighted selection
+# divide 0/0 into NaN probabilities. With store_log_rewards=True the buffer
+# keeps the log values themselves: insertion ordering is unchanged (log is
+# monotone) and weighted selection applies a numerically stable softmax.
+
+
+def _make_replay_buffer(env, tmp_path, replay_capacity, store_log_rewards):
+    """Builds a BaseBuffer for ``env`` with no train/test data sets."""
+    proxy = Uniform(device="cpu", float_precision=32)
+    return BaseBuffer(
+        env=env,
+        proxy=proxy,
+        datadir=tmp_path,
+        replay_capacity=replay_capacity,
+        store_log_rewards=store_log_rewards,
+    )
+
+
+def _build_single_node_states(env, n):
+    """
+    Builds ``n`` distinct terminal tree states (single root node each) along
+    with distinct dummy trajectories.
+    """
+    # Feature indices are 1-based (Choice sub-environment convention)
+    configs = [(1, 0.5), (2, 0.5), (3, 0.5), (1, 0.3), (2, 0.3)]
+    assert n <= len(configs)
+    states, trajectories = [], []
+    for i, (feature_idx, threshold_val) in enumerate(configs[:n]):
+        env.reset()
+        _build_node_with_dtnode_subenv(env, 0, feature_idx, threshold_val)
+        states.append(deepcopy(env.state))
+        trajectories.append([(-1, 0, 0, 0), (0, 0, feature_idx, 0), (-1, -1, 0, i)])
+    env.reset()
+    return states, trajectories
+
+
+def test__replay_buffer__log_rewards_keep_ordering_under_float32_underflow(
+    env_tree_depth2, tmp_path
+):
+    """
+    With store_log_rewards=True, the replay buffer keeps the highest
+    log-reward trees even when every corresponding linear reward would have
+    underflowed to exactly 0.0 in float32.
+    """
+    env = env_tree_depth2
+    buffer = _make_replay_buffer(
+        env, tmp_path, replay_capacity=3, store_log_rewards=True
+    )
+    states, trajectories = _build_single_node_states(env, 5)
+    # float32 exp() flushes to zero below ~-103.3 (the subnormal floor)
+    logrewards = [-500.0, -400.0, -300.0, -200.0, -150.0]
+    # Sanity check of the regime under test: all linear rewards underflow.
+    assert all(np.exp(np.float32(lr)) == 0.0 for lr in logrewards)
+
+    buffer.add(states, trajectories, logrewards, 1, buffer="replay")
+
+    assert len(buffer.replay) == 3
+    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0, -150.0]
+
+
+def test__replay_buffer__log_rewards_insertion_replaces_minimum(
+    env_tree_depth2, tmp_path
+):
+    """
+    A new sample with a larger log-reward displaces the minimum of a full
+    buffer, exactly as with linear rewards (the greater criterion is monotone).
+    """
+    env = env_tree_depth2
+    buffer = _make_replay_buffer(
+        env, tmp_path, replay_capacity=2, store_log_rewards=True
+    )
+    states, trajectories = _build_single_node_states(env, 3)
+
+    buffer.add(states[:2], trajectories[:2], [-400.0, -200.0], 1, buffer="replay")
+    assert sorted(buffer.replay["rewards"].tolist()) == [-400.0, -200.0]
+
+    # -300 replaces -400; a subsequent -500 is rejected.
+    buffer.add([states[2]], [trajectories[2]], [-300.0], 2, buffer="replay")
+    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0]
+    buffer.add([states[0]], [trajectories[0]], [-500.0], 3, buffer="replay")
+    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0]
+
+
+def test__replay_buffer__weighted_selection_of_log_rewards_is_stable(
+    env_tree_depth2, tmp_path
+):
+    """
+    Weighted selection over log-rewards must produce valid samples (no NaN
+    probabilities) and weight the samples proportionally to exp(log-reward):
+    with gaps of 100 nats between samples, essentially all probability mass is
+    on the best one.
+    """
+    env = env_tree_depth2
+    buffer = _make_replay_buffer(
+        env, tmp_path, replay_capacity=5, store_log_rewards=True
+    )
+    states, trajectories = _build_single_node_states(env, 5)
+    logrewards = [-500.0, -400.0, -300.0, -200.0, -100.0]
+    buffer.add(states, trajectories, logrewards, 1, buffer="replay")
+    assert len(buffer.replay) == 5
+
+    selected = BaseBuffer.select(
+        buffer.replay,
+        10,
+        mode="weighted",
+        rng=np.random.default_rng(0),
+        scores_are_log=True,
+    )
+    assert len(selected) == 10
+    assert (selected["rewards"] == -100.0).all()
+
+
+def test__replay_buffer__linear_rewards_underflow_breaks_weighted_selection(
+    env_tree_depth2, tmp_path
+):
+    """
+    Documents the failure mode that store_log_rewards=True fixes: with linear
+    rewards that have underflowed to 0.0, the buffer insertion criterion is
+    frozen and weighted selection has no valid probabilities.
+    """
+    env = env_tree_depth2
+    buffer = _make_replay_buffer(
+        env, tmp_path, replay_capacity=3, store_log_rewards=False
+    )
+    states, trajectories = _build_single_node_states(env, 4)
+    rewards = [float(np.exp(np.float32(lr))) for lr in [-300.0, -200.0, -150.0]]
+    assert all(r == 0.0 for r in rewards)
+    buffer.add(states[:3], trajectories[:3], rewards, 1, buffer="replay")
+    assert len(buffer.replay) == 3
+
+    # Insertion is frozen: a fourth all-zero-reward sample can never displace
+    # any of the three stored ones.
+    buffer.add([states[3]], [trajectories[3]], [0.0], 2, buffer="replay")
+    readable_new = env.state2readable(states[3])
+    assert readable_new not in buffer.replay["samples_readable"].tolist()
+
+    # Weighted selection divides 0/0 -> NaN probabilities and raises.
+    with pytest.raises(ValueError):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            BaseBuffer.select(
+                buffer.replay, 2, mode="weighted", rng=np.random.default_rng(0)
+            )

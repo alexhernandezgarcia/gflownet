@@ -698,6 +698,7 @@ class GFlowNetAgent:
                 n_replay,
                 self.replay_sampling,
                 self.rng,
+                scores_are_log=self.buffer.store_log_rewards,
             )["samples"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
@@ -1055,8 +1056,12 @@ class GFlowNetAgent:
         # values, the natural rewards are computed by taking the exponential of the
         # log-rewards. In case the rewards are available in the batch but not the
         # log-rewards, the latter are computed by taking the log of the rewards.
-        # Numerical issues are not critical in this case, since the derived values
-        # are only used for reporting purposes.
+        # The derived values are used for reporting and for the buffer updates
+        # below. Note that exponentiating large negative log-rewards underflows to
+        # 0.0, which is harmless for reporting but breaks the replay buffer
+        # (insertion ordering and weighted sampling): if that regime is expected,
+        # the buffer should be configured with store_log_rewards=True so that the
+        # buffers operate on the log-rewards directly.
         if batch.rewards_available(log=False):
             rewards = batch.get_terminating_rewards(sort_by="trajectory")
         if batch.rewards_available(log=True):
@@ -1068,13 +1073,20 @@ class GFlowNetAgent:
             assert batch.rewards_available(log=False)
             logrewards = torch.log(rewards)
 
+        # The buffers store log-rewards if store_log_rewards is True, otherwise
+        # (linear) rewards.
+        if self.buffer.store_log_rewards:
+            rewards_buffer = logrewards
+        else:
+            rewards_buffer = rewards
+
         # Update main buffer
         actions_trajectories = batch.get_actions_trajectories()
         if self.buffer.use_main_buffer:
             self.buffer.add(
                 states_term,
                 actions_trajectories,
-                rewards,
+                rewards_buffer,
                 self.it,
                 buffer="main",
             )
@@ -1083,7 +1095,7 @@ class GFlowNetAgent:
         self.buffer.add(
             states_term,
             actions_trajectories,
-            rewards,
+            rewards_buffer,
             self.it,
             buffer="replay",
         )
