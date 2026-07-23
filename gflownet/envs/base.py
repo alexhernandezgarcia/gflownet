@@ -82,7 +82,6 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
 
     @abstractmethod
     def get_action_space(self):
@@ -90,6 +89,21 @@ class GFlowNetEnv:
         Constructs list with all possible actions (excluding end of sequence)
         """
         pass
+
+    @property
+    def policy_input_dim(self) -> int:
+        """
+        Returns the dimensionality of the policy representation of the states.
+
+        Returns
+        -------
+        int
+            The dimensionality of the policy representation of the states, which is
+            the input to the policy models.
+        """
+        if not hasattr(self, "_policy_input_dim"):
+            self._policy_input_dim = len(self.state2policy())
+        return self._policy_input_dim
 
     @property
     def action_space_dim(self) -> int:
