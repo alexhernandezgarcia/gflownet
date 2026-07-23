@@ -1266,7 +1266,7 @@ class GFlowNetAgent:
         Rejection sampling with proposal the uniform distribution defined over the
         sample space.
 
-        Returns a tensor in GFlowNet (state) format.
+        Returns a tensor in environment format.
 
         Parameters
         ----------
