@@ -533,6 +533,9 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             action, skip_mask_check=skip_mask_check, backward=False
         )
         if valid:
+            if action == self.eos:
+                self.done = True
+                return self.state, action, valid
             self._step(action, backward=False)
         return self.state, action, valid
 
@@ -580,9 +583,10 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         """
         Returns the maximum trajectory length of the environment, including the EOS
         action (used in the base env). As this env is non-acyclic,
-        the max trajectory is infinite.
+        the max trajectory should be infintite, but it leads to errors in samplig
+        random trajectories, so I set it just to a big number
         """
-        return np.inf
+        return 100
 
     def states2policy(
         self,
