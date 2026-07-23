@@ -1,5 +1,6 @@
 import math
 
+import common
 import numpy as np
 import pytest
 import torch
@@ -772,6 +773,60 @@ class TestTerminatingStates:
         out = env.get_uniform_terminating_states(n)
         assert len(out) == n
         assert all(len(s) == 2 for s in out)  # step element removed
+
+
+# --------------------------------------------------------------------------- #
+# states2policy
+# --------------------------------------------------------------------------- #
+class TestStatesToPolicy:
+    def test_states_to_policy_basic(self, env):
+        states = [
+            [0.1, 0.2],
+            [0.3, 0.4],
+            [0.3, 0.8],
+            [0.3, 0.1],
+        ]
+        states_policy = env.states2policy(states)
+        assert states_policy.shape[0] == len(states)
+        assert states_policy.shape[1] == 2
+
+        env.policy_encoding_dim_per_angle = 6
+        states_policy = env.states2policy(states)
+        assert states_policy.shape[0] == len(states)
+        assert states_policy.shape[1] == 12
+
+
+# copypasted from ctorus tests
+class TestNonAcyclicContinuousTorusBasic(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
 if __name__ == "__main__":
