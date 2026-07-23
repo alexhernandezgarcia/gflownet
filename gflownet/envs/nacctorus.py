@@ -533,6 +533,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             action, skip_mask_check=skip_mask_check, backward=False
         )
         if valid:
+            self.n_actions += 1
             if action == self.eos:
                 self.done = True
                 return self.state, action, valid
@@ -573,6 +574,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             action, skip_mask_check=skip_mask_check, backward=True
         )
         if valid:
+            self.n_actions += 1
             if self.done:
                 self.done = False
             else:
