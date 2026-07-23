@@ -33,3 +33,14 @@ Multiprocess sampling (2 chains in 2 jobs)
 CompoundStep
 >PGBART: [mu]
 >NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4741 seconds.
+Sampling: [mu]
+[bart] concrete split 4: test_rmse=7.0583 test_r2=0.8353 (4750.0s)
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4785 seconds.
+Sampling: [mu]
+[bart] concrete split 5: test_rmse=6.9987 test_r2=0.7912 (4794.3s)
+bart benchmarks on concrete DONE at Wed Jul 22 18:28:45 EDT 2026
