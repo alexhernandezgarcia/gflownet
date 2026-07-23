@@ -8,9 +8,6 @@ Normal-Inverse-Gamma (NIG) marginal likelihood over the continuous targets
 routed to each leaf. The structure priors ("node_count", "exponential",
 "bcart", "none") and the reward computation are inherited unchanged from
 ``CategoricalTreeProxy``.
-
-This file is kept separate from ``gflownet.proxy.tree`` so that the stacked
-feature branch only adds files and never modifies base-branch ones.
 """
 
 import math
