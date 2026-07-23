@@ -1334,11 +1334,11 @@ class Sequence(CompositeBase):
         input: state dict
         output: list of states
         """
-        print("DEBUGGING:", state)
         # here, we will use indices to arrange the possible representations of the state that will correspond to the same sequence
         # representations are used with the condition that the next number can only be inserted in front or at the end
         # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
         indices = state["_indices"]
+        indices.sort()
         n_indices = len(indices)
         # enumerate all the possible index order
         if n_indices < 2:
@@ -1353,13 +1353,14 @@ class Sequence(CompositeBase):
                 # append at the back
                 new_representations.append(all_representations[j] + [indices[i]])
             all_representations = new_representations
+        new_representations = all_representations
         new_state_representations = []
         # then form the state based on the new_representaions
         for k in range(len(new_representations)):
             new_state = copy(state)
             new_envs_unique = copy(state)["_envs_unique"]
             old_indices = copy(state)["_indices"]
-            for ind in range(n_indices):
+            for ind in range(len(new_representations[k])):
                 new_state[new_representations[k][ind]] = copy(state)[
                     old_indices[ind]
                 ]  # this is not yet correct
