@@ -932,7 +932,9 @@ class Batch:
                 done=done,
                 action=action,
             )
-            assert self.readonly_env.action2representative(action) in parents_a, f"""
+            assert (
+                self.readonly_env.action2representative(action) in parents_a
+            ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
             """
@@ -1271,6 +1273,15 @@ class Batch:
         else:
             self.rewards_source = rewards_source
             self._rewards_source_available = True
+
+    # TODO: docstring
+    # TODO: reuse this method in all other methods where this code is replicated
+    def get_terminating_indices(self, sort_by: str = "insertion") -> npt.NDArray:
+        if sort_by == "insert" or sort_by == "insertion":
+            indices = np.arange(len(self))
+        elif sort_by == "traj" or sort_by == "trajectory":
+            indices = np.argsort(self.traj_indices)
+        return indices
 
     def get_terminating_states(
         self,
