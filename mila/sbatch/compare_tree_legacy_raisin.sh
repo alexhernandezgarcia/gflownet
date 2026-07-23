@@ -12,20 +12,17 @@
 #
 # Same setup as compare_tree_legacy_iris.sh / _wine.sh (config:
 # config/experiments/tree/compare_tree_class_to_legacy_code.yaml; env.max_depth=4
-# == legacy max_depth 5; reward beta=1.0 = untempered posterior), with ONE
-# addition: float_precision=64. On raisin it is NOT optional.
+# == legacy max_depth 5; reward beta=1.0 = untempered posterior).
 #
-# Why float64 is mandatory here: with beta=1.0 the replay buffer stores
-# exp(log-posterior), and float32 exp() flushes to zero below ~-103 nats.
-# On raisin (N_train=720, balanced binary classes, best achievable accuracy
-# ~86%) even the posterior mode sits around log-posterior -250 or lower, so
-# under float32 EVERY reward is exactly 0.0: buffer insertion freezes on the
-# first 100 trees (reward > min never true) and the weighted replay sampling
-# divides 0/0 -> NaN -> guaranteed crash within the first iterations.
-# float64 moves the exp() floor to ~-745 (raisin worst case ~-550), which
-# keeps all rewards positive and ordered. Numerics only; the target
-# distribution and the comparison to the (log-domain) legacy code are
-# unaffected.
+# Numerics note: with beta=1.0 the replay buffer stores exp(log-posterior),
+# and on raisin (N_train=720, best log-posterior ~-250) EVERY tree sits far
+# below the float32 exp() underflow floor (~-103 nats), which zeroed all
+# buffer rewards and NaN'ed the weighted replay sampling (first submission,
+# job 10181990, all tasks FAILED at iteration ~1). Fixed in
+# gflownet/gflownet.py by computing the buffer's exp(logrewards) in float64
+# (exp floor ~-745; raisin worst case ~-550). Do NOT pass float_precision=64
+# instead: the composite env mixes dtypes and crashes in get_logprobs (that
+# was the actual failure of job 10181990).
 #
 # Usage:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/compare_tree_legacy_raisin.sh
@@ -59,7 +56,6 @@ export WANDB__SERVICE_WAIT=300
 
 python train.py +experiments=tree/compare_tree_class_to_legacy_code \
     env.data_path="$csv_path" \
-    float_precision=64 \
     seed=0 \
     logger.run_name="$run_name" \
     logger.run_name_date=False \

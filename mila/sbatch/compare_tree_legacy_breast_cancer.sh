@@ -12,18 +12,16 @@
 #
 # Same setup as compare_tree_legacy_iris.sh / _wine.sh (config:
 # config/experiments/tree/compare_tree_class_to_legacy_code.yaml; env.max_depth=4
-# == legacy max_depth 5; reward beta=1.0 = untempered posterior), with ONE
-# addition: float_precision=64.
+# == legacy max_depth 5; reward beta=1.0 = untempered posterior).
 #
-# Why float64 here: with beta=1.0 the replay buffer stores exp(log-posterior).
-# float32 exp() flushes to zero below ~-103 nats. On breast_cancer
-# (N_train=455, 30 features) even the BEST trees sit around log-posterior
-# -90 to -160, i.e. straddling that floor -- so most or all buffer rewards
-# would be exactly 0.0, which freezes buffer insertion (reward > min never
-# true) and NaNs the weighted replay sampling (0/0). float64 moves the exp()
-# floor to ~-745, far below anything this dataset produces. This changes
-# numerics only, not the target distribution, and the legacy code base is
-# unaffected by the issue because it works purely in the log domain.
+# Numerics note: with beta=1.0 the replay buffer stores exp(log-posterior),
+# and on breast_cancer (N_train=455) log-posteriors sit far below the float32
+# exp() underflow floor (~-103 nats), which zeroed every buffer reward and
+# NaN'ed the weighted replay sampling (first submission, job 10181989, all
+# tasks FAILED at iteration ~1). Fixed in gflownet/gflownet.py by computing
+# the buffer's exp(logrewards) in float64 (exp floor ~-745). Do NOT pass
+# float_precision=64 instead: the composite env mixes dtypes and crashes in
+# get_logprobs (that was the actual failure of job 10181989).
 #
 # Usage:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/compare_tree_legacy_breast_cancer.sh
@@ -57,7 +55,6 @@ export WANDB__SERVICE_WAIT=300
 
 python train.py +experiments=tree/compare_tree_class_to_legacy_code \
     env.data_path="$csv_path" \
-    float_precision=64 \
     seed=0 \
     logger.run_name="$run_name" \
     logger.run_name_date=False \

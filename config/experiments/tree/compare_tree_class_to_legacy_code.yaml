@@ -83,16 +83,15 @@ proxy:
 
   # Untempered posterior to match the legacy dummy reward (see header).
   # Numerics: the TB loss consumes log-rewards (beta * log-posterior) and never
-  # under/overflows. exp() only materializes in the weighted replay sampling
-  # (buffer select normalizes raw rewards), which breaks only if ALL buffer
-  # entries underflow to exactly 0 (0/0 -> NaN probabilities). float32 exp()
-  # flushes to zero below ~-103 nats; the worst possible iris tree
-  # (N_train=120) sits at -120*log(3) ~ -132, but any tree isolating even one
-  # class is far above -103, so an all-zero buffer is very unlikely. If a run
-  # nevertheless crashes inside Buffer.select in the first iterations, rerun
-  # with gflownet.replay_sampling=permutation (affects only replay selection,
-  # not the target distribution). Revisit beta for larger datasets (see the
-  # comment in regression_tree.yaml).
+  # under/overflows. exp() only materializes for the replay buffer (insertion
+  # threshold + weighted sampling). Under float32 that exp() flushed to zero
+  # below ~-103 nats, and the first batch of random trees sits below that on
+  # every bundled dataset except iris -- wine/breast_cancer/raisin runs
+  # crashed with NaN probabilities in Buffer.select (jobs 10181934/89/90,
+  # 2026-07-23). Fixed in gflownet/gflownet.py by computing the buffer's
+  # exp(logrewards) in float64 (exp floor ~-745, below even raisin's ~-550
+  # worst case). Do NOT set float_precision=64 as a workaround: the composite
+  # env mixes dtypes and crashes in get_logprobs.
   reward_function: exponential
   reward_function_kwargs:
     beta: 1.0
