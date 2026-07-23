@@ -399,7 +399,7 @@ class ContinuousTorus(GFlowNetEnv):
             mix = Categorical(logits=mix_logits)
             vonmises = VonMises(
                 locations,
-                concentrations + self.vonmises_min_concentration,
+                concentrations,
             )
             distr_angles = MixtureSameFamily(mix, vonmises)
 
