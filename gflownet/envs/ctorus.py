@@ -134,9 +134,13 @@ class ContinuousTorus(GFlowNetEnv):
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         if self.distr_type == "diffusion":
             self.n_params_per_dim = 1
-            assert (
-                self.n_comp == 1
-            ), "Diffusion distribution only supports 1 component (both forward and backward policies are parametrized as **unimodal** wrapped normal distributions), with a learned mean and a fixed variance"
+            if self.n_comp != 1:
+                raise ValueError(
+                    "Diffusion distribution only supports 1 component (both "
+                    "forward and backward policies are parametrized as "
+                    "**unimodal** wrapped normal distributions), with a learned "
+                    f"mean and a fixed variance. Received n_comp = {self.n_comp}"
+                )
             self.sigma_max = np.pi
             self.sigma_min = 0.01 * np.pi
             if fixed_distr_params is None:
@@ -412,21 +416,15 @@ class ContinuousTorus(GFlowNetEnv):
             assert self.n_comp == 1
             if is_backward == False:
                 # At convergence, score should be equal to grad_logp(x_t)
-                score = policy_outputs.reshape(
-                    -1, self.n_dim
-                )
+                score = policy_outputs.reshape(-1, self.n_dim)
                 # since x_{t+1} = x_t + score * std_t^2 + N(0, std_t^2), the increment
                 # mean is equal to score * std_t^2
-                means = score * torch.pow(
-                    stds.unsqueeze(1).repeat(1, 2), 2
-                )
+                means = score * torch.pow(stds.unsqueeze(1).repeat(1, 2), 2)
             else:
                 # For diffusion models, the backwards policy is fixed and not learned.
                 # Here, we force the backwards variance-exploding policy, i.e. x_{t-1}
                 # = x_t + N(0, std_t^2)
-                means = torch.zeros(
-                    policy_outputs.shape[0], self.n_dim
-                )
+                means = torch.zeros(policy_outputs.shape[0], self.n_dim)
             distr_angles = WrappedNormal(means, stds)
 
         return distr_angles
