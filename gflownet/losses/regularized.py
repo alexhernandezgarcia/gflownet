@@ -1,7 +1,6 @@
 from gflownet.losses.base import BaseLoss
 
 
-# TODO: think about checking compatibility of a loss and a regularizer
 class RegularizedLoss(BaseLoss):
     """
     A wrapper class allowing to combine any loss with regularizers.
@@ -18,10 +17,49 @@ class RegularizedLoss(BaseLoss):
         regularisers: list
             A list of instances of the regularisers
         """
+        if not self.are_compatible(loss, regularisers):
+            raise Exception(
+                f"Loss {loss.id} and regularisers {[reg.id for reg in regularisers]} are not compatible"
+            )
+
         self.loss = loss
         self.regularizers = regularisers
 
         self._requires_log_z = self.loss.requires_log_z
+
+    @staticmethod
+    def are_compatible(loss: BaseLoss, regularizers: List) -> bool:
+        """
+        Checks if loss and regularisers have the same aggregation strategy
+
+        Parameters
+        ----------
+        loss : BaseLoss or its child
+            An instance of the loss function
+        regularisers: list
+            A list of instances of the regularisers
+
+        Returns
+        -------
+        bool
+            True if they all have the same aggregation strategy
+        """
+        for reg in regularisers:
+            if reg.aggregates_over() != loss.aggregates_over():
+                return False
+        return True
+
+    def aggregates_over(self) -> str:
+        """
+        Returns a label indentifying over which objects in the batch
+        aggregation happens.
+
+        Returns
+        -------
+        str
+            Aggregation strategy of the loss
+        """
+        return self.loss.aggregates_over()
 
     def requires_backward_policy(self) -> bool:
         """
