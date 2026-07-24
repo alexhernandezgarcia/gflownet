@@ -6,10 +6,13 @@ TODO:
 
 import copy
 import gc
+import logging
 import pickle
 import time
 from collections import defaultdict
+from contextlib import redirect_stderr, redirect_stdout
 from functools import partial
+from io import StringIO
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -1328,7 +1331,12 @@ class GFlowNetAgent:
             format.
         """
         import ultranest
-        from wurlitzer import pipes
+
+        # Disable DEBUG and INFO logging messages from ultranest
+        ultranest_logger = logging.getLogger("ultranest")
+        ultranest_logger.setLevel(logging.WARNING)
+        ultranest_logger.handlers.clear()
+        ultranest_logger.addHandler(logging.NullHandler())
 
         def reward_func(angles):
             # angles here is np array
@@ -1355,23 +1363,24 @@ class GFlowNetAgent:
         samples = []
         n_sampled = 0
         iteration = 0
-        print(f"Running nested sampling (until {n_samples} samples are obtained)...")
+        print(f"\nRunning nested sampling (until {n_samples} samples are obtained)...")
         while n_sampled < n_samples:
             param_names = [f"theta_{i}" for i in range(self.env.n_dim)]
 
-            with pipes():
-                sampler = ultranest.ReactiveNestedSampler(
-                    param_names,
-                    reward_func,
-                    prior_transform,
-                    vectorized=True,
-                    ndraw_min=1000,
-                )
-                result = sampler.run()
+            sampler = ultranest.ReactiveNestedSampler(
+                param_names,
+                reward_func,
+                prior_transform,
+                vectorized=True,
+                ndraw_min=1000,
+            )
+            result = sampler.run(
+                show_status=False, viz_callback=None, log_interval=None
+            )
 
             samples.append(result["samples"])
             n_sampled += result["samples"].shape[0]
-            print(f"Total samples (iteration #{iteration}): {n_sampled}.")
+            print(f"\tTotal samples (iteration #{iteration}): {n_sampled}.")
             iteration += 1
         samples = np.concatenate(samples, axis=0)
         # add dummy step dimension
