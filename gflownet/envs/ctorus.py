@@ -55,12 +55,13 @@ class ContinuousTorus(GFlowNetEnv):
         Minimum value allowed for the concentration parameter of the von Mises
         distributions.
     exp_vonmises_concentration: bool
-        A flag indicating whether to exponentiate concentrations for von Mises distribution.
-        Default is True.
+        A flag indicating whether to exponentiate concentrations for von Mises
+        distribution.  Default is True.
     state_space_atol: float
         Tolerance for comparing states similarity.
     start_uniform : bool
-        If True, the first step of the trajectory is sampled from a uniform distribution.
+        If True, the first step of the trajectory is sampled from a uniform
+        distribution.
     n_params_per_dim: int
         Number of policy parameters per dimention
     """
@@ -97,32 +98,35 @@ class ContinuousTorus(GFlowNetEnv):
         policy_encoding_dim_per_angle : int
             Dimensionality of the policy encodings of the angles.
         fixed_distr_params : dict
-            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
-            fixed distribution of the environment. For von Mises, it must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
-            keys with float values ``means`` and ``stds``.
+            Dictionary of parameters of the von Mises or Gaussian distribution that
+            defines the fixed distribution of the environment. For von Mises, it must
+            contain two keys with float values: ``vonmises_mean`` and
+            ``vonmises_concentration``. For Gaussian ust contain two keys with float
+            values ``means`` and ``stds``.
         random_distr_params : dict
-            Dictionary of parameters of the von Mises or Gaussian distribution that defines the
-            random distribution of the environment. For von Mises, it must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``. For Gaussian ust contain two
-            keys with float values ``means`` and ``stds``.
+            Dictionary of parameters of the von Mises or Gaussian distribution that
+            defines the random distribution of the environment. For von Mises, it must
+            contain two keys with float values: ``vonmises_mean`` and
+            ``vonmises_concentration``. For Gaussian ust contain two keys with float
+            values ``means`` and ``stds``.
         vonmises_min_concentration : float
             Minimum value allowed for the concentration parameter of the von Mises
             distributions.
         exp_vonmises_concentration: bool
-            A flag indicating whether to exponentiate concentrations for von Mises distribution.
-            Default is True
+            A flag indicating whether to exponentiate concentrations for von Mises
+            distribution.  Default is True
         state_space_atol: float
             Tolerance for comparing states similarity.
         start_uniform : bool
-            If True, the first step of the trajectory is sampled from the uniform distribution.
+            If True, the first step of the trajectory is sampled from the uniform
+            distribution.
         """
         assert n_dim > 0
         assert length_traj > 0
         assert n_comp > 0
         # Main environment properties
-        self.n_dim = n_dim
         self.distr_type = distr_type
+        self.n_dim = n_dim
         self.length_traj = length_traj
         self.state_space_atol = state_space_atol
         # Policy properties
@@ -155,7 +159,8 @@ class ContinuousTorus(GFlowNetEnv):
             self.exp_vonmises_concentration = exp_vonmises_concentration
         else:
             raise ValueError(
-                f"Unknown distribution type: {self.distr_type}. Supported types are 'diffusion' and 'von_mises'."
+                f"Unknown distribution type: {self.distr_type}. Supported types are "
+                "'diffusion' and 'von_mises'."
             )
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
@@ -395,7 +400,6 @@ class ContinuousTorus(GFlowNetEnv):
                 params["concentrations"],
                 params["locations"],
             )
-            # print('Von Mises params shapes', mix_logits.shape, concentrations.shape, locations.shape)
             mix = Categorical(logits=mix_logits)
             vonmises = VonMises(
                 locations,
@@ -407,16 +411,22 @@ class ContinuousTorus(GFlowNetEnv):
             stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
             assert self.n_comp == 1
             if is_backward == False:
+                # At convergence, score should be equal to grad_logp(x_t)
                 score = policy_outputs.reshape(
                     -1, self.n_dim
-                )  # at convergence, score should be equal to grad_logp(x_t)
+                )
+                # since x_{t+1} = x_t + score * std_t^2 + N(0, std_t^2), the increment
+                # mean is equal to score * std_t^2
                 means = score * torch.pow(
                     stds.unsqueeze(1).repeat(1, 2), 2
-                )  # since x_{t+1} = x_t + score * std_t^2 + N(0, std_t^2),  the increment mean is equal to score * std_t^2
+                )
             else:
+                # For diffusion models, the backwards policy is fixed and not learned.
+                # Here, we force the backwards variance-exploding policy, i.e. x_{t-1}
+                # = x_t + N(0, std_t^2)
                 means = torch.zeros(
                     policy_outputs.shape[0], self.n_dim
-                )  # For diffusion models, the backwards policy is fixed and not learned. Here, we force the backwards variance-exploding policy, i.e. x_{t-1} = x_t + N(0, std_t^2)
+                )
             distr_angles = WrappedNormal(means, stds)
 
         return distr_angles
@@ -620,7 +630,8 @@ class ContinuousTorus(GFlowNetEnv):
                     logprobs_tmp[mask_inf] = -torch.inf
                     logprobs[do_bts] = logprobs_tmp
                     warnings.warn(
-                        "Warning: logprobs for invalid back-to-source actions set to -inf."
+                        "Warning: logprobs for invalid back-to-source actions set "
+                        "to -inf."
                     )
 
         logprobs = torch.sum(logprobs, axis=1)
@@ -641,10 +652,11 @@ class ContinuousTorus(GFlowNetEnv):
         (if self.distr_type == "diffusion"):
           1) the mean of the wrapped Gaussian distribution
 
-        Therefore, the output of the policy model has dimensionality D x C x n_params_per_dim ,
-        where D is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). The first n_params_per_dim x C entries in the policy output correspond to the
-        first dimension, and so on. Note that for "diffusion" C == 1, i.e. only one component is possible.
+        Therefore, the output of the policy model has dimensionality D x C x
+        n_params_per_dim , where D is the number of dimensions (self.n_dim) and C is
+        the number of components (self.n_comp). The first n_params_per_dim x C entries
+        in the policy output correspond to the first dimension, and so on. Note that
+        for "diffusion" C == 1, i.e. only one component is possible.
         """
         if self.distr_type == "von_mises":
             policy_output = torch.ones(
