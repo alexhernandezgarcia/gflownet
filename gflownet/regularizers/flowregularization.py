@@ -162,7 +162,10 @@ class FlowRegularization(BaseRegularization):
         # Get terminal logrewards from batch
         logrewards_term = batch.get_terminating_rewards(log=True, sort_by="trajectory")
         # Get terminal logprobs
-        logprobs = batch.get_logprobs(backward=False)
+        logprobs, valids = batch.get_logprobs(backward=False)
+        # TODO: that will work only with forward sampling, extend it to
+        # make it work with backward
+        assert torch.all(valids)
         term_indices = tlong(
             batch.get_terminating_indices(sort_by="trajectory"), device=self.device
         )
