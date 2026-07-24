@@ -87,6 +87,18 @@ class FlowRegularization(BaseRegularisation):
         self.gamma = gamma
         self.use_log = use_log
 
+    def aggregates_over(self) -> str:
+        """
+        Returns a label indentifying over which objects in the batch
+        aggregation happens.
+
+        Returns
+        -------
+        str
+            "trajectories"
+        """
+        return "trajectories"
+
     def requires_backward_policy(self) -> bool:
         """
         Returns True if the regulariser requires a backward policy.

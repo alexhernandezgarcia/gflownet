@@ -121,6 +121,19 @@ class BaseLoss(metaclass=ABCMeta):
         return self._requires_log_z
 
     @abstractmethod
+    def aggregates_over(self) -> str:
+        """
+        Returns a label indentifying over which objects in the batch
+        aggregation happens. Possible values are "states" or "trajectories"
+
+        Returns
+        -------
+        str
+            "states" or "trajectories"
+        """
+        pass
+
+    @abstractmethod
     def requires_backward_policy(self) -> bool:
         """
         Returns True if the loss function requires a backward policy.
