@@ -6,6 +6,7 @@ This regularization wwas defined by Korolev et al. (2026):
     .. _a link: https://arxiv.org/pdf/2606.16073 (equation 22)
 """
 
+import torch
 from torchtyping import TensorType
 
 from gflownet.losses.base import BaseLoss
@@ -13,10 +14,10 @@ from gflownet.utils.batch import Batch
 from gflownet.utils.common import tlong
 
 
-class BaseRegularisation(BaseLoss):
+class BaseRegularization(BaseLoss):
     def __init__(self, **kwargs):
         """
-        Initialization method for the Base Regularisation class.
+        Initialization method for the Base Regularization class.
 
         Attributes
         ----------
@@ -54,12 +55,12 @@ class BaseRegularisation(BaseLoss):
         dict
             A dictionary of regulariser aggregations.
         """
-        losses_dict = loss_instance.aggregate_losses_of_batch(losses)
+        losses_dict = loss_instance.aggregate_losses_of_batch(losses, batch)
         result = {f"{self.id} {key}": value for key, value in losses_dict.items()}
         return result
 
 
-class FlowRegularization(BaseRegularisation):
+class FlowRegularization(BaseRegularization):
     def __init__(self, gamma=1.0, use_log=True, **kwargs):
         """
         Initialization method for the Flow Regularization loss class.
@@ -75,7 +76,7 @@ class FlowRegularization(BaseRegularisation):
         gamma : float
             Multiplier to control the magnitude of regularization
         use_log : bool
-            If True, the regulariser with be taken under the logarithm, othervise
+            If True, the regulariser with be taken under the logarithm, otherwise
             the original regularizer from the paper is used (w/o the logarithm)
         """
         super().__init__(**kwargs)
@@ -162,10 +163,10 @@ class FlowRegularization(BaseRegularisation):
         logrewards_term = batch.get_terminating_rewards(log=True, sort_by="trajectory")
         # Get terminal logprobs
         logprobs = batch.get_logprobs(backward=False)
-        term_indicies = tlong(
+        term_indices = tlong(
             batch.get_terminating_indices(sort_by="trajectory"), device=self.device
         )
-        logprobs_term = logprobs[term_indicies]
+        logprobs_term = logprobs[term_indices]
 
         loss = logrewards_term - logprobs_term
 
