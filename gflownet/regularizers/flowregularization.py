@@ -13,7 +13,53 @@ from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import tlong
 
 
-class FlowRegularization(BaseLoss):
+class BaseRegularisation(BaseLoss):
+    def __init__(self, **kwargs):
+        """
+        Initialization method for the Base Regularisation class.
+
+        Attributes
+        ----------
+        name : str
+            The name of the regulariser
+        acronym : str
+            The acronym of the regulariser
+        id : str
+            The identifier of the regulariser
+        """
+        super().__init__(**kwargs)
+
+        self.name = "Base Regularization"
+        self.acronym = "BR"
+        self.id = "basereg"
+
+    def aggregate_losses_of_batch(
+        self, losses: TensorType["batch_size"], batch: Batch, loss_instance: BaseLoss
+    ) -> dict[str, float]:
+        """
+        Aggregates the regularizer values computed from a batch to obtain the
+        overall average regularizer.
+
+        Parameters
+        ----------
+        losses : tensor
+            The regularizer values of each trajectory / state in the batch.
+        batch : Batch
+            A batch of trajectories / states.
+        loss_instance : BaseLoss or its child
+            A loss instance which aggregation function is used
+
+        Returns
+        -------
+        dict
+            A dictionary of regulariser aggregations.
+        """
+        losses_dict = loss_instance.aggregate_losses_of_batch(losses)
+        result = {f"{self.id} {key}": value for key, value in losses_dict.items()}
+        return result
+
+
+class FlowRegularization(BaseRegularisation):
     def __init__(self, gamma=1.0, use_log=True, **kwargs):
         """
         Initialization method for the Flow Regularization loss class.
@@ -21,11 +67,11 @@ class FlowRegularization(BaseLoss):
         Attributes
         ----------
         name : str
-            The name of the loss or objective function: Flow Regularization
+            The name of the regulariser: Flow Regularization
         acronym : str
-            The acronym of the loss or objective function: FR
+            The acronym of the regulariser: FR
         id : str
-            The identifier of the loss or objective function: flowreg
+            The identifier of the regulariser: flowreg
         gamma : float
             Multiplier to control the magnitude of regularization
         use_log : bool
@@ -43,9 +89,9 @@ class FlowRegularization(BaseLoss):
 
     def requires_backward_policy(self) -> bool:
         """
-        Returns True if the loss function requires a backward policy.
+        Returns True if the regulariser requires a backward policy.
 
-        The Flow Regularization loss does not require a backward policy model, hence False is
+        The Flow Regularization does not require a backward policy model, hence False is
         returned.
 
         Returns
@@ -56,9 +102,9 @@ class FlowRegularization(BaseLoss):
 
     def requires_state_flow_model(self) -> bool:
         """
-        Returns True if the loss function requires a state flow model.
+        Returns True if the regulariser requires a state flow model.
 
-        The Flow Regularization loss does not require a state flow model, hence False is
+        The Flow Regularization does not require a state flow model, hence False is
         returned.
 
         Returns
@@ -69,10 +115,10 @@ class FlowRegularization(BaseLoss):
 
     def is_defined_for_continuous(self) -> bool:
         """
-        Returns True if the loss function is well defined for continuous GFlowNets,
+        Returns True if the regulariser is well defined for continuous GFlowNets,
         that is continuous environments, or False otherwise.
 
-        The Flow Regularization loss is well defined for continuous GFlowNets, therefore
+        The Flow Regularization is well defined for continuous GFlowNets, therefore
         this method returns True.
 
         Returns
@@ -83,9 +129,9 @@ class FlowRegularization(BaseLoss):
 
     def compute_losses_of_batch(self, batch: Batch) -> TensorType["batch_size"]:
         """
-        Computes the Flow Regularization loss for each trajectory of the input batch.
+        Computes the Flow Regularization for each trajectory of the input batch.
 
-        The Flow Regularization (TB) loss or objective is computed in this method as is
+        The Flow Regularization is computed in this method as it is
         defined in the last term of the Equation 22 of Korolev et al. (2026):
 
         .. _a link: https://arxiv.org/pdf/2606.16073 (equation 22)
@@ -98,7 +144,7 @@ class FlowRegularization(BaseLoss):
         Returns
         -------
         tensor
-            The loss of each trajectory in the batch.
+            The regulariser value for each trajectory in the batch.
         """
         # Get terminal logrewards from batch
         logrewards_term = batch.get_terminating_rewards(log=True, sort_by="trajectory")
@@ -115,28 +161,3 @@ class FlowRegularization(BaseLoss):
             loss = torch.exp(loss)
 
         return self.gamma * loss
-
-    def aggregate_losses_of_batch(
-        self, losses: TensorType["batch_size"], batch: Batch
-    ) -> dict[str, float]:
-        """
-        Aggregates the losses computed from a batch to obtain the overall average loss.
-
-        The result is returned as a dictionary with the following items:
-        - 'all': Overall average loss
-
-        Parameters
-        ----------
-        losses : tensor
-            The loss of each trajectory in the batch.
-        batch : Batch
-            A batch of trajectories.
-
-        Returns
-        -------
-        loss_dict : dict
-            A dictionary of loss aggregations.
-        """
-        return {
-            "all": losses.mean(),
-        }
