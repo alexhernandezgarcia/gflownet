@@ -60,7 +60,7 @@ class ContinuousTorus(GFlowNetEnv):
     state_space_atol: float
         Tolerance for comparing states similarity.
     start_uniform : bool
-        If True, the first step of the trajectory is sampled from the uniform distribution.
+        If True, the first step of the trajectory is sampled from a uniform distribution.
     n_params_per_dim: int
         Number of policy parameters per dimention
     """
