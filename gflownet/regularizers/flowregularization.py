@@ -9,7 +9,7 @@ This regularization wwas defined by Korolev et al. (2026):
 from torchtyping import TensorType
 
 from gflownet.losses.base import BaseLoss
-from gflownet.utils.batch import Batch, compute_logprobs_trajectories
+from gflownet.utils.batch import Batch
 from gflownet.utils.common import tlong
 
 

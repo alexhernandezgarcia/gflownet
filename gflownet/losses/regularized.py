@@ -1,4 +1,9 @@
+from typing import List
+
+from torchtyping import TensorType
+
 from gflownet.losses.base import BaseLoss
+from gflownet.utils.batch import Batch
 
 
 class RegularizedLoss(BaseLoss):
@@ -104,7 +109,9 @@ class RegularizedLoss(BaseLoss):
         ]
         return all(flags)
 
-    def compute_losses_of_batch(self, batch: Batch) -> Dict[TensorType["batch_size"]]:
+    def compute_losses_of_batch(
+        self, batch: Batch
+    ) -> dict[str, TensorType["batch_size"]]:
         """
         Computes loss and regularisers for each trajectory or state
         of the input batch.
@@ -126,7 +133,7 @@ class RegularizedLoss(BaseLoss):
         result = {"loss": loss_batch, "regularizers": regularisers_batch}
 
     def aggregate_losses_of_batch(
-        self, losses: Dict[TensorType["batch_size"]], batch: Batch
+        self, losses: dict[str, TensorType["batch_size"]], batch: Batch
     ) -> dict[str, float]:
         """
         Aggregates the losses and regularisers computed from a batch
