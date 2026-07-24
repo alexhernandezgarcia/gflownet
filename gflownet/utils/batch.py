@@ -1281,7 +1281,10 @@ class Batch:
             indices = np.arange(len(self))
         elif sort_by == "traj" or sort_by == "trajectory":
             indices = np.argsort(self.traj_indices)
-        return indices
+
+        done = self.get_done()[indices]
+        indices_term = [idx for idx in indices if self.done[idx]]
+        return indices_term
 
     def get_terminating_states(
         self,
