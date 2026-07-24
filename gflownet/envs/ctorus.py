@@ -63,7 +63,7 @@ class ContinuousTorus(GFlowNetEnv):
         If True, the first step of the trajectory is sampled from a uniform
         distribution.
     n_params_per_dim: int
-        Number of policy parameters per dimention
+        Number of policy parameters per dimension.
     """
 
     def __init__(
