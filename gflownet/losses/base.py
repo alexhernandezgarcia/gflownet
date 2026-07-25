@@ -24,7 +24,7 @@ class BaseLoss(metaclass=ABCMeta):
     # TODO: improve dependence on policies (needs re-implementation of policies)
     def __init__(
         self,
-        forward_policy: Policy,
+        forward_policy: Policy = None,
         backward_policy: Policy = None,
         state_flow: Policy = None,
         logZ: Parameter = None,
