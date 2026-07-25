@@ -151,6 +151,7 @@ def make_gflownet(env, loss_name):
         overrides=[
             "gflownet.optimizer.batch_size.forward=4",
             "gflownet.optimizer.n_train_steps=1",
+            "buffer.replay_capacity=10",
         ]
         + overrides
     )
@@ -186,6 +187,62 @@ class TestComputeLossesOfBatch:
             float_type=gflownet.float,
         )
         batch.merge(gflownet.sample_batch(n_forward=4, train=True)[0])
+
+        reg_loss = RegularizedLoss(gflownet.loss, [flow_reg])
+
+        result = reg_loss.compute_losses_of_batch(batch)
+
+        expected_loss = gflownet.loss.compute_losses_of_batch(batch)
+        expected_reg = flow_reg.compute_losses_of_batch(batch)
+
+        assert torch.equal(result["loss"], expected_loss)
+        assert len(result["regularizers"]) == 1
+        assert torch.equal(result["regularizers"][0], expected_reg)
+
+    @pytest.mark.parametrize(
+        "env, loss_name",
+        [
+            ("ctorus", "tb"),
+            ("grid", "tb"),
+            ("ctorus", "vargrad"),
+            ("grid", "vargrad"),
+        ],
+        indirect=["env"],  # only `env` needs indirection; loss_name is a plain value
+    )
+    def test_combines_loss_and_regularizer_outputs_backward(
+        self, env, loss_name, flow_reg
+    ):
+
+        gflownet = make_gflownet(env, loss_name)
+        # sample batch forward
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=10, n_replay=0, train=True)[0])
+
+        # Add to replay buffer
+        states_term = batch.get_terminating_states(sort_by="trajectory")
+        actions_trajectories = batch.get_actions_trajectories()
+        rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        gflownet.buffer.add(
+            states_term,
+            actions_trajectories,
+            rewards,
+            0,
+            buffer="replay",
+        )
+
+        # sample batch backward
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=0, n_replay=4, train=True)[0])
 
         reg_loss = RegularizedLoss(gflownet.loss, [flow_reg])
 
