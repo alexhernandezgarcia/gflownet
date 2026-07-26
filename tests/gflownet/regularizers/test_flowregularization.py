@@ -174,7 +174,6 @@ class TestOnABatch:
         indirect=["env"],
     )
     def test_output_values_are_correct_ctorus_bakward(self, env, loss_name, flow_reg):
-
         gflownet = make_gflownet(env, loss_name)
         # sample batch forward
         batch = Batch(
@@ -221,3 +220,100 @@ class TestOnABatch:
 
         assert result["flowreg all"] == 1.0
         assert torch.all(result_batch == 1.0)
+
+    @pytest.mark.parametrize(
+        "env, loss_name",
+        [
+            ("grid", "tb"),
+            ("grid", "vargrad"),
+        ],
+        indirect=["env"],
+    )
+    def test_output_values_are_correct_grid(self, env, loss_name, flow_reg):
+
+        gflownet = make_gflownet(env, loss_name)
+        n_traj = 4
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=n_traj, train=True)[0])
+
+        result_batch = flow_reg.compute_losses_of_batch(batch)
+        result = flow_reg.aggregate_losses_of_batch(result_batch, batch, gflownet.loss)
+
+        # Uniform proxy gives logreward == 0 and in grid logprob of EOS <= 0.
+        # because traj length is not fixed, therefore flowreg should be >= 0.
+        assert result["flowreg all"] > 0.0
+        assert torch.all(result_batch >= 0.0)
+
+        flow_reg.use_log = False
+        result_batch_exp = flow_reg.compute_losses_of_batch(batch)
+        result_exp = flow_reg.aggregate_losses_of_batch(
+            result_batch, batch, gflownet.loss
+        )
+
+        assert result_exp["flowreg all"] > 1.0
+        assert torch.all(result_batch_exp == torch.exp(result_batch))
+
+    @pytest.mark.parametrize(
+        "env, loss_name",
+        [
+            ("grid", "tb"),
+            ("grid", "vargrad"),
+        ],
+        indirect=["env"],
+    )
+    def test_output_values_are_correct_grid_backward(self, env, loss_name, flow_reg):
+        gflownet = make_gflownet(env, loss_name)
+        # sample batch forward
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=10, n_replay=0, train=True)[0])
+
+        # Add to replay buffer
+        states_term = batch.get_terminating_states(sort_by="trajectory")
+        actions_trajectories = batch.get_actions_trajectories()
+        rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        gflownet.buffer.add(
+            states_term,
+            actions_trajectories,
+            rewards,
+            0,
+            buffer="replay",
+        )
+
+        # sample batch backward
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=0, n_replay=4, train=True)[0])
+
+        # need to ocompute loss first to set all logprobs in the batch to valid
+        loss = gflownet.loss.compute(batch)
+
+        result_batch = flow_reg.compute_losses_of_batch(batch)
+        result = flow_reg.aggregate_losses_of_batch(result_batch, batch, gflownet.loss)
+
+        # Uniform proxy gives logreward == 0 and in grid logprob of EOS <= 0.
+        # because traj length is not fixed, therefore flowreg should be >= 0.
+        assert result["flowreg all"] > 0.0
+        assert torch.all(result_batch >= 0.0)
+
+        flow_reg.use_log = False
+        result_batch_exp = flow_reg.compute_losses_of_batch(batch)
+        result_exp = flow_reg.aggregate_losses_of_batch(
+            result_batch, batch, gflownet.loss
+        )
+
+        assert result_exp["flowreg all"] > 1.0
+        assert torch.all(result_batch_exp == torch.exp(result_batch))
