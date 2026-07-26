@@ -197,7 +197,10 @@ class FlowRegularization(BaseRegularization):
         )
         # Get terminal logprobs
         logprobs, valids = batch.get_logprobs(backward=False)
-        assert torch.all(valids[term_indices])
+        if not torch.all(valids[term_indices]):
+            raise Exception(
+                f"Some terminal logprobs are invalid, cannot compute {self.id} values"
+            )
         logprobs_term = logprobs[term_indices]
 
         loss = logrewards_term - logprobs_term
