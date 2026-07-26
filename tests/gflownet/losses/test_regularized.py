@@ -254,3 +254,45 @@ class TestComputeLossesOfBatch:
         assert torch.equal(result["loss"], expected_loss)
         assert len(result["regularizers"]) == 1
         assert torch.equal(result["regularizers"][0], expected_reg)
+
+
+class TestCompute:
+    @pytest.mark.parametrize(
+        "env, loss_name",
+        [
+            ("ctorus", "tb"),
+            ("grid", "tb"),
+            ("ctorus", "vargrad"),
+            ("grid", "vargrad"),
+        ],
+        indirect=["env"],
+    )
+    def test_compute_combines_loss_and_regularizer_outputs(
+        self, env, loss_name, flow_reg
+    ):
+
+        gflownet = make_gflownet(env, loss_name)
+        # import ipdb; ipdb.set_trace()
+        batch = Batch(
+            env=env,
+            proxy=gflownet.proxy,
+            device=gflownet.device,
+            float_type=gflownet.float,
+        )
+        batch.merge(gflownet.sample_batch(n_forward=4, train=True)[0])
+
+        reg_loss = RegularizedLoss(gflownet.loss, [flow_reg])
+
+        result = reg_loss.compute(batch, get_sublosses=True)
+
+        expected_loss = gflownet.loss.compute(batch, get_sublosses=True)
+        expected_reg = flow_reg.compute(batch, gflownet.loss, get_sublosses=True)
+
+        for key, value in expected_loss.items():
+            assert result[key + " no regularizers"] == value
+        for key, value in expected_reg.items():
+            assert result[key] == value
+
+        assert torch.allclose(
+            result["all"], result["all no regularizers"] + result["flowreg all"]
+        )
