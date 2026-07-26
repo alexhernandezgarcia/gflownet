@@ -20,9 +20,6 @@ from gflownet.regularizers.flowregularization import FlowRegularization
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import gflownet_from_config
 
-# TODO:create env (ctorus and grid), policies for them to be able
-# to create the losses
-
 ### Utils for basic tests ###
 
 
@@ -85,7 +82,11 @@ def make_loss(name, env):
         return FlowMatching(forward_policy=forward_policy)
 
 
-#### Basic tests #####
+# ---------------------------------------------------------------------------
+# Basic tests
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.parametrize(
     "env",
     [
@@ -162,7 +163,9 @@ def make_gflownet(env, loss_name):
     return gflownet
 
 
-### Test on batch ###
+# ---------------------------------------------------------------------------
+# Tests on a batch
+# ---------------------------------------------------------------------------
 
 
 class TestComputeLossesOfBatch:
