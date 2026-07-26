@@ -6,6 +6,8 @@ This regularization wwas defined by Korolev et al. (2026):
     .. _a link: https://arxiv.org/pdf/2606.16073 (equation 22)
 """
 
+from typing import Union
+
 import torch
 from torchtyping import TensorType
 
@@ -58,6 +60,35 @@ class BaseRegularization(BaseLoss):
         losses_dict = loss_instance.aggregate_losses_of_batch(losses, batch)
         result = {f"{self.id} {key}": value for key, value in losses_dict.items()}
         return result
+
+    def compute(
+        self, batch: Batch, loss_instance: BaseLoss, get_sublosses: bool = False
+    ) -> Union[float, dict[str, float]]:
+        """
+        Computes and aggregates the regularizer of a batch of states or trajectories.
+
+        Parameters
+        ----------
+        batch : Batch
+            A batch of states or trajectories.
+        loss_instance : BaseLoss or its child
+            A loss instance which aggregation function is used
+        get_sublosses : bool
+            Whether specific, relevant sub-aggregations of the regularizer should be computed
+            and returned as a dictionary. If True, the returned variable is a dictionary.
+            If False, simply the mean over all values in the batch is returned.
+
+        Returns
+        -------
+        float or dict
+            A float containing the average regularizer or dictionary of regularizer aggregations,
+            depending on the value of `get_sublosses`.
+        """
+        losses = self.compute_losses_of_batch(batch)
+        if get_sublosses:
+            return self.aggregate_losses_of_batch(losses, batch, loss_instance)
+        else:
+            return losses.mean()
 
 
 class FlowRegularization(BaseRegularization):
