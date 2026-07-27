@@ -9,18 +9,12 @@ from scipy import special
 from torch.distributions import Uniform
 
 from gflownet.envs.ctorus import ContinuousTorus
-from gflownet.proxy.torus import Torus
 from gflownet.utils.common import tbool, tfloat
 
 
 @pytest.fixture
 def env():
     return ContinuousTorus(n_dim=2, length_traj=3)
-
-
-@pytest.fixture
-def proxy():
-    return Torus(normalize=True, alpha=1.0, beta=1.0, device="cpu", float_precision=32)
 
 
 @pytest.fixture
@@ -370,11 +364,9 @@ def test__backward_logprob_su(env_su):
         assert ~torch.isfinite(logprobs_rand)
 
 
-def tests__unroll_trajectory(env, proxy):
+def tests__unroll_trajectory(env):
     traj_states = []
     traj_actions = []
-
-    proxy.setup(env)
 
     env.reset()
 
