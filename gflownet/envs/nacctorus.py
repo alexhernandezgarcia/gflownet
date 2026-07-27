@@ -202,61 +202,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
                 actions.append(self.eos)
             return actions
 
-    def action_is_valid(
-        self,
-        action: Tuple[int],
-        mask: Optional[List] = None,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-        backward: Optional[bool] = False,
-    ) -> bool:
-        """
-        Determines whether an action is valid at the given state of the environment.
-
-        Parameters
-        ----------
-        action : tuple
-            Action from the action space
-
-        mask : bool
-            Mask of the actions from the given state. If not given, will be computed
-        state : tuple
-            The given state of the env. If not given, self.state is used
-        done : bool
-            Whether env is done. If not give, self.done is used.
-        backward : bool
-            True if the action is applied backward. Default is False
-
-        Returns
-        -------
-        bool :
-            True if the action is valid
-        """
-        valid_actions = self.get_valid_actions(
-            mask=mask,
-            state=state,
-            done=done,
-            backward=backward,
-        )
-        if action in valid_actions:
-            return True
-        elif action == self.eos:
-            return False
-        elif self.representative_action in valid_actions:
-            return self.action_is_similar(action, self.representative_action)
-        else:
-            return False
-
-    @staticmethod
-    def action_is_similar(action, ref_action):
-        """
-        Check if a given action is similar to the reference action
-        """
-        # TODO: maybe make it stricted, e.g. check that action is a tuple of floats, no nans, no infs
-        if len(action) != len(ref_action):
-            return False
-        return True
-
     def get_end_logits(self, policy_outputs):
         return policy_outputs[:, -1]
 
@@ -529,8 +474,10 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             False, if the action is not allowed for the current state
         """
         # check validity of the action
-        valid, self.state, action = self._pre_step(
-            action, skip_mask_check=skip_mask_check, backward=False
+        valid, self.state, _ = self._pre_step(
+            self.action2representative(action),
+            skip_mask_check=skip_mask_check,
+            backward=False,
         )
         if valid:
             self.n_actions += 1
@@ -570,8 +517,10 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             False, if the action is not allowed for the current state.
         """
         # check validity of the action
-        valid, self.state, action = self._pre_step(
-            action, skip_mask_check=skip_mask_check, backward=True
+        valid, self.state, _ = self._pre_step(
+            self.action2representative(action),
+            skip_mask_check=skip_mask_check,
+            backward=True,
         )
         if valid:
             self.n_actions += 1
