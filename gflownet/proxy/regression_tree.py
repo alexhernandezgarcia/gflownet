@@ -148,7 +148,8 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
         """
         Computes the Normal-Inverse-Gamma marginal log-likelihood of the
         training targets under the tree ``state`` (sum of the closed-form
-        per-leaf marginals; see the class docstring).
+        per-leaf marginals; see the class docstring). Computes log[p(y)] per
+        leaf and sums them up to get the likelihood of the whole tree.
         """
         leaf_samples = _route_samples_to_leaves(self.env, state, self.env.X_train)
         y_all = np.asarray(self.env.y_train, dtype=float)
@@ -160,7 +161,7 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
             ybar = float(np.mean(y))
             kappa_n = self._kappa_0 + n
             alpha_n = self._alpha_0 + 0.5 * n
-            ss = float(np.sum((y - ybar) ** 2))
+            ss = float(np.sum((y - ybar) ** 2)) # sum of square
             beta_n = (
                 self._beta_0
                 + 0.5 * ss
