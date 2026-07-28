@@ -39,7 +39,7 @@ REPO="/home/mila/a/arnit/gflownet"
 VENV="$HOME/scratch/venvs/gflownet-env"
 WORK_DIR="${WORK_DIR:-$SCRATCH/gflownet-logs/treeclass_compare}"
 
-run_name="TREECLASS_raisin${split}_depth5_steps1000"
+run_name="TREECLASS_raisin${split}_depth6_steps1000"
 csv_path="$REPO/tests/data/tree/raisin/raisin_${split}.csv"
 
 module load python/3.10

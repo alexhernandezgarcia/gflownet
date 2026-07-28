@@ -43,7 +43,7 @@ n_samples: 1000
 
 # Environment
 env:
-  max_depth: 4 # == legacy max_depth 5; see header
+  max_depth: 5
   rescale_thresholds: True # continuous analogue of legacy mask_redundant_choices=True
   data_path: null # set on the CLI: tests/data/tree/iris/iris_<split>.csv
   node_kwargs:
