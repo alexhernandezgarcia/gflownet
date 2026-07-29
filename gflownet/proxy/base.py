@@ -26,6 +26,7 @@ class Proxy(ABC):
         reward_function_kwargs: Optional[dict] = {},
         reward_min: float = 0.0,
         do_clip_rewards: bool = False,
+        return_gradients: bool = False,
         **kwargs,
     ):
         r"""
