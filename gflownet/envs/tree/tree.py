@@ -1612,6 +1612,8 @@ class Tree(CompositeBase):
             result_metrics[f"train_{key}"] = val
 
         # --- Top-k ranking by per-tree train accuracy ---
+        # TODO: In the paper we rank the trees per log-posterior
+        # Adapt here to also rank by log-posterior or write a warning in wand
         top_k_indices = None
         figs: Dict[str, object] = {}
         if top_k_trees > 0 and n_states > 0:
