@@ -40,20 +40,26 @@ def main(config):
     if config.get("profile", False):
         profiler = cProfile.Profile()
         profiler.enable()
-        gflownet.train()
-        profiler.disable()
+        try:
+            gflownet.train()
+        finally:
+            # Report stats even if training crashes or is interrupted
+            profiler.disable()
 
-        stats = pstats.Stats(profiler).sort_stats(config.get("profile_sort", "cumtime"))
-        print(
-            f"\n=== cProfile: top {config.get('profile_n_rows', 20)} by "
-            f"{config.get('profile_sort', 'cumtime')} ==="
-        )
-        stats.print_stats(config.get("profile_n_rows", 20))
+            sort_key = config.get("profile_sort", "cumtime")
+            n_rows = config.get("profile_n_rows", 20)
+            stats = pstats.Stats(profiler).sort_stats(sort_key)
+            print(f"\n=== cProfile: top {n_rows} by {sort_key} ===")
+            profile_filter = config.get("profile_filter", None)
+            if profile_filter:
+                stats.print_stats(profile_filter, n_rows)
+            else:
+                stats.print_stats(n_rows)
 
-        profile_path = Path(config.logger.logdir.path) / "train.prof"
-        stats.dump_stats(profile_path)
-        print(f"[profile] Raw stats saved to: {profile_path}")
-        print(f"[profile] Inspect with:  snakeviz {profile_path}")
+            profile_path = Path(config.logger.logdir.path) / "train.prof"
+            stats.dump_stats(profile_path)
+            print(f"[profile] Raw stats saved to: {profile_path}")
+            print(f"[profile] Inspect with:  snakeviz {profile_path}")
     else:
         gflownet.train()
 

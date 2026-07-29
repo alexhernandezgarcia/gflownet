@@ -143,3 +143,7 @@ hydra:
 profile: false
 profile_sort: cumtime
 profile_n_rows: 20
+# Optional regex to restrict the printed stats to matching function paths,
+# e.g. "gflownet" to only show functions from this package. The dumped
+# train.prof always contains the full, unfiltered stats.
+profile_filter: null
