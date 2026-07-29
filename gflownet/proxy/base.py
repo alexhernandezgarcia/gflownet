@@ -60,6 +60,8 @@ class Proxy(ABC):
             to zero in order to prevent numerical stability issues.
         do_clip_rewards : bool
             Whether to clip the rewards according to the minimum value.
+        return_gradients : bool
+            Whether to return gradients.
         """
         # Device
         self.device = set_device(device)
