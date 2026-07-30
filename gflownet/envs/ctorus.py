@@ -665,15 +665,11 @@ class ContinuousTorus(GFlowNetEnv):
 
             # Start from uniform distribution
             if self.start_uniform:
-                idx = []
-                for i, state in enumerate(states_from):
-                    if state[-1] == 0 and do_sample[i]:
-                        idx.append(i)
-                if len(idx) > 0:
-                    first_step_idx = torch.tensor(idx, device=self.device)
+                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                if torch.any(do_uniform):
                     distr_fs_angles = Uniform(
                         torch.zeros(
-                            len(first_step_idx),
+                            torch.sum(do_uniform),
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
@@ -681,13 +677,13 @@ class ContinuousTorus(GFlowNetEnv):
                         2
                         * torch.pi
                         * torch.ones(
-                            len(first_step_idx),
+                            torch.sum(do_uniform),
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
                         ),
                     )
-                    actions_tensor[first_step_idx] = distr_fs_angles.sample()
+                    actions_tensor[do_uniform] = distr_fs_angles.sample()
         # Catch special case for backwards back-to-source (BTS) actions
         if is_backward:
             do_bts = mask[:, 0]
