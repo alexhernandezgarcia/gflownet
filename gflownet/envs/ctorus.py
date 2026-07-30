@@ -1067,8 +1067,6 @@ class ContinuousTorus(GFlowNetEnv):
         bandwidth : float
             The bandwidth of the kernel.
         """
-        # TODO: review if torch2np is needed
-        samples = torch2np(samples)
         samples_aug = self.augment_samples(samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
