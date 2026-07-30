@@ -10,6 +10,7 @@ from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import torch
 from sklearn.neighbors import KernelDensity
 from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMises
@@ -1073,8 +1074,8 @@ class ContinuousTorus(GFlowNetEnv):
 
     def plot_reward_samples(
         self,
-        samples: TensorType["batch_size", "state_proxy_dim"],
-        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        samples: npt.NDArray,
+        samples_reward: TensorType["batch_size", "self.n_dim"],
         rewards: TensorType["batch_size"],
         min_domain: float = -np.pi,
         max_domain: float = 3 * np.pi,
@@ -1092,8 +1093,8 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        samples : tensor
-            A batch of samples from the GFlowNet policy in proxy format. These samples
+        samples : npt.NDArray["batch_size", "self.n_dim"]
+            A batch of samples from the GFlowNet policy. These samples
             will be plotted on top of the reward density.
         samples_reward : tensor
             A batch of samples containing a grid over the sample space, from which the
@@ -1116,8 +1117,6 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
-        # TODO: review if torch2np is needed
-        samples = torch2np(samples)
         rewards = torch2np(rewards)
         n_per_dim = int(np.sqrt(rewards.shape[0]))
         assert n_per_dim**2 == rewards.shape[0]
