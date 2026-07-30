@@ -744,31 +744,26 @@ class ContinuousTorus(GFlowNetEnv):
             logprobs[do_sample] = distr.log_prob(actions[do_sample])
             # Start from uniform distribution
             if self.start_uniform:
-                idx = []
-                for i, state in enumerate(states_from):
-                    if state[-1] == 0 and do_sample[i]:
-                        idx.append(i)
-                if len(idx) > 0:
-                    first_step_idx = torch.tensor(idx, device=self.device)
-                    distr_fs_angles = Uniform(
-                        torch.zeros(
-                            len(first_step_idx),
-                            self.n_dim,
-                            dtype=self.float,
-                            device=self.device,
-                        ),
+                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                if torch.any(do_uniform):
+                    start = torch.zeros(
+                        torch.sum(do_uniform),
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    )
+                    end = (
                         2
                         * torch.pi
                         * torch.ones(
-                            len(first_step_idx),
+                            torch.sum(do_uniform),
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
-                        ),
+                        )
                     )
-                    logprobs[first_step_idx] = distr_fs_angles.log_prob(
-                        actions[first_step_idx]
-                    )
+                    distr_fs_angles = Uniform(start, end)
+                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform])
         if is_backward:
             do_bts = mask[:, 0]
             if torch.any(do_bts):
