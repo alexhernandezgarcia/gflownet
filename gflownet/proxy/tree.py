@@ -34,28 +34,52 @@ def _route_samples_to_leaves(
 
     This is the pure-Python equivalent of ``traverse_tree_cython`` applied to
     each sample, adapted for the composite Tree state format.
+
+    The routing is vectorized: the (feature, threshold) split of each done
+    node is extracted only once per tree, and the sample indices are then
+    partitioned node by node with array comparisons, instead of walking the
+    tree sample by sample.
     """
     node_env = env.node_env
+
+    # Extract the split of each done node once: k -> (feature, threshold),
+    # with the feature index 0-based (it is 1-based in the Choice subenv)
+    splits = {}
+    stack = [0]
+    while stack:
+        k = stack.pop()
+        if not env._node_is_done(k, state):
+            continue
+        feature_idx = node_env.get_feature(state[k])
+        threshold = node_env.get_threshold(state[k])
+        # A done node without a complete split stops the routing: samples
+        # reaching it are treated as reaching a leaf
+        if feature_idx is None or threshold is None:
+            continue
+        splits[k] = (feature_idx - 1, threshold)
+        stack.append(Tree.left_child_idx(k))
+        stack.append(Tree.right_child_idx(k))
+
+    # Route the sample indices through the splits by partitioning index
+    # arrays, starting with all samples at the root
     leaf_samples: Dict[int, List[int]] = {}
+    partitions = [(0, np.arange(len(X)))]
+    while partitions:
+        k, indices = partitions.pop()
+        if len(indices) == 0:
+            continue
+        if k in splits:
+            feature, threshold = splits[k]
+            to_left = X[indices, feature] <= threshold
+            partitions.append((Tree.left_child_idx(k), indices[to_left]))
+            partitions.append((Tree.right_child_idx(k), indices[~to_left]))
+        else:
+            leaf_samples[k] = indices.tolist()
 
-    for i, x in enumerate(X):
-        k = 0
-        while env._node_is_done(k, state):
-            feature_idx = node_env.get_feature(state[k])
-            threshold = node_env.get_threshold(state[k])
-            if feature_idx is None or threshold is None:
-                break
-            # feature_idx is 1-based (from Choice env)
-            if x[feature_idx - 1] <= threshold:
-                k = Tree.left_child_idx(k)
-            else:
-                k = Tree.right_child_idx(k)
-
-        if k not in leaf_samples:
-            leaf_samples[k] = []
-        leaf_samples[k].append(i)
-
-    return leaf_samples
+    # Order the leaves by first sample arrival, like the original per-sample
+    # walk, so that downstream floating-point accumulations over the leaves
+    # are bit-identical
+    return dict(sorted(leaf_samples.items(), key=lambda item: item[1][0]))
 
 
 def _count_internal_nodes(state: Dict) -> int:
