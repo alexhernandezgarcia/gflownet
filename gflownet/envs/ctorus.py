@@ -956,6 +956,12 @@ class ContinuousTorus(GFlowNetEnv):
         """
         Check if two states are close in the state space.
 
+        The angular components of the states are compared using
+        :func:`angles_allclose`, which accounts for the periodicity of the torus
+        (i.e., angles differing by integer multiples of :math:`2\pi` are treated
+        as equivalent) and floating-point numerical precision. The final component
+        of each state, corresponding to the trajectory step, must match exactly.
+
         Parameters
         ----------
         first_state : list
