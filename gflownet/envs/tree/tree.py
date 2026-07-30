@@ -220,6 +220,10 @@ class Tree(CompositeBase):
             "_envs_unique": self._n_unique_envs,  # Useless?
         }
 
+        # Cache for the policy encoding of the node source state, computed
+        # lazily on the first call to states2policy()
+        self._source_node_policy = None
+
         # Get action dimensionality by adding one to the action dim of the
         # sub-environment, where the prefix -1 indicates a meta action in
         # the Tree env and a 0 an action in the subenv
@@ -1184,31 +1188,67 @@ class Tree(CompositeBase):
 
         For each node position: [exists, done, active, node_env_policy].
         Plus a global idle flag.
+
+        The conversion is vectorized: the substates of all existing nodes
+        across the batch are converted with a single call to
+        ``self.node_env.states2policy()``, and the blocks of non-existing
+        nodes are pre-filled with the policy encoding of the node source
+        state.
         """
         batch_size = len(states)
         node_pdim = self.node_env.policy_input_dim
         # idle_flag + per_node * (exists + done + active + node_policy)
         per_node_dim = 3 + node_pdim
-        policy_dim = 1 + self.max_nodes * per_node_dim
-        result = torch.zeros(
-            batch_size, policy_dim, dtype=self.float, device=self.device
+
+        if self._source_node_policy is None:
+            self._source_node_policy = self.node_env.state2policy(self.node_env.source)
+
+        # Node blocks as (batch, max_nodes, per_node_dim), with every node
+        # policy slice pre-filled with the source encoding
+        blocks = torch.zeros(
+            batch_size,
+            self.max_nodes,
+            per_node_dim,
+            dtype=self.float,
+            device=self.device,
         )
+        blocks[:, :, 3:] = self._source_node_policy
 
-        subenv_policy = self.node_env.state2policy(self.node_env.source)
-
+        # Collect the substates of all existing nodes across the batch. The
+        # integer keys of a state are the node indices; string keys
+        # ("_active", "_dones", ...) are metadata.
+        idle = []
+        rows = []
+        cols = []
+        dones = []
+        actives = []
+        substates = []
         for i, state in enumerate(states):
-            result[i, 0] = 1.0 if self._is_idle(state) else 0.0
-            for k in range(self.max_nodes):
-                offset = 1 + k * per_node_dim
-                if self._node_exists(k, state):
-                    result[i, offset] = 1.0
-                    result[i, offset + 1] = float(self._node_is_done(k, state))
-                    result[i, offset + 2] = float(state["_active"] == k)
-                    node_policy = self.node_env.state2policy(state[k])
-                    result[i, offset + 3 : offset + 3 + node_pdim] = node_policy
-                else:
-                    result[i, offset + 3 : offset + 3 + node_pdim] = subenv_policy
-        return result
+            idle.append(1.0 if self._is_idle(state) else 0.0)
+            for k in state:
+                if isinstance(k, int):
+                    rows.append(i)
+                    cols.append(k)
+                    dones.append(1.0 if self._node_is_done(k, state) else 0.0)
+                    actives.append(1.0 if state["_active"] == k else 0.0)
+                    substates.append(state[k])
+
+        if rows:
+            rows_t = torch.tensor(rows)
+            cols_t = torch.tensor(cols)
+            blocks[rows_t, cols_t, 0] = 1.0
+            blocks[rows_t, cols_t, 1] = torch.tensor(
+                dones, dtype=self.float, device=self.device
+            )
+            blocks[rows_t, cols_t, 2] = torch.tensor(
+                actives, dtype=self.float, device=self.device
+            )
+            blocks[rows_t, cols_t, 3:] = self.node_env.states2policy(substates)
+
+        idle_col = torch.tensor(idle, dtype=self.float, device=self.device).unsqueeze(1)
+        return torch.cat(
+            [idle_col, blocks.view(batch_size, self.max_nodes * per_node_dim)], dim=1
+        )
 
     def states2proxy(self, states: List[Dict]) -> List[Dict]:
         """
