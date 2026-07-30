@@ -134,6 +134,7 @@ class ContinuousTorus(GFlowNetEnv):
         self.n_comp = n_comp
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         if self.distr_type == "diffusion":
+            # Diffusion has only one parameter per dimention: the mean of the Gaussian
             self.n_params_per_dim = 1
             if self.n_comp != 1:
                 raise ValueError(
@@ -149,6 +150,7 @@ class ContinuousTorus(GFlowNetEnv):
             if random_distr_params is None:
                 random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
         elif self.distr_type == "von_mises":
+            # von Mises has three parameters per dimention: mixture logit, mean, and concentration
             self.n_params_per_dim = 3
             if fixed_distr_params is None:
                 fixed_distr_params = {
