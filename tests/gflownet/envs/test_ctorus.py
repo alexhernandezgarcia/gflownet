@@ -250,7 +250,15 @@ def test__get_logprobs_start_uniform(env_su):
     assert logprobs[1] != logprobs[-1]
 
 
-def test__backward_logprob(env):
+@pytest.mark.parametrize(
+    "env_local",
+    [
+        "env",
+        "env_su",
+    ],
+)
+def test__backward_logprob(env_local, request):
+    env = request.getfixturevalue(env_local)
     for _ in range(100):
         angles = np.random.rand(2).tolist()
         state = angles + [1.0]
@@ -268,37 +276,6 @@ def test__backward_logprob(env):
             policy_output, actions, mask, [state], is_backward=True
         )
         assert torch.allclose(logprobs, torch.tensor([0.0]))
-        actions_rand = torch.tensor(np.random.rand(1, 2).tolist())
-        logprobs_rand = env.get_logprobs(
-            policy_output, actions_rand, mask, [state], is_backward=True
-        )
-        assert ~torch.isfinite(logprobs_rand)
-
-
-def test__backward_logprob_su(env_su):
-    env = env_su
-    for _ in range(100):
-        angles = np.random.rand(2).tolist()
-        state = angles + [1.0]
-        env.set_state(state, done=False)
-        mask = torch.unsqueeze(
-            tbool(env.get_mask_invalid_actions_backward(), device=env.device), 0
-        )
-        distr_params = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 8.0,
-        }
-        policy_output = env.get_policy_output(distr_params).unsqueeze(0)
-        actions = torch.tensor([angles])
-        logprobs = env.get_logprobs(
-            policy_output, actions, mask, [state], is_backward=True
-        )
-        assert torch.allclose(logprobs, torch.tensor([0.0]))
-        actions_rand = torch.tensor(np.random.rand(1, 2).tolist())
-        logprobs_rand = env.get_logprobs(
-            policy_output, actions_rand, mask, [state], is_backward=True
-        )
-        assert ~torch.isfinite(logprobs_rand)
 
 
 def tests__unroll_trajectory(env):
