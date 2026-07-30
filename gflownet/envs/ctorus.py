@@ -668,8 +668,9 @@ class ContinuousTorus(GFlowNetEnv):
             if self.start_uniform:
                 do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
                 if torch.any(do_uniform):
+                    n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
-                        torch.sum(do_uniform),
+                        n_uniform,
                         self.n_dim,
                         dtype=self.float,
                         device=self.device,
@@ -678,7 +679,7 @@ class ContinuousTorus(GFlowNetEnv):
                         2
                         * torch.pi
                         * torch.ones(
-                            torch.sum(do_uniform),
+                            n_uniform,
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
@@ -747,8 +748,9 @@ class ContinuousTorus(GFlowNetEnv):
             if self.start_uniform:
                 do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
                 if torch.any(do_uniform):
+                    n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
-                        torch.sum(do_uniform),
+                        n_uniform,
                         self.n_dim,
                         dtype=self.float,
                         device=self.device,
@@ -757,7 +759,7 @@ class ContinuousTorus(GFlowNetEnv):
                         2
                         * torch.pi
                         * torch.ones(
-                            torch.sum(do_uniform),
+                            n_uniform,
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
