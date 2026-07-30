@@ -3,7 +3,7 @@
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%j.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=2:00:00
+#SBATCH --time=4:00:00
 #SBATCH --partition=long-cpu,long-cpu-eek
 
 # Aggregate transformer-policy composite-Tree evaluation results across splits.
