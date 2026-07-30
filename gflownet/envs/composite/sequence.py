@@ -1306,8 +1306,14 @@ class Sequence(CompositeBase):
         # Compare substates: the state is considered equal if the formed sequence of substates is
         # the same, regardless of the temporal order they were formed
         # 1 construct the two sequences considering the _dones for each
-        sequence_x = [state_x[i] for i in state_x["_indices"].copy()]
-        sequence_y = [state_y[i] for i in state_y["_indices"].copy()]
+        sequence_x = [
+            (state_x["_envs_unique"][i], state_x["_dones"][i], state_x[i])
+            for i in state_x["_indices"].copy()
+        ]
+        sequence_y = [
+            (state_y["_envs_unique"][i], state_y["_dones"][i], state_y[i])
+            for i in state_y["_indices"].copy()
+        ]
         # 2 compare
         if GFlowNetEnv.equal(sequence_x, sequence_y):
             return True
@@ -1353,6 +1359,10 @@ class Sequence(CompositeBase):
                 # append at the back
                 new_representations.append(all_representations[j] + [indices[i]])
             all_representations = new_representations
+        # now we have all the representations from the permutation of other subenvs
+        # but we didn't consider the case where
+        # (1) 2 subenvs are the same
+        # and (2) that multiple subenvs can be represented as a single subenv
         new_representations = all_representations
         new_state_representations = []
         # then form the state based on the new_representaions
@@ -1363,7 +1373,7 @@ class Sequence(CompositeBase):
             for ind in range(len(new_representations[k])):
                 new_state[new_representations[k][ind]] = copy(state)[
                     old_indices[ind]
-                ]  # this is not yet correct
+                ]  # this is correct
                 new_envs_unique[new_representations[k][ind]] = copy(state)[
                     "_envs_unique"
                 ][
