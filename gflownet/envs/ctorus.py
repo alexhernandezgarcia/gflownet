@@ -4,11 +4,13 @@ Classes to represent continuous hyper-torus environments.
 
 import itertools
 import re
+import warnings
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import torch
 from sklearn.neighbors import KernelDensity
 from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMises
@@ -16,6 +18,8 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tfloat, torch2np
+from gflownet.utils.metrics import angles_allclose
+from gflownet.utils.molecule.distributions import WrappedNormal
 
 
 class ContinuousTorus(GFlowNetEnv):
@@ -32,11 +36,15 @@ class ContinuousTorus(GFlowNetEnv):
     States are represented by the concatenation of the angles (in radians and within
     $[0, 2\pi]$) for all dimensions with the time step or action number.
 
-    The increments of the angles are sampled from a mixture of von Mises distributions.
+    The increments of the angles are sampled from a mixture of von Mises distributions
+    (distr_type == "von_mises") or from a single Gaussian distribution (distr_type ==
+    "diffusion").
 
     Attributes
     ----------
-    ndim : int
+    distr_type: str
+            Type of the policy distribution, either "von_mises" or "diffusion"
+    n_dim : int
         Dimensionality of the torus
     length_traj : int
        Fixed length of the trajectory.
@@ -48,23 +56,31 @@ class ContinuousTorus(GFlowNetEnv):
     vonmises_min_concentration : float
         Minimum value allowed for the concentration parameter of the von Mises
         distributions.
+    exp_vonmises_concentration: bool
+        A flag indicating whether to exponentiate concentrations for von Mises
+        distribution.  Default is True.
+    state_space_atol: float
+        Tolerance for comparing states similarity.
+    start_uniform : bool
+        If True, the first step of the trajectory is sampled from a uniform
+        distribution.
+    n_params_per_dim: int
+        Number of policy parameters per dimension.
     """
 
     def __init__(
         self,
+        distr_type: str = "von_mises",
         n_dim: int = 2,
         length_traj: int = 1,
         n_comp: int = 1,
         policy_encoding_dim_per_angle: int = None,
+        fixed_distr_params: dict = None,
+        random_distr_params: dict = None,
         vonmises_min_concentration: float = 1e-3,
-        fixed_distr_params: dict = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 0.5,
-        },
-        random_distr_params: dict = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 0.001,
-        },
+        exp_vonmises_concentration: bool = True,
+        state_space_atol=1e-1,
+        start_uniform=False,
         **kwargs,
     ):
         """
@@ -72,37 +88,89 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        ndim : int
+        distr_type: str
+            Type of the policy distribution, either "von_mises" or "diffusion"
+        n_dim : int
             Dimensionality of the torus
         length_traj : int
            Fixed length of the trajectory.
         n_comp : int
-           Number of components in the mixture of von Mises distributions used to
+           Number of components in the mixture of distributions used to
            sample angle increments.
         policy_encoding_dim_per_angle : int
             Dimensionality of the policy encodings of the angles.
+        fixed_distr_params : dict
+            Dictionary of parameters of the von Mises or Gaussian distribution that
+            defines the fixed distribution of the environment. For von Mises, it must
+            contain two keys with float values: ``vonmises_mean`` and
+            ``vonmises_concentration``. For Gaussian ust contain two keys with float
+            values ``means`` and ``stds``.
+        random_distr_params : dict
+            Dictionary of parameters of the von Mises or Gaussian distribution that
+            defines the random distribution of the environment. For von Mises, it must
+            contain two keys with float values: ``vonmises_mean`` and
+            ``vonmises_concentration``. For Gaussian ust contain two keys with float
+            values ``means`` and ``stds``.
         vonmises_min_concentration : float
             Minimum value allowed for the concentration parameter of the von Mises
             distributions.
-        fixed_distr_params : dict
-            Dictionary of parameters of the von Mises distribution that defines the
-            fixed distribution of the environment. It must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``.
-        random_distr_params : dict
-            Dictionary of parameters of the von Mises distribution that defines the
-            random distribution of the environment. It must contain two keys with float
-            values: ``vonmises_mean`` and ``vonmises_concentration``.
+        exp_vonmises_concentration: bool
+            A flag indicating whether to exponentiate concentrations for von Mises
+            distribution.  Default is True
+        state_space_atol: float
+            Tolerance for comparing states similarity.
+        start_uniform : bool
+            If True, the first step of the trajectory is sampled from the uniform
+            distribution.
         """
         assert n_dim > 0
         assert length_traj > 0
         assert n_comp > 0
         # Main environment properties
+        self.distr_type = distr_type
         self.n_dim = n_dim
         self.length_traj = length_traj
+        self.state_space_atol = state_space_atol
         # Policy properties
         self.n_comp = n_comp
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
-        self.vonmises_min_concentration = vonmises_min_concentration
+        if self.distr_type == "diffusion":
+            # Diffusion has only one parameter per dimension: the mean of the Gaussian
+            self.n_params_per_dim = 1
+            if self.n_comp != 1:
+                raise ValueError(
+                    "Diffusion distribution only supports 1 component (both "
+                    "forward and backward policies are parametrized as "
+                    "**unimodal** wrapped normal distributions), with a learned "
+                    f"mean and a fixed variance. Received n_comp = {self.n_comp}"
+                )
+            self.sigma_max = np.pi
+            self.sigma_min = 0.01 * np.pi
+            if fixed_distr_params is None:
+                fixed_distr_params = {"means": 0.0, "stds": 0.5}
+            if random_distr_params is None:
+                random_distr_params = {"means": 0.0, "stds": 2 * np.pi}
+        elif self.distr_type == "von_mises":
+            # von Mises has three parameters per dimension: mixture logit, mean, and
+            # concentration
+            self.n_params_per_dim = 3
+            if fixed_distr_params is None:
+                fixed_distr_params = {
+                    "vonmises_mean": 0.0,
+                    "vonmises_concentration": 0.5,
+                }
+            if random_distr_params is None:
+                random_distr_params = {
+                    "vonmises_mean": 0.0,
+                    "vonmises_concentration": 0.001,
+                }
+            self.vonmises_min_concentration = vonmises_min_concentration
+            self.exp_vonmises_concentration = exp_vonmises_concentration
+        else:
+            raise ValueError(
+                f"Unknown distribution type: {self.distr_type}. Supported types are "
+                "'diffusion' and 'von_mises'."
+            )
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
@@ -115,6 +183,7 @@ class ContinuousTorus(GFlowNetEnv):
             **kwargs,
         )
         self.continuous = True
+        self.start_uniform = start_uniform
 
     @property
     def mask_dim(self):
@@ -162,23 +231,32 @@ class ContinuousTorus(GFlowNetEnv):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension d of the hyper-torus and component c of the mixture, the
-        output of the policy should return
+        For each dimension d of the torus and component c of the mixture, the
+        output of the policy should return (if self.distr_type == "von_mises"):
           1) the weight of the component in the mixture
           2) the location of the von Mises distribution to sample the angle increment
           3) the log concentration of the von Mises distribution to sample the angle
           increment
+        (if self.distr_type == "diffusion"):
+          1) the mean of the wrapped Gaussian distribution
 
-        Therefore, the output of the policy model has dimensionality D x C x 3, where D
-        is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). The first 3 x C entries in the policy output correspond to the
-        first dimension, and so on.
+        Therefore, the output of the policy model has dimensionality D x C x
+        n_params_per_dim , where D is the number of dimensions (self.n_dim) and C is
+        the number of components (self.n_comp). The first n_params_per_dim x C entries
+        in the policy output correspond to the first dimension, and so on. Note that
+        for "diffusion" C == 1, i.e. only one component is possible.
         """
-        policy_output = torch.ones(
-            self.n_dim * self.n_comp * 3, dtype=self.float, device=self.device
-        )
-        policy_output[1::3] = params["vonmises_mean"]
-        policy_output[2::3] = params["vonmises_concentration"]
+        if self.distr_type == "von_mises":
+            policy_output = torch.ones(
+                self.n_dim * self.n_comp * self.n_params_per_dim,
+                dtype=self.float,
+                device=self.device,
+            )
+            policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
+            policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
+        elif self.distr_type == "diffusion":
+            policy_output = torch.ones(self.n_dim, dtype=self.float, device=self.device)
+            policy_output[::1] = params["means"]
         return policy_output
 
     def get_mask_invalid_actions_forward(
@@ -301,8 +379,8 @@ class ContinuousTorus(GFlowNetEnv):
             - Subtract action increments from state angles.
             - Decrement n_actions value of state.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
@@ -345,8 +423,8 @@ class ContinuousTorus(GFlowNetEnv):
 
         See: _step().
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
@@ -391,8 +469,8 @@ class ContinuousTorus(GFlowNetEnv):
 
         See: _step().
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
@@ -521,7 +599,7 @@ class ContinuousTorus(GFlowNetEnv):
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         random_action_prob: Optional[float] = 0.0,
@@ -570,28 +648,47 @@ class ContinuousTorus(GFlowNetEnv):
         )
         # Sample angle increments
         if torch.any(do_sample):
+            timesteps = tfloat(
+                [x[-1] for x in states_from],
+                float_type=self.float,
+                device=self.device,
+            )
+            logits_sampling = policy_outputs.clone().detach()
             logits_sampling = self.randomize_and_temper_sampling_distribution(
-                policy_outputs, random_action_prob, temperature_logits
+                logits_sampling, random_action_prob, temperature_logits
             )
-
-            mix_logits = logits_sampling[do_sample, 0::3].reshape(
-                -1, self.n_dim, self.n_comp
+            distr_angles = self._get_distr(
+                logits_sampling[do_sample],
+                timesteps[do_sample],
+                is_backward,
             )
-            mix = Categorical(logits=mix_logits)
-            locations = logits_sampling[do_sample, 1::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            concentrations = logits_sampling[do_sample, 2::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            vonmises = VonMises(
-                locations,
-                torch.exp(concentrations) + self.vonmises_min_concentration,
-            )
-            distr_angles = MixtureSameFamily(mix, vonmises)
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
-        # Catch special case for backwards backt-to-source (BTS) actions
+
+            # Start from uniform distribution
+            if self.start_uniform:
+                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                if torch.any(do_uniform):
+                    n_uniform = torch.sum(do_uniform)
+                    start = torch.zeros(
+                        n_uniform,
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    )
+                    end = (
+                        2
+                        * torch.pi
+                        * torch.ones(
+                            n_uniform,
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
+                        )
+                    )
+                    distr_fs_angles = Uniform(start, end)
+                    actions_tensor[do_uniform] = distr_fs_angles.sample()
+        # Catch special case for backwards back-to-source (BTS) actions
         if is_backward:
             do_bts = mask[:, 0]
             if torch.any(do_bts):
@@ -609,7 +706,7 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: Union[List, TensorType["n_states", "action_dim"]],
-        mask: TensorType["n_states", "1"],
+        mask: TensorType["n_states", "mask_dim"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -625,70 +722,363 @@ class ContinuousTorus(GFlowNetEnv):
         actions : list or tensor
             The actions (angle increments) from each state in the batch for which to
             compute the log probability.
-        states_from : tensor
-            Ignored.
-
+        states_from : list
+            The states originating the actions, in GFlowNet format. Used to determine
+            the log probability of the first step if start from uniform.
         is_backward : bool
-            Ignored.
+            True if the actions are backward, False if the actions are forward
+            (default).
         """
-        device = policy_outputs.device
         do_sample = torch.all(~mask, dim=1)
         actions = tfloat(actions, float_type=self.float, device=self.device)
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
+        logprobs = torch.zeros(
+            n_states, self.n_dim, dtype=self.float, device=self.device
+        )
         if torch.any(do_sample):
-            mix_logits = policy_outputs[do_sample, 0::3].reshape(
-                -1, self.n_dim, self.n_comp
+            timesteps = tfloat(
+                [x[-1] for x in states_from], float_type=self.float, device=self.device
             )
-            mix = Categorical(logits=mix_logits)
-            locations = policy_outputs[do_sample, 1::3].reshape(
-                -1, self.n_dim, self.n_comp
+            distr = self._get_distr(
+                policy_outputs[do_sample],
+                timesteps[do_sample],
+                is_backward,
             )
-            concentrations = policy_outputs[do_sample, 2::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            vonmises = VonMises(
-                locations,
-                torch.exp(concentrations) + self.vonmises_min_concentration,
-            )
-            distr_angles = MixtureSameFamily(mix, vonmises)
-            logprobs[do_sample] = distr_angles.log_prob(actions[do_sample])
+            logprobs[do_sample] = distr.log_prob(actions[do_sample])
+            # Start from uniform distribution
+            if self.start_uniform:
+                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                if torch.any(do_uniform):
+                    n_uniform = torch.sum(do_uniform)
+                    start = torch.zeros(
+                        n_uniform,
+                        self.n_dim,
+                        dtype=self.float,
+                        device=self.device,
+                    )
+                    end = (
+                        2
+                        * torch.pi
+                        * torch.ones(
+                            n_uniform,
+                            self.n_dim,
+                            dtype=self.float,
+                            device=self.device,
+                        )
+                    )
+                    distr_fs_angles = Uniform(start, end)
+                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform])
+
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
+
+    def _get_distr(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: TensorType["n_states"],
+        is_backward: bool,
+    ):
+        params = self._extract_distribution_parameters(policy_outputs, timesteps)
+        if self.distr_type == "von_mises":
+            mix_logits, concentrations, locations = (
+                params["mix_logits"],
+                params["concentrations"],
+                params["locations"],
+            )
+            mix = Categorical(logits=mix_logits)
+            vonmises = VonMises(
+                locations,
+                concentrations,
+            )
+            distr_angles = MixtureSameFamily(mix, vonmises)
+
+        elif self.distr_type == "diffusion":
+            means, stds = params["means"], params["stds"]
+            if is_backward:
+                # For diffusion models, the backwards policy is fixed and not learned.
+                # Here, we force the backwards variance-exploding policy, i.e. x_{t-1}
+                # = x_t + N(0, std_t^2)
+                means = torch.zeros(policy_outputs.shape[0], self.n_dim)
+            distr_angles = WrappedNormal(means, stds)
+
+        return distr_angles
+
+    def _extract_vonmises_parameters(
+        self, policy_outputs: TensorType["n_states", "policy_output_dim"]
+    ) -> dict[str, TensorType["n_states", "n_dim", "n_comp"]]:
+        """
+        Extract the parameters of a mixture of von Mises distributions from the
+        policy_output tensor.
+
+        The policy output is assumed to encode, for each state and each dimension,
+        a set of ``n_comp`` mixture components, with three values per component
+        interleaved along the last axis in the order (mixture logit, location,
+        concentration): ``[logit_0, loc_0, conc_0, logit_1, loc_1, conc_1, ...]``.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model.
+
+        Returns
+        -------
+        dict[str, TensorType["n_states", "n_dim", "n_comp"]]
+            Dictionary containing the parameters of a von Mises distribution:
+            - ``"mix_logits"``: tensor["n_states", "n_dim", "n_comp"]
+                The logits of the mixture components.
+            - ``"concentrations"``: tensor["n_states", "n_dim", "n_comp"]
+                The concentrations of the von Mises distributions.
+            - ``"locations"``: tensor["n_states", "n_dim", "n_comp"]
+                The locations (mean angle) of the von Mises distributions, in radians.
+        """
+
+        mix_logits = policy_outputs[:, 0::3].reshape(-1, self.n_dim, self.n_comp)
+        concentrations = policy_outputs[:, 2::3].reshape(-1, self.n_dim, self.n_comp)
+        locations = policy_outputs[:, 1::3].reshape(-1, self.n_dim, self.n_comp)
+        concentrations = (
+            torch.exp(concentrations)
+            if self.exp_vonmises_concentration
+            else concentrations
+        )
+        if torch.any(concentrations < 0.0):
+            raise Exception(
+                "Negative concentration values "
+                f"{concentrations[concentrations < 0.]}"
+            )
+        concentrations = concentrations + self.vonmises_min_concentration
+        return {
+            "mix_logits": mix_logits,
+            "concentrations": concentrations,
+            "locations": locations,
+        }
+
+    def _extract_diffusion_parameters(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: Optional[TensorType["n_states"]] = None,
+    ) -> dict[str, TensorType["n_states", "n_dim"]]:
+        """
+        Extract the parameters of the (wrapped) Gaussian distribution used in the
+        diffusion-based policy from the policy_output tensor.
+
+        The standard deviations are not learned by the policy network; they are derived
+        deterministically from ``timesteps`` via a predefined noise schedule (see
+        py:meth:`ContinuousTorus.convert_timesteps_to_stds`). The policy output is
+        interpreted as a per-dimension "score", which is rescaled by the (squared)
+        standard deviation to obtain the predicted means, following the standard
+        parameterization of score-based / diffusion models.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model
+        timesteps : tensor["n_states"], optional
+            The timestep associated with each state, used to compute the
+            corresponding noise standard deviation. Required for this
+            distribution type.
+
+        Returns
+        -------
+        dict[str, TensorType["n_states", "n_dim"]]
+            Dictionary containing the parameters of a wrapped normal distribution:
+            - ``"means"``: tensor["n_states", "n_dim"]
+                The means of the wrapped normal distributions.
+            - ``"stds"``: tensor["n_states", "n_dim"]
+                The standard deviations of the wrapped normal distributions. This is
+                not learned, and it comes from a predefined noise schedule. See
+                :py:meth:`ContinuousTorus.convert_timesteps_to_stds`.
+        """
+        if timesteps is None:
+            raise ValueError("Timesteps must be provided for diffusion distribution.")
+        stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
+        score = policy_outputs.reshape(-1, self.n_dim)
+        means = score * torch.pow(stds.unsqueeze(1).repeat(1, 2), 2)
+        return {"means": means, "stds": stds}
+
+    def _extract_distribution_parameters(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: Optional[TensorType["n_states"]] = None,
+    ) -> dict[str, torch.Tensor]:
+        """
+        Dispatch to the appropriate parameter-extraction method based on
+        ``self.distr_type``, and return the corresponding distribution parameters
+        from the policy_output tensor.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model.
+        timesteps : tensor["n_states"], optional
+            The diffusion timestep associated with each state. Only used (and
+            required) when `self.distr_type == "diffusion"`.
+
+        Returns
+        -------
+        dict[str, torch.Tensor]
+            A dictionary of distribution parameters, as returned by:
+            - py:meth:`ContinuousTorus._extract_vonmises_parameters`, if
+              ``self.distr_type == "von_mises"``
+            - py:meth:`ContinuousTorus._extract_diffusion_parameters`, if
+              ``self.distr_type == "diffusion"``
+            or `_extract_diffusion_parameters` (if
+            `self.distr_type == "diffusion"`).
+
+            Details about keys and shapes are variable and can be consulted in the
+            docstrings of each method.
+        """
+
+        if self.distr_type == "von_mises":
+            return self._extract_vonmises_parameters(policy_outputs)
+        elif self.distr_type == "diffusion":
+            return self._extract_diffusion_parameters(policy_outputs, timesteps)
+
+    def convert_timesteps_to_stds(
+        self, timesteps: TensorType["n_states", 1], cumulative=False
+    ) -> TensorType["n_states", 1]:
+        """
+        This function defines the noise schedule given the timesteps.
+        For example, here, we use the exponential noise schedule, i.e. sigma(t|0) =
+        sigma_min^t * sigma_max^(1-t), and:
+            - t is the normalized timestep in [0, 1], t=0 corresponds to the first step
+              of the trajectory and t=1 to the last step.
+            - sigma_min and sigma_max are the minimum and maximum noise levels,
+              respectively.
+
+        Parameters
+        ----------
+        timesteps : tensor["n_states", 1]
+            The timesteps of the batch of states.
+        cumulative : bool
+            If True: returns sigma(t|0), corresponding to the standard deviation of
+            N(x_t | x_0)
+            If False: returns sigma(t+1|t), corresponding to the standard deviation of
+            N(x_{t+1} | x_t)
+
+        Returns
+        -------
+        stds : tensor["n_states", 1]
+            The standard deviations of the noise schedule for each state in the batch.
+        """
+
+        dt = 1 / self.max_traj_length
+        t = timesteps / self.max_traj_length
+        sigmas = 10 ** (
+            (1 - t) * np.log10(self.sigma_max) + t * np.log10(self.sigma_min)
+        )
+        if cumulative:
+            return sigmas
+        else:
+            g = sigmas * torch.sqrt(
+                torch.tensor(2 * np.log(self.sigma_max / self.sigma_min))
+            )
+            stds = g * np.sqrt(dt)
+            return stds
+
+    def isclose(
+        self,
+        first_state: List,
+        second_state: List,
+        atol: Optional[float] = None,
+    ) -> bool:
+        """
+        Check if two states are close in the state space.
+
+        The angular components of the states are compared using
+        :func:`angles_allclose`, which accounts for the periodicity of the torus
+        (i.e., angles differing by integer multiples of :math:`2\pi` are treated
+        as equivalent) and floating-point numerical precision. The final component
+        of each state, corresponding to the trajectory step, must match exactly.
+
+        Parameters
+        ----------
+        first_state : list
+            First state to compare
+        second_state : list
+            Second state to compare
+
+        Returns
+        -------
+        bool or iterable
+            True if the two states are close, False otherwise.
+        """
+        if atol is None:
+            atol = self.state_space_atol
+        # Compare the full states, including the step number (last dimention)
+        return angles_allclose(
+            first_state[: self.n_dim], second_state[: self.n_dim], atol=atol
+        ) and int(first_state[-1]) == int(second_state[-1])
 
     def copy(self):
         return deepcopy(self)
 
-    def get_grid_terminating_states(self, n_states: int) -> List[List]:
-        """
-        Samples n terminating states by sub-sampling the state space as a grid, where n
-        / n_dim points are obtained for each dimension.
+    def get_grid_terminating_states(
+        self, n_states: int, n_dim: Optional[int] = None
+    ) -> List[List]:
+        r"""
+        Samples n terminating states by sub-sampling the state space as a grid, where
+        each dimension is sampled uniformly in $[0, 2 * pi]$. The number of points per
+        dimension is determined by the number of terminating states to sample, such
+        that the total number of points is at least n_states and at most $2 ** n_dim$.
 
         Parameters
         ----------
         n_states : int
             The number of terminating states to sample.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used. Passed to the function to allow for
+            conditional environments with different number of dimensions.
 
         Returns
         -------
         states : list
             A list of randomly sampled terminating states.
         """
-        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        if n_dim is None:
+            n_dim = self.n_dim
+        # Compute the number of points per dimension
+        n_per_dim = int(np.ceil(n_states ** (1 / n_dim)))
+        # linspace on a circle (accounting for 0 == 2pi)
         linspace = np.linspace(0, 2 * np.pi, n_per_dim + 1)[:-1]
-        angles = np.meshgrid(*[linspace] * self.n_dim)
-        angles = np.stack(angles).reshape((self.n_dim, -1)).T
+        angles = np.meshgrid(*[linspace] * n_dim)
+        angles = np.stack(angles).reshape((n_dim, -1)).T
         states = np.concatenate(
             (angles, self.length_traj * np.ones((angles.shape[0], 1))), axis=1
         ).tolist()
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None
+        self, n_states: int, seed: int = None, n_dim=None
     ) -> List[List]:
+        r"""
+        Samples ``n_states`` terminating states uniformly in the state space.  The
+        angles are sampled uniformly in $[0, 2 * pi]$. The number of steps is set to
+        the length of the trajectory.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+        seed : int
+            Random seed for the sampling.
+        n_dim : int, optional
+            The number of dimensions in the state space. If None, the number of
+            dimensions of the environment is used. Passed to the function to allow for
+            conditional environments with different number of dimensions.
+
+        Returns
+        -------
+        states : list
+            A list of sampled terminating states.
+        """
+        if n_dim is None:
+            n_dim = self.n_dim
         rng = np.random.default_rng(seed)
-        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, self.n_dim))
-        states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
+        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, n_dim))
+        states = np.concatenate(
+            (angles, self.length_traj * np.ones((n_states, 1))), axis=1
+        )
         return states.tolist()
 
     def fit_kde(
@@ -714,15 +1104,14 @@ class ContinuousTorus(GFlowNetEnv):
         bandwidth : float
             The bandwidth of the kernel.
         """
-        samples = torch2np(samples)
         samples_aug = self.augment_samples(samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
 
     def plot_reward_samples(
         self,
-        samples: TensorType["batch_size", "state_proxy_dim"],
-        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        samples: npt.NDArray,
+        samples_reward: TensorType["batch_size", "self.n_dim"],
         rewards: TensorType["batch_size"],
         min_domain: float = -np.pi,
         max_domain: float = 3 * np.pi,
@@ -740,8 +1129,8 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        samples : tensor
-            A batch of samples from the GFlowNet policy in proxy format. These samples
+        samples : npt.NDArray["batch_size", "self.n_dim"]
+            A batch of samples from the GFlowNet policy. These samples
             will be plotted on top of the reward density.
         samples_reward : tensor
             A batch of samples containing a grid over the sample space, from which the
@@ -764,7 +1153,6 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
-        samples = torch2np(samples)
         rewards = torch2np(rewards)
         n_per_dim = int(np.sqrt(rewards.shape[0]))
         assert n_per_dim**2 == rewards.shape[0]
@@ -835,6 +1223,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if self.n_dim != 2:
             return None
+        # TODO: review if torch2np is needed
         samples = torch2np(samples)
         # Create mesh grid from samples
         n_per_dim = int(np.sqrt(samples.shape[0]))
@@ -882,3 +1271,12 @@ class ContinuousTorus(GFlowNetEnv):
             )
         samples_aug = np.concatenate(samples_aug, axis=0)
         return samples_aug
+
+    # TODO: extend docstrings
+    def process_data_set(self, samples):
+        """
+        Process dataset loaded from a file inside Buffer init.
+        """
+        if hasattr(samples, "tolist"):
+            return samples.tolist()
+        return samples

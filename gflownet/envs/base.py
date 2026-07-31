@@ -26,6 +26,7 @@ from gflownet.utils.common import (
     tbool,
     tfloat,
     tlong,
+    torch2np,
 )
 
 CMAP = mpl.colormaps["cividis"]
@@ -1052,6 +1053,15 @@ class GFlowNetEnv:
         Converts a trajectory into a human-readable string.
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
+
+    def states2kde(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> Union[List, npt.NDArray, TensorType["batch", "kde_dim"]]:
+        """
+        Converts a batch of states into a batch of states suitable for the KDE computations.
+        """
+        states_kde = self.states2proxy(states)
+        return torch2np(states_kde)
 
     def reset(self, env_id: Union[int, str] = None):
         """
