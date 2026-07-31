@@ -182,6 +182,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         self.continuous = True
         self.start_uniform = start_uniform
+        self._source_tensor = None
 
     @property
     def mask_dim(self):
@@ -602,6 +603,70 @@ class ContinuousTorus(GFlowNetEnv):
         n_actions = [int(pair[1])]
         return angles + n_actions
 
+    @property
+    def source_tensor(self):
+        if self._source_tensor is None:
+            self._source_tensor = tfloat(
+                self.source, float_type=self.float, device=self.device
+            )
+        return self._source_tensor
+
+    def _get_timesteps(self, states: List) -> TensorType["n_states"]:
+        """
+        Extract the timestep component from a batch of states.
+
+        Assumes each state in `states` is a sequence whose last element is the
+        timestep (e.g. `state = [..., timestep]`).
+
+        Parameters
+        ----------
+        states (Sequence): Batch of states, where each element is indexable
+            and its last entry is the timestep.
+
+        Returns
+        -------
+            torch.Tensor: 1D tensor of timesteps, one per state in `states`.
+        """
+        timesteps = tfloat(
+            [x[-1] for x in states],
+            float_type=self.float,
+            device=self.device,
+        )
+        return timesteps
+
+    def is_source_batch(
+        self,
+        states: Union[List, TensorType],
+        timesteps: Optional[Union[List, TensorType]] = None,
+    ) -> TensorType["n_states"]:
+        """
+        Check which states in a batch correspond to the source state.
+
+        If `timesteps` is provided, a state is considered a source state simply
+        if its timestep is 0.0 (cheaper, avoids comparing full state tensors).
+        Otherwise, falls back to comparing each state directly against
+        `self.source` elementwise.
+
+        Parameters
+        ----------
+        states: list or torch.Tensor
+            Batch of states
+        timesteps: torch.Tensor, optional
+            Timestep for each state in the batch
+
+        Returns
+        --------
+        torch.Tensor :
+            Boolean tensor of shape (batch_size,) indicating which
+            states are source states.
+        """
+        if timesteps is not None:
+            return timesteps == 0.0
+
+        states = tfloat(states, float_type=self.float, device=self.device)
+        source = self.source_tensor.expand(states.shape[0], -1)
+        return self.isclose(states, source)
+
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -654,12 +719,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         # Sample angle increments
         if torch.any(do_sample):
-            if self.distr_type == "diffusion":
-                timesteps = tfloat(
-                    [x[-1] for x in states_from],
-                    float_type=self.float,
-                    device=self.device,
-                )
+            timesteps = self._get_timesteps(states_from)
 
             logits_sampling = policy_outputs.clone().detach()
             logits_sampling = self.randomize_and_temper_sampling_distribution(
@@ -667,9 +727,7 @@ class ContinuousTorus(GFlowNetEnv):
             )
             distr_angles = self.get_distr(
                 logits_sampling[do_sample],
-                timesteps=(
-                    timesteps[do_sample] if self.distr_type == "diffusion" else None
-                ),
+                timesteps=(timesteps[do_sample] if timesteps is not None else None),
                 is_backward=is_backward,
             )
             angles_sampled = distr_angles.sample()
@@ -677,7 +735,8 @@ class ContinuousTorus(GFlowNetEnv):
 
             # Start from uniform distribution
             if self.start_uniform:
-                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                is_source = self.is_source_batch(states_from, timesteps)
+                do_uniform = torch.logical_and(is_source, do_sample)
                 if torch.any(do_uniform):
                     n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
@@ -746,18 +805,17 @@ class ContinuousTorus(GFlowNetEnv):
             n_states, self.n_dim, dtype=self.float, device=self.device
         )
         if torch.any(do_sample):
-            timesteps = tfloat(
-                [x[-1] for x in states_from], float_type=self.float, device=self.device
-            )
+            timesteps = self._get_timesteps(states_from)
             distr = self.get_distr(
                 policy_outputs[do_sample],
-                timesteps[do_sample],
+                timesteps[do_sample] if timesteps is not None else None,
                 is_backward,
             )
             logprobs[do_sample] = distr.log_prob(actions[do_sample])
             # Start from uniform distribution
             if self.start_uniform:
-                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                is_source = self.is_source_batch(states_from, timesteps)
+                do_uniform = torch.logical_and(is_source, do_sample)
                 if torch.any(do_uniform):
                     n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
@@ -774,10 +832,12 @@ class ContinuousTorus(GFlowNetEnv):
                             self.n_dim,
                             dtype=self.float,
                             device=self.device,
-                        ),
+                        )
                     )
                     distr_fs_angles = Uniform(start, end)
-                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform] % (2 * torch.pi))
+                    logprobs[do_uniform] = distr_fs_angles.log_prob(
+                        actions[do_uniform] % (2 * torch.pi)
+                    )
         if is_backward:
             do_bts = mask[:, 0]
             if torch.any(do_bts):
