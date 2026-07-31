@@ -811,15 +811,15 @@ class ContinuousTorus(GFlowNetEnv):
 
     def _extract_vonmises_parameters(
         self, policy_outputs: TensorType["n_states", "policy_output_dim"]
-    ):
+    ) -> dict[str, TensorType["n_states", "n_dim", "n_comp"]]:
         """
         Extract the parameters of a mixture of von Mises distributions from the
         policy_output tensor.
 
         The policy output is assumed to encode, for each state and each dimension,
-        a set of `n_comp` mixture components, with three values per component
+        a set of ``n_comp`` mixture components, with three values per component
         interleaved along the last axis in the order (mixture logit, location,
-        concentration): [logit_0, loc_0, conc_0, logit_1, loc_1, conc_1, ...].
+        concentration): ``[logit_0, loc_0, conc_0, logit_1, loc_1, conc_1, ...]``.
 
         Parameters
         ----------
@@ -828,14 +828,13 @@ class ContinuousTorus(GFlowNetEnv):
 
         Returns
         -------
-        dict with the items:
-            'mix_logits' : tensor["n_states", "n_dim", "n_comp"]
+        dict[str, TensorType["n_states", "n_dim", "n_comp"]]
+                        Dictionary containing the parameters of a von Mises distribution:
+            - ``"mix_logits"``: tensor["n_states", "n_dim", "n_comp"]
                 The logits of the mixture components.
-
-            'concentrations' : tensor["n_states", "n_dim", "n_comp"]
+            - ``"concentrations"``: tensor["n_states", "n_dim", "n_comp"]
                 The concentrations of the von Mises distributions.
-
-            'locations' : tensor["n_states", "n_dim", "n_comp"]
+            - ``"locations"``: tensor["n_states", "n_dim", "n_comp"]
                 The locations (mean angle) of the von Mises distributions, in radians.
         """
 
@@ -863,16 +862,16 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         timesteps: Optional[TensorType["n_states"]] = None,
-    ):
+    ) -> dict[str, TensorType["n_states", "n_dim"]]:
         """
         Extract the parameters of the (wrapped) Gaussian distribution used in the
         diffusion-based policy from the policy_output tensor.
 
-        The standard deviations are not learned by the policy network; they are
-        derived deterministically from `timesteps` via a predefined noise schedule
-        (see `convert_timesteps_to_stds`). The policy output is interpreted as a
-        per-dimension "score", which is rescaled by the (squared) standard
-        deviation to obtain the predicted means, following the standard
+        The standard deviations are not learned by the policy network; they are derived
+        deterministically from ``timesteps`` via a predefined noise schedule (see
+        py:meth:`ContinuousTorus.convert_timesteps_to_stds`). The policy output is
+        interpreted as a per-dimension "score", which is rescaled by the (squared)
+        standard deviation to obtain the predicted means, following the standard
         parameterization of score-based / diffusion models.
 
         Parameters
@@ -886,13 +885,14 @@ class ContinuousTorus(GFlowNetEnv):
 
         Returns
         -------
-        dict with the items:
-            'means': tensor["n_states", "n_dim"]
+        dict[str, TensorType["n_states", "n_dim"]]
+                        Dictionary containing the parameters of a wrapped normal distribution:
+            - ``"means"``: tensor["n_states", "n_dim"]
                 The means of the wrapped normal distributions.
-            'stds': tensor["n_states", "n_dim"]
+            - ``"stds"``: tensor["n_states", "n_dim"]
                 The standard deviations of the wrapped normal distributions. This is
                 not learned, and it comes from a predefined noise schedule. See
-                function convert_timesteps_to_stds.
+                :py:meth:`ContinuousTorus.convert_timesteps_to_stds`.
         """
         if timesteps is None:
             raise ValueError("Timesteps must be provided for diffusion distribution.")
@@ -905,10 +905,10 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         timesteps: Optional[TensorType["n_states"]] = None,
-    ):
+    ) -> dict[str, torch.Tensor]:
         """
         Dispatch to the appropriate parameter-extraction method based on
-        `self.distr_type`, and return the corresponding distribution parameters
+        ``self.distr_type``, and return the corresponding distribution parameters
         from the policy_output tensor.
 
         Parameters
@@ -921,12 +921,17 @@ class ContinuousTorus(GFlowNetEnv):
 
         Returns
         -------
-        dict
-            The distribution parameters, as returned by
-            `_extract_vonmises_parameters` (if `self.distr_type == "von_mises"`)
+        dict[str, torch.Tensor]
+            A dictionary of distribution parameters, as returned by:
+            - py:meth:`ContinuousTorus._extract_vonmises_parameters`, if
+              ``self.distr_type == "von_mises"``
+            - py:meth:`ContinuousTorus._extract_diffusion_parameters`, if
+              ``self.distr_type == "diffusion"``
             or `_extract_diffusion_parameters` (if
-            `self.distr_type == "diffusion"`). See those methods for the exact
-            keys and shapes.
+            `self.distr_type == "diffusion"`).
+
+            Details about keys and shapes are variable and can be consulted in the
+            docstrings of each method.
         """
 
         if self.distr_type == "von_mises":
