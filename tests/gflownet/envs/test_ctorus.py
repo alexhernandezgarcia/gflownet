@@ -181,6 +181,7 @@ class TestContinuousTorusBasic(common.BaseTestsContinuous):
         }
         self.n_states = {}  # TODO: Populate.
 
+
 # copypasted from above but wuth env_diff instead of env
 class TestContinuousTorusDiffusion(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
