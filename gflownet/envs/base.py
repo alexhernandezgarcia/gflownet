@@ -1078,7 +1078,7 @@ class GFlowNetEnv:
         -------
         self
         """
-        self.state = copy(self.source)
+        self.state = self.copy_state(self.source)
         self.n_actions = 0
         self.done = False
         if env_id is None:
@@ -1110,9 +1110,32 @@ class GFlowNetEnv:
         at all states (intermediate states are not fully constructed objects) should
         overwrite this method and check for validity.
         """
-        self.state = copy(state)
+        self.state = self.copy_state(state)
         self.done = done
         return self
+
+    def copy_state(self, state: Union[List, TensorType["state_dims"]]):
+        """
+        Returns a copy of the state passed as argument.
+
+        By default, this is a generic copy via
+        :py:func:`gflownet.utils.common.copy` (clone for tensors, deepcopy
+        otherwise). Environments with a known, structured state format may
+        override this method with a faster structured copy, since generic
+        deepcopy of nested states can dominate the run time of state-heavy
+        environments.
+
+        Parameters
+        ----------
+        state : list or tensor or dict
+            A state in environment format.
+
+        Returns
+        -------
+        A copy of the state, fully independent of the original: mutating one
+        must never affect the other.
+        """
+        return copy(state)
 
     def copy(self):
         # return self.__class__(**self.__dict__)
