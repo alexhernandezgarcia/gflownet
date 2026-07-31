@@ -86,7 +86,11 @@ class DecisionTreeNode(Stack):
         """
         state = self._get_state(state)
         feature_state = self._get_substate(state, self.stage_feature)
-        if self.feature_env.is_source(feature_state):
+        # Direct list comparison instead of is_source(): substates are flat
+        # lists of scalars only ever set by assignment, so exact equality with
+        # the source is the correct check and avoids the recursive
+        # equal()/isclose() machinery on this very hot path.
+        if feature_state == self.feature_env.source:
             return None
         return feature_state[0]
 
@@ -108,7 +112,8 @@ class DecisionTreeNode(Stack):
         """
         state = self._get_state(state)
         threshold_state = self._get_substate(state, self.stage_threshold)
-        if self.threshold_env.is_source(threshold_state):
+        # Direct list comparison instead of is_source(), see get_feature()
+        if threshold_state == self.threshold_env.source:
             return None
         return threshold_state[0]
 
