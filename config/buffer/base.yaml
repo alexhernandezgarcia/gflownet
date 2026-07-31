@@ -3,6 +3,16 @@ _target_: gflownet.buffer.base.BaseBuffer
 replay_buffer: null
 replay_capacity: 0
 
+# If True, the buffers store log-rewards instead of (linear) rewards, and
+# weighted replay sampling computes its probabilities with a numerically stable
+# softmax over the log values. Recommended whenever the log-rewards can be large
+# and negative (e.g. Bayesian log-posteriors over a data set, as in the tree
+# environments), where exp(log-reward) underflows to exactly 0.0 in float32
+# (below ~-103) or float64 (below ~-745), freezing buffer insertion and
+# producing NaN sampling probabilities. Insertion ordering is unaffected
+# (log is monotone).
+store_log_rewards: False
+
 # Train and test data
 # Both train and test are dictionaries with the following keys:
 # - type: type of data. It can be one of the following:

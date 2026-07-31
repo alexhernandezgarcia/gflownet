@@ -12,7 +12,7 @@ pytest.importorskip(
 from sklearn.metrics import accuracy_score
 
 from gflownet.envs.tree.origtree import ActionType, Attribute, TreeOrig
-from gflownet.proxy.tree import TreeProxy
+from gflownet.proxy.tree_orig import TreeProxy
 
 
 @pytest.fixture
