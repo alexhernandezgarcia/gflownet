@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -124,6 +125,11 @@ class Logger:
         # Checkpoints directory
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
+        # Checkpoint retention (see prune_checkpoints). Read with defaults so that
+        # runs resumed from a configuration stored before these keys existed work.
+        self.keep_n_ckpts = logdir.get("keep_n_ckpts", 3)
+        keep_ckpts_at = logdir.get("keep_ckpts_at", [100, 500, 1000])
+        self.keep_ckpts_at = set(keep_ckpts_at) if keep_ckpts_at else set()
         # Data directory
         self.datadir = self.logdir / "data"
         self.datadir.mkdir(parents=True, exist_ok=True)
@@ -363,6 +369,41 @@ class Logger:
             "run_id": run_id_ckpt,
         }
         torch.save(checkpoint, ckpt_path)
+        self.prune_checkpoints()
+
+    def prune_checkpoints(self):
+        """
+        Deletes intermediate checkpoints that are no longer needed.
+
+        Kept are the ``self.keep_n_ckpts`` most recent ``iter_*.ckpt`` files and
+        those of the iterations in ``self.keep_ckpts_at``, if they exist. The final
+        checkpoint (``final.ckpt``) is never a candidate for deletion, since only
+        files matching ``iter_<step>.ckpt`` are considered.
+
+        Set ``logger.logdir.keep_n_ckpts`` to null to disable the pruning and keep
+        all the checkpoints.
+        """
+        if self.keep_n_ckpts is None:
+            return
+
+        # Map of iteration number -> checkpoint path
+        ckpts = {}
+        for path in self.ckpts_dir.glob("iter_*.ckpt"):
+            match = re.fullmatch(r"iter_(\d+)", path.stem)
+            if match is not None:
+                ckpts[int(match.group(1))] = path
+
+        n_keep = max(int(self.keep_n_ckpts), 0)
+        steps_keep = set(sorted(ckpts)[-n_keep:]) if n_keep > 0 else set()
+        steps_keep.update(self.keep_ckpts_at)
+
+        for step, path in ckpts.items():
+            if step in steps_keep:
+                continue
+            try:
+                path.unlink()
+            except OSError as e:
+                print(f"Could not delete checkpoint {path}: {e}")
 
     def log_time(self, times: dict, use_context: bool):
         if self.do.times:
