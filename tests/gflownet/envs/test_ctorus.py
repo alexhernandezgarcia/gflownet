@@ -22,6 +22,11 @@ def env_su():
     return ContinuousTorus(n_dim=2, length_traj=3, start_uniform=True)
 
 
+@pytest.fixture
+def env_diff():
+    return ContinuousTorus(n_dim=2, length_traj=3, distr_type="diffusion", n_copm=1)
+
+
 @pytest.mark.parametrize(
     "action_space",
     [
@@ -54,6 +59,14 @@ def test__get_action_space__returns_expected(env, action_space):
         ("env_su", [1.37, 2.49, 3.0], True, True, (np.inf, np.inf)),
         ("env_su", [0.0, 0.0, 1.0], False, True, (0.0, 0.0)),
         ("env_su", [1.37, 2.49, 1.0], False, True, (1.37, 2.49)),
+        ("env_diff", [0.0, 0.0, 3.0], False, False, (np.inf, np.inf)),
+        ("env_diff", [0.0, 0.0, 3.0], True, False, (np.inf, np.inf)),
+        ("env_diff", [0.0, 0.0, 3.0], True, True, (np.inf, np.inf)),
+        ("env_diff", [1.37, 2.49, 3.0], False, False, (np.inf, np.inf)),
+        ("env_diff", [1.37, 2.49, 3.0], True, False, (np.inf, np.inf)),
+        ("env_diff", [1.37, 2.49, 3.0], True, True, (np.inf, np.inf)),
+        ("env_diff", [0.0, 0.0, 1.0], False, True, (0.0, 0.0)),
+        ("env_diff", [1.37, 2.49, 1.0], False, True, (1.37, 2.49)),
     ],
 )
 def test__sample_actions_batch__special_cases(
@@ -100,6 +113,13 @@ def test__sample_actions_batch__special_cases(
         ("env_su", [0.0, 0.0, 2.0], False, True, (0.0, 0.0)),
         ("env_su", [1.37, 2.49, 2.0], False, True, (1.37, 2.49)),
         ("env_su", [1.37, 2.49, 1.0], False, False, (1.37, 2.49)),
+        ("env_diff", [0.0, 0.0, 2.0], False, False, (np.inf, np.inf)),
+        ("env_diff", [0.0, 0.0, 3.0], False, True, (np.inf, np.inf)),
+        ("env_diff", [1.37, 2.49, 2.0], False, False, (np.inf, np.inf)),
+        ("env_diff", [1.37, 2.49, 2.0], False, True, (np.inf, np.inf)),
+        ("env_diff", [0.0, 0.0, 2.0], False, True, (0.0, 0.0)),
+        ("env_diff", [1.37, 2.49, 2.0], False, True, (1.37, 2.49)),
+        ("env_diff", [1.37, 2.49, 1.0], False, False, (1.37, 2.49)),
     ],
 )
 def test__sample_actions_batch__not_special_cases(
@@ -134,6 +154,39 @@ class TestContinuousTorusBasic(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__forward_actions_have_nonzero_backward_prob": 10,
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__trajectories_are_reversible": 10,
+            "test__step_random__does_not_sample_invalid_actions_forward": 10,
+            "test__step_random__does_not_sample_invalid_actions_backward": 10,
+            "test__sample_actions__get_logprobs__return_valid_actions_and_logprobs": 10,
+            "test__get_parents_step_get_mask__are_compatible": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__state2readable__is_reversible": 20,
+            "test__gflownet_minimal_runs": 3,
+        }
+        self.n_states = {
+            "test__backward_actions_have_nonzero_forward_prob": 10,
+            "test__sample_backwards_reaches_source": 10,
+            "test__get_logprobs__all_finite_in_random_forward_transitions": 10,
+            "test__get_logprobs__all_finite_in_random_backward_transitions": 10,
+        }
+        self.batch_size = {
+            "test__sample_actions__get_logprobs__batched_forward_trajectories": 10,
+            "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
+            "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
+            "test__gflownet_minimal_runs": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
+
+
+# copypasted from above but wuth env_diff instead of env
+class TestContinuousTorusDiffusion(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, env_diff):
+        self.env = env_diff
         self.repeats = {
             "test__reset__state_is_source": 10,
             "test__forward_actions_have_nonzero_backward_prob": 10,
@@ -255,6 +308,7 @@ def test__get_logprobs_start_uniform(env_su):
     [
         "env",
         "env_su",
+        "env_diff",
     ],
 )
 def test__backward_logprob(env_local, request):
@@ -266,11 +320,7 @@ def test__backward_logprob(env_local, request):
         mask = torch.unsqueeze(
             tbool(env.get_mask_invalid_actions_backward(), device=env.device), 0
         )
-        distr_params = {
-            "vonmises_mean": 0.0,
-            "vonmises_concentration": 8.0,
-        }
-        policy_output = env.get_policy_output(distr_params).unsqueeze(0)
+        policy_output = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
         actions = torch.tensor([angles])
         logprobs = env.get_logprobs(
             policy_output, actions, mask, [state], is_backward=True

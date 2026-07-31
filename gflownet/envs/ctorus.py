@@ -19,6 +19,7 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tfloat, torch2np
 from gflownet.utils.metrics import angles_allclose
+from gflownet.utils.molecule.distributions import WrappedNormal
 
 
 class ContinuousTorus(GFlowNetEnv):
@@ -792,15 +793,8 @@ class ContinuousTorus(GFlowNetEnv):
             distr_angles = MixtureSameFamily(mix, vonmises)
 
         elif self.distr_type == "diffusion":
-            stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
-            assert self.n_comp == 1
-            if is_backward == False:
-                # At convergence, score should be equal to grad_logp(x_t)
-                score = policy_outputs.reshape(-1, self.n_dim)
-                # since x_{t+1} = x_t + score * std_t^2 + N(0, std_t^2), the increment
-                # mean is equal to score * std_t^2
-                means = score * torch.pow(stds.unsqueeze(1).repeat(1, 2), 2)
-            else:
+            means, stds = params["means"], params["stds"]
+            if is_backward:
                 # For diffusion models, the backwards policy is fixed and not learned.
                 # Here, we force the backwards variance-exploding policy, i.e. x_{t-1}
                 # = x_t + N(0, std_t^2)
