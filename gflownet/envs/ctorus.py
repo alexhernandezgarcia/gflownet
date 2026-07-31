@@ -19,6 +19,7 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tfloat, torch2np
 from gflownet.utils.metrics import angles_allclose
+from gflownet.utils.molecule.distributions import WrappedNormal
 
 
 class ContinuousTorus(GFlowNetEnv):
