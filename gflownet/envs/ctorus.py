@@ -809,14 +809,17 @@ class ContinuousTorus(GFlowNetEnv):
 
         return distr_angles
 
-    def _extract_distribution_parameters(
-        self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-        timesteps: Optional[TensorType["n_states"]] = None,
+    def _extract_vonmises_parameters(
+        self, policy_outputs: TensorType["n_states", "policy_output_dim"]
     ):
         """
-        Helper function to extract the parameters of the distributions from the
+        Extract the parameters of a mixture of von Mises distributions from the
         policy_output tensor.
+
+        The policy output is assumed to encode, for each state and each dimension,
+        a set of `n_comp` mixture components, with three values per component
+        interleaved along the last axis in the order (mixture logit, location,
+        concentration): [logit_0, loc_0, conc_0, logit_1, loc_1, conc_1, ...].
 
         Parameters
         ----------
@@ -825,56 +828,111 @@ class ContinuousTorus(GFlowNetEnv):
 
         Returns
         -------
-
-        if Von Mises distribution is used:
-            mix_logits : tensor["n_states", "n_dim", "n_comp"]
+        dict with the items:
+            'mix_logits' : tensor["n_states", "n_dim", "n_comp"]
                 The logits of the mixture components.
 
-            concentrations : tensor["n_states", "n_dim", "n_comp"]
+            'concentrations' : tensor["n_states", "n_dim", "n_comp"]
                 The concentrations of the von Mises distributions.
 
-            locations : tensor["n_states", "n_dim", "n_comp"]
-                The locations of the von Mises distributions
-        elif Wrapped Normal distribution is used:
-            means: tensor["n_states", "n_dim"]
+            'locations' : tensor["n_states", "n_dim", "n_comp"]
+                The locations (mean angle) of the von Mises distributions, in radians.
+        """
+
+        mix_logits = policy_outputs[:, 0::3].reshape(-1, self.n_dim, self.n_comp)
+        concentrations = policy_outputs[:, 2::3].reshape(-1, self.n_dim, self.n_comp)
+        locations = policy_outputs[:, 1::3].reshape(-1, self.n_dim, self.n_comp)
+        concentrations = (
+            torch.exp(concentrations)
+            if self.exp_vonmises_concentration
+            else concentrations
+        )
+        if torch.any(concentrations < 0.0):
+            raise Exception(
+                "Negative concentration values "
+                f"{concentrations[concentrations < 0.]}"
+            )
+        concentrations = concentrations + self.vonmises_min_concentration
+        return {
+            "mix_logits": mix_logits,
+            "concentrations": concentrations,
+            "locations": locations,
+        }
+
+    def _extract_diffusion_parameters(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: Optional[TensorType["n_states"]] = None,
+    ):
+        """
+        Extract the parameters of the (wrapped) Gaussian distribution used in the
+        diffusion-based policy from the policy_output tensor.
+
+        The standard deviations are not learned by the policy network; they are
+        derived deterministically from `timesteps` via a predefined noise schedule
+        (see `convert_timesteps_to_stds`). The policy output is interpreted as a
+        per-dimension "score", which is rescaled by the (squared) standard
+        deviation to obtain the predicted means, following the standard
+        parameterization of score-based / diffusion models.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model
+        timesteps : tensor["n_states"], optional
+            The timestep associated with each state, used to compute the
+            corresponding noise standard deviation. Required for this
+            distribution type.
+
+        Returns
+        -------
+        dict with the items:
+            'means': tensor["n_states", "n_dim"]
                 The means of the wrapped normal distributions.
-            stds: tensor["n_states", "n_dim"]
+            'stds': tensor["n_states", "n_dim"]
                 The standard deviations of the wrapped normal distributions. This is
                 not learned, and it comes from a predefined noise schedule. See
                 function convert_timesteps_to_stds.
         """
+        if timesteps is None:
+            raise ValueError("Timesteps must be provided for diffusion distribution.")
+        stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
+        score = policy_outputs.reshape(-1, self.n_dim)
+        means = score * torch.pow(stds.unsqueeze(1).repeat(1, 2), 2)
+        return {"means": means, "stds": stds}
+
+    def _extract_distribution_parameters(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        timesteps: Optional[TensorType["n_states"]] = None,
+    ):
+        """
+        Dispatch to the appropriate parameter-extraction method based on
+        `self.distr_type`, and return the corresponding distribution parameters
+        from the policy_output tensor.
+
+        Parameters
+        ----------
+        policy_outputs : tensor["n_states", "policy_output_dim"]
+            The output of the GFlowNet policy model.
+        timesteps : tensor["n_states"], optional
+            The diffusion timestep associated with each state. Only used (and
+            required) when `self.distr_type == "diffusion"`.
+
+        Returns
+        -------
+        dict
+            The distribution parameters, as returned by
+            `_extract_vonmises_parameters` (if `self.distr_type == "von_mises"`)
+            or `_extract_diffusion_parameters` (if
+            `self.distr_type == "diffusion"`). See those methods for the exact
+            keys and shapes.
+        """
 
         if self.distr_type == "von_mises":
-            mix_logits = policy_outputs[:, 0::3].reshape(-1, self.n_dim, self.n_comp)
-            concentrations = policy_outputs[:, 2::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            locations = policy_outputs[:, 1::3].reshape(-1, self.n_dim, self.n_comp)
-            concentrations = (
-                torch.exp(concentrations)
-                if self.exp_vonmises_concentration
-                else concentrations
-            )
-            if torch.any(concentrations < 0.0):
-                raise Exception(
-                    "Negative concentration values "
-                    f"{concentrations[concentrations < 0.]}"
-                )
-            concentrations = concentrations + self.vonmises_min_concentration
-            return {
-                "mix_logits": mix_logits,
-                "concentrations": concentrations,
-                "locations": locations,
-            }
+            return self._extract_vonmises_parameters(policy_outputs)
         elif self.distr_type == "diffusion":
-            if timesteps is None:
-                raise ValueError(
-                    "Timesteps must be provided for diffusion distribution."
-                )
-            stds = self.convert_timesteps_to_stds(timesteps, cumulative=False)
-            score = policy_outputs.reshape(-1, self.n_dim)
-            means = score * torch.pow(stds.unsqueeze(1).repeat(1, 2), 2)
-            return {"means": means, "stds": stds}
+            return self._extract_diffusion_parameters(policy_outputs, timesteps)
 
     def convert_timesteps_to_stds(
         self, timesteps: TensorType["n_states", 1], cumulative=False
