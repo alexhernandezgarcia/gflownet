@@ -1071,7 +1071,7 @@ class GFlowNetAgent:
             logrewards = batch.get_terminating_rewards(sort_by="trajectory", log=True)
         if not batch.rewards_available(log=False):
             assert batch.rewards_available(log=True)
-            rewards = torch.exp(logrewards.to(torch.float64))
+            rewards = torch.exp(logrewards)
         if not batch.rewards_available(log=True):
             assert batch.rewards_available(log=False)
             logrewards = torch.log(rewards)
