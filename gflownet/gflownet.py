@@ -1167,9 +1167,14 @@ class GFlowNetAgent:
             # Log replay buffer rewards
             if self.buffer.replay_updated:
                 rewards_replay = self.buffer.replay.rewards
+                if self.buffer.store_log_rewards:
+                    logrewards_replay = rewards_replay
+                    rewards_replay = np.exp(logrewards_replay)
+                else:
+                    logrewards_replay = np.log(rewards_replay)
                 self.logger.log_rewards_and_scores(
                     rewards_replay,
-                    np.log(rewards_replay),
+                    logrewards_replay,
                     scores=None,
                     step=self.it,
                     prefix="Replay buffer -",
