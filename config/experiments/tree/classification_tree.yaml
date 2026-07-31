@@ -54,6 +54,7 @@ proxy:
   # If True, divide the marginal log-likelihood by N_train so the proxy reports
   # the average per-sample log-likelihood. Makes reward_function_kwargs.beta
   # invariant to dataset size. The structure log-prior is left unscaled.
+  # If applied no sampling from the true posterior anymore
   normalize_likelihood: False
 
   # --- Reward function (proxy value -> reward) ---
@@ -93,7 +94,7 @@ gflownet:
     lr: 0.01
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 50000
+    n_train_steps: 1000
     lr_decay_period: 10000
     lr_decay_gamma: 0.5
   replay_sampling: weighted
@@ -140,6 +141,7 @@ logger:
   tags:
     - gflownet
     - tree
+    - classification
   do:
     online: True
 
