@@ -829,7 +829,7 @@ class ContinuousTorus(GFlowNetEnv):
         Returns
         -------
         dict[str, TensorType["n_states", "n_dim", "n_comp"]]
-                        Dictionary containing the parameters of a von Mises distribution:
+            Dictionary containing the parameters of a von Mises distribution:
             - ``"mix_logits"``: tensor["n_states", "n_dim", "n_comp"]
                 The logits of the mixture components.
             - ``"concentrations"``: tensor["n_states", "n_dim", "n_comp"]
@@ -886,7 +886,7 @@ class ContinuousTorus(GFlowNetEnv):
         Returns
         -------
         dict[str, TensorType["n_states", "n_dim"]]
-                        Dictionary containing the parameters of a wrapped normal distribution:
+            Dictionary containing the parameters of a wrapped normal distribution:
             - ``"means"``: tensor["n_states", "n_dim"]
                 The means of the wrapped normal distributions.
             - ``"stds"``: tensor["n_states", "n_dim"]
