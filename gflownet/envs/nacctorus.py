@@ -212,6 +212,55 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         distr_end = Bernoulli(logits=end_logits)
         return distr_end
 
+    def _get_timesteps(self, states: List):
+        """
+        Extract the timestep component from a batch of states.
+
+        In non-acyclis ctorus the states do not contain info about timeteps, so
+        this method returns None
+
+        Parameters
+        ----------
+        states : list
+            Batch of states
+
+        Returns
+        -------
+            None
+        """
+
+        return None
+
+    def isclose(
+        self,
+        first_state: List,
+        second_state: List,
+        atol: Optional[float] = None,
+    ) -> bool:
+        """
+        Check if two states are close in the state space.
+
+        The states are compared using :func:`angles_allclose`, which accounts
+        for the periodicity of the torus (i.e., angles differing by integer
+        multiples of :math:`2\pi` are treated as equivalent) and floating-point
+        numerical precision.
+
+        Parameters
+        ----------
+        first_state : list
+            First state to compare
+        second_state : list
+            Second state to compare
+
+        Returns
+        -------
+        bool or iterable
+            True if the two states are close, False otherwise.
+        """
+        if atol is None:
+            atol = self.state_space_atol
+        return angles_allclose(first_state, second_state, atol=atol)
+
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
