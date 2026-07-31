@@ -161,7 +161,7 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
             ybar = float(np.mean(y))
             kappa_n = self._kappa_0 + n
             alpha_n = self._alpha_0 + 0.5 * n
-            ss = float(np.sum((y - ybar) ** 2)) # sum of square
+            ss = float(np.sum((y - ybar) ** 2))  # sum of square
             beta_n = (
                 self._beta_0
                 + 0.5 * ss
