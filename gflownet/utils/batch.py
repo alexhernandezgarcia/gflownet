@@ -11,7 +11,6 @@ from gflownet.policy.base import Policy
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import (
     concat_items,
-    copy,
     extend,
     select_indices,
     set_device,
@@ -324,12 +323,14 @@ class Batch:
             # Handle backward transition
             if backward:
                 # Add state, parent and done
-                self.parents.append(copy(env.state))
+                self.parents.append(env.copy_state(env.state))
                 if len(self.trajectories[env.id]) == 1:
-                    self.states.append(copy(env.state))
+                    self.states.append(env.copy_state(env.state))
                     self.done.append(True)
                 else:
-                    self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
+                    self.states.append(
+                        env.copy_state(self.parents[self.trajectories[env.id][1]])
+                    )
                     self.done.append(env.done)
                 # Add backward logp for current action
                 self.logprobs_backward.append(logp)
@@ -347,13 +348,13 @@ class Batch:
             # Handle forward transition
             else:
                 # Add state, parent and done
-                self.states.append(copy(env.state))
+                self.states.append(env.copy_state(env.state))
                 self.done.append(env.done)
                 if len(self.trajectories[env.id]) == 1:
-                    self.parents.append(copy(self.source["state"]))
+                    self.parents.append(env.copy_state(self.source["state"]))
                 else:
                     self.parents.append(
-                        copy(self.states[self.trajectories[env.id][-2]])
+                        env.copy_state(self.states[self.trajectories[env.id][-2]])
                     )
                 # Add forward logp for current action
                 self.logprobs_forward.append(logp)

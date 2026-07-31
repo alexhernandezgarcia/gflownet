@@ -187,6 +187,17 @@ class DecisionTreeNode(Stack):
         state[self.stage_threshold] = threshold_state
         return state
 
+    def copy_state(self, state: Dict) -> Dict:
+        """
+        Structured copy of a node state, replacing the generic deepcopy of the
+        base class.
+
+        The substates of the Choice and ContinuousCube sub-environments
+        (integer keys) are flat lists of scalars, so a one-level list copy is
+        sufficient; the remaining keys (``_active``) hold scalars.
+        """
+        return {k: list(v) if isinstance(k, int) else v for k, v in state.items()}
+
     # =========================================================================
     # Threshold-constraint interface
     #

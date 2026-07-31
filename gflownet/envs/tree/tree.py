@@ -56,7 +56,7 @@ from gflownet.envs.composite.base import CompositeBase
 from gflownet.envs.tree.discrete_choice_node import DecisionTreeNodeDiscreteChoice
 from gflownet.envs.tree.discrete_node import DecisionTreeNodeDiscrete
 from gflownet.envs.tree.node import DecisionTreeNode
-from gflownet.utils.common import copy, tfloat
+from gflownet.utils.common import tfloat
 
 _NODE_CLASSES = {
     "continuous": DecisionTreeNode,
@@ -789,7 +789,7 @@ class Tree(CompositeBase):
             # Active and done: backward = undo node env EOS.
             # Unrescale threshold so the node sub-env sees the raw threshold
             # value it produced before the rescale.
-            substate = copy(state[active])
+            substate = self.node_env.copy_state(state[active])
             temp_state = {**state, active: substate}
             self._node_unapply_rescale(active, temp_state)
             mask = self.node_env.get_mask_invalid_actions_backward(substate, done=True)
@@ -859,7 +859,7 @@ class Tree(CompositeBase):
                 if target not in expandable:
                     return self.state, action, False
                 self.state["_active"] = target
-                self.state[target] = copy(self.node_env.source)
+                self.state[target] = self.node_env.copy_state(self.node_env.source)
                 # Publish bounds for the newly-activated node so subsequent
                 # node-env mask queries reflect ancestor constraints.
                 self._apply_constraints(state=self.state)
@@ -896,7 +896,7 @@ class Tree(CompositeBase):
 
         # Prepare the node env
         substate = self.state[active]
-        self.node_env.set_state(copy(substate), done=False)
+        self.node_env.set_state(substate, done=False)
 
         # Pre-step check via node env
         action_to_check = self.node_env.action2representative(action_subenv)
@@ -913,7 +913,7 @@ class Tree(CompositeBase):
         self.n_actions += 1
 
         # Update the substate in the tree
-        self.state[active] = copy(self.node_env.state)
+        self.state[active] = self.node_env.copy_state(self.node_env.state)
 
         # If node env is now done, mark the node as done and ask the node
         # implementation to rescale the stored threshold (no-op for the
@@ -1010,7 +1010,7 @@ class Tree(CompositeBase):
         # Prepare the node env. If the node was done, ask the node to
         # unrescale the threshold back to its raw range so the sub-env can
         # process the backward step (no-op for the discrete node).
-        substate = copy(self.state[active])
+        substate = self.node_env.copy_state(self.state[active])
         if node_was_done:
             self._node_unapply_rescale(
                 active,
@@ -1038,7 +1038,7 @@ class Tree(CompositeBase):
         self.n_actions += 1
 
         # Update substate
-        self.state[active] = copy(self.node_env.state)
+        self.state[active] = self.node_env.copy_state(self.node_env.state)
 
         # If the node was done but isn't anymore, clear the done flag
         if node_was_done and not self.node_env.done:
@@ -1083,7 +1083,7 @@ class Tree(CompositeBase):
             parents = []
             actions = []
             for k in self._get_leaf_done_nodes(state):
-                parent = copy(state)
+                parent = self.copy_state(state)
                 parent["_active"] = k
                 parents.append(parent)
                 actions.append(self._pad_action((k,), -1))
@@ -1094,7 +1094,7 @@ class Tree(CompositeBase):
             # Unrescale the threshold before passing to node env (which expects
             # raw values, e.g. [0, 1] for the ContinuousCube). No-op for the
             # discrete node.
-            substate = copy(state[active])
+            substate = self.node_env.copy_state(state[active])
             temp_state = {**state, active: substate}
             self._node_unapply_rescale(active, temp_state)
             parents_subenv, actions_subenv = self.node_env.get_parents(
@@ -1103,7 +1103,7 @@ class Tree(CompositeBase):
             parents = []
             actions = []
             for parent_subenv, action_subenv in zip(parents_subenv, actions_subenv):
-                parent = copy(state)
+                parent = self.copy_state(state)
                 parent[active] = parent_subenv
                 parent["_dones"] = list(parent["_dones"])
                 parent["_dones"][active] = 0
@@ -1116,7 +1116,7 @@ class Tree(CompositeBase):
 
         if self.node_env.is_source(substate):
             # Node at source: parent = idle state without this node
-            parent = copy(state)
+            parent = self.copy_state(state)
             del parent[active]
             parent["_active"] = -1
             return [parent], [self._pad_action((active,), -1)]
@@ -1126,7 +1126,7 @@ class Tree(CompositeBase):
         parents = []
         actions = []
         for parent_subenv, action_subenv in zip(parents_subenv, actions_subenv):
-            parent = copy(state)
+            parent = self.copy_state(state)
             parent[active] = parent_subenv
             parents.append(parent)
             actions.append(self._pad_action(action_subenv, 0))
@@ -1742,10 +1742,29 @@ class Tree(CompositeBase):
         self._apply_constraints(state=self.state)
         return self
 
+    def copy_state(self, state: Dict) -> Dict:
+        """
+        Structured copy of a tree state, replacing the generic deepcopy of the
+        base class.
+
+        A tree state consists of integer keys (the node substates, copied via
+        ``node_env.copy_state``), the ``_dones`` list, and scalar metadata
+        (``_active``, ``_envs_unique``).
+        """
+        new = {}
+        for k, v in state.items():
+            if isinstance(k, int):
+                new[k] = self.node_env.copy_state(v)
+            elif isinstance(v, list):
+                new[k] = list(v)
+            else:
+                new[k] = v
+        return new
+
     def reset(self, env_id: Union[int, str] = None):
         """Resets the tree to the empty source state."""
         self.node_env.reset()
-        self.state = copy(self.source)
+        self.state = self.copy_state(self.source)
         self.done = False
         self.n_actions = 0
         self.id = str(uuid.uuid4()) if env_id is None else env_id
