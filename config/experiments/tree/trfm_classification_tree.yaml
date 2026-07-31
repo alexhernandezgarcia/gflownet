@@ -64,9 +64,14 @@ proxy:
   # Log-posterior is passed through an exponential: reward = alpha * exp(beta * proxy)
   # Options: "identity", "exponential"/"boltzmann", "power", "shift", "product",
   #          "rbf_exponential", "sigmoid"
+  # beta must be 1.0 to sample from the true (untempered) Bayesian posterior:
+  # the GFlowNet samples proportionally to the reward, i.e. posterior^beta.
+  # Any beta != 1.0 targets a tempered posterior instead. Numerical underflow
+  # of exp(log-posterior) is handled by buffer.store_log_rewards, not by
+  # tempering the reward.
   reward_function: exponential
   reward_function_kwargs:
-    beta: 0.1
+    beta: 1.0
     alpha: 1.0
   reward_min: 0.0
   do_clip_rewards: False
@@ -74,6 +79,10 @@ proxy:
 # Buffer
 buffer:
   replay_capacity: 100
+  # With beta=1.0 the (linear) rewards are exp(log-posterior), which underflows
+  # to exactly 0.0 for most datasets. Storing log-rewards keeps the replay
+  # buffer insertion criterion and weighted sampling numerically valid.
+  store_log_rewards: True
   train: null
   test: null
 
