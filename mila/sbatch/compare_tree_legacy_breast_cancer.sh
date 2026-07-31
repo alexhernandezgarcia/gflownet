@@ -14,14 +14,14 @@
 # config/experiments/tree/compare_tree_class_to_legacy_code.yaml; env.max_depth=4
 # == legacy max_depth 5; reward beta=1.0 = untempered posterior).
 #
-# Numerics note: with beta=1.0 the replay buffer stores exp(log-posterior),
-# and on breast_cancer (N_train=455) log-posteriors sit far below the float32
+# Numerics note: with beta=1.0 the linear rewards are exp(log-posterior), and
+# on breast_cancer (N_train=455) log-posteriors sit far below the float32
 # exp() underflow floor (~-103 nats), which zeroed every buffer reward and
 # NaN'ed the weighted replay sampling (first submission, job 10181989, all
-# tasks FAILED at iteration ~1). Fixed in gflownet/gflownet.py by computing
-# the buffer's exp(logrewards) in float64 (exp floor ~-745). Do NOT pass
-# float_precision=64 instead: the composite env mixes dtypes and crashes in
-# get_logprobs (that was the actual failure of job 10181989).
+# tasks FAILED at iteration ~1). Handled by buffer.store_log_rewards=True in
+# the experiment config, which keeps the replay buffer in log space. Do NOT
+# pass float_precision=64 instead: the composite env mixes dtypes and crashes
+# in get_logprobs (that was the actual failure of job 10181989).
 #
 # Usage:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/compare_tree_legacy_breast_cancer.sh

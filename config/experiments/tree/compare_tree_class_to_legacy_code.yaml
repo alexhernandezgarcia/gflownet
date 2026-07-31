@@ -83,15 +83,14 @@ proxy:
 
   # Untempered posterior to match the legacy dummy reward (see header).
   # Numerics: the TB loss consumes log-rewards (beta * log-posterior) and never
-  # under/overflows. exp() only materializes for the replay buffer (insertion
-  # threshold + weighted sampling). Under float32 that exp() flushed to zero
-  # below ~-103 nats, and the first batch of random trees sits below that on
-  # every bundled dataset except iris -- wine/breast_cancer/raisin runs
-  # crashed with NaN probabilities in Buffer.select (jobs 10181934/89/90,
-  # 2026-07-23). Fixed in gflownet/gflownet.py by computing the buffer's
-  # exp(logrewards) in float64 (exp floor ~-745, below even raisin's ~-550
-  # worst case). Do NOT set float_precision=64 as a workaround: the composite
-  # env mixes dtypes and crashes in get_logprobs.
+  # under/overflows. Linear rewards exp(log-posterior) would underflow to 0.0
+  # for log-posteriors below ~-103 nats (float32), which every bundled dataset
+  # except iris hits already in the first random batch -- this used to zero all
+  # replay buffer rewards and NaN the weighted sampling probabilities (jobs
+  # 10181934/89/90, 2026-07-23). Handled by buffer.store_log_rewards=True
+  # below, which keeps the replay buffer in log space. Do NOT set
+  # float_precision=64 as a workaround: the composite env mixes dtypes and
+  # crashes in get_logprobs.
   reward_function: exponential
   reward_function_kwargs:
     beta: 1.0
@@ -102,6 +101,10 @@ proxy:
 # Buffer (legacy: env.buffer.replay_capacity=100)
 buffer:
   replay_capacity: 100
+  # Keep the replay buffer in log space: with beta=1.0 the linear rewards
+  # exp(log-posterior) underflow to 0.0 on all bundled datasets except iris
+  # (see the numerics note in the proxy section).
+  store_log_rewards: True
   train: null
   test: null
 

@@ -14,15 +14,15 @@
 # config/experiments/tree/compare_tree_class_to_legacy_code.yaml; env.max_depth=4
 # == legacy max_depth 5; reward beta=1.0 = untempered posterior).
 #
-# Numerics note: with beta=1.0 the replay buffer stores exp(log-posterior),
-# and on raisin (N_train=720, best log-posterior ~-250) EVERY tree sits far
+# Numerics note: with beta=1.0 the linear rewards are exp(log-posterior), and
+# on raisin (N_train=720, best log-posterior ~-250) EVERY tree sits far
 # below the float32 exp() underflow floor (~-103 nats), which zeroed all
 # buffer rewards and NaN'ed the weighted replay sampling (first submission,
-# job 10181990, all tasks FAILED at iteration ~1). Fixed in
-# gflownet/gflownet.py by computing the buffer's exp(logrewards) in float64
-# (exp floor ~-745; raisin worst case ~-550). Do NOT pass float_precision=64
-# instead: the composite env mixes dtypes and crashes in get_logprobs (that
-# was the actual failure of job 10181990).
+# job 10181990, all tasks FAILED at iteration ~1). Handled by
+# buffer.store_log_rewards=True in the experiment config, which keeps the
+# replay buffer in log space. Do NOT pass float_precision=64 instead: the
+# composite env mixes dtypes and crashes in get_logprobs (that was the actual
+# failure of job 10181990).
 #
 # Usage:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/compare_tree_legacy_raisin.sh

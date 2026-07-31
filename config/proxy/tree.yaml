@@ -5,11 +5,13 @@ _target_: gflownet.proxy.tree.CategoricalTreeProxy
 
 # The proxy returns log-posterior values, so we exponentiate to get positive rewards.
 # reward = alpha * exp(beta * log_posterior)
-# beta < 1 acts as a temperature: p(x) ∝ posterior^beta. This prevents underflow
-# when the log-posterior is very negative (e.g. -32 → exp(-32) ≈ 1e-14 is too small).
+# beta acts as a temperature: p(x) ∝ posterior^beta. It must be 1.0 to sample
+# from the true (untempered) Bayesian posterior. Underflow of
+# exp(log_posterior) in the replay buffer is handled by setting
+# buffer.store_log_rewards=True, not by tempering the reward.
 reward_function: exponential
 reward_function_kwargs:
-  beta: 0.1
+  beta: 1.0
   alpha: 1.0
 
 # Structure prior type: "node_count", "exponential", "bcart", or "none"
