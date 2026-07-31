@@ -1,6 +1,7 @@
 from typing import List, Union
 
 import torch
+from torch.nn import Parameter
 from torchtyping import TensorType
 
 from gflownet.losses.base import BaseLoss
@@ -32,9 +33,23 @@ class RegularizedLoss(BaseLoss):
         self.loss = loss
         self.regularizers = regularizers
 
+        super().__init__(
+            forward_policy=loss.forward_policy,
+            backward_policy=loss.backward_policy,
+            state_flow=loss.state_flow,
+            logZ=loss.logZ,
+            early_stopping_th=loss.early_stopping_th,
+            ema_alpha=loss.ema_alpha,
+            device=loss.device,
+            float_precision=loss.float,
+        )
+
         self._requires_log_z = self.loss.requires_log_z or any(
             reg.requires_log_z for reg in self.regularizers
         )
+        self.name = "Regularized Loss"
+        self.acronym = ""
+        self.id = "regularized"
 
     @staticmethod
     def are_compatible(loss: BaseLoss, regularizers: List) -> bool:
@@ -185,3 +200,14 @@ class RegularizedLoss(BaseLoss):
                 loss_reg[key] = value
 
         return loss_reg
+
+    def set_log_z(self, logZ: Parameter):
+        """
+        Sets the input logZ as an attribute of the self.loss
+
+        Parameters
+        ----------
+        logZ : Parameters
+            The learnable parameters for the log-partition function logZ.
+        """
+        self.loss.set_log_z(logZ)
