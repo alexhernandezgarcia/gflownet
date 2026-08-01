@@ -39,7 +39,7 @@ export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 
 # -u: unbuffered stdout so the per-run [INFO] lines and final table stream to
 # the .out file live instead of only flushing when the process exits.
-python -u gflownet/envs/tree/aggregate_treeclass_results.py --logs-root "$WORK_DIR"
+python -u gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py --logs-root "$WORK_DIR"
 
 status=$?
 echo "aggregate_treeclass_results finished with exit code $status"
