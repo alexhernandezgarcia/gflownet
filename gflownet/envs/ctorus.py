@@ -657,7 +657,7 @@ class ContinuousTorus(GFlowNetEnv):
             logits_sampling = self.randomize_and_temper_sampling_distribution(
                 logits_sampling, random_action_prob, temperature_logits
             )
-            distr_angles = self._get_distr(
+            distr_angles = self.get_distr(
                 logits_sampling[do_sample],
                 timesteps[do_sample],
                 is_backward,
@@ -739,7 +739,7 @@ class ContinuousTorus(GFlowNetEnv):
             timesteps = tfloat(
                 [x[-1] for x in states_from], float_type=self.float, device=self.device
             )
-            distr = self._get_distr(
+            distr = self.get_distr(
                 policy_outputs[do_sample],
                 timesteps[do_sample],
                 is_backward,
@@ -772,7 +772,7 @@ class ContinuousTorus(GFlowNetEnv):
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def _get_distr(
+    def get_distr(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         timesteps: TensorType["n_states"],
