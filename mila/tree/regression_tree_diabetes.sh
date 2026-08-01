@@ -20,6 +20,11 @@
 # metrics are logged to wandb during training by the tree evaluator
 # (RegressionTree.test), since the split CSVs carry a test set.
 #
+# Runs use the config's untempered reward (beta=1.0, replay buffer in log
+# space via buffer.store_log_rewards=True). Earlier runs of this script (job
+# 10160605 and the d5_dedup resumes) overrode beta=0.1, i.e. sampled a
+# tempered posterior^0.1 -- their results are not comparable with new runs.
+#
 # Usage (from anywhere; the script submits itself):
 #   bash mila/sbatch/regression_tree_diabetes.sh
 #
@@ -86,7 +91,6 @@ python train.py +experiments=tree/regression_tree \
     env.max_depth="$DEPTH" \
     seed="$SEED" \
     gflownet.optimizer.n_train_steps="$N_TRAIN_STEPS" \
-    proxy.reward_function_kwargs.beta=0.1 \
     n_samples=1000 \
     logger.do.online="$WANDB_ONLINE" \
     logger.run_name="$run_name" \
