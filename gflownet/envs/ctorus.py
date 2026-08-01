@@ -1273,7 +1273,7 @@ class ContinuousTorus(GFlowNetEnv):
         return samples_aug
 
     # TODO: extend docstrings
-    def process_data_set(self, samples):
+    def process_data_set(self, samples, progress=False):
         """
         Process dataset loaded from a file inside Buffer init.
         """
