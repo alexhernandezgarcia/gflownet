@@ -56,22 +56,23 @@ proxy:
   beta_0: null
 
   # If True, divide the marginal log-likelihood by N_train so the proxy reports
-  # the average per-sample log-likelihood. Makes reward_function_kwargs.beta
-  # invariant to dataset size. The structure log-prior is left unscaled.
+  # the average per-sample log-likelihood. This rescales the likelihood term (a
+  # 1/N temperature on it), so it must remain False to sample from the true
+  # posterior. The structure log-prior is left unscaled.
   normalize_likelihood: False
 
   # --- Reward function (proxy value -> reward) ---
   # Log-posterior is passed through an exponential: reward = alpha * exp(beta * proxy)
-  # beta acts as a temperature: p(T) ∝ posterior^beta. Even with standardized
+  # beta acts as a temperature: p(T) ∝ posterior^beta. It must be 1.0 to sample
+  # from the true (untempered) Bayesian posterior. Even with standardized
   # targets (env.scale_y) the regression log-posterior magnitude is roughly
-  # 1.4 * N_train nats, and rewards are computed in float32, whose exp range is
-  # ~[-87, 88]: beta * |log_posterior| beyond that under/overflows to 0/inf and
-  # NaNs the weighted replay sampling. beta = 0.05 is safe for N_train ~< 1200
-  # (all bundled regression datasets); lower it further (or set
-  # normalize_likelihood: True) for larger datasets.
+  # 1.4 * N_train nats, far outside the float32 exp range (~[-87, 88]); this is
+  # handled by buffer.store_log_rewards=True below, which keeps the loss and
+  # the replay buffer entirely in log space. Linear rewards are derived only
+  # for reporting, where under/overflow to 0/inf is harmless.
   reward_function: exponential
   reward_function_kwargs:
-    beta: 0.05
+    beta: 1.0
     alpha: 1.0
   reward_min: 0.0
   do_clip_rewards: False
@@ -79,6 +80,11 @@ proxy:
 # Buffer
 buffer:
   replay_capacity: 100
+  # With beta=1.0 the (linear) rewards are exp(log-posterior), which under- or
+  # overflows for all bundled regression datasets. Storing log-rewards keeps
+  # the replay buffer insertion criterion and weighted sampling numerically
+  # valid.
+  store_log_rewards: True
   train: null
   test: null
 
