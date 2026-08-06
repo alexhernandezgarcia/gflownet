@@ -142,7 +142,7 @@ policy:
 evaluator:
   first_it: True
   period: 100
-  checkpoints_period: 1000
+  checkpoints_period: 100
   n_trajs_logprobs: 10
   logprobs_batch_size: 10
   n: 10
@@ -161,7 +161,7 @@ evaluator:
 logger:
   lightweight: True
   run_name: null # set on the CLI: TREECLASS_iris<split>_depth5_steps100
-  project_name: "dtgfn"
+  project_name: "dt-gfn_classification"
   entity: alex-hg
   tags:
     - gflownet

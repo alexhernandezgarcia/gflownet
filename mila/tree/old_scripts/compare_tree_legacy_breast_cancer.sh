@@ -4,8 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=3:00:00
-#SBATCH --partition=long-cpu,long-cpu-eek
-#SBATCH --array=1-5
+#SBATCH --array=1-1
 
 # Composite-Tree runs matched to the legacy dt-gfn LEGACYCODE_NOLEAK_* runs
 # (wandb alex-hg/dtgfn), one array task per dataset split 1-5.
