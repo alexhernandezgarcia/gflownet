@@ -61,7 +61,7 @@ from pathlib import Path
 import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[2]  # <repo>/gflownet/envs/tree -> <repo>
+REPO_ROOT = SCRIPT_DIR.parents[3]  # <repo>/gflownet/envs/tree/helpers_for_experiments
 sys.path.insert(0, str(REPO_ROOT))  # make `gflownet` importable when run directly
 
 import pandas as pd

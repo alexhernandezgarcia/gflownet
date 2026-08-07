@@ -38,7 +38,7 @@ from pathlib import Path
 import numpy as np
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[2]  # <repo>/gflownet/envs/tree -> <repo>
+REPO_ROOT = SCRIPT_DIR.parents[3]  # <repo>/gflownet/envs/tree/helpers_for_experiments
 sys.path.insert(0, str(REPO_ROOT))  # make `gflownet` importable when run directly
 
 import pandas as pd
@@ -66,12 +66,13 @@ METRICS = ["top1_test_acc", "mean_nodes", "bma_test_acc"]
 
 
 def default_logs_root() -> Path:
-    """Mirror the sbatch scripts' WORK_DIR default."""
-    work_dir = os.environ.get("WORK_DIR")
-    if work_dir:
-        return Path(work_dir)
+    """Mirror the launcher's run root (see mila/tree/run_classification_tree_training.sh)."""
+    for var in ("WORK_DIR", "RUNS_ROOT"):
+        value = os.environ.get(var)
+        if value:
+            return Path(value)
     scratch = os.environ.get("SCRATCH", str(Path.home() / "scratch"))
-    return Path(scratch) / "gflownet-logs" / "treeclass_compare"
+    return Path(scratch) / "gflownet-runs"
 
 
 def find_runs(logs_root: Path):

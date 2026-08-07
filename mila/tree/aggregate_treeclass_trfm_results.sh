@@ -8,7 +8,7 @@
 
 # Aggregate transformer-policy composite-Tree evaluation results across splits.
 #
-# Runs gflownet/envs/tree/aggregate_treeclass_trfm_results.py over every finished
+# Runs gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_trfm_results.py over every finished
 # trfm_<dataset>_depth<max_depth>_split<seed> run under $WORK_DIR (identified by
 # its final gfn_samples.pkl: samples/ for single-shot runs, else the newest
 # resume/<jobid>/<ts>/ for resumed ones), groups them by setup (dataset,
@@ -25,9 +25,9 @@
 # `sbatch --wrap` (that runs /bin/sh), which is why the wrap one-liner failed.
 #
 # Usage:
-#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/aggregate_treeclass_trfm_results.sh
+#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/tree/aggregate_treeclass_trfm_results.sh
 # To scan the whole logs tree instead of just the trfm sweep dir:
-#   WORK_DIR=$SCRATCH/gflownet-logs sbatch mila/sbatch/aggregate_treeclass_trfm_results.sh
+#   WORK_DIR=$SCRATCH/gflownet-logs sbatch mila/tree/aggregate_treeclass_trfm_results.sh
 
 set -u
 
