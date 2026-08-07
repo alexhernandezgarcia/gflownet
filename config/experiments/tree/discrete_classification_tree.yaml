@@ -124,7 +124,7 @@ evaluator:
 logger:
   lightweight: True
   run_name: null
-  project_name: "dtgfn"
+  project_name: "dt-gfn_classification"
   entity: alex-hg
   tags:
     - gflownet

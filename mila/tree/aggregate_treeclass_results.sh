@@ -8,7 +8,7 @@
 
 # Aggregate composite-Tree (TREECLASS) evaluation results across dataset splits.
 #
-# Runs gflownet/envs/tree/aggregate_treeclass_results.py over every finished run
+# Runs gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py over every finished run
 # under $WORK_DIR (identified by samples/gfn_samples.pkl), groups them by setup
 # (dataset, max_depth, n_train_steps, n_samples, alpha_value) and prints the
 # mean +/- std table across splits to this job's .out file.
@@ -21,13 +21,13 @@
 # `sbatch --wrap` (that runs /bin/sh), which is why the wrap one-liner failed.
 #
 # Usage:
-#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/aggregate_treeclass_results.sh
+#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/tree/aggregate_treeclass_results.sh
 
 set -u
 
 REPO="/home/mila/a/arnit/gflownet"
 VENV="$HOME/scratch/venvs/gflownet-env"
-WORK_DIR="${WORK_DIR:-$SCRATCH/gflownet-logs/treeclass_compare}"
+WORK_DIR="${WORK_DIR:-$SCRATCH/gflownet-logs}"
 
 module load python/3.10
 source "$VENV/bin/activate"
