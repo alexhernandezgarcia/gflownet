@@ -40,7 +40,6 @@ policy:
   backward:
     shared_weights: True
     checkpoint: null
-    reload_ckpt: False
 
 device: cpu
 logger:

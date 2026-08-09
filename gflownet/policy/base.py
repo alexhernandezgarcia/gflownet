@@ -1,159 +1,140 @@
-from abc import ABC, abstractmethod
+"""
+Base Policy class for GFlowNet policy models.
+"""
+
+from abc import abstractmethod
+from typing import Dict, Union
 
 import torch
-from omegaconf import OmegaConf
-from torch import nn
+from omegaconf import DictConfig, OmegaConf
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import set_device, set_float_precision
 
 
-class ModelBase(ABC):
-    def __init__(self, config, env, device, float_precision, base=None):
+class SubPolicy:
+    """
+    The class to define sub-policies (forward, backward, etc.).
+
+    Attributes
+    ----------
+    model : torch.nn.Module or None
+        A torch model, a fixed vector or None.
+    is_trainable : bool
+        Whether the model has trainable weights.
+    shared_weights : bool
+        Whether the policy should share the weights with another policy (the forward
+        policy). False by default. If True, ``model`` must be a ``torch.nn.Module``.
+    checkpoint : str
+        A path to a file containing a checkpoints of a model.
+    """
+    def __init__(
+        self,
+        model: Union[torch.nn.Module, None] = None,
+        shared_weights: bool = False,
+        checkpoint: str = None,
+        **kwargs,
+    ):
+        """
+        Base SubPolicy class for the components of the :class:`Policy`.
+
+        Parameters
+        ----------
+        model : torch.nn.Module or None
+            A torch model.
+        """
+        self.model = model
+        if self.model and isinstance(self.model, torch.nn.Module):
+            self.is_trainable = True
+        else:
+            self.is_trainable = False
+        self.shared_weights = shared_weights
+        self.checkpoint = checkpoint
+
+    def __call__(self, states: torch.Tensor) -> torch.Tensor:
+        """
+        Returns the sub-policy outputs corresponding to a batch of states.
+
+        Parameters
+        ----------
+        states : tensor
+            A batch of states in policy format.
+
+        Returns
+        -------
+        tensor
+            The policy outputs corresponding to the input states.
+        """
+        return self.model(states)
+
+
+class Policy:
+    def __init__(
+        self,
+        forward: Union[SubPolicy, Dict, DictConfig],
+        backward: Union[SubPolicy, Dict, DictConfig, None] = None,
+        stateflow: Union[SubPolicy, Dict, DictConfig, None] = None,
+        logZ: Union[int, SubPolicy, Dict, DictConfig, None] = None,
+        state_dim: int = None,
+        action_dim: int = None,
+        device: Union[str, torch.device] = "cpu",
+        float_precision: [int, torch.dtype] = 32,
+        **kwargs,
+    ):
+        """
+        Base Policy class for a :class:`GFlowNetAgent`.
+
+        Parameters
+        ----------
+        device : str or torch.device
+            The device to be passed to torch tensors.
+        float_precision : int or torch.dtype
+            The floating point precision to be passed to torch tensors.
+        forward : SubPolicy, Dict or DictConfig
+            The forward subpolicy or the parameters to instantiate it.
+        backward : SubPolicy, Dict, DictConfig or None
+            The backward subpolicy or the parameters to instantiate it. If None
+            (default), no backward policy is used.
+        logZ : int, SubPolicy, Dict, DictConfig or None
+            The partition function subpolicy or the parameters to instantiate it. If it
+            is an integer, it is interpreted as the dimensionality of a vector of
+            learnable parameters. If None (default), the partition function is not
+            learned.
+        """
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
-        # Input and output dimensions
+        # State and action dimensionality
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        # Sub-policies
+        if isinstance(forward, SubPolicy):
+            self.forward = forward
+        else:
+            self.forward = SubPolicy(**forward)
+        if backward is None or isinstance(backward, SubPolicy):
+            self.backward = backward
+        else:
+            self.backward = SubPolicy(**backward)
+        if stateflow is None or isinstance(stateflow, SubPolicy):
+            self.stateflow = stateflow
+        else:
+            self.stateflow = SubPolicy(**stateflow)
+        if isinstance(logZ, int):
+            self.logZ = torch.nn.Parameter(torch.ones(logZ) * 150.0 / 64)
+        elif logZ is None or isinstance(logZ, SubPolicy):
+            self.logZ = logZ
+        else:
+            self.logZ = SubPolicy(**logZ)
+
+    def setup(self, env: GFlowNetEnv):
+        """
+        Obtains the state and action dimensions from an input environment.
+
+        Parameters
+        ----------
+        env : GFlowNetEnv
+            A instance of an environment.
+        """
         self.state_dim = env.policy_input_dim
-        self.fixed_output = env.fixed_policy_output
-        self.random_output = env.random_policy_output
-        self.output_dim = len(self.fixed_output)
-        # Optional base model
-        self.base = base
-
-        self.parse_config(config)
-
-    def parse_config(self, config):
-        # If config is null, default to uniform
-        if config is None:
-            config = OmegaConf.create()
-            config.type = "uniform"
-        self.checkpoint = config.get("checkpoint", None)
-        self.shared_weights = config.get("shared_weights", False)
-        self.n_hid = config.get("n_hid", None)
-        self.n_layers = config.get("n_layers", None)
-        self.tail = config.get("tail", [])
-        if "type" in config:
-            self.type = config.type
-        elif self.shared_weights:
-            self.type = self.base.type
-        else:
-            raise "Policy type must be defined if shared_weights is False"
-
-    @abstractmethod
-    def instantiate(self):
-        pass
-
-    def __call__(self, states):
-        return self.model(states)
-
-    def make_mlp(self, activation):
-        """
-        Defines an MLP with no top layer activation
-        If share_weight == True,
-            baseModel (the model with which weights are to be shared) must be provided
-        Args
-        ----
-        layers_dim : list
-            Dimensionality of each layer
-        activation : Activation
-            Activation function
-        """
-        if self.shared_weights == True and self.base is not None:
-            mlp = nn.Sequential(
-                self.base.model[:-1],
-                nn.Linear(
-                    self.base.model[-1].in_features,
-                    self.base.model[-1].out_features,
-                    dtype=self.float,
-                ),
-            )
-            return mlp
-        elif self.shared_weights == False:
-            layers_dim = (
-                [self.state_dim] + [self.n_hid] * self.n_layers + [self.output_dim]
-            )
-            mlp = nn.Sequential(
-                *(
-                    sum(
-                        [
-                            [
-                                nn.Linear(
-                                    idim,
-                                    odim,
-                                    dtype=self.float,
-                                )
-                            ]
-                            + ([activation] if n < len(layers_dim) - 2 else [])
-                            for n, (idim, odim) in enumerate(
-                                zip(layers_dim, layers_dim[1:])
-                            )
-                        ],
-                        [],
-                    )
-                    + self.tail
-                )
-            )
-            return mlp
-        else:
-            raise ValueError(
-                "Base Model must be provided when shared_weights is set to True"
-            )
-
-
-class Policy(ModelBase):
-    def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(config, env, device, float_precision, base)
-
-        self.instantiate()
-
-    def instantiate(self):
-        if self.type == "fixed":
-            self.model = self.fixed_distribution
-            self.is_model = False
-        elif self.type == "uniform":
-            self.model = self.uniform_distribution
-            self.is_model = False
-        elif self.type == "mlp":
-            self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
-            self.is_model = True
-        else:
-            raise "Policy model type not defined"
-
-    def fixed_distribution(self, states):
-        """
-        Returns the fixed distribution specified by the environment.
-
-        Parameters
-        ----------
-        states : tensor
-            The states for which the fixed distribution is to be returned
-        """
-        return torch.tile(self.fixed_output, (len(states), 1)).to(
-            dtype=self.float, device=self.device
-        )
-
-    def random_distribution(self, states):
-        """
-        Returns the random distribution specified by the environment.
-
-        Parameters
-        ----------
-        states : tensor
-            The states for which the random distribution is to be returned
-        """
-        return torch.tile(self.random_output, (len(states), 1)).to(
-            dtype=self.float, device=self.device
-        )
-
-    def uniform_distribution(self, states):
-        """
-        Return action logits (log probabilities) from a uniform distribution
-
-        Parameters
-        ----------
-        states : tensor
-            The states for which the uniform distribution is to be returned
-        """
-        return torch.ones(
-            (len(states), self.output_dim), dtype=self.float, device=self.device
-        )
+        self.action_dim = env.policy_output_dim

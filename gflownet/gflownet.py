@@ -40,20 +40,18 @@ class GFlowNetAgent:
         self,
         env_maker: partial,
         proxy,
+        policy,
         seed,
         device,
         float_precision,
         loss,
         optimizer,
         buffer,
-        forward_policy,
-        backward_policy,
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
         logger,
         evaluator,
-        state_flow=None,
         use_context=False,
         replay_sampling="permutation",
         train_sampling="permutation",
@@ -82,12 +80,9 @@ class GFlowNetAgent:
             Optimizer config dictionary. See gflownet.yaml:optimizer for details.
         buffer : dict
             Buffer config dictionary. See gflownet.yaml:buffer for details.
-        forward_policy : gflownet.policy.base.Policy
-            The forward policy to be used for training. Parameterized from
-            `gflownet.yaml:forward_policy` and parsed with
-            `gflownet/utils/policy.py:set_policy`.
-        backward_policy : gflownet.policy.base.Policy
-            Same as forward_policy, but for the backward policy.
+        policy : gflownet.policy.base.Policy
+            The policy object containing the forward (and, optionally, backward, state
+            flow and logZ) sub-policies to be used for training.
         mask_invalid_actions : bool
             Whether to mask invalid actions in the policy outputs.
         temperature_logits : float
@@ -102,9 +97,6 @@ class GFlowNetAgent:
             (`gflownet/utils/logger.py:Logger`).
         evaluator : gflownet.evaluator.base.BaseEvaluator
             :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
-        state_flow : dict, optional
-            State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
-            default None.
         use_context : bool, optional
             Whether the logger will use its context in metrics names. Formerly the
             `active_learning: bool` flag. By default False.
@@ -141,6 +133,9 @@ class GFlowNetAgent:
         # Proxy
         self.proxy = proxy
         self.proxy.setup(self.env)
+        # Policy
+        self.policy = policy
+        self.policy.setup(self.env)
         # Loss
         self.loss = loss
         if self.loss.requires_log_z:
@@ -187,19 +182,13 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['scores'].min()}")
             print(f"\tMax score: {self.buffer.test['scores'].max()}")
 
-        # Models
-        self.forward_policy = forward_policy
-        self.backward_policy = backward_policy
-        self.state_flow = state_flow
-
         # Optimizer
-        if self.forward_policy.is_model:
-            self.target = copy.deepcopy(self.forward_policy.model)
+        if self.policy.forward.is_trainable:
             self.opt, self.lr_scheduler = make_opt(
                 self.parameters(), self.logZ, optimizer
             )
         else:
-            self.opt, self.lr_scheduler, self.target = None, None, None
+            self.opt, self.lr_scheduler = None, None
 
         # Evaluator
         self.evaluator = evaluator
@@ -233,21 +222,21 @@ class GFlowNetAgent:
         self.logprobs_std_nll_ratio = -1.0
 
     def parameters(self):
-        parameters = list(self.forward_policy.model.parameters())
-        if self.backward_policy.is_model:
+        parameters = list(self.policy.forward.model.parameters())
+        if self.policy.backward.is_trainable:
             if not self.loss.requires_backward_policy():
                 raise ValueError(
                     "Backward policy initialized but not required by "
                     f"loss {self.loss.name}."
                 )
-            parameters += list(self.backward_policy.model.parameters())
-        if self.state_flow is not None:
+            parameters += list(self.policy.backward.model.parameters())
+        if self.policy.state_flow is not None:
             if not self.loss.requires_state_flow_model():
                 raise ValueError(
                     "State flow model initialized but not required by "
                     f"loss {self.loss.name}."
                 )
-            parameters += list(self.state_flow.model.parameters())
+            parameters += list(self.policy.state_flow.model.parameters())
         return parameters
 
     def sample_actions(
@@ -268,7 +257,7 @@ class GFlowNetAgent:
         sampling method specified by sampling_method.
 
         With probability 1 - random_action_prob, actions will be sampled from the
-        self.forward_policy or self.backward_policy, depending on backward. The rest
+        self.policy.forward or self.policy.backward, depending on backward. The rest
         are sampled according to the random policy of the environment
         (model.random_distribution).
 
@@ -347,11 +336,11 @@ class GFlowNetAgent:
             if random_action_prob is None:
                 random_action_prob = self.random_action_prob
         if backward:
-            model = self.backward_policy
-            model_rev = self.forward_policy
+            model = self.policy.backward
+            model_rev = self.policy.forward
         else:
-            model = self.forward_policy
-            model_rev = self.backward_policy
+            model = self.policy.forward
+            model_rev = self.policy.backward
 
         if not isinstance(envs, list):
             envs = [envs]
@@ -755,7 +744,7 @@ class GFlowNetAgent:
     ):
         r"""
         Estimates the probability of sampling with current GFlowNet policy
-        (self.forward_policy) the objects in a data set given by the argument data. The
+        (self.policy.forward) the objects in a data set given by the argument data. The
         (log) probabilities are estimated by sampling a number of backward trajectories
         (n_trajectories) through importance sampling and calculating the forward
         probabilities of the trajectories.
@@ -910,10 +899,10 @@ class GFlowNetAgent:
             traj_indices = traj_indices_batch % mult_indices
             # Compute log probabilities of the trajectories
             logprobs_f[data_indices, traj_indices] = compute_logprobs_trajectories(
-                batch, self.env, forward_policy=self.forward_policy, backward=False
+                batch, self.env, forward_policy=self.policy.forward, backward=False
             )
             logprobs_b[data_indices, traj_indices] = compute_logprobs_trajectories(
-                batch, self.env, backward_policy=self.backward_policy, backward=True
+                batch, self.env, backward_policy=self.policy.backward, backward=True
             )
             # Increment batch indices
             init_batch += batch_size
@@ -1011,9 +1000,9 @@ class GFlowNetAgent:
 
         # Save final model
         self.logger.save_checkpoint(
-            forward_policy=self.forward_policy,
-            backward_policy=self.backward_policy,
-            state_flow=self.state_flow,
+            forward_policy=self.policy.forward,
+            backward_policy=self.policy.backward,
+            state_flow=self.policy.stateflow,
             logZ=self.logZ,
             optimizer=self.opt,
             buffer=self.buffer,
@@ -1176,9 +1165,9 @@ class GFlowNetAgent:
         t0_model = time.time()
         if self.evaluator.should_checkpoint(self.it):
             self.logger.save_checkpoint(
-                forward_policy=self.forward_policy,
-                backward_policy=self.backward_policy,
-                state_flow=self.state_flow,
+                forward_policy=self.policy.forward,
+                backward_policy=self.policy.backward,
+                state_flow=self.policy.stateflow,
                 logZ=self.logZ,
                 optimizer=self.opt,
                 buffer=self.buffer,
@@ -1411,18 +1400,18 @@ class GFlowNetAgent:
 
         # Forward model
         if checkpoint["forward"] is not None:
-            assert self.forward_policy.is_model
-            self.forward_policy.model.load_state_dict(checkpoint["forward"])
+            assert self.policy.forward.is_trainable
+            self.policy.forward.model.load_state_dict(checkpoint["forward"])
 
         # Backward model
         if checkpoint["backward"] is not None:
-            assert self.backward_policy.is_model
-            self.backward_policy.model.load_state_dict(checkpoint["backward"])
+            assert self.policy.backward.is_trainable
+            self.policy.backward.model.load_state_dict(checkpoint["backward"])
 
         # State flow model
         if checkpoint["state_flow"] is not None:
-            assert self.state_flow
-            self.state_flow.model.load_state_dict(checkpoint["state_flow"])
+            assert self.policy.stateflow and self.policy.state_flow.is_trainable
+            self.policy.state_flow.model.load_state_dict(checkpoint["state_flow"])
 
         # LogZ
         if checkpoint["logZ"] is not None:

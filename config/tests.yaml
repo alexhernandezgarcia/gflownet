@@ -3,7 +3,7 @@ defaults:
   - env: constant
   - gflownet: trajectorybalance
   - loss: trajectorybalance
-  - policy: mlp_${gflownet}
+  - policy: mlp
   - proxy: uniform
   - logger: base
   - user: default

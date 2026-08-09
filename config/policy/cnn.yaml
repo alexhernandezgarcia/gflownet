@@ -1,0 +1,15 @@
+_target_: gflownet.policy.cnn.CNNPolicy
+
+shared: null
+
+forward:
+  n_layers: 2
+  channels: [16, 32]
+  kernel_sizes: [[3, 3], [2, 2]]  # Each tuple represents (height, width)
+  strides: [[1, 1], [1, 1]]  # Each tuple represents (vertical_stride, horizontal_stride)
+  checkpoint: null
+
+backward:
+  shared_weights: True
+  checkpoint: null
+  reload_ckpt: False
