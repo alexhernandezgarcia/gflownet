@@ -78,6 +78,51 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
+
+    # Get logprobs directly from the batch
+    logprobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
+    logprobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
+
+    # Check validity flags
+    if (n_train > 0 and n_forward == 0) or collect_reversed_logprobs:
+        assert torch.all(logprobs_bw_valid)
+    if n_forward > 0 and n_train == 0:
+        assert torch.all(logprobs_fw_valid)
+    if n_train > 0 and collect_reversed_logprobs:
+        assert not torch.all(logprobs_fw_valid)
+
+    # Compute logprobs of each state manualy
+    masks_f = batch.get_masks_forward(of_parents=True)
+    parents_policy = batch.get_parents(policy=True)
+    actions = batch.get_actions()
+    parents_policy = batch.get_parents(policy=True)
+    parents = batch.get_parents(policy=False)
+    policy_output_f = gfn.forward_policy(parents_policy)
+    logprobs_states_fw = gfn.env.get_logprobs(
+        policy_output_f, actions, masks_f, parents, False
+    )
+
+    states = batch.get_states(policy=False)
+    states_policy = batch.get_states(policy=True)
+    masks_b = batch.get_masks_backward()
+    policy_output_b = gfn.backward_policy(states_policy)
+    logprobs_states_bw = gfn.env.get_logprobs(
+        policy_output_b, actions, masks_b, states, True
+    )
+
+    # Compare valid batch logprobs with the manually computed values
+    if (n_train > 0 and collect_reversed_logprobs) or n_forward > 0:
+        assert torch.allclose(
+            logprobs_states_fw[logprobs_fw_valid],
+            logprobs_fw_from_batch[logprobs_fw_valid],
+            atol=1e-3,
+        )
+
+    if (n_train > 0 and n_forward == 0) or (
+        n_forward > 0 and collect_reversed_logprobs
+    ):
+        assert torch.allclose(logprobs_states_bw, logprobs_bw_from_batch, atol=1e-3)
+
     # Create a copy with placeholder logprobs and unavailable logprobs
     batch_no_lp = copy(batch)
     batch_no_lp.logprobs_forward = [
@@ -89,6 +134,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     ] * len(batch)
     batch_no_lp.logprobs_backward_avail = [False] * len(batch)
 
+    # Check that batch logprobs are not placeholders
     if n_forward > 0 or (collect_reversed_logprobs and n_train > 0):
         assert batch.logprobs_forward != batch_no_lp.logprobs_forward
     if n_train > 0 or (collect_reversed_logprobs and n_forward > 0):
@@ -105,41 +151,13 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         batch_no_lp, None, None, gfn.backward_policy, True
     )
 
+    # Compare trjectory logprobs of the batch and the batch with no collected logprobs
     assert torch.allclose(lp_fw, lp_fw_no, atol=1e-3)
     assert torch.allclose(lp_bw, lp_bw_no, atol=1e-3)
     assert lp_bw.requires_grad
     assert lp_fw.requires_grad
 
-    # Compute logprobs of each state manualy: relevant only for debugging
-
-    masks_f = batch_no_lp.get_masks_forward(of_parents=True)
-    parents_policy = batch_no_lp.get_parents(policy=True)
-    actions = batch_no_lp.get_actions()
-    parents_policy = batch_no_lp.get_parents(policy=True)
-    parents = batch_no_lp.get_parents(policy=False)
-    policy_output_f = gfn.forward_policy(parents_policy)
-    logprobs_states_fw = gfn.env.get_logprobs(
-        policy_output_f, actions, masks_f, parents, False
-    )
-
-    states = batch.get_states(policy=False)
-    states_policy = batch.get_states(policy=True)
-    masks_b = batch.get_masks_backward()
-    policy_output_b = gfn.backward_policy(states_policy)
-    logprobs_states_bw = gfn.env.get_logprobs(
-        policy_output_b, actions, masks_b, states, True
-    )
-
-    logprobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
-    logprobs_bw_from_batch, logprobs_bw_valid = batch.get_logprobs(backward=True)
-
-    if (n_train > 0 and n_forward == 0) or collect_reversed_logprobs:
-        assert torch.all(logprobs_bw_valid)
-    if n_forward > 0 and n_train == 0:
-        assert torch.all(logprobs_fw_valid)
-    if n_train > 0 and collect_reversed_logprobs:
-        assert not torch.all(logprobs_fw_valid)
-
+    # Debugging
     traj_idx = torch.tensor(batch.traj_indices)
     for tit in range(len(lp_fw)):
         if not torch.allclose(lp_fw[tit], lp_fw_no[tit]):
@@ -158,18 +176,6 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
             print(torch.isclose(lps_rc, lps_b))
             print(f"Recomp lps: {lps_rc}")
             print(f"Batch lps: {lps_b}")
-
-    if (n_train > 0 and collect_reversed_logprobs) or n_forward > 0:
-        assert torch.allclose(
-            logprobs_states_fw[logprobs_fw_valid],
-            logprobs_fw_from_batch[logprobs_fw_valid],
-            atol=1e-3,
-        )
-
-    if (n_train > 0 and n_forward == 0) or (
-        n_forward > 0 and collect_reversed_logprobs
-    ):
-        assert torch.allclose(logprobs_states_bw, logprobs_bw_from_batch, atol=1e-3)
 
 
 @pytest.mark.parametrize(
