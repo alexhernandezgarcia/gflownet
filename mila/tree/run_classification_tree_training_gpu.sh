@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=24G
 #SBATCH --gres=gpu:1
-#SBATCH --time=8:00:00
+#SBATCH --time=12:00:00
 #SBATCH --partition=long
 #SBATCH --array=1-5
 #SBATCH --requeue
@@ -56,21 +56,38 @@ DEVICE="${DEVICE:-cuda}"
 RUNS_ROOT="${RUNS_ROOT:-$SCRATCH/gflownet-logs}"
 FORCE="${FORCE:-0}"
 split="${SLURM_ARRAY_TASK_ID:-1}"
+# The dataset stays in $REPO (not in the code snapshot below): env.data_path
+# enters the config hash, so it must be a stable path across jobs.
 csv_path="$REPO/tests/data/tree/${DATASET}/${DATASET}_${split}.csv"
-HELPERS="$REPO/gflownet/envs/tree/helpers_for_experiments"
 
 # -----------------------------------------------------------------------------
 # Job header (also answers "which job, when, on what, from which commit")
 # -----------------------------------------------------------------------------
 module load python/3.10
 source "$VENV/bin/activate"
-cd "$REPO" || exit 1
 
 started_at="$(date '+%Y-%m-%d %H:%M:%S %Z')"
-git_commit="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
-git_branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+git_commit="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+git_branch="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
 git_dirty=""
-git diff --quiet HEAD 2>/dev/null || git_dirty=" (dirty)"
+git -C "$REPO" diff --quiet HEAD 2>/dev/null || git_dirty=" (dirty)"
+
+# -----------------------------------------------------------------------------
+# Code snapshot: copy the repo to the compute node's local disk and run from
+# there, so the checkout on scratch can be edited or switched to another branch
+# while jobs are running. The snapshot is taken when the job STARTS (and taken
+# again after every preemption requeue), not at submission time; the LAUNCH
+# commit-mismatch warning below is what flags a code change between requeues.
+# -----------------------------------------------------------------------------
+if [ -n "${SLURM_TMPDIR:-}" ]; then
+    CODE_DIR="$SLURM_TMPDIR/gflownet"
+    rsync -a --exclude ".git" --exclude "__pycache__" "$REPO/" "$CODE_DIR/"
+else
+    # Outside Slurm (local debugging): run directly from the repo.
+    CODE_DIR="$REPO"
+fi
+cd "$CODE_DIR" || exit 1
+HELPERS="$CODE_DIR/gflownet/envs/tree/helpers_for_experiments"
 
 echo "============================================================"
 echo " Started            : $started_at"
@@ -78,6 +95,7 @@ echo " Slurm job          : ${SLURM_JOB_ID:-none}  (array ${SLURM_ARRAY_JOB_ID:-
 echo " Node               : $(hostname)"
 echo " GPU                : $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'none visible')"
 echo " Repo               : $REPO @ ${git_branch} ${git_commit}${git_dirty}"
+echo " Code dir           : $CODE_DIR"
 echo " Python             : $(which python)"
 echo " Experiment config  : $EXP_CONFIG"
 echo " Device             : $DEVICE"
@@ -223,7 +241,7 @@ if [ ! -f "$samples_pkl" ]; then
 fi
 
 echo ">>> Evaluating $samples_pkl"
-python "$REPO/gflownet/envs/tree/eval_tree.py" \
+python "$CODE_DIR/gflownet/envs/tree/eval_tree.py" \
     --samples_path "$samples_pkl" \
     --data_path "$csv_path" \
     --alpha_value "$CFG_ALPHA" \
