@@ -16,7 +16,6 @@ env:
   n_comp: 5
   vonmises_min_concentration: 4
   policy_encoding_dim_per_angle: 10
-  start_uniform: True
 
 buffer:
   replay_capacity: 200

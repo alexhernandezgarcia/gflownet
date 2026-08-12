@@ -10,7 +10,6 @@ policy_encoding_dim_per_angle: null
 # Policy distribution
 n_comp: 3
 vonmises_min_concentration: 4
-start_uniform: true
 # Parameters of the fixed policy output distribution
 fixed_distr_params:
   vonmises_mean: 0.0
