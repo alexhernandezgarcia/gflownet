@@ -322,12 +322,13 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         else:
             end_is_possible = torch.all(~mask, dim=1)
 
-        end_logits_sampling = (
-            self.get_end_logits(policy_outputs[end_is_possible]).clone().detach()
+        # randomise policy outputs first
+        logits_sampling = self.randomize_and_temper_sampling_distribution(
+            policy_outputs.clone().detach(), random_action_prob, temperature_logits
         )
-        end_logits_sampling = self.randomize_and_temper_sampling_distribution(
-            end_logits_sampling, random_action_prob, temperature_logits
-        )
+        # extract end_logits for discretesampling
+        end_logits_sampling = self.get_end_logits(logits_sampling[end_is_possible])
+
         disr_end = self.get_end_distr(end_logits_sampling)
         end_is_sampled = tbool(disr_end.sample(), device=self.device)
 
@@ -349,12 +350,14 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
 
         # Sample increments using the parent method
         actions = super().sample_actions_batch(
-            policy_outputs=policy_outputs[:, :-1],
+            policy_outputs=logits_sampling[
+                :, :-1
+            ],  # pass already randomised policy outputs
             mask=mask_super,
             states_from=states_from,
             is_backward=is_backward,
-            random_action_prob=random_action_prob,
-            temperature_logits=temperature_logits,
+            random_action_prob=0.0,  # no randomisation
+            temperature_logits=1.0,  # no randomisation
         )
         return actions
 
