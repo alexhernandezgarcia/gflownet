@@ -762,7 +762,7 @@ class ContinuousTorus(GFlowNetEnv):
             do_bts = mask[:, 0]
             if torch.any(do_bts):
                 source_angles = tfloat(
-                    self.source[: self.n_dim], float_type=self.float, device=self.device
+                    self.source_angles, float_type=self.float, device=self.device
                 )
                 states_from_angles = tfloat(
                     states_from, float_type=self.float, device=self.device
@@ -1046,9 +1046,10 @@ class ContinuousTorus(GFlowNetEnv):
 
     def isclose(
         self,
-        first_state: List,
-        second_state: List,
-        atol: Optional[float] = None,
+        state_x: List,
+        state_y: List,
+        atol: float = 1e-8,
+        do_equal: bool = False,
     ) -> bool:
         """
         Check if two states are close in the state space.
@@ -1061,22 +1062,30 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        first_state : list
+        state_x : list
             First state to compare
-        second_state : list
+        state_y : list
             Second state to compare
+        atol : float
+            Maximum absolute tolerance threshold for numeric values.
+        do_equal : bool
+            If True, comparisons are by equality instead of closeness and
+            ``rtol`` is ignored.
 
         Returns
         -------
         bool or iterable
             True if the two states are close, False otherwise.
         """
-        if atol is None:
-            atol = self.state_space_atol
-        # Compare the full states, including the step number (last dimention)
-        return angles_allclose(
-            first_state[: self.n_dim], second_state[: self.n_dim], atol=atol
-        ) and int(first_state[-1]) == int(second_state[-1])
+        if not do_equal:
+            if atol is None:
+                atol = self.state_space_atol
+            # Compare the full states, including the step number (last dimention)
+            return angles_allclose(
+                state_x[: self.n_dim], state_y[: self.n_dim], atol=atol
+            ) and int(state_x[-1]) == int(state_y[-1])
+        else:
+            return state_x == state_y
 
     def copy(self):
         return deepcopy(self)
@@ -1349,23 +1358,3 @@ class ContinuousTorus(GFlowNetEnv):
         if hasattr(samples, "tolist"):
             return samples.tolist()
         return samples
-
-    # this method is very important as it is usd to stop bkw sampling
-    def equal(self, state_x: Tuple[float], state_y: Tuple[float]) -> bool:
-        """
-        Checks if two states are equal, upto self.state_space_atol.
-        Note that it compares single states, not batches
-
-        Parameters
-        ----------
-        state_x :  tuple
-            First state to compare
-        state_y : tuple
-            Second state to compare.
-
-        Returns
-        -------
-        bool :
-            True if states are equal
-        """
-        return self.isclose(state_x, state_y, atol=self.state_space_atol)
