@@ -1,0 +1,26 @@
+# @package _global_
+# Same experiment as classification_tree.yaml, but trained with SGD with
+# momentum instead of Adam. Motivation: with TB loss and a large
+# logreward_max - logreward_min range, Adam's per-parameter step
+# normalization can turn a single huge TB gradient into a persistent
+# divergence; plain SGD steps scale with the raw gradient and (with a
+# suitably small lr) recover more gracefully.
+
+defaults:
+  - tree/classification_tree
+  - _self_
+
+gflownet:
+  optimizer:
+    method: msgd
+    # Heavy-ball momentum. 0.4 matches the setting Sasha reported to work
+    # in a comparable big-logreward-range (continuous GFN) problem; the
+    # generic default would be 0.9. Worth scanning {0.4, 0.9}: higher
+    # momentum smooths gradient noise more but carries a bad step further
+    # and amplifies the effective step by ~1/(1-momentum).
+    sgd_momentum: 0.4
+    # SGD needs its own lr tuning; Adam's 0.01 is not transferable. With
+    # momentum 0.4 the effective step is only ~1.7x the lr (vs ~10x at
+    # 0.9), so start at 1e-2 and scan 1e-3 .. 1e-1; shift the scan down
+    # if momentum is raised.
+    lr: 0.01
