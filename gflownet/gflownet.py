@@ -1474,7 +1474,14 @@ def make_opt(params, logZ, config):
                 }
             )
     elif config.method == "msgd":
-        opt = torch.optim.SGD(params, config.lr, momentum=config.momentum)
+        opt = torch.optim.SGD(params, config.lr, momentum=config.sgd_momentum)
+        if logZ is not None:
+            opt.add_param_group(
+                {
+                    "params": logZ,
+                    "lr": config.lr * config.lr_z_mult,
+                }
+            )
     # Learning rate scheduling
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         opt,
