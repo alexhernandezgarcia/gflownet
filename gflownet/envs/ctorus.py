@@ -1087,6 +1087,32 @@ class ContinuousTorus(GFlowNetEnv):
         else:
             return state_x == state_y
 
+    def equal(
+        self,
+        state_x: List,
+        state_y: List,
+    ) -> bool:
+        """
+        Checks whether the two input states are equal.
+
+        It is overwritten here besause it has to use isclose of the
+        ctorus env instead of the GFlowNetEnv.isclose
+
+        Parameters
+        ----------
+        state_x: list
+            One of the states to be compared.
+        state_y: list
+            The other state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+
+        """
+        return self.isclose(state_x, state_y, do_equal=True)
+
     def copy(self):
         return deepcopy(self)
 
