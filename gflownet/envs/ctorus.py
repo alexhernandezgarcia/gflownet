@@ -1048,7 +1048,7 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         state_x: List,
         state_y: List,
-        atol: float = 1e-8,
+        atol: float = None,
         do_equal: bool = False,
     ) -> bool:
         """
@@ -1074,7 +1074,7 @@ class ContinuousTorus(GFlowNetEnv):
 
         Returns
         -------
-        bool or iterable
+        bool
             True if the two states are close, False otherwise.
         """
         if not do_equal:
