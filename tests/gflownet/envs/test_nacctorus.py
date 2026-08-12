@@ -5,12 +5,14 @@ import numpy as np
 import pytest
 import torch
 from torch.distributions import Bernoulli
+from utils_for_tests import load_base_test_config
 
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.envs.nacctorus import NonAcyclicContinuousTorus
+from gflownet.utils.common import gflownet_from_config
 
 # --------------------------------------------------------------------------- #
-# Fixtures
+# Fixtures, helpers
 # --------------------------------------------------------------------------- #
 
 
@@ -43,6 +45,26 @@ def custom_params():
         "bernoulli_logit": -0.5,
     }
     return fixed, random
+
+
+def make_gflownet(env, loss_name="tb"):
+    if loss_name == "tb":
+        overrides = ["gflownet=trajectorybalance", "loss=trajectorybalance"]
+    elif loss_name == "vargrad":
+        overrides = ["gflownet=vargrad", "loss=vargrad"]
+    config = load_base_test_config(
+        overrides=[
+            "gflownet.optimizer.batch_size.forward=4",
+            "gflownet.optimizer.n_train_steps=1",
+            "buffer.replay_capacity=10",
+        ]
+        + overrides
+    )
+
+    # Initialize a GFlowNet agent from the configuration file
+    gflownet = gflownet_from_config(config, env=env)
+
+    return gflownet
 
 
 # --------------------------------------------------------------------------- #
@@ -789,6 +811,27 @@ class TestNonAcyclicContinuousTorusBasic(common.BaseTestsContinuous):
             "test__gflownet_minimal_runs": 10,
         }
         self.n_states = {}  # TODO: Populate.
+
+
+# TODO: create a simple gflownet and estimate logprobs
+def make_env(n_dim=2, n_comp=1):
+    return NonAcyclicContinuousTorus(n_dim=n_dim, n_comp=n_comp)
+
+
+class TestBackwardSampling:
+    def test_basic_backward_sampling(self, env):
+        gfn = make_gflownet(env)
+        n_states = 4
+        states_term = env.get_grid_terminating_states(n_states=n_states)
+
+        logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
+            states_term,
+            n_trajectories=2,
+            max_data_size=100,
+            batch_size=5,
+            bs_num_samples=3,
+        )
+        assert torch.all(logprobs_x_tt < 0.0)
 
 
 if __name__ == "__main__":
