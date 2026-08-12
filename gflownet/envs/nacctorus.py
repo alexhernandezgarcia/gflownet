@@ -40,7 +40,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         vonmises_min_concentration: float = 1e-3,
         exp_vonmises_concentration: bool = True,
         state_space_atol=1e-6,
-        start_uniform=False,
+        start_uniform=True,
         **kwargs,
     ):
         """
