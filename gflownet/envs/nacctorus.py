@@ -1,3 +1,4 @@
+from copy import copy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -40,7 +41,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         vonmises_min_concentration: float = 1e-3,
         exp_vonmises_concentration: bool = True,
         state_space_atol=1e-6,
-        start_uniform=True,
         **kwargs,
     ):
         """
@@ -100,11 +100,11 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             vonmises_min_concentration=vonmises_min_concentration,
             exp_vonmises_concentration=exp_vonmises_concentration,
             state_space_atol=state_space_atol,
-            start_uniform=start_uniform,
+            start_uniform=True,
             **kwargs,
         )
         # remove step dimention from the source
-        self.source = self.source_angles
+        self.source = [None] * n_dim
         self.reset()
 
     def get_mask_invalid_actions_forward(
@@ -233,9 +233,10 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
 
     def isclose(
         self,
-        first_state: List,
-        second_state: List,
+        state_x: List,
+        state_y: List,
         atol: Optional[float] = None,
+        do_equal: bool = False,
     ) -> bool:
         """
         Check if two states are close in the state space.
@@ -247,19 +248,27 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
 
         Parameters
         ----------
-        first_state : list
+        state_x : list
             First state to compare
-        second_state : list
+        state_y : list
             Second state to compare
+        atol : float
+            Maximum absolute tolerance threshold for numeric values.
+        do_equal : bool
+            If True, comparisons are by equality instead of closeness and
+            ``atol`` is ignored.
 
         Returns
         -------
         bool or iterable
             True if the two states are close, False otherwise.
         """
-        if atol is None:
-            atol = self.state_space_atol
-        return angles_allclose(first_state, second_state, atol=atol)
+        if not do_equal:
+            if atol is None:
+                atol = self.state_space_atol
+            return angles_allclose(state_x, state_y, atol=atol)
+        else:
+            return state_x == state_y
 
     def sample_actions_batch(
         self,
@@ -397,7 +406,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
                 )
             else:
                 source_angles = tfloat(
-                    self.source, float_type=self.float, device=self.device
+                    self.source_angles, float_type=self.float, device=self.device
                 )
                 states_from_angles = tfloat(
                     states_from, float_type=self.float, device=self.device
@@ -486,12 +495,21 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         backward : bool
             If True, perform backward step. Otherwise, perform forward step.
         """
+        # if source, set the values of the state to the source angles first,
+        # then apply actions
+        if self.is_source():
+            self.state = copy(self.source_angles)
+
         for dim, angle in enumerate(action):
             if backward:
                 self.state[int(dim)] -= angle
             else:
                 self.state[int(dim)] += angle
             self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
+
+        if backward:
+            if self.isclose(self.state, self.source_angles, atol=1e-5):
+                self.state = copy(self.source)
 
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
@@ -607,7 +625,60 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         -------
         A tensor containing all the states in the batch.
         """
+        states = self._source_to_angles(states)
         return super().states2policy(states, encode_step=False)
+
+    def statse2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
+        item is removed.
+
+        Parameters
+        ----------
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        torch.Tensor
+            A tensor of states in proxy format
+        """
+        states = self._source_to_angles(states)
+        return super().states2proxy(states)
+
+    def _source_to_angles(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> Union[List[List], TensorType["batch", "state_dim"]]:
+        """
+        Replace source states with the source-angle values.
+
+        Source states are identified using :meth:`is_source_batch` and replaced
+        by `self.source_angles`. The input is modified in place.
+
+        Parameters
+        ----------
+        states : list or torch.Tensor
+            States to process
+
+
+        Returns
+        -------
+        list or torch.Tensor
+            The input states with source states replaced by
+            `self.source_angles`.
+        """
+        is_source = self.is_source_batch(states)
+        if isinstance(states, list):
+            for idx in range(len(states)):
+                if is_source[idx]:
+                    states[idx] = copy(self.source_angles)
+        else:
+            states[is_source] = self.source_angles
+        return states
 
     # TODO: add step2readable, readable2 state
     def get_grid_terminating_states(
@@ -663,3 +734,32 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
         for state in samples:
             state.pop()
         return samples
+
+    def is_source_batch(
+        self,
+        states: Union[List, TensorType],
+        timesteps: Optional[Union[List, TensorType]] = None,
+    ) -> TensorType["n_states"]:
+        """
+        Check which states in a batch correspond to the source state.
+
+        Comparing each state directly against `self.source`.
+
+        Parameters
+        ----------
+        states: list or torch.Tensor
+            Batch of states
+        timesteps: torch.Tensor, optional
+            Timestep for each state in the batch (always None for this env)
+
+        Returns
+        --------
+        torch.Tensor :
+            Boolean tensor of shape (batch_size,) indicating which
+            states are source states.
+        """
+        if isinstance(states, list):
+            return tbool([self.is_source(st) for st in states], device=self.device)
+        else:
+            # relying on the fact that source is a list of nans
+            return torch.isnan(states).all(dim=1)
