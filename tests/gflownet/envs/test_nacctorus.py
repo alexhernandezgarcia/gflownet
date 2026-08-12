@@ -24,7 +24,7 @@ def env():
 
 @pytest.fixture
 def env_ctorus():
-    return ContinuousTorus(n_dim=2, n_comp=1, length_traj=5)
+    return ContinuousTorus(n_dim=2, n_comp=1, length_traj=5, start_uniform=True)
 
 
 @pytest.fixture
@@ -122,12 +122,8 @@ class TestInit:
     def test_exp_vonmises_concentration_default_true(self, env):
         assert env.exp_vonmises_concentration is True
 
-    def test_start_uniform_default_false(self, env):
-        assert env.start_uniform is False
-
-    def test_start_uniform_true(self):
-        e = NonAcyclicContinuousTorus(n_dim=2, start_uniform=True)
-        assert e.start_uniform is True
+    def test_start_uniform_is_always_true(self, env):
+        assert env.start_uniform is True
 
 
 # --------------------------------------------------------------------------- #
@@ -329,7 +325,7 @@ class TestSampleActionsBatch:
 
 
 class TestGetLogprobs:
-    def test_increment_from_source_action_forward(self, env):
+    def test_increment_from_source_action_forward(self, env, env_ctorus):
         policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
         mask = torch.tensor([env.get_mask_invalid_actions_forward()])
         actions = [[0.1, 0.2]]
@@ -345,9 +341,8 @@ class TestGetLogprobs:
         assert logprobs[0] < 0
 
         mask = torch.tensor([[False, False]])
-        states_from = [env.state + [0]]
-        logprobs_ctorus = ContinuousTorus.get_logprobs(
-            self=env,
+        states_from = [env_ctorus.state]
+        logprobs_ctorus = env_ctorus.get_logprobs(
             policy_outputs=policy_outputs[:, :-1],
             actions=actions,
             mask=mask,
