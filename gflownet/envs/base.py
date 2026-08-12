@@ -468,7 +468,7 @@ class GFlowNetEnv:
             Action index
         """
         # If action not found in action space raise an error
-        if not self.continuous and action not in self.action_space:
+        if action not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
