@@ -1048,7 +1048,7 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         state_x: List,
         state_y: List,
-        atol: float = None,
+        atol: Optional[float] = None,
         do_equal: bool = False,
     ) -> bool:
         """
