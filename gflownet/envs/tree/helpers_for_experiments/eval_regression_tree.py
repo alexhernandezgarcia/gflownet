@@ -118,8 +118,11 @@ def main():
     print("\n=== Regression results ===")
     for key in sorted(metrics):
         value = metrics[key]
-        print(f"  {key:<28} {value:.4f}" if isinstance(value, float) else
-              f"  {key:<28} {value}")
+        print(
+            f"  {key:<28} {value:.4f}"
+            if isinstance(value, float)
+            else f"  {key:<28} {value}"
+        )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:
