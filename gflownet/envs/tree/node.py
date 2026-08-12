@@ -49,7 +49,14 @@ class DecisionTreeNode(Stack):
         self.stage_feature = 0
         self.feature = Choice(self.features, **kwargs)
         self.stage_threshold = 1
-        self.threshold = ContinuousCube(n_dim=1, **self.cube_kwargs)
+        # The cube must live on the same device as the Choice sub-env and the
+        # Stack itself, which receive device/float_precision via **kwargs.
+        self.threshold = ContinuousCube(
+            n_dim=1,
+            device=kwargs.get("device", "cpu"),
+            float_precision=kwargs.get("float_precision", 32),
+            **self.cube_kwargs,
+        )
         # Active threshold bounds (set by the parent Tree before sampling /
         # finishing a node). The ContinuousCube always samples in [0, 1] so the
         # bounds are only consumed at done-time by ``apply_threshold_rescale``.

@@ -1128,7 +1128,15 @@ class ContinuousCube(CubeBase):
             increments = self._mask_ignored_dimensions(mask[do_increments], increments)
             # Add dimension is_source and add to actions tensor
             actions_tensor[do_increments] = torch.cat(
-                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+                (
+                    increments,
+                    torch.zeros(
+                        (increments.shape[0], 1),
+                        dtype=increments.dtype,
+                        device=increments.device,
+                    ),
+                ),
+                dim=1,
             )
         actions_tensor[is_source, -1] = 1
         return [tuple(a) for a in actions_tensor.tolist()]
@@ -1219,7 +1227,15 @@ class ContinuousCube(CubeBase):
             increments = self._mask_ignored_dimensions(mask[do_increments], increments)
             # Add dimension is_source and add to actions tensor
             actions_tensor[do_increments] = torch.cat(
-                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+                (
+                    increments,
+                    torch.zeros(
+                        (increments.shape[0], 1),
+                        dtype=increments.dtype,
+                        device=increments.device,
+                    ),
+                ),
+                dim=1,
             )
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
@@ -1227,7 +1243,15 @@ class ContinuousCube(CubeBase):
                 states_from, float_type=self.float, device=self.device
             )[is_bts]
             actions_bts = torch.cat(
-                (actions_bts, torch.ones((actions_bts.shape[0], 1))), dim=1
+                (
+                    actions_bts,
+                    torch.ones(
+                        (actions_bts.shape[0], 1),
+                        dtype=actions_bts.dtype,
+                        device=actions_bts.device,
+                    ),
+                ),
+                dim=1,
             )
             actions_tensor[is_bts] = actions_bts
             # Make ignored dimensions zero

@@ -191,7 +191,14 @@ class Tree(CompositeBase):
             )
 
         node_cls = _NODE_CLASSES[node_type]
-        self.node_env = node_cls(**node_kwargs)
+        # The sub-environment must live on the same device as the composite
+        # env: states2policy() writes its policy encodings into tensors
+        # created on self.device.
+        self.node_env = node_cls(
+            device=kwargs.get("device", "cpu"),
+            float_precision=kwargs.get("float_precision", 32),
+            **node_kwargs,
+        )
         self.node_type = node_type
 
         if not Tree._node_kwargs_logged:
@@ -1789,7 +1796,9 @@ class Tree(CompositeBase):
             node_po = self.node_env.get_policy_output(params[0])
         else:
             node_po = self.node_env.get_policy_output(None)
-        meta_po = torch.zeros(self.n_meta_actions)
+        meta_po = torch.zeros(
+            self.n_meta_actions, device=node_po.device, dtype=node_po.dtype
+        )
         return torch.cat([node_po, meta_po])
 
     def _get_policy_outputs_for_meta(
