@@ -19,12 +19,12 @@ from gflownet.utils.common import gflownet_from_config
 @pytest.fixture
 def env():
     """Default 2D environment with default fixed/random distr params."""
-    return NonAcyclicContinuousTorus(n_dim=2, n_comp=1)
+    return NonAcyclicContinuousTorus(n_dim=2, n_comp=3)
 
 
 @pytest.fixture
 def env_ctorus():
-    return ContinuousTorus(n_dim=2, n_comp=1, length_traj=5, start_uniform=True)
+    return ContinuousTorus(n_dim=2, n_comp=3, length_traj=5, start_uniform=True)
 
 
 @pytest.fixture
@@ -106,7 +106,7 @@ class TestInit:
         assert env3d.n_dim == 3
 
     def test_n_comp_propagated(self, env, env3d):
-        assert env.n_comp == 1
+        assert env.n_comp == 3
         assert env3d.n_comp == 2
 
     def test_state_space_atol_default(self, env):
