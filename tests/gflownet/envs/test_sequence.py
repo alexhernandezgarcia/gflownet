@@ -114,6 +114,24 @@ def env_cube_fixed_bag():
     )
 
 
+@pytest.mark.parametrize(
+    "env",
+    [
+        "env_grid",
+        "env_two_grids",
+        "env_grid_front_only",
+        "env_grid_fixed_bag",
+        "env_cube",
+        "env_cube_grid",
+        "env_grid_cube_5",
+        "env_cube_fixed_bag",
+    ],
+)
+def test__environment__initializes_properly(env, request):
+    env = request.getfixturevalue(env)
+    assert True
+
+
 # --------------------------------------------------------------------------- #
 # Sequence-specific unit tests
 # --------------------------------------------------------------------------- #
