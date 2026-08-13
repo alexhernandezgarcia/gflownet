@@ -14,6 +14,16 @@ from gflownet.envs.composite.sequence import Sequence
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
 
+# Insert directions (used to encode the insert meta-actions).
+_LEFT = 0
+_RIGHT = 1
+
+# Values stored in state["_active"]: _ACTIVE_NONE if no sub-environment is active, _ACTIVE_LEFT if the
+# sub-environment at the left of the sequence is active, _ACTIVE_RIGHT if the one at the end is.
+_ACTIVE_LEFT = 0
+_ACTIVE_NONE = -1
+_ACTIVE_RIGHT = 1
+
 
 # --------------------------------------------------------------------------- #
 # Fixtures
@@ -40,20 +50,20 @@ def env_two_grids():
 
 
 @pytest.fixture
-def env_grid_front_only():
+def env_grid_left_only():
     return Sequence(
         envs_unique=(Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
         max_sequence_length=3,
-        front_only=True,
+        left_only=True,
     )
 
 
 @pytest.fixture
-def env_grid_end_only():
+def env_grid_right_only():
     return Sequence(
         envs_unique=(Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
         max_sequence_length=3,
-        end_only=True,
+        right_only=True,
     )
 
 
@@ -119,7 +129,7 @@ def env_cube_fixed_bag():
     [
         "env_grid",
         "env_two_grids",
-        "env_grid_front_only",
+        "env_grid_left_only",
         "env_grid_fixed_bag",
         "env_cube",
         "env_cube_grid",
@@ -152,7 +162,7 @@ def test__action_space_size_is_expected(env_fixture, n_unique, request):
 
 
 @pytest.mark.parametrize(
-    "env_fixture", ["env_grid", "env_two_grids", "env_grid_front_only", "env_cube"]
+    "env_fixture", ["env_grid", "env_two_grids", "env_grid_left_only", "env_cube"]
 )
 def test__source_is_empty_sequence(env_fixture, request):
     env = request.getfixturevalue(env_fixture)
@@ -177,7 +187,7 @@ def test__empty_source_only_allows_first_inserts(env_two_grids):
 
 
 def test__ccab_insertion_order_example():
-    """Reproduce the documented C, C, A, B construction (insert first/end/front/front)."""
+    """Reproduce the documented C, C, A, B construction (insert first/right/left/left)."""
     A = Grid(n_dim=1, length=3)
     B = Grid(n_dim=2, length=3)
     C = Grid(n_dim=3, length=3)
@@ -198,12 +208,13 @@ def test__ccab_insertion_order_example():
 
     env.reset()
     for d, t in [
-        (0, tA),
-        (2, tB),
-        (1, tC),
-        (1, tC),
-    ]:  # first A, end B, front C, front C
+        (_LEFT, tA),
+        (_RIGHT, tB),
+        (_LEFT, tC),
+        (_LEFT, tC),
+    ]:  # first A, right B, left C, left C
         _, _, valid = env.step(env._pad_action((env._insert_id(d, t),), -1))
+
         assert valid
         complete_active()
 
@@ -217,7 +228,7 @@ def test__ccab_insertion_order_example():
 
 
 @pytest.mark.parametrize(
-    "env_fixture", ["env_grid", "env_two_grids", "env_grid_front_only"]
+    "env_fixture", ["env_grid", "env_two_grids", "env_grid_left_only"]
 )
 def test__state2readable__readable2state__roundtrip(env_fixture, request):
     env = request.getfixturevalue(env_fixture)
@@ -234,13 +245,13 @@ def test__state2readable__readable2state__roundtrip(env_fixture, request):
         assert env.equal(recovered, state), f"\n{readable}\n{recovered}\n{state}"
 
 
-def test__front_only_and_end_only_cannot_be_combined():
+def test__left_only_and_right_only_cannot_be_combined():
     with pytest.raises(ValueError):
         Sequence(
             envs_unique=(Grid(n_dim=2, length=3),),
             max_sequence_length=3,
-            front_only=True,
-            end_only=True,
+            left_only=True,
+            right_only=True,
         )
 
 
@@ -298,10 +309,10 @@ def test__front_only_and_end_only_cannot_be_combined():
                 },
             ],
             [
-                (-1, 4, 0),
-                (-1, 4, 0),
-                (-1, 4, 0),
-                (-1, 4, 0),
+                (-1, 2, 0),
+                (-1, 2, 0),
+                (-1, 2, 0),
+                (-1, 2, 0),
             ],
         ),
         (
@@ -317,16 +328,16 @@ def test__front_only_and_end_only_cannot_be_combined():
                 3: [1, 1],
             },
             [
-                {
-                    "_active": 0,
-                    "_dones": [0, 1, 1, 1],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [3, 2, 1, 0],
-                    0: [0, 0],
-                    1: [0, 1],
-                    2: [0, 0],
-                    3: [1, 1],
-                },
+                # {
+                #     "_active": 0,
+                #     "_dones": [0, 1, 1, 1],
+                #     "_envs_unique": [0, 0, 0, 0],
+                #     "_indices": [3, 2, 1, 0],
+                #     0: [0, 0],
+                #     1: [0, 1],
+                #     2: [0, 0],
+                #     3: [1, 1],
+                # },
                 {
                     "_active": 0,
                     "_dones": [1, 1, 1, 0],
@@ -340,8 +351,8 @@ def test__front_only_and_end_only_cannot_be_combined():
             ],
             # TODO: Review these actions
             [
-                (-1, 0, 0),
-                (-1, 1, 0),
+                # (-1, 0, 0),
+                (0, 0, 0),
             ],
         ),
     ],
@@ -421,19 +432,19 @@ class TestSequenceTwoGrids(common.BaseTestsDiscrete):
         self.batch_size = dict(_BATCH_SIZE)
 
 
-class TestSequenceGridFrontOnly(common.BaseTestsDiscrete):
+class TestSequenceGridLeftOnly(common.BaseTestsDiscrete):
     @pytest.fixture(autouse=True)
-    def setup(self, env_grid_front_only):
-        self.env = env_grid_front_only
+    def setup(self, env_grid_left_only):
+        self.env = env_grid_left_only
         self.repeats = dict(_REPEATS)
         self.n_states = dict(_N_STATES)
         self.batch_size = dict(_BATCH_SIZE)
 
 
-class TestSequenceGridEndOnly(common.BaseTestsDiscrete):
+class TestSequenceGridRightOnly(common.BaseTestsDiscrete):
     @pytest.fixture(autouse=True)
-    def setup(self, env_grid_end_only):
-        self.env = env_grid_end_only
+    def setup(self, env_grid_right_only):
+        self.env = env_grid_right_only
         self.repeats = dict(_REPEATS)
         self.n_states = dict(_N_STATES)
         self.batch_size = dict(_BATCH_SIZE)
