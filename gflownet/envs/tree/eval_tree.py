@@ -8,15 +8,10 @@ Implements the evaluation protocol from Mahfoud et al. (2025):
 
 Usage:
     python eval_tree.py \
-        --samples_path ./samples/gfn_samples.pkl \
-        --data_path tests/data/tree/iris.csv \
+        --samples_path path/to/gfn_samples.pkl \
+        --data_path path/to/<dataset>.csv \
         --alpha_value 0.1 \
         --n_dirichlet_samples 10
-
-    Or point to a specific run's samples directory:
-    python eval_tree.py \
-        --samples_path logs/tree/local/2026-04-20_.../samples/gfn_samples.pkl \
-        --data_path tests/data/tree/iris.csv
 """
 
 import argparse
@@ -61,7 +56,8 @@ def load_and_scale_dataset(
 
 def route_to_leaves(state: Dict, X: np.ndarray, node_env) -> Dict[int, List[int]]:
     """
-    Routes samples through a tree state and returns leaf -> sample indices.
+    Routes samples through a tree state and returns dict containing for each leaf
+    a list of all the sample indices that land in this leaf.
 
     Parameters
     ----------
@@ -83,8 +79,8 @@ def route_to_leaves(state: Dict, X: np.ndarray, node_env) -> Dict[int, List[int]
             feature_idx = node_env.get_feature(state[k])
             threshold = node_env.get_threshold(state[k])
             if feature_idx is None or threshold is None:
-                break
-            if x[feature_idx - 1] <= threshold:
+                raise ValueError("Reached node with no feature or threshold to split on, should be impossible!")
+            if x[feature_idx - 1] <= threshold: # -1 because Choice uses 1-based subenv indexing
                 k = Tree.left_child_idx(k)
             else:
                 k = Tree.right_child_idx(k)
@@ -101,8 +97,7 @@ def count_internal_nodes(state: Dict) -> int:
 
 
 def count_total_nodes(state: Dict) -> int:
-    """Total nodes = internal nodes + leaves (children of internal nodes that
-    don't exist). This matches the paper's 'model size' metric."""
+    """Returns total nodes = internal nodes + leaves"""
     from gflownet.envs.tree.tree import Tree
 
     n_internal = count_internal_nodes(state)
@@ -112,9 +107,10 @@ def count_total_nodes(state: Dict) -> int:
         if state["_dones"][k] != 1:
             continue
         for child in (Tree.left_child_idx(k), Tree.right_child_idx(k)):
+            # Leave is either a node bigger than max nodes or a node with done=0
             if child >= max_nodes or state["_dones"][child] != 1:
                 n_leaves += 1
-    # Single root-only tree (root done, no children) has n_internal=1, n_leaves=2
+    # Single root-only tree (root done, no children) has n_internal=1 + n_leaves=2
     return n_internal + n_leaves
 
 
@@ -136,7 +132,7 @@ def predict_dirichlet(
     Predicts class labels by sampling leaf class probabilities from the
     Dirichlet posterior, as described in Section 4.2:
 
-        theta_ell ~ Dirichlet(n_ell + alpha)
+        theta_l ~ Dirichlet(n_l + alpha)
 
     Parameters
     ----------
@@ -166,6 +162,7 @@ def predict_dirichlet(
     for leaf_k, indices in train_leaves.items():
         labels = y_train[indices]
         leaf_counts[leaf_k] = np.bincount(labels, minlength=n_classes).astype(float)
+        assert len(leaf_counts[leaf_k]) == n_classes, "Need an entry for each class"
 
     # Sample class probabilities from Dirichlet posterior for each leaf
     leaf_probas: Dict[int, np.ndarray] = {}
@@ -204,20 +201,23 @@ def compute_log_posterior(
     n_features: int,
     node_env,
 ) -> float:
-    """Computes log P[Y|X,T] + log P[T|X] with node_count prior."""
+    """Computes log posterior = log P[T|X,Y] = log P[Y|X,T] + log P[T|X]
+    with node_count prior, following section 4.2."""
+
     leaf_samples = route_to_leaves(state, X_train, node_env)
 
-    log_b_alpha = np.sum(gammaln(alpha)) - gammaln(np.sum(alpha))
+    log_alpha = gammaln(np.sum(alpha)) - np.sum(gammaln(alpha))
 
     log_likelihood = 0.0
     for indices in leaf_samples.values():
+        # Empty leaves are skipped since they contribute 0 to the log_likelihood
         labels = y_train[indices]
         counts = np.bincount(labels, minlength=n_classes).astype(float)
         alpha_plus_counts = alpha + counts
-        log_b_posterior = np.sum(gammaln(alpha_plus_counts)) - gammaln(
+        log_posterior = np.sum(gammaln(alpha_plus_counts)) - gammaln(
             np.sum(alpha_plus_counts)
         )
-        log_likelihood += log_b_posterior - log_b_alpha
+        log_likelihood += log_alpha + log_posterior
 
     import math
 
@@ -234,7 +234,7 @@ def compute_log_posterior(
 
 def calculate_tree_accuracies(
     states: List[Dict],
-    energies: np.ndarray,
+    log_posteriors: np.ndarray,
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_test: np.ndarray,
@@ -271,6 +271,7 @@ def calculate_tree_accuracies(
             train_preds, _ = predict_dirichlet(
                 state, X_train, X_train, y_train, alpha, n_classes, node_env
             )
+            # Sum up correct predictions
             test_correct_sum += test_preds == y_test
             train_correct_sum += train_preds == y_train
 
@@ -282,7 +283,7 @@ def calculate_tree_accuracies(
         train_accuracies[i] = train_majority.mean()
 
     # Rank by log-posterior (higher is better)
-    order = np.argsort(-energies)
+    order = np.argsort(-log_posteriors)
 
     top_1_idx = order[0]
     top_10_idx = order[: min(10, len(order))]
@@ -300,13 +301,13 @@ def calculate_tree_accuracies(
         "model_size_mean": float(node_counts.mean()),
         "model_size_std": float(node_counts.std()),
         "model_size_top1": float(node_counts[top_1_idx]),
-        "top1_log_posterior": float(energies[top_1_idx]),
+        "top1_log_posterior": float(log_posteriors[top_1_idx]),
     }
 
 
 def bayesian_model_averaging(
     states: List[Dict],
-    energies: np.ndarray,
+    log_posteriors: np.ndarray,
     X_train: np.ndarray,
     y_train: np.ndarray,
     X_test: np.ndarray,
@@ -327,7 +328,9 @@ def bayesian_model_averaging(
     n_train = len(X_train)
 
     # Posterior weights via softmax of log-posteriors (log-sum-exp trick)
-    weights = torch.softmax(torch.tensor(energies, dtype=torch.float32), dim=0).numpy()
+    weights = torch.softmax(
+        torch.tensor(log_posteriors, dtype=torch.float32), dim=0
+    ).numpy()
 
     # Accumulate weighted class probabilities over Dirichlet draws
     test_probas_weighted = np.zeros((n_test, n_classes))
@@ -417,10 +420,6 @@ def main():
         dct = pickle.load(f)
 
     states = dct["x"]
-    energies = dct["energy"]
-    if isinstance(energies, torch.Tensor):
-        energies = energies.detach().cpu().numpy()
-    energies = np.array(energies).flatten()
 
     print(f"  Loaded {len(states)} trees")
 
