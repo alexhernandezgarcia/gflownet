@@ -11,7 +11,27 @@ from gflownet.utils.common import tbool, tfloat
 from gflownet.utils.metrics import angles_allclose
 
 """
-TBD
+Non-acyclic continuous hyper-torus environment.
+
+This environment extends :class:`~gflownet.envs.ctorus.ContinuousTorus` to
+support trajectories that do not have a fixed length and are not
+constrained to be acyclic: unlike the parent ctorus environment, states here
+do not encode a timestep, so the same state (a point on the torus) can be
+reached via multiple different action sequences and revisited, allowing
+cycles in the underlying transition graph.
+
+At each non-source state, the policy jointly decides (via a Bernoulli
+distribution over an additional "end" logit) whether to terminate the
+trajectory (EOS forward / back-to-source backward) or to continue by
+sampling an angle increment per dimension from a mixture of von Mises
+distributions, as in the parent class. From the source state, termination
+is not allowed and only a continuous increment can be taken.
+
+States are represented as a list/vector of angles (in radians, within
+$[0, 2\\pi)$) for each of the `n_dim` dimensions. The source state is 
+represented as a list of ``None`` values, distinguishing it from any valid 
+angle state. The fist step from the source is always uniform over the whole
+torus.
 """
 
 
@@ -73,8 +93,6 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             Default is True
         state_space_atol: float
             Tolerance for comparing states similarity.
-        start_uniform : bool
-            If True, the first step of the trajectory is sampled from the uniform distribution.
         """
         distr_type = "von_mises"
         if fixed_distr_params is None:
