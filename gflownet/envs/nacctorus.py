@@ -674,6 +674,7 @@ class NonAcyclicContinuousTorus(ContinuousTorus):
             The input states with source states replaced by
             `self.source_angles`.
         """
+        states = copy(states)
         is_source = self.is_source_batch(states)
         if isinstance(states, list):
             for idx in range(len(states)):
