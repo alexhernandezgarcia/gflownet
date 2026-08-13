@@ -257,9 +257,7 @@ def probabilistic_metrics(
     bin_confidence = np.bincount(bin_idx, weights=confidence, minlength=n_bins)
     bin_correct = np.bincount(bin_idx, weights=correct, minlength=n_bins)
     nonempty = bin_total > 0
-    ece = float(
-        np.sum(np.abs(bin_correct[nonempty] - bin_confidence[nonempty])) / n
-    )
+    ece = float(np.sum(np.abs(bin_correct[nonempty] - bin_confidence[nonempty])) / n)
 
     return {"nll": nll, "brier": brier, "ece": ece}
 
