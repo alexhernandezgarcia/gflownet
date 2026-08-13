@@ -304,6 +304,46 @@ def test__front_only_and_end_only_cannot_be_combined():
                 (-1, 4, 0),
             ],
         ),
+        (
+            "env_grid",
+            {
+                "_active": -1,
+                "_dones": [1, 1, 1, 1],
+                "_envs_unique": [0, 0, 0, 0],
+                "_indices": [3, 2, 1, 0],
+                0: [0, 0],
+                1: [0, 1],
+                2: [0, 0],
+                3: [1, 1],
+            },
+            [
+                {
+                    "_active": 0,
+                    "_dones": [0, 1, 1, 1],
+                    "_envs_unique": [0, 0, 0, 0],
+                    "_indices": [3, 2, 1, 0],
+                    0: [0, 0],
+                    1: [0, 1],
+                    2: [0, 0],
+                    3: [1, 1],
+                },
+                {
+                    "_active": 0,
+                    "_dones": [1, 1, 1, 0],
+                    "_envs_unique": [0, 0, 0, 0],
+                    "_indices": [3, 2, 1, 0],
+                    0: [0, 0],
+                    1: [0, 1],
+                    2: [0, 0],
+                    3: [1, 1],
+                },
+            ],
+            # TODO: Review these actions
+            [
+                (-1, 0, 0),
+                (-1, 1, 0),
+            ],
+        ),
     ],
 )
 def test__get_parents__returns_expected(
