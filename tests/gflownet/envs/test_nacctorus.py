@@ -1,4 +1,5 @@
 import math
+from copy import copy
 
 import common
 import numpy as np
@@ -9,6 +10,7 @@ from utils_for_tests import load_base_test_config
 
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.envs.nacctorus import NonAcyclicContinuousTorus
+from gflownet.utils.batch import Batch
 from gflownet.utils.common import gflownet_from_config
 
 # --------------------------------------------------------------------------- #
@@ -65,6 +67,10 @@ def make_gflownet(env, loss_name="tb"):
     gflownet = gflownet_from_config(config, env=env)
 
     return gflownet
+
+
+def make_env(n_dim=2, n_comp=1):
+    return NonAcyclicContinuousTorus(n_dim=n_dim, n_comp=n_comp)
 
 
 # --------------------------------------------------------------------------- #
@@ -317,6 +323,29 @@ class TestSampleActionsBatch:
             else:
                 encountered_eos = True
         assert not encountered_eos and encountered_increment and encountered_bts
+
+    def test__fist_action_forward_is_uniform(self, env):
+        n_states = 500
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_states, dim=0)
+        assert env.is_source()
+        states_from = [copy(env.source) for _ in range(n_states)]
+        mask = torch.tensor([env.get_mask_invalid_actions_forward()] * n_states)
+
+        actions = env.sample_actions_batch(
+            policy_outputs=policy_outputs,
+            mask=mask,
+            states_from=states_from,
+            is_backward=False,
+        )
+        actions = np.array(actions)
+
+        # statistics should be close to the ones for Uniform[0, 2pi]
+        expected_mean = np.pi
+        expected_std = np.sqrt(1 / 12) * 2 * np.pi
+
+        assert np.isclose(expected_mean, actions.mean(), atol=0.1)
+        assert np.isclose(expected_std, actions.std(), atol=0.1)
 
 
 # --------------------------------------------------------------------------- #
@@ -626,12 +655,7 @@ class TestNonAcyclicContinuousTorusBasic(common.BaseTestsContinuous):
         self.n_states = {}  # TODO: Populate.
 
 
-# TODO: create a simple gflownet and estimate logprobs
-def make_env(n_dim=2, n_comp=1):
-    return NonAcyclicContinuousTorus(n_dim=n_dim, n_comp=n_comp)
-
-
-class TestBackwardSampling:
+class TestWithGFN:
     def test_basic_backward_sampling(self, env):
         gfn = make_gflownet(env)
         n_states = 4
@@ -645,6 +669,48 @@ class TestBackwardSampling:
             bs_num_samples=3,
         )
         assert torch.all(logprobs_x_tt < 0.0)
+
+    def test__first_action_and_step_forward_is_uniform(self):
+        n_states = 500
+        n_dim = 2
+        n_comp = 3
+        envs = [make_env(n_dim, n_comp) for _ in range(n_states)]
+        states_from = [env.state for env in envs]
+        mask = torch.tensor([env.get_mask_invalid_actions_forward() for env in envs])
+
+        env = envs[0]
+        policy_outputs = env.get_policy_output(env.fixed_distr_params).unsqueeze(0)
+        policy_outputs = torch.cat([policy_outputs] * n_states, dim=0)
+
+        gfn = make_gflownet(env)
+
+        batch = Batch(
+            env=gfn.env,
+            proxy=gfn.proxy,
+            device=gfn.device,
+            float_type=gfn.float,
+        )
+
+        actions, logprobs, _ = gfn.sample_actions(
+            envs,
+            batch,
+            backward=False,
+            no_random=True,
+            compute_reversed_logprobs=False,
+        )
+        actions_np = np.array(actions)
+
+        # statistics should be close to the ones for Uniform[0, 2pi]
+        expected_mean = np.pi
+        expected_std = np.sqrt(1 / 12) * 2 * np.pi
+
+        assert np.isclose(expected_mean, actions_np.mean(), atol=0.1)
+        assert np.isclose(expected_std, actions_np.std(), atol=0.1)
+
+        envs, actions, valids = gfn.step(envs, actions)
+        states_np = np.array([env.state for env in envs])
+        # states should coinside with the actions after the first step from source
+        assert np.isclose(states_np, actions_np).all()
 
 
 if __name__ == "__main__":
