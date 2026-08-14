@@ -932,7 +932,9 @@ class Batch:
                 done=done,
                 action=action,
             )
-            assert self.readonly_env.action2representative(action) in parents_a, f"""
+            assert (
+                self.readonly_env.action2representative(action) in parents_a
+            ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
             """
@@ -1272,6 +1274,18 @@ class Batch:
             self.rewards_source = rewards_source
             self._rewards_source_available = True
 
+    # TODO: docstring
+    # TODO: reuse this method in all other methods where this code is replicated
+    def get_terminating_indices(self, sort_by: str = "insertion") -> npt.NDArray:
+        if sort_by == "insert" or sort_by == "insertion":
+            indices = np.arange(len(self))
+        elif sort_by == "traj" or sort_by == "trajectory":
+            indices = np.argsort(self.traj_indices)
+
+        done = self.get_done()[indices]
+        indices_term = [idx for idx in indices if self.done[idx]]
+        return indices_term
+
     def get_terminating_states(
         self,
         sort_by: str = "insertion",
@@ -1505,6 +1519,43 @@ class Batch:
         traj_indices = self.traj_indices
 
         return [x for x, idx in zip(logprobs, traj_indices) if idx == traj_idx]
+
+    def set_logprobs(self, logprobs: Union[List, TensorType], backward: bool = False):
+        """
+        Set the log-probabilities for the states in the batch.
+
+        Stores the given log-probabilities (forward or backward, depending on
+        `backward`) and marks all corresponding entries as available.
+
+        Parameters
+        ----------
+        logprobs : list or TensorType
+            Log-probabilities of the states, with the same length and order
+            as the states in the batch. logprobs[i] must correspond to the
+            state at index i.
+        backward : bool, default=False
+            If True, sets the backward log-probabilities (`self.logprobs_backward`)
+            and marks `self.logprobs_backward_avail` as fully available.
+            If False, sets the forward log-probabilities (`self.logprobs_forward`)
+            and marks `self.logprobs_forward_avail` as fully available.
+
+        Raises
+        ------
+        AssertionError
+            If `logprobs` does not have the same length as the batch.
+
+        Notes
+        -----
+        This overwrites any previously set log-probabilities of the chosen
+        direction and resets their availability flags to all `True`.
+        """
+        assert len(logprobs) == len(self)
+        if backward:
+            self.logprobs_backward = logprobs
+            self.logprobs_backward_avail = [True] * len(logprobs)
+        else:
+            self.logprobs_forward = logprobs
+            self.logprobs_forward_avail = [True] * len(logprobs)
 
     def merge(self, batches: List):
         """
@@ -1950,6 +2001,7 @@ def compute_logprobs_trajectories(
                 logprobs_states = logprobs_states_val
             else:
                 logprobs_states[indices_select] = logprobs_states_val
+        batch.set_logprobs(logprobs_states, backward=backward)
 
     # Sum log probabilities of all transitions in each trajectory
     logprobs = torch.zeros(

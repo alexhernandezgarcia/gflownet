@@ -174,8 +174,6 @@ class ContinuousTorus(GFlowNetEnv):
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        # End-of-sequence action: (n_dim, 0)
-        self.eos = (self.n_dim, 0)
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -184,6 +182,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         self.continuous = True
         self.start_uniform = start_uniform
+        self._source_tensor = None
 
     @property
     def mask_dim(self):
@@ -529,21 +528,28 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        return tfloat(states, device=self.device, float_type=self.float)[:, :-1]
+        return tfloat(states, device=self.device, float_type=self.float)[
+            :, : self.n_dim
+        ]
 
     def states2policy(
-        self, states: Union[List, TensorType["batch", "state_dim"]]
+        self,
+        states: Union[List, TensorType["batch", "state_dim"]],
+        encode_step=True,
     ) -> TensorType["batch", "policy_input_dim"]:
         """
         Prepares a batch of states in "environment format" for the policy model: if
         policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
         trigonometric components.
 
-        Args
-        ----
+        Parameters
+        ----------
         states : list or tensor
             A batch of states in environment format, either as a list of states or as a
             single tensor.
+        encode_step: bool
+            If True (default), information about the step will be encoded into the
+            output states.
 
         Returns
         -------
@@ -555,19 +561,20 @@ class ContinuousTorus(GFlowNetEnv):
             or self.policy_encoding_dim_per_angle < 2
         ):
             return states
-        step = states[:, -1]
+        if encode_step:
+            step = states[:, -1]
         code_half_size = self.policy_encoding_dim_per_angle // 2
-        int_coeff = (
-            torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
-        )
+        int_coeff = torch.arange(1, code_half_size + 1).repeat(self.n_dim).to(states)
         encoding = (
-            torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
+            torch.repeat_interleave(
+                states[:, : self.n_dim], repeats=code_half_size, dim=1
+            )
             * int_coeff
         )
-        return torch.cat(
-            [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
-            dim=1,
-        )
+        tensors = [torch.cos(encoding), torch.sin(encoding)]
+        if encode_step:
+            tensors.append(torch.unsqueeze(step, 1))
+        return torch.cat(tensors, dim=1)
 
     def state2readable(self, state: List) -> str:
         """
@@ -595,6 +602,70 @@ class ContinuousTorus(GFlowNetEnv):
         angles = [np.float32(el) * np.pi / 180 for el in pair[0].strip("[]").split(" ")]
         n_actions = [int(pair[1])]
         return angles + n_actions
+
+    @property
+    def source_tensor(self):
+        if self._source_tensor is None:
+            self._source_tensor = tfloat(
+                self.source, float_type=self.float, device=self.device
+            )
+        return self._source_tensor
+
+    def _get_timesteps(self, states: List) -> TensorType["n_states"]:
+        """
+        Extract the timestep component from a batch of states.
+
+        Assumes each state in `states` is a sequence whose last element is the
+        timestep (e.g. `state = [..., timestep]`).
+
+        Parameters
+        ----------
+        states (Sequence): Batch of states, where each element is indexable
+            and its last entry is the timestep.
+
+        Returns
+        -------
+            torch.Tensor: 1D tensor of timesteps, one per state in `states`.
+        """
+        timesteps = tfloat(
+            [x[-1] for x in states],
+            float_type=self.float,
+            device=self.device,
+        )
+        return timesteps
+
+    def is_source_batch(
+        self,
+        states: Union[List, TensorType],
+        timesteps: Optional[Union[List, TensorType]] = None,
+    ) -> TensorType["n_states"]:
+        """
+        Check which states in a batch correspond to the source state.
+
+        If `timesteps` is provided, a state is considered a source state simply
+        if its timestep is 0.0 (cheaper, avoids comparing full state tensors).
+        Otherwise, falls back to comparing each state directly against
+        `self.source` elementwise.
+
+        Parameters
+        ----------
+        states: list or torch.Tensor
+            Batch of states
+        timesteps: torch.Tensor, optional
+            Timestep for each state in the batch
+
+        Returns
+        --------
+        torch.Tensor :
+            Boolean tensor of shape (batch_size,) indicating which
+            states are source states.
+        """
+        if timesteps is not None:
+            return timesteps == 0.0
+
+        states = tfloat(states, float_type=self.float, device=self.device)
+        source = self.source_tensor.expand(states.shape[0], -1)
+        return self.isclose(states, source)
 
     def sample_actions_batch(
         self,
@@ -648,26 +719,24 @@ class ContinuousTorus(GFlowNetEnv):
         )
         # Sample angle increments
         if torch.any(do_sample):
-            timesteps = tfloat(
-                [x[-1] for x in states_from],
-                float_type=self.float,
-                device=self.device,
-            )
+            timesteps = self._get_timesteps(states_from)
+
             logits_sampling = policy_outputs.clone().detach()
             logits_sampling = self.randomize_and_temper_sampling_distribution(
                 logits_sampling, random_action_prob, temperature_logits
             )
             distr_angles = self.get_distr(
                 logits_sampling[do_sample],
-                timesteps[do_sample],
-                is_backward,
+                timesteps=(timesteps[do_sample] if timesteps is not None else None),
+                is_backward=is_backward,
             )
             angles_sampled = distr_angles.sample()
             actions_tensor[do_sample] = angles_sampled
 
             # Start from uniform distribution
             if self.start_uniform:
-                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                is_source = self.is_source_batch(states_from, timesteps)
+                do_uniform = torch.logical_and(is_source, do_sample)
                 if torch.any(do_uniform):
                     n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
@@ -693,7 +762,7 @@ class ContinuousTorus(GFlowNetEnv):
             do_bts = mask[:, 0]
             if torch.any(do_bts):
                 source_angles = tfloat(
-                    self.source[: self.n_dim], float_type=self.float, device=self.device
+                    self.source_angles, float_type=self.float, device=self.device
                 )
                 states_from_angles = tfloat(
                     states_from, float_type=self.float, device=self.device
@@ -736,18 +805,17 @@ class ContinuousTorus(GFlowNetEnv):
             n_states, self.n_dim, dtype=self.float, device=self.device
         )
         if torch.any(do_sample):
-            timesteps = tfloat(
-                [x[-1] for x in states_from], float_type=self.float, device=self.device
-            )
+            timesteps = self._get_timesteps(states_from)
             distr = self.get_distr(
                 policy_outputs[do_sample],
-                timesteps[do_sample],
+                timesteps[do_sample] if timesteps is not None else None,
                 is_backward,
             )
             logprobs[do_sample] = distr.log_prob(actions[do_sample])
             # Start from uniform distribution
             if self.start_uniform:
-                do_uniform = torch.logical_and(timesteps == 0.0, do_sample)
+                is_source = self.is_source_batch(states_from, timesteps)
+                do_uniform = torch.logical_and(is_source, do_sample)
                 if torch.any(do_uniform):
                     n_uniform = torch.sum(do_uniform)
                     start = torch.zeros(
@@ -767,8 +835,9 @@ class ContinuousTorus(GFlowNetEnv):
                         )
                     )
                     distr_fs_angles = Uniform(start, end)
-                    logprobs[do_uniform] = distr_fs_angles.log_prob(actions[do_uniform])
-
+                    logprobs[do_uniform] = distr_fs_angles.log_prob(
+                        actions[do_uniform] % (2 * torch.pi)
+                    )
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
@@ -977,9 +1046,10 @@ class ContinuousTorus(GFlowNetEnv):
 
     def isclose(
         self,
-        first_state: List,
-        second_state: List,
+        state_x: List,
+        state_y: List,
         atol: Optional[float] = None,
+        do_equal: bool = False,
     ) -> bool:
         """
         Check if two states are close in the state space.
@@ -992,22 +1062,56 @@ class ContinuousTorus(GFlowNetEnv):
 
         Parameters
         ----------
-        first_state : list
+        state_x : list
             First state to compare
-        second_state : list
+        state_y : list
             Second state to compare
+        atol : float
+            Maximum absolute tolerance threshold for numeric values.
+        do_equal : bool
+            If True, comparisons are by equality instead of closeness and
+            ``rtol`` is ignored.
 
         Returns
         -------
-        bool or iterable
+        bool
             True if the two states are close, False otherwise.
         """
-        if atol is None:
-            atol = self.state_space_atol
-        # Compare the full states, including the step number (last dimention)
-        return angles_allclose(
-            first_state[: self.n_dim], second_state[: self.n_dim], atol=atol
-        ) and int(first_state[-1]) == int(second_state[-1])
+        if not do_equal:
+            if atol is None:
+                atol = self.state_space_atol
+            # Compare the full states, including the step number (last dimention)
+            return angles_allclose(
+                state_x[: self.n_dim], state_y[: self.n_dim], atol=atol
+            ) and int(state_x[-1]) == int(state_y[-1])
+        else:
+            return state_x == state_y
+
+    def equal(
+        self,
+        state_x: List,
+        state_y: List,
+    ) -> bool:
+        """
+        Checks whether the two input states are equal.
+
+        It is overwritten here besause it has to use isclose of the
+        ctorus env instead of the GFlowNetEnv.isclose
+
+        Parameters
+        ----------
+        state_x: list
+            One of the states to be compared.
+        state_y: list
+            The other state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+
+        """
+        return self.isclose(state_x, state_y, do_equal=True)
 
     def copy(self):
         return deepcopy(self)

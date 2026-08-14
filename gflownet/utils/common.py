@@ -334,6 +334,20 @@ def gflownet_from_config(config, env=None):
         float_precision=config.float_precision,
     )
 
+    if config.regularizer._target_ is not None:
+        # import here to avoid circular imports issue
+        from gflownet.losses.regularized import RegularizedLoss
+
+        regularizer = instantiate(
+            config.regularizer,
+            forward_policy=forward_policy,
+            backward_policy=backward_policy,
+            state_flow=state_flow,
+            device=config.device,
+            float_precision=config.float_precision,
+        )
+        loss = RegularizedLoss(loss, [regularizer])
+
     # GFlowNet Agent
     gflownet = instantiate(
         config.gflownet,
