@@ -1,65 +1,60 @@
 #!/bin/bash
-#SBATCH --job-name=cls_tree
+#SBATCH --job-name=cls_tree_gpu
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=24:00:00
-#SBATCH --partition=long-cpu,long-cpu-eek
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --time=18:00:00
+#SBATCH --partition=long
 #SBATCH --array=1-5
 #SBATCH --requeue
 
 # =============================================================================
-# Composite-Tree classification experiments: one array task per dataset split.
+# GPU variant of run_classification_tree_training.sh.
 # =============================================================================
 #
-# Layout produced (RUNS_ROOT defaults to $SCRATCH/gflownet-logs):
+# Differences to the CPU script:
+#   * Slurm asks for a GPU (--gres=gpu:l40s:1) on the GPU "long" partition
+#     instead of long-cpu. See "GPU memory" below for why the type is pinned;
+#     override it per launch with e.g. `sbatch --gres=gpu:a100l:1 ...`.
+#   * VENV defaults to the CUDA-enabled environment (gflownet-env-gpu); the
+#     CPU venv has a +cpu torch build that cannot see a GPU.
+#   * DEVICE (default: cuda) is appended to the hydra overrides. Since the
+#     config hash covers every override, device=cuda lands in a different run
+#     directory than the same settings on CPU -- CPU and GPU campaigns never
+#     collide or resume each other.
+#   * The job aborts early if torch cannot see a CUDA device, because the code
+#     would otherwise fall back to CPU silently (see utils/common.py
+#     set_device) and burn a GPU allocation on a CPU run.
 #
-#   $RUNS_ROOT/<EXP_NAME>/<run_name>/
-#       LAUNCH             one appended record per launch/resume (git commit,
-#                          slurm ids, timestamp, full hydra override list)
-#       .hydra/            resolved config of the run
-#       ckpts/  data/  samples/
-#       eval_results.json  final eval_tree.py metrics; doubles as "done" marker
-#       resume/<ts>-<jobid>/   one hydra dir per resume job
+# GPU memory
+# ----------
+# The losses backpropagate through *every state of every trajectory in the
+# batch* in a single policy call (see compute_logprobs_trajectories in
+# gflownet/utils/batch.py), once for the forward policy and once for the
+# backward one. So activation memory scales with
 #
-#   run_name = <EXP_NAME>_<dataset><split>_depth<D>_steps<N>_lr<LR>_<policy>_seed<S>_<hash>
+#     sum of trajectory lengths in the batch  x  seq_len  x  d_model x n_layers
 #
-# Every field after EXP_NAME is read back from the *resolved* config rather
-# than hard-coded here, so a run name can never contradict the config it was
-# trained with. The trailing <hash> is an 8-char digest of the entire resolved
-# config (see helpers_for_experiments/config_hash.py): change any setting,
-# named in the run name or not, and the run lands in a new directory. Relaunch
-# with an unchanged config and the existing directory is reused -- resumed if
-# incomplete, skipped if already evaluated.
+# and trajectory lengths *grow during training* as the sampler learns to build
+# bigger trees. For max_depth=5 (max_nodes=31, so 32 tokens per state) with the
+# default d_model=128 / n_layers=3 and 100 trajectories per batch, the worst
+# case is ~15k states x ~1.8 MB ~= 28 GB, which does not fit on a 32 GB V100:
+# that is why --gres asks for an l40s (48 GB) rather than a bare gpu:1. For a
+# 32 GB card, halve gflownet.optimizer.batch_size instead. Raising max_depth to
+# 6 doubles both the state count and the sequence length (~4x the memory), so
+# it needs an 80 GB card (a100l / h100) or a smaller batch.
+#
+# Everything else (run layout, LAUNCH records, resume, evaluation) is
+# identical -- see run_classification_tree_training.sh for the full docs.
 #
 # Usage:
-#   mkdir -p $SCRATCH/gflownet-logs/slurm
-#   sbatch mila/tree/run_classification_tree_training.sh
+#   sbatch --export=ALL,EXP_CONFIG=tree/trfm_classification_tree,EXP_NAME=TRFM_GPU \
+#          mila/tree/run_classification_tree_training_gpu.sh
 #
-#   # name the campaign and change any hydra setting on the CLI:
-#   sbatch --export=ALL,EXP_NAME=TREECLASS_CLS_lr10e-3 \
-#          mila/tree/run_classification_tree_training.sh \
-#          gflownet.optimizer.lr=1e-3
-#
-#   # a different experiment config (transformer policy, debug reward, ...):
-#   sbatch --export=ALL,EXP_CONFIG=tree/trfm_classification_tree,EXP_NAME=TRFM \
-#          mila/tree/run_classification_tree_training.sh
-#
-#   # only splits 1 and 3:
-#   sbatch --array=1,3 mila/tree/run_classification_tree_training.sh
-#
-# Environment knobs (all overridable via --export=ALL,VAR=value):
-#   EXP_NAME    campaign name; first component of the run name and the
-#               directory level above it              (default: TREECLASS_CLS)
-#   EXP_CONFIG  experiment config under config/experiments (default:
-#               tree/classification_tree)
-#   DATASET     dataset directory under tests/data/tree         (default: wine)
-#   SEED        random seed                                        (default: 0)
-#   RUNS_ROOT   root of the run tree      (default: $SCRATCH/gflownet-logs)
-#   FORCE       1 = ignore the "already done" marker and retrain   (default: 0)
-#
-# Any positional arguments are passed straight through as extra hydra
-# overrides, and are included in the config hash like every other setting.
+# Extra knobs on top of the CPU script:
+#   DEVICE      device passed to hydra                          (default: cuda)
+#   VENV        virtualenv to activate    (default: ~/scratch/venvs/gflownet-env-gpu)
 
 set -u
 
@@ -67,15 +62,16 @@ set -u
 # Settings
 # -----------------------------------------------------------------------------
 REPO="/home/mila/a/arnit/gflownet"
-VENV="$HOME/scratch/venvs/gflownet-env"
+VENV="${VENV:-$HOME/scratch/venvs/gflownet-env-gpu}"
 # Must match the --SBATCH --output directory above (sbatch directives cannot
 # expand variables, so the path is spelled out there).
 SLURM_LOG_DIR="$SCRATCH/gflownet-logs/slurm"
 
-EXP_NAME="${EXP_NAME:-TREECLASS_CLS}"
-EXP_CONFIG="${EXP_CONFIG:-tree/classification_tree}"
+EXP_NAME="${EXP_NAME:-TREECLASS_CLS_GPU}"
+EXP_CONFIG="${EXP_CONFIG:-tree/trfm_classification_tree}"
 DATASET="${DATASET:-iris}"
 SEED="${SEED:-0}"
+DEVICE="${DEVICE:-cuda}"
 RUNS_ROOT="${RUNS_ROOT:-$SCRATCH/gflownet-logs}"
 FORCE="${FORCE:-0}"
 split="${SLURM_ARRAY_TASK_ID:-1}"
@@ -116,10 +112,12 @@ echo "============================================================"
 echo " Started            : $started_at"
 echo " Slurm job          : ${SLURM_JOB_ID:-none}  (array ${SLURM_ARRAY_JOB_ID:-none} task ${SLURM_ARRAY_TASK_ID:-none})"
 echo " Node               : $(hostname)"
+echo " GPU                : $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'none visible')"
 echo " Repo               : $REPO @ ${git_branch} ${git_commit}${git_dirty}"
 echo " Code dir           : $CODE_DIR"
 echo " Python             : $(which python)"
 echo " Experiment config  : $EXP_CONFIG"
+echo " Device             : $DEVICE"
 echo " Dataset            : $DATASET split $split -> $csv_path"
 echo "============================================================"
 
@@ -128,9 +126,30 @@ if [ ! -f "$csv_path" ]; then
     exit 1
 fi
 
+# set_device() falls back to CPU silently when CUDA is unavailable; fail loudly
+# instead of wasting a GPU allocation on a CPU run.
+if [ "$DEVICE" = "cuda" ]; then
+    python - <<'EOF' || exit 1
+import torch
+assert torch.cuda.is_available(), (
+    f"torch {torch.__version__} cannot see a CUDA device. "
+    "Is VENV pointing at the CUDA-enabled environment?"
+)
+print(f"torch {torch.__version__} sees: {torch.cuda.get_device_name(0)}")
+EOF
+fi
+
 # Keep torch's intra-op threading within our allocation.
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+
+# Trajectory lengths -- and therefore the size of every activation tensor --
+# change from iteration to iteration, so the caching allocator accumulates
+# unusable blocks of the wrong size and OOMs with GBs still "reserved but
+# unallocated". Expandable segments let it resize a segment instead.
+# This is an env var, not a config value: it does not enter the config hash,
+# so adding it does not invalidate existing run directories.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Be patient with wandb init on busy nodes.
 export WANDB_INIT_TIMEOUT=300
@@ -145,6 +164,7 @@ overrides=(
     "+experiments=$EXP_CONFIG"
     "env.data_path=$csv_path"
     "seed=$SEED"
+    "device=$DEVICE"
     "$@"
 )
 

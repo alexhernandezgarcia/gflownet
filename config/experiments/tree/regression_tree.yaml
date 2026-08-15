@@ -1,20 +1,19 @@
 # @package _global_
 
 defaults:
-  - override /env: tree/tree
+  - override /env: tree/regression_tree
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: tree
+  - override /proxy: regression_tree
   - override /logger: wandb
   - override /evaluator: tree
 
 device: cpu
 
-n_samples: 1000
-
 # Environment
 env:
   max_depth: 5
+  scale_y: True # Standardize targets (train-split stats); RMSE still reported in original units
   rescale_thresholds: True # If True, trivially unnecessary splits are not considered during training
   data_path: null
   node_kwargs:
@@ -48,26 +47,29 @@ proxy:
   sigma: 0.95
   phi: 2.0
 
-  # --- Dirichlet prior over leaf class probabilities ---
-  # One of: "uniform", "label_counts"
-  alpha_type: uniform
-  alpha_value: 0.1
+  # --- Normal-Inverse-Gamma prior over leaf parameters (mu, sigma^2) ---
+  # null values are resolved from the training targets at setup:
+  # mu_0 -> mean(y_train); beta_0 -> (alpha_0 - 1) * var(y_train)
+  mu_0: null
+  kappa_0: 0.1
+  alpha_0: 2.0
+  beta_0: null
 
   # If True, divide the marginal log-likelihood by N_train so the proxy reports
-  # the average per-sample log-likelihood. Makes reward_function_kwargs.beta
-  # invariant to dataset size. The structure log-prior is left unscaled.
-  # If applied no sampling from the true posterior anymore
+  # the average per-sample log-likelihood. This rescales the likelihood term (a
+  # 1/N temperature on it), so it must remain False to sample from the true
+  # posterior. The structure log-prior is left unscaled.
   normalize_likelihood: False
 
   # --- Reward function (proxy value -> reward) ---
   # Log-posterior is passed through an exponential: reward = alpha * exp(beta * proxy)
-  # Options: "identity", "exponential"/"boltzmann", "power", "shift", "product",
-  #          "rbf_exponential", "sigmoid"
-  # beta must be 1.0 to sample from the true (untempered) Bayesian posterior:
-  # the GFlowNet samples proportionally to the reward, i.e. posterior^beta.
-  # Any beta != 1.0 targets a tempered posterior instead. Numerical underflow
-  # of exp(log-posterior) is handled by buffer.store_log_rewards, not by
-  # tempering the reward.
+  # beta acts as a temperature: p(T) ∝ posterior^beta. It must be 1.0 to sample
+  # from the true (untempered) Bayesian posterior. Even with standardized
+  # targets (env.scale_y) the regression log-posterior magnitude is roughly
+  # 1.4 * N_train nats, far outside the float32 exp range (~[-87, 88]); this is
+  # handled by buffer.store_log_rewards=True below, which keeps the loss and
+  # the replay buffer entirely in log space. Linear rewards are derived only
+  # for reporting, where under/overflow to 0/inf is harmless.
   reward_function: exponential
   reward_function_kwargs:
     beta: 1.0
@@ -78,9 +80,10 @@ proxy:
 # Buffer
 buffer:
   replay_capacity: 100
-  # With beta=1.0 the (linear) rewards are exp(log-posterior), which underflows
-  # to exactly 0.0 for most datasets. Storing log-rewards keeps the replay
-  # buffer insertion criterion and weighted sampling numerically valid.
+  # With beta=1.0 the (linear) rewards are exp(log-posterior), which under- or
+  # overflows for all bundled regression datasets. Storing log-rewards keeps
+  # the replay buffer insertion criterion and weighted sampling numerically
+  # valid.
   store_log_rewards: True
   train: null
   test: null
@@ -96,8 +99,8 @@ gflownet:
     lr: 0.01
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 1000
-    lr_decay_period: 100000
+    n_train_steps: 50000
+    lr_decay_period: 10000
     lr_decay_gamma: 0.5
   replay_sampling: weighted
   train_sampling: permutation
@@ -125,12 +128,11 @@ evaluator:
   n_top_k: 5000
   top_k: 100
   top_k_period: -1
-  # Tree-specific accuracy evaluation (see gflownet/evaluator/tree.py).
-  # Runs on the same period as the base evaluator.
+  # Tree-specific evaluation (see gflownet/evaluator/tree.py). For the
+  # RegressionTree env, RMSE / R2 metrics are reported (alpha_value is unused).
   tree_test:
     n_samples: 1000
     top_k_trees: 10
-    alpha_value: 0.1
     plot_top_k: True
     seed: null
 
@@ -138,25 +140,21 @@ evaluator:
 logger:
   lightweight: True
   run_name: null
-  project_name: "dt-gfn_classification"
+  project_name: "dt-gfn_regression"
   entity: alex-hg
   tags:
     - gflownet
     - tree
-    - classification
+    - regression
   do:
     online: True
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/regression_tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
 
 # Profiling
 profile: false
 profile_sort: cumtime
 profile_n_rows: 20
-# Optional regex to restrict the printed stats to matching function paths,
-# e.g. "gflownet" to only show functions from this package. The dumped
-# train.prof always contains the full, unfiltered stats.
-profile_filter: null

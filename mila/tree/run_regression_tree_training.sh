@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=cls_tree
+#SBATCH --job-name=reg_tree
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -9,8 +9,17 @@
 #SBATCH --requeue
 
 # =============================================================================
-# Composite-Tree classification experiments: one array task per dataset split.
+# Composite-Tree regression experiments: one array task per dataset split.
 # =============================================================================
+#
+# Regression counterpart of run_classification_tree_training.sh; same layout,
+# same naming rules, same resume/skip logic. Only three things differ:
+#   - the default experiment config (tree/regression_tree) and dataset;
+#   - the run name carries no alpha (the NIG leaf prior has no single
+#     concentration parameter the way the Dirichlet one does);
+#   - the final evaluation runs helpers_for_experiments/eval_regression_tree.py
+#     (RMSE / R2 via RegressionTree.test) instead of eval_tree.py, which is
+#     classification-only.
 #
 # Layout produced (RUNS_ROOT defaults to $SCRATCH/gflownet-logs):
 #
@@ -19,7 +28,7 @@
 #                          slurm ids, timestamp, full hydra override list)
 #       .hydra/            resolved config of the run
 #       ckpts/  data/  samples/
-#       eval_results.json  final eval_tree.py metrics; doubles as "done" marker
+#       eval_results.json  final regression metrics; doubles as "done" marker
 #       resume/<ts>-<jobid>/   one hydra dir per resume job
 #
 #   run_name = <EXP_NAME>_<dataset><split>_depth<D>_steps<N>_lr<LR>_<policy>_seed<S>_<hash>
@@ -34,32 +43,33 @@
 #
 # Usage:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm
-#   sbatch mila/tree/run_classification_tree_training.sh
+#   sbatch mila/tree/run_reg_tree_experiment.sh
 #
 #   # name the campaign and change any hydra setting on the CLI:
-#   sbatch --export=ALL,EXP_NAME=TREECLASS_CLS_lr10e-3 \
-#          mila/tree/run_classification_tree_training.sh \
+#   sbatch --export=ALL,EXP_NAME=TREECLASS_REG_lr10e-3,DATASET=energy \
+#          mila/tree/run_reg_tree_experiment.sh \
 #          gflownet.optimizer.lr=1e-3
 #
-#   # a different experiment config (transformer policy, debug reward, ...):
-#   sbatch --export=ALL,EXP_CONFIG=tree/trfm_classification_tree,EXP_NAME=TRFM \
-#          mila/tree/run_classification_tree_training.sh
-#
 #   # only splits 1 and 3:
-#   sbatch --array=1,3 mila/tree/run_classification_tree_training.sh
+#   sbatch --array=1,3 mila/tree/run_reg_tree_experiment.sh
 #
 # Environment knobs (all overridable via --export=ALL,VAR=value):
 #   EXP_NAME    campaign name; first component of the run name and the
-#               directory level above it              (default: TREECLASS_CLS)
+#               directory level above it              (default: TREECLASS_REG)
 #   EXP_CONFIG  experiment config under config/experiments (default:
-#               tree/classification_tree)
-#   DATASET     dataset directory under tests/data/tree         (default: wine)
+#               tree/regression_tree)
+#   DATASET     dataset directory under tests/data/tree     (default: diabetes;
+#               regression datasets: diabetes, energy, concrete)
 #   SEED        random seed                                        (default: 0)
 #   RUNS_ROOT   root of the run tree      (default: $SCRATCH/gflownet-logs)
+#   TOP_K       trees ranked for the top-k/top-1 metrics          (default: 10)
 #   FORCE       1 = ignore the "already done" marker and retrain   (default: 0)
 #
 # Any positional arguments are passed straight through as extra hydra
 # overrides, and are included in the config hash like every other setting.
+#
+# Resource note: --cpus-per-task and --mem are PER ARRAY TASK. The settings
+# above give each of the 5 tasks 4 CPUs and 32 GB (20 CPUs / 160 GB in total).
 
 set -u
 
@@ -72,11 +82,12 @@ VENV="$HOME/scratch/venvs/gflownet-env"
 # expand variables, so the path is spelled out there).
 SLURM_LOG_DIR="$SCRATCH/gflownet-logs/slurm"
 
-EXP_NAME="${EXP_NAME:-TREECLASS_CLS}"
-EXP_CONFIG="${EXP_CONFIG:-tree/classification_tree}"
-DATASET="${DATASET:-iris}"
+EXP_NAME="${EXP_NAME:-TREECLASS_REG}"
+EXP_CONFIG="${EXP_CONFIG:-tree/regression_tree}"
+DATASET="${DATASET:-diabetes}"
 SEED="${SEED:-0}"
 RUNS_ROOT="${RUNS_ROOT:-$SCRATCH/gflownet-logs}"
+TOP_K="${TOP_K:-10}"
 FORCE="${FORCE:-0}"
 split="${SLURM_ARRAY_TASK_ID:-1}"
 # The dataset stays in $REPO (not in the code snapshot below): env.data_path
@@ -248,11 +259,13 @@ if [ ! -f "$samples_pkl" ]; then
 fi
 
 echo ">>> Evaluating $samples_pkl"
-python "$CODE_DIR/gflownet/envs/tree/eval_tree.py" \
+# Rebuilds the RegressionTree env from the run's own .hydra/config.yaml, so the
+# dataset, the target standardization and the NIG prior match training.
+python "$HELPERS/eval_regression_tree.py" \
+    --run_dir "$run_dir" \
     --samples_path "$samples_pkl" \
-    --data_path "$csv_path" \
-    --alpha_value "$CFG_ALPHA" \
-    --n_dirichlet_samples 10 \
+    --top_k_trees "$TOP_K" \
+    --seed 0 \
     --output "$eval_json"
 status=$?
 

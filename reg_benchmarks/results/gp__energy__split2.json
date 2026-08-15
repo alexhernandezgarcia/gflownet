@@ -1,0 +1,16 @@
+{
+  "method": "gp",
+  "dataset": "energy",
+  "split": 2,
+  "seed": 2,
+  "train_rmse": 0.4227593415060425,
+  "train_r2": 0.9982756237974924,
+  "test_rmse": 0.49604918068047205,
+  "test_r2": 0.9973590350652055,
+  "params": {
+    "kernel": "5.15**2 * RBF(length_scale=[3.47, 234, 1.53, 91.2, 4.77, 5.01e+03, 3.3, 277]) + WhiteKernel(noise_level=0.00187)",
+    "log_marginal_likelihood": 905.5654182898307
+  },
+  "runtime_s": 38.97,
+  "timestamp": "2026-07-21 14:06:55"
+}

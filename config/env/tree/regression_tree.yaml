@@ -1,0 +1,34 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.tree.regression_tree.RegressionTree
+
+max_depth: 3
+# Standardize the targets (zero mean, unit variance on the train split), as is
+# standard for Bayesian CART/BART. Keeps the marginal log-likelihood magnitude
+# small enough that exp(beta * log_posterior) rewards do not underflow to 0.
+# RMSE metrics are reported in the original target units regardless.
+scale_y: True
+# Example node_kwargs config
+# node_kwargs:
+#   features:
+#     - "feature_a"
+#     - "feature_b"
+#     - "feature_c"
+#   cube_kwargs:
+#     n_comp: 3
+#     beta_params_min: 1.0
+#     beta_params_max: 100.0
+#     min_incr: 0.1
+#     fixed_distr_params:
+#       beta_weights: 1.0
+#       beta_alpha: 10.0
+#       beta_beta: 10.0
+#       bernoulli_eos_prob: 0.1
+#       bernoulli_bts_prob: 0.1
+#     random_distr_params:
+#       beta_weights: 1.0
+#       beta_alpha: 10.0
+#       beta_beta: 10.0
+#       bernoulli_eos_prob: 0.1
+#       bernoulli_bts_prob: 0.1

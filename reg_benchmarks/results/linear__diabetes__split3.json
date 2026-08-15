@@ -1,0 +1,13 @@
+{
+  "method": "linear",
+  "dataset": "diabetes",
+  "split": 3,
+  "seed": 3,
+  "train_rmse": 52.944232468656395,
+  "train_r2": 0.5366497197782092,
+  "test_rmse": 56.22466665405786,
+  "test_r2": 0.4161792211496943,
+  "params": {},
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

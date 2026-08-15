@@ -1,0 +1,46 @@
+==========================================================
+[10170600/4] bart benchmarks on concrete
+Node: cn-m004.server.mila.quebec | started: Wed Jul 22 12:07:09 EDT 2026
+==========================================================
+[=== Module python/3.10 loaded ===]
+/network/scratch/a/arnit/venvs/gflownet-env/lib/python3.10/site-packages/arviz/__init__.py:50: FutureWarning: 
+ArviZ is undergoing a major refactor to improve flexibility and extensibility while maintaining a user-friendly interface.
+Some upcoming changes may be backward incompatible.
+For details and migration guidance, visit: https://python.arviz.org/en/latest/user_guide/migration_guide.html
+  warn(
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4496 seconds.
+Sampling: [mu]
+[bart] concrete split 1: test_rmse=7.0703 test_r2=0.8082 (4513.4s)
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4150 seconds.
+Sampling: [mu]
+[bart] concrete split 2: test_rmse=6.6414 test_r2=0.8207 (4159.1s)
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4658 seconds.
+Sampling: [mu]
+[bart] concrete split 3: test_rmse=6.8137 test_r2=0.8414 (4667.4s)
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4741 seconds.
+Sampling: [mu]
+[bart] concrete split 4: test_rmse=7.0583 test_r2=0.8353 (4750.0s)
+Multiprocess sampling (2 chains in 2 jobs)
+CompoundStep
+>PGBART: [mu]
+>NUTS: [sigma]
+Sampling 2 chains for 1_000 tune and 1_000 draw iterations (2_000 + 2_000 draws total) took 4785 seconds.
+Sampling: [mu]
+[bart] concrete split 5: test_rmse=6.9987 test_r2=0.7912 (4794.3s)
+bart benchmarks on concrete DONE at Wed Jul 22 18:28:45 EDT 2026

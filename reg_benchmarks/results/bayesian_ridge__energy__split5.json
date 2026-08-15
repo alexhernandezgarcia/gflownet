@@ -1,0 +1,15 @@
+{
+  "method": "bayesian_ridge",
+  "dataset": "energy",
+  "split": 5,
+  "seed": 5,
+  "train_rmse": 2.8801002174013797,
+  "train_r2": 0.9187683020244999,
+  "test_rmse": 3.0884457254093816,
+  "test_r2": 0.9045431509442913,
+  "params": {
+    "alpha": 0.11921145917739367
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}

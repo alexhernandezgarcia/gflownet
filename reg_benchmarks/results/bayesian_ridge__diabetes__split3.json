@@ -1,0 +1,15 @@
+{
+  "method": "bayesian_ridge",
+  "dataset": "diabetes",
+  "split": 3,
+  "seed": 3,
+  "train_rmse": 53.15447812995426,
+  "train_r2": 0.5329624130582314,
+  "test_rmse": 56.12107947961425,
+  "test_r2": 0.41832847834474995,
+  "params": {
+    "alpha": 0.00034544118421873146
+  },
+  "runtime_s": 0.0,
+  "timestamp": "2026-07-21 14:05:25"
+}
