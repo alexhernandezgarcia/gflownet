@@ -1,0 +1,20 @@
+{
+  "method": "catboost",
+  "dataset": "magic",
+  "split": 4,
+  "seed": 4,
+  "train_acc": 0.9338196635120926,
+  "train_f1": 0.9010319410319411,
+  "train_auc": 0.9797546373744628,
+  "train_logloss": 0.18528672850785505,
+  "test_acc": 0.889589905362776,
+  "test_f1": 0.8314606741573034,
+  "test_auc": 0.9416240239453882,
+  "test_logloss": 0.27697392567433066,
+  "params": {
+    "depth": 5,
+    "iterations": 1103
+  },
+  "runtime_s": 6.92,
+  "timestamp": "2026-08-15 14:11:45"
+}

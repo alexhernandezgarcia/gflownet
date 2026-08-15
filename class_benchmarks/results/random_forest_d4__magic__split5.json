@@ -1,0 +1,20 @@
+{
+  "method": "random_forest_d4",
+  "dataset": "magic",
+  "split": 5,
+  "seed": 5,
+  "train_acc": 0.8309016824395373,
+  "train_f1": 0.7038102912397836,
+  "train_auc": 0.891672902879899,
+  "train_logloss": 0.42266924355618835,
+  "test_acc": 0.8325446898002103,
+  "test_f1": 0.7113729043951065,
+  "test_auc": 0.8888767658693356,
+  "test_logloss": 0.42709629328932613,
+  "params": {
+    "n_estimators": 100,
+    "max_depth": 4
+  },
+  "runtime_s": 1.04,
+  "timestamp": "2026-08-15 16:05:41"
+}

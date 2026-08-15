@@ -1,0 +1,36 @@
+==========================================================
+[10381495/0] class benchmarks on magic
+Node: cn-m001.server.mila.quebec | started: Sat Aug 15 15:24:29 EDT 2026
+==========================================================
+[=== Module python/3.10 loaded ===]
+[cart_gini_d3] magic split 1: test_acc=0.7944 test_auc=0.8377 test_logloss=0.4433 (0.1s)
+[cart_entropy_d3] magic split 1: test_acc=0.7871 test_auc=0.8352 test_logloss=0.4507 (0.1s)
+[random_forest_d3] magic split 1: test_acc=0.8141 test_auc=0.8814 test_logloss=0.4490 (0.5s)
+[cart_gini_d3] magic split 2: test_acc=0.7808 test_auc=0.8314 test_logloss=0.4533 (0.1s)
+[cart_entropy_d3] magic split 2: test_acc=0.7818 test_auc=0.8305 test_logloss=0.4538 (0.1s)
+[random_forest_d3] magic split 2: test_acc=0.8060 test_auc=0.8741 test_logloss=0.4598 (0.5s)
+[cart_gini_d3] magic split 3: test_acc=0.7955 test_auc=0.8386 test_logloss=0.4443 (0.1s)
+[cart_entropy_d3] magic split 3: test_acc=0.7936 test_auc=0.8402 test_logloss=0.4451 (0.1s)
+[random_forest_d3] magic split 3: test_acc=0.8028 test_auc=0.8854 test_logloss=0.4577 (0.4s)
+[cart_gini_d3] magic split 4: test_acc=0.7913 test_auc=0.8369 test_logloss=0.4483 (0.1s)
+[cart_entropy_d3] magic split 4: test_acc=0.7781 test_auc=0.8350 test_logloss=0.4494 (0.1s)
+[random_forest_d3] magic split 4: test_acc=0.7881 test_auc=0.8840 test_logloss=0.4673 (0.4s)
+[cart_gini_d3] magic split 5: test_acc=0.7913 test_auc=0.8283 test_logloss=0.4500 (0.1s)
+[cart_entropy_d3] magic split 5: test_acc=0.7726 test_auc=0.8321 test_logloss=0.4530 (0.1s)
+[random_forest_d3] magic split 5: test_acc=0.8086 test_auc=0.8813 test_logloss=0.4607 (0.5s)
+[xgboost_d3] magic split 1: test_acc=0.8904 test_auc=0.9408 test_logloss=0.2803 (1.2s)
+[lightgbm_d3] magic split 1: test_acc=0.8872 test_auc=0.9407 test_logloss=0.2803 (390.6s)
+[catboost_d3] magic split 1: test_acc=0.8909 test_auc=0.9412 test_logloss=0.2784 (4.5s)
+[xgboost_d3] magic split 2: test_acc=0.8730 test_auc=0.9330 test_logloss=0.2986 (0.8s)
+[lightgbm_d3] magic split 2: test_acc=0.8738 test_auc=0.9319 test_logloss=0.3007 (289.7s)
+[catboost_d3] magic split 2: test_acc=0.8804 test_auc=0.9337 test_logloss=0.2940 (5.7s)
+[xgboost_d3] magic split 3: test_acc=0.8877 test_auc=0.9475 test_logloss=0.2673 (1.3s)
+[lightgbm_d3] magic split 3: test_acc=0.8849 test_auc=0.9455 test_logloss=0.2716 (12.7s)
+[catboost_d3] magic split 3: test_acc=0.8920 test_auc=0.9466 test_logloss=0.2693 (5.1s)
+[xgboost_d3] magic split 4: test_acc=0.8849 test_auc=0.9379 test_logloss=0.2850 (1.4s)
+[lightgbm_d3] magic split 4: test_acc=0.8828 test_auc=0.9378 test_logloss=0.2842 (1.4s)
+[catboost_d3] magic split 4: test_acc=0.8859 test_auc=0.9388 test_logloss=0.2828 (5.5s)
+[xgboost_d3] magic split 5: test_acc=0.8820 test_auc=0.9373 test_logloss=0.2863 (1.0s)
+[lightgbm_d3] magic split 5: test_acc=0.8835 test_auc=0.9388 test_logloss=0.2829 (1.2s)
+[catboost_d3] magic split 5: test_acc=0.8825 test_auc=0.9363 test_logloss=0.2885 (3.7s)
+task 0 DONE at Sat Aug 15 15:36:47 EDT 2026

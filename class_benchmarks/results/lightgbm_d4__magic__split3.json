@@ -1,0 +1,20 @@
+{
+  "method": "lightgbm_d4",
+  "dataset": "magic",
+  "split": 3,
+  "seed": 3,
+  "train_acc": 0.9292192429022083,
+  "train_f1": 0.8931653605793076,
+  "train_auc": 0.9768263326708736,
+  "train_logloss": 0.19574396968597085,
+  "test_acc": 0.8885383806519453,
+  "test_f1": 0.8321456848772764,
+  "test_auc": 0.9464374688589935,
+  "test_logloss": 0.2687220078759316,
+  "params": {
+    "max_depth": 4,
+    "n_estimators": 744
+  },
+  "runtime_s": 2.57,
+  "timestamp": "2026-08-15 16:06:17"
+}

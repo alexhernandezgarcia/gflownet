@@ -1,0 +1,28 @@
+{
+  "method": "bcart_mcmc",
+  "dataset": "magic",
+  "split": 5,
+  "seed": 5,
+  "train_acc": 0.8698080967402734,
+  "train_f1": 0.8021967049425861,
+  "train_auc": 0.9184891186762429,
+  "train_logloss": 0.3298604399016336,
+  "test_acc": 0.8435856992639327,
+  "test_f1": 0.7619047619047619,
+  "test_auc": 0.8979902458184675,
+  "test_logloss": 0.36526757229627765,
+  "params": {
+    "thresholds_per_feature": 9,
+    "n_binary_features": 90,
+    "alpha_split": 0.95,
+    "beta_split": 0.5,
+    "rho": 2.5,
+    "iterations": 50000,
+    "burn_in": 25000,
+    "thin": 125,
+    "n_samples": 200,
+    "best_log_posterior": -6442.138638925623
+  },
+  "runtime_s": 2799.41,
+  "timestamp": "2026-08-15 14:54:05"
+}

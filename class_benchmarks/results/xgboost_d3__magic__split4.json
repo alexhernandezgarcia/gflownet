@@ -1,0 +1,20 @@
+{
+  "method": "xgboost_d3",
+  "dataset": "magic",
+  "split": 4,
+  "seed": 4,
+  "train_acc": 0.9235015772870663,
+  "train_f1": 0.8848208984761528,
+  "train_auc": 0.9721355888532505,
+  "train_logloss": 0.20737757031578077,
+  "test_acc": 0.8848580441640379,
+  "test_f1": 0.8238133547868061,
+  "test_auc": 0.9379092276787934,
+  "test_logloss": 0.28499242019550153,
+  "params": {
+    "max_depth": 3,
+    "n_estimators": 1341
+  },
+  "runtime_s": 1.36,
+  "timestamp": "2026-08-15 15:36:33"
+}

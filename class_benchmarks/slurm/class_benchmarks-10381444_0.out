@@ -1,0 +1,51 @@
+==========================================================
+[10381444/0] class benchmarks on magic
+Node: cn-f003.server.mila.quebec | started: Sat Aug 15 14:06:30 EDT 2026
+==========================================================
+[=== Module python/3.10 loaded ===]
+[cart_gini] magic split 1: test_acc=0.8354 test_auc=0.8667 test_logloss=0.4039 (0.1s)
+[cart_entropy] magic split 1: test_acc=0.8233 test_auc=0.8712 test_logloss=0.3993 (0.1s)
+[random_forest] magic split 1: test_acc=0.8467 test_auc=0.8983 test_logloss=0.3935 (0.7s)
+[cart_gini] magic split 2: test_acc=0.8183 test_auc=0.8596 test_logloss=0.4137 (0.1s)
+[cart_entropy] magic split 2: test_acc=0.8199 test_auc=0.8626 test_logloss=0.4115 (0.1s)
+[random_forest] magic split 2: test_acc=0.8344 test_auc=0.8921 test_logloss=0.4052 (1.2s)
+[cart_gini] magic split 3: test_acc=0.8320 test_auc=0.8726 test_logloss=0.3979 (0.1s)
+[cart_entropy] magic split 3: test_acc=0.8270 test_auc=0.8797 test_logloss=0.3898 (0.1s)
+[random_forest] magic split 3: test_acc=0.8475 test_auc=0.9037 test_logloss=0.3971 (1.2s)
+[cart_gini] magic split 4: test_acc=0.8231 test_auc=0.8693 test_logloss=0.4064 (0.1s)
+[cart_entropy] magic split 4: test_acc=0.8160 test_auc=0.8680 test_logloss=0.4044 (0.1s)
+[random_forest] magic split 4: test_acc=0.8381 test_auc=0.8999 test_logloss=0.4047 (1.2s)
+[cart_gini] magic split 5: test_acc=0.8236 test_auc=0.8625 test_logloss=0.4076 (0.1s)
+[cart_entropy] magic split 5: test_acc=0.8191 test_auc=0.8722 test_logloss=0.4013 (0.1s)
+[random_forest] magic split 5: test_acc=0.8441 test_auc=0.8972 test_logloss=0.4012 (0.8s)
+[xgboost] magic split 1: test_acc=0.8867 test_auc=0.9418 test_logloss=0.2779 (105.1s)
+[lightgbm] magic split 1: test_acc=0.8901 test_auc=0.9419 test_logloss=0.2776 (92.2s)
+[catboost] magic split 1: test_acc=0.8946 test_auc=0.9431 test_logloss=0.2747 (4.7s)
+[xgboost] magic split 2: test_acc=0.8785 test_auc=0.9360 test_logloss=0.2924 (0.9s)
+[lightgbm] magic split 2: test_acc=0.8804 test_auc=0.9359 test_logloss=0.2912 (25.2s)
+[catboost] magic split 2: test_acc=0.8817 test_auc=0.9362 test_logloss=0.2905 (4.5s)
+[xgboost] magic split 3: test_acc=0.8891 test_auc=0.9492 test_logloss=0.2632 (6.0s)
+[lightgbm] magic split 3: test_acc=0.8843 test_auc=0.9470 test_logloss=0.2685 (8.4s)
+[catboost] magic split 3: test_acc=0.8912 test_auc=0.9492 test_logloss=0.2629 (5.2s)
+[xgboost] magic split 4: test_acc=0.8833 test_auc=0.9378 test_logloss=0.2853 (8.6s)
+[lightgbm] magic split 4: test_acc=0.8833 test_auc=0.9388 test_logloss=0.2845 (16.1s)
+[catboost] magic split 4: test_acc=0.8896 test_auc=0.9416 test_logloss=0.2770 (6.9s)
+[xgboost] magic split 5: test_acc=0.8825 test_auc=0.9401 test_logloss=0.2808 (14.9s)
+[lightgbm] magic split 5: test_acc=0.8854 test_auc=0.9407 test_logloss=0.2790 (1.7s)
+[catboost] magic split 5: test_acc=0.8851 test_auc=0.9410 test_logloss=0.2770 (5.1s)
+[maptree] magic split 1: test_acc=0.8091 test_auc=0.8539 test_logloss=0.4309 (328.3s)
+[maptree] magic split 2: test_acc=0.8065 test_auc=0.8439 test_logloss=0.4394 (328.1s)
+[maptree] magic split 3: test_acc=0.8028 test_auc=0.8512 test_logloss=0.4282 (328.2s)
+[maptree] magic split 4: test_acc=0.7992 test_auc=0.8492 test_logloss=0.4302 (328.1s)
+[maptree] magic split 5: test_acc=0.7984 test_auc=0.8472 test_logloss=0.4348 (328.1s)
+None of the particles can be grown any further; breaking out
+[bcart_smc] magic split 1: test_acc=0.8523 test_auc=0.9001 test_logloss=0.3638 (737.8s)
+None of the particles can be grown any further; breaking out
+[bcart_smc] magic split 2: test_acc=0.8402 test_auc=0.8870 test_logloss=0.3845 (763.1s)
+None of the particles can be grown any further; breaking out
+[bcart_smc] magic split 3: test_acc=0.8520 test_auc=0.9044 test_logloss=0.3547 (772.6s)
+None of the particles can be grown any further; breaking out
+[bcart_smc] magic split 4: test_acc=0.8438 test_auc=0.9001 test_logloss=0.3671 (758.2s)
+None of the particles can be grown any further; breaking out
+[bcart_smc] magic split 5: test_acc=0.8438 test_auc=0.8944 test_logloss=0.3708 (783.3s)
+task 0 DONE at Sat Aug 15 15:44:45 EDT 2026

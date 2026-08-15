@@ -1,0 +1,20 @@
+{
+  "method": "catboost_d3",
+  "dataset": "magic",
+  "split": 2,
+  "seed": 2,
+  "train_acc": 0.916403785488959,
+  "train_f1": 0.8737594283445812,
+  "train_auc": 0.9669668511322753,
+  "train_logloss": 0.21993224309601378,
+  "test_acc": 0.8803890641430073,
+  "test_f1": 0.8177813376051262,
+  "test_auc": 0.9337289074613547,
+  "test_logloss": 0.2940074020632827,
+  "params": {
+    "depth": 3,
+    "iterations": 1828
+  },
+  "runtime_s": 5.65,
+  "timestamp": "2026-08-15 15:36:13"
+}

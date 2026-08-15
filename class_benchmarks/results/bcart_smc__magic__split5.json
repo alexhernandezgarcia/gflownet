@@ -1,0 +1,25 @@
+{
+  "method": "bcart_smc",
+  "dataset": "magic",
+  "split": 5,
+  "seed": 5,
+  "train_acc": 0.862776025236593,
+  "train_f1": 0.7899396378269617,
+  "train_auc": 0.9092554908673419,
+  "train_logloss": 0.3431414387638749,
+  "test_acc": 0.8438485804416404,
+  "test_f1": 0.7629688747007183,
+  "test_auc": 0.8944084996914692,
+  "test_logloss": 0.37077800605055433,
+  "params": {
+    "thresholds_per_feature": 9,
+    "n_binary_features": 90,
+    "alpha_split": 0.95,
+    "beta_split": 0.5,
+    "rho": 2.5,
+    "particles": 1000,
+    "log_marginal_estimate": -5843.5490420075275
+  },
+  "runtime_s": 783.35,
+  "timestamp": "2026-08-15 15:44:44"
+}

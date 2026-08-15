@@ -1,0 +1,29 @@
+{
+  "method": "maptree",
+  "dataset": "magic",
+  "split": 3,
+  "seed": 3,
+  "train_acc": 0.8027733964248159,
+  "train_f1": 0.6445576216984484,
+  "train_auc": 0.8475928564256363,
+  "train_logloss": 0.43219692669683646,
+  "test_acc": 0.8028391167192429,
+  "test_f1": 0.6452223273415326,
+  "test_auc": 0.8512413062796028,
+  "test_logloss": 0.4281886323756099,
+  "params": {
+    "thresholds_per_feature": 9,
+    "n_binary_features": 90,
+    "alpha_split": 0.95,
+    "beta_split": 0.5,
+    "rho": 2.5,
+    "time_limit_s": 300,
+    "timeout": true,
+    "lower_bound": 148.22511630139942,
+    "upper_bound": 6670.057987818761,
+    "tree_size": 19,
+    "tree_depth": 5
+  },
+  "runtime_s": 328.16,
+  "timestamp": "2026-08-15 14:28:35"
+}

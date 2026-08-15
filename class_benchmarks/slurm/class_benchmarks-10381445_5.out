@@ -1,0 +1,8 @@
+==========================================================
+[10381445/5] class benchmarks on magic
+Node: cn-c003.server.mila.quebec | started: Sat Aug 15 14:07:16 EDT 2026
+==========================================================
+[=== Module python/3.10 loaded ===]
+[bcart_mcmc] magic split 5: test_acc=0.8436 test_auc=0.8980 test_logloss=0.3653 (2799.4s)
+[bcart_map] magic split 5: test_acc=0.8354 test_auc=0.8938 test_logloss=0.3746 (2799.4s)
+task 5 DONE at Sat Aug 15 14:54:05 EDT 2026

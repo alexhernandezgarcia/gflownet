@@ -1,0 +1,30 @@
+{
+  "method": "bcart_map",
+  "dataset": "magic",
+  "split": 1,
+  "seed": 1,
+  "train_acc": 0.8550867507886435,
+  "train_f1": 0.7676256718305406,
+  "train_auc": 0.9001910270522194,
+  "train_logloss": 0.3582714367675659,
+  "test_acc": 0.8548895899053628,
+  "test_f1": 0.77,
+  "test_auc": 0.8986038221456047,
+  "test_logloss": 0.3619294431624008,
+  "params": {
+    "thresholds_per_feature": 9,
+    "n_binary_features": 90,
+    "alpha_split": 0.95,
+    "beta_split": 0.5,
+    "rho": 2.5,
+    "iterations": 50000,
+    "burn_in": 25000,
+    "thin": 125,
+    "n_samples": 200,
+    "best_log_posterior": -6272.011762300761,
+    "tree_size": 219,
+    "tree_depth": 15
+  },
+  "runtime_s": 3088.81,
+  "timestamp": "2026-08-15 14:58:54"
+}

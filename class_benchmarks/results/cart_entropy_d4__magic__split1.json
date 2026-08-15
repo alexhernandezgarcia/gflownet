@@ -1,0 +1,22 @@
+{
+  "method": "cart_entropy_d4",
+  "dataset": "magic",
+  "split": 1,
+  "seed": 1,
+  "train_acc": 0.8224894847528917,
+  "train_f1": 0.6971633591209777,
+  "train_auc": 0.8594452106829648,
+  "train_logloss": 0.4140177635344658,
+  "test_acc": 0.8220294426919033,
+  "test_f1": 0.6981720909496211,
+  "test_auc": 0.8560927871670565,
+  "test_logloss": 0.4189163248909201,
+  "params": {
+    "criterion": "entropy",
+    "max_depth": 4,
+    "rho": 2.5,
+    "n_leaves": 15
+  },
+  "runtime_s": 0.1,
+  "timestamp": "2026-08-15 16:05:34"
+}
