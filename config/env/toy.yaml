@@ -19,3 +19,4 @@ connections:
   10: [-1]
 
 action_space_only_valid: True
+infeasible_states: []
