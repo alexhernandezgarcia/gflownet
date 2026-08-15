@@ -20,4 +20,6 @@ gflownet-env/
 .claude/
 wandb/
 dt-gfn/
-.claude/class_benchmarks/slurm/
+.claude/
+class_benchmarks/slurm/
+class_benchmarks/results
