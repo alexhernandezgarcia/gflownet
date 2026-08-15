@@ -2,9 +2,9 @@
 #SBATCH --job-name=cls_tree_gpu
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=24G
-#SBATCH --gres=gpu:1
-#SBATCH --time=12:00:00
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:l40s:1
+#SBATCH --time=18:00:00
 #SBATCH --partition=long
 #SBATCH --array=1-5
 #SBATCH --requeue
@@ -14,8 +14,9 @@
 # =============================================================================
 #
 # Differences to the CPU script:
-#   * Slurm asks for a GPU (--gres=gpu:1) on the GPU "long" partition instead
-#     of long-cpu.
+#   * Slurm asks for a GPU (--gres=gpu:l40s:1) on the GPU "long" partition
+#     instead of long-cpu. See "GPU memory" below for why the type is pinned;
+#     override it per launch with e.g. `sbatch --gres=gpu:a100l:1 ...`.
 #   * VENV defaults to the CUDA-enabled environment (gflownet-env-gpu); the
 #     CPU venv has a +cpu torch build that cannot see a GPU.
 #   * DEVICE (default: cuda) is appended to the hydra overrides. Since the
@@ -25,6 +26,24 @@
 #   * The job aborts early if torch cannot see a CUDA device, because the code
 #     would otherwise fall back to CPU silently (see utils/common.py
 #     set_device) and burn a GPU allocation on a CPU run.
+#
+# GPU memory
+# ----------
+# The losses backpropagate through *every state of every trajectory in the
+# batch* in a single policy call (see compute_logprobs_trajectories in
+# gflownet/utils/batch.py), once for the forward policy and once for the
+# backward one. So activation memory scales with
+#
+#     sum of trajectory lengths in the batch  x  seq_len  x  d_model x n_layers
+#
+# and trajectory lengths *grow during training* as the sampler learns to build
+# bigger trees. For max_depth=5 (max_nodes=31, so 32 tokens per state) with the
+# default d_model=128 / n_layers=3 and 100 trajectories per batch, the worst
+# case is ~15k states x ~1.8 MB ~= 28 GB, which does not fit on a 32 GB V100:
+# that is why --gres asks for an l40s (48 GB) rather than a bare gpu:1. For a
+# 32 GB card, halve gflownet.optimizer.batch_size instead. Raising max_depth to
+# 6 doubles both the state count and the sequence length (~4x the memory), so
+# it needs an 80 GB card (a100l / h100) or a smaller batch.
 #
 # Everything else (run layout, LAUNCH records, resume, evaluation) is
 # identical -- see run_classification_tree_training.sh for the full docs.
@@ -123,6 +142,14 @@ fi
 # Keep torch's intra-op threading within our allocation.
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+
+# Trajectory lengths -- and therefore the size of every activation tensor --
+# change from iteration to iteration, so the caching allocator accumulates
+# unusable blocks of the wrong size and OOMs with GBs still "reserved but
+# unallocated". Expandable segments let it resize a segment instead.
+# This is an env var, not a config value: it does not enter the config hash,
+# so adding it does not invalidate existing run directories.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Be patient with wandb init on busy nodes.
 export WANDB_INIT_TIMEOUT=300
