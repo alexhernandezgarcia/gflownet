@@ -2557,7 +2557,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
-                False, True, False, # MASK
+                False, False, True, # MASK
                 False, False, False, False, False # PAD
             ]
             # fmt: on
@@ -2664,7 +2664,7 @@ def test__step_backwards__eos_action_valid_if_all_subenvs_are_done(
             # fmt: off
             [
                 True, # ACTIVE UNIQUE ENV
-                True, False, False, # MASK GRID
+                False, True, False, # MASK GRID
             ]
             # fmt: on
         ),
@@ -3195,7 +3195,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
-                False, False, True, # MASK
+                True, False, False, # MASK
                 False, False, False, False, False # PAD
             ]
             # fmt: on
@@ -3254,7 +3254,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 True, # ACTIVE UNIQUE ENV
-                True, True, False, # MASK GRID
+                False, True, True, # MASK GRID
             ]
             # fmt: on
         ),
@@ -3273,7 +3273,7 @@ def test__get_mask_invalid_actions_forward__returns_expected(
             # fmt: off
             [
                 True, # ACTIVE UNIQUE ENV
-                True, True, False, # MASK GRID
+                False, True, True, # MASK GRID
             ]
             # fmt: on
         ),
@@ -3614,7 +3614,7 @@ def test__get_mask_invalid_actions_forward__all_subenvs_done(
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
-                True, True, False, # MASK
+                False, True, True, # MASK
                 False, False, False, False, False # PAD
             ]
             # fmt: on
