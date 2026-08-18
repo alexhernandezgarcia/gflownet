@@ -1,0 +1,79 @@
+# @package _global_
+
+defaults:
+   - override /env: sequences/smiles
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: seh_proxy
+   - override /logger: wandb
+
+# Environment
+env:
+  min_length: 1
+  max_length: 30
+  pad_token: "<unk>"
+proxy:
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: 0.1
+    alpha: 1.0
+# Buffer
+buffer:
+  replay_capacity: 500
+  check_diversity: True
+  test:
+    path : ${user.data.root}/test_sequence_smiles_seh_scores.pkl
+    type : "pkl"
+  train:
+    path : ${user.data.root}/train_sequence_smiles_seh_scores.pkl
+    type : "pkl"
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 500
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "smiles"
+  run_name: "Smiles seh exponential"
+  tags: 
+    - gflownet
+    - smiles
+    - seh
+    - exponential
+    - beta=0.1
+    - train_buffer
+    - test_buffer
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 1000
+  n: 5000
+  checkpoints_period: 500
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/sequence/smiles/seh/${now:%Y-%m-%d_%H-%M-%S_%f}

@@ -1,0 +1,10 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.sequences.smiles.Smiles
+
+id: smiles
+# Min and max length
+min_length: 1
+max_length: 30
+pad_token: "<unk>"
