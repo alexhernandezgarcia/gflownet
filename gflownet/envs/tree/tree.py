@@ -1809,7 +1809,7 @@ class Tree(CompositeBase):
         return policy_outputs[:, -self.n_meta_actions :]
 
     # =========================================================================
-    # TODO: Batch sampling and log-probabilities
+    # Batch sampling and log-probabilities
     # =========================================================================
 
     def sample_actions_batch(
@@ -1824,33 +1824,39 @@ class Tree(CompositeBase):
         """
         Samples a batch of actions from policy outputs with n_states = batch size.
 
-        Routes each state to either meta-action sampling (categorical over
-        toggles + EOS) or node env sampling (delegated to node_env).
+        Routes each state to either meta-action sampling (toggles or EOS) or node
+        env sampling (delegated to node_env).
+
+        With policy output: [node_env_policy_output | meta_action_logits]
+        And mask: [META SECTION | NODE SECTION]
+        TODO: Put mask and policy output in same order (meta, node) and adapt code
+        accordingly
         """
         n_states = policy_outputs.shape[0]
 
-        # Determine mode: building iff node section has any valid (False) entry
+        # Step 1: Determine mode -> building iff node section has any valid (False) entry
         is_building = ~mask[:, self.n_meta_actions :].all(
             dim=1
         )  # is_building has shape [n_states]
         actions = [None] * n_states
 
-        # Building-mode states: delegate to node env
+        # Step 2a: Building-mode states -> delegate to node env
         building_idx = torch.where(is_building)[0]
         if len(building_idx) > 0:
-            building_po = self._get_policy_outputs_of_env_unique(  # Shape [n_building, node_env.policy_output_dim]
-                policy_outputs[building_idx], 0  # Shape [n_building, policy_output_dim]
+            building_po = self._get_policy_outputs_of_env_unique(  # building_po shape is [n_building, node_env.policy_output_dim]
+                policy_outputs[building_idx],
+                0,  # policy_outputs[building_idx] shape is [n_building, policy_output_dim]
             )
             subenv_masks = self._unformat_mask_building(mask[building_idx])
 
             substates = []
             for i in building_idx.tolist():
+                # extract each states active substate
                 active = states_from[i]["_active"]
-                substates.append(
-                    states_from[i][active]
-                )  # extract each states active substate
+                substates.append(states_from[i][active])
 
-            subenv_actions = self.node_env.sample_actions_batch(  # Pass to subenv, which returns subenv actions
+            # Pass to subenv, which returns subenv actions
+            subenv_actions = self.node_env.sample_actions_batch(
                 building_po,
                 subenv_masks,
                 substates,
@@ -1858,39 +1864,38 @@ class Tree(CompositeBase):
                 random_action_prob,
                 temperature_logits,
             )
-            for j, i in enumerate(building_idx.tolist()):
-                actions[i] = self._pad_action(
-                    subenv_actions[j], 0
-                )  # fill in subenv part of actions list
 
-        # Meta-action states: categorical sampling
+            # fill in subenv part of actions list
+            for j, i in enumerate(building_idx.tolist()):
+                actions[i] = self._pad_action(subenv_actions[j], 0)
+
+        # Step 2b: Meta-action states
         meta_idx = torch.where(~is_building)[0]  # Meta mode if it is not building
         if len(meta_idx) > 0:
             meta_mask = self._unformat_mask_meta(mask[meta_idx])  # Get masks
 
             # States where no meta-action is valid (e.g. the tree is already done)
-            # cannot be sampled from: softmax over an all -inf logits vector yields
-            # NaNs and crashes multinomial. For these, return a dummy EOS action;
-            # step() / step_backwards() will reject it as invalid (valid=False), so
-            # the caller sees the same behavior as the node env when called on a
-            # completed state.
+            # cannot be sampled from, because softmax over an all -inf logits vector.
+            # Instead return a dummy EOS action which will then be rejected as invalid by
+            # step() / step_backwards().
             all_invalid = meta_mask.all(
                 dim=1
             )  # True if there is no valid action remaining (tree is done)
             for j in torch.where(all_invalid)[0].tolist():
                 actions[meta_idx[j].item()] = (
-                    self.eos
-                )  # Dummy EOS action that will have no impact in step
+                    self.eos  # Dummy EOS action that will have no impact in step
+                )
 
-            sample_idx = meta_idx[
-                ~all_invalid
-            ]  # States where there are possible meta actions to perform
+            # States where there are possible meta actions to perform
+            sample_idx = meta_idx[~all_invalid]
             if len(sample_idx) > 0:
                 meta_po = self._get_policy_outputs_for_meta(policy_outputs[sample_idx])
                 meta_mask = meta_mask[~all_invalid]
 
+                # Set all invalid actions to -inf, mask = True for actions
+                # that are invalid and therefore have to be masked
                 logits = meta_po.clone()
-                logits[meta_mask] = -float("inf")  # Set all invalid actions to -inf
+                logits[meta_mask] = -float("inf")
                 logits = logits / temperature_logits
 
                 # Random action injection
@@ -1906,6 +1911,7 @@ class Tree(CompositeBase):
                         .bool()
                         .to(self.device)
                     )
+                    # If do random action, replace logits by uniform values and again mask invalide actions
                     if do_random.any():
                         uniform = torch.zeros_like(logits[do_random])
                         uniform[meta_mask[do_random]] = -float("inf")
