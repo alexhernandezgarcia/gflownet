@@ -2,8 +2,8 @@
 #SBATCH --job-name=cls_tree
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=32G
-#SBATCH --time=24:00:00
+#SBATCH --mem=24G
+#SBATCH --time=10:00:00
 #SBATCH --partition=long-cpu,long-cpu-eek
 #SBATCH --array=1-5
 #SBATCH --requeue

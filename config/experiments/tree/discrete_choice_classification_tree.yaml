@@ -17,7 +17,7 @@ env:
   node_type: discrete_choice
   node_kwargs:
     features: # If feature names and a dataset are provided, the provided feature names will overwrite the dataset ones
-    n_thresholds: 19
+    n_thresholds: 99
     cell_min: 0.0
     cell_max: 1.0
 
