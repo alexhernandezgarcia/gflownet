@@ -9,7 +9,7 @@ load exactly the same split CSVs as gflownet.envs.tree.tree.Tree._load_dataset
 class label) and report test accuracy / F1 / AUC / log-loss.
 
 Each run writes one JSON file to the results directory (default:
-class_benchmarks/results next to this file), named
+class_baselines/results next to this file), named
 "<method>__<dataset>__split<i>.json". Aggregate them with print_results.py.
 """
 

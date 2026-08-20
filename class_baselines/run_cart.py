@@ -12,7 +12,7 @@ pure leaves. The random forest averages the unsmoothed per-tree leaf
 frequencies (sklearn predict_proba).
 
 Usage (from the repo root, venv active):
-    python class_benchmarks/run_cart.py [--datasets magic] [--splits 1 2 ...]
+    python class_baselines/run_cart.py [--datasets magic] [--splits 1 2 ...]
                                          [--max-depth 5]
 """
 

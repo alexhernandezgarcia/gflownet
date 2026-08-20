@@ -2,7 +2,7 @@
 Bayesian classification tree (BCART, Chipman et al. 1998) benchmarks on
 quantile-binarized features, sampled with the tree_smc code of
 Lakshminarayanan et al. (2013) as adapted in the MAPTree repository
-(vendored in class_benchmarks/tree_smc).
+(vendored in class_baselines/tree_smc).
 
 Methods:
   - bcart_mcmc: posterior predictive averaged over trees sampled by
@@ -21,7 +21,7 @@ and a Beta(rho, rho) prior on the leaf label probabilities (all predictions
 are smoothed leaf posterior means).
 
 Usage (from the repo root, venv active):
-    python class_benchmarks/run_bcart.py [--methods mcmc smc] [--splits 1 2 ...]
+    python class_baselines/run_bcart.py [--methods mcmc smc] [--splits 1 2 ...]
                                           [--iterations 50000] [--particles 1000]
 """
 
