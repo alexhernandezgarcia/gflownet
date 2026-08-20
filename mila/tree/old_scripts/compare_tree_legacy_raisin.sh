@@ -1,0 +1,67 @@
+#!/bin/bash
+#SBATCH --job-name=treeclass_raisin
+#SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%A_%a.out
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=3:00:00
+#SBATCH --partition=long-cpu,long-cpu-eek
+#SBATCH --array=1-5
+
+# Composite-Tree runs matched to the legacy dt-gfn LEGACYCODE_NOLEAK_* runs
+# (wandb alex-hg/dtgfn), one array task per dataset split 1-5.
+#
+# Same setup as compare_tree_legacy_iris.sh / _wine.sh (config:
+# config/experiments/tree/compare_tree_class_to_legacy_code.yaml; env.max_depth=4
+# == legacy max_depth 5; reward beta=1.0 = untempered posterior).
+#
+# Numerics note: with beta=1.0 the linear rewards are exp(log-posterior), and
+# on raisin (N_train=720, best log-posterior ~-250) EVERY tree sits far
+# below the float32 exp() underflow floor (~-103 nats), which zeroed all
+# buffer rewards and NaN'ed the weighted replay sampling (first submission,
+# job 10181990, all tasks FAILED at iteration ~1). Handled by
+# buffer.store_log_rewards=True in the experiment config, which keeps the
+# replay buffer in log space. Do NOT pass float_precision=64 instead: the
+# composite env mixes dtypes and crashes in get_logprobs (that was the actual
+# failure of job 10181990).
+#
+# Usage:
+#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/sbatch/compare_tree_legacy_raisin.sh
+# Rerun a single split, e.g. split 3:
+#   sbatch --array=3 mila/sbatch/compare_tree_legacy_raisin.sh
+#
+# No --requeue: a preemption restart would open a duplicate wandb run under
+# the same name. If a task dies, resubmit it.
+
+set -u
+
+split=$SLURM_ARRAY_TASK_ID
+REPO="/home/mila/a/arnit/gflownet"
+VENV="$HOME/scratch/venvs/gflownet-env"
+WORK_DIR="${WORK_DIR:-$SCRATCH/gflownet-logs/treeclass_compare}"
+
+run_name="TREECLASS_raisin${split}_depth6_steps1000"
+csv_path="$REPO/tests/data/tree/raisin/raisin_${split}.csv"
+
+module load python/3.10
+source "$VENV/bin/activate"
+cd "$REPO"
+
+# Keep torch's intra-op threading within our allocation.
+export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+
+# Be patient with wandb init on busy nodes.
+export WANDB_INIT_TIMEOUT=300
+export WANDB__SERVICE_WAIT=300
+
+python train.py +experiments=tree/compare_tree_class_to_legacy_code \
+    env.data_path="$csv_path" \
+    seed=0 \
+    logger.run_name="$run_name" \
+    logger.run_name_date=False \
+    hydra.run.dir="$WORK_DIR/$run_name" \
+    hydra.job.chdir=True
+
+status=$?
+echo "$run_name finished with exit code $status"
+exit $status

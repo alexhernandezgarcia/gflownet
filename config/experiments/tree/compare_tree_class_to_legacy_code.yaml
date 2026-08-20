@@ -1,0 +1,181 @@
+# @package _global_
+#
+# Comparison config: composite Tree env vs legacy dt-gfn runs
+# (LEGACYCODE_NOLEAK_* on wandb alex-hg/dtgfn).
+#
+# Mirrors the legacy command
+#   python main.py -m +experiments=tree_acc SAVE=True env.dataset=iris
+#     env.n_classes=3 'env.prior=[0.1,0.1,0.1]' env.max_depth=5
+#     env.n_thresholds=9 n_samples=1000 env.buffer.replay_capacity=100
+#     gflownet.optimizer.n_train_steps=100 env.split_seed=1,2,3,4,5
+# as closely as the composite env allows. The dataset split is selected on the
+# CLI via env.data_path=tests/data/tree/iris/iris_<split>.csv.
+#
+# Legacy -> new mapping of the two settings whose values differ on purpose:
+# - env.max_depth: legacy 5 == new 4. The legacy env counts tree levels
+#   including the explicit classifier-leaf level (splits only at depths 0-3,
+#   tree_acc.py:1472-1474); the composite env counts split levels (splits at
+#   depths 0..max_depth-1, implicit leaves one level below). max_depth=4 spans
+#   the same space of trees as legacy max_depth=5.
+# - reward beta: legacy (reward_func=dummy + logreward=False) trains on the
+#   untempered posterior: the TB log-reward is the raw log-posterior. The
+#   exponential reward here gives log-reward = beta * log-posterior, so beta
+#   must be 1.0 -- NOT the 0.1 of classification_tree.yaml, which targets the
+#   tempered posterior^0.1 instead.
+#
+# Known, irreducible differences (kept intentionally): continuous thresholds
+# (Beta-mixture Cube) instead of the legacy 9-threshold grid; the single-leaf
+# tree is not a terminal state in the composite env; periodic eval fits leaf
+# Dirichlet parameters on train counts and ranks top-k by log-posterior.
+
+defaults:
+  - override /env: tree/tree
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: tree
+  - override /logger: wandb
+  - override /evaluator: tree
+
+device: cpu
+
+# Final sample set (legacy: n_samples=1000 with SAVE=True)
+n_samples: 1000
+
+# Environment
+env:
+  max_depth: 5
+  rescale_thresholds: True # continuous analogue of legacy mask_redundant_choices=True
+  data_path: null # set on the CLI: tests/data/tree/iris/iris_<split>.csv
+  node_kwargs:
+    features:
+    cube_kwargs:
+      n_comp: 3
+      beta_params_min: 1.0
+      beta_params_max: 100.0
+      min_incr: 0.1
+      fixed_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+      random_distr_params:
+        beta_weights: 1.0
+        beta_alpha: 10.0
+        beta_beta: 10.0
+        bernoulli_eos_prob: 0.1
+        bernoulli_bts_prob: 0.1
+
+# Proxy
+proxy:
+  # Same formula as the legacy use_prior=False branch:
+  # log_prior = -(log 4 + log n_features) * n_internal
+  prior_type: node_count
+  beta: 1.0 # coefficient of the "exponential" prior; unused with node_count
+  sigma: 0.95
+  phi: 2.0
+
+  # Legacy: proxy.alpha=Uniform, proxy.alpha_value=0.1, env.prior=[0.1,0.1,0.1]
+  alpha_type: uniform
+  alpha_value: 0.1
+
+  normalize_likelihood: False
+
+  # Untempered posterior to match the legacy dummy reward (see header).
+  # Numerics: the TB loss consumes log-rewards (beta * log-posterior) and never
+  # under/overflows. Linear rewards exp(log-posterior) would underflow to 0.0
+  # for log-posteriors below ~-103 nats (float32), which every bundled dataset
+  # except iris hits already in the first random batch -- this used to zero all
+  # replay buffer rewards and NaN the weighted sampling probabilities (jobs
+  # 10181934/89/90, 2026-07-23). Handled by buffer.store_log_rewards=True
+  # below, which keeps the replay buffer in log space. Do NOT set
+  # float_precision=64 as a workaround: the composite env mixes dtypes and
+  # crashes in get_logprobs.
+  reward_function: exponential
+  reward_function_kwargs:
+    beta: 1.0
+    alpha: 1.0
+  reward_min: 0.0
+  do_clip_rewards: False
+
+# Buffer (legacy: env.buffer.replay_capacity=100)
+buffer:
+  replay_capacity: 100
+  # Keep the replay buffer in log space: with beta=1.0 the linear rewards
+  # exp(log-posterior) underflow to 0.0 on all bundled datasets except iris
+  # (see the numerics note in the proxy section).
+  store_log_rewards: True
+  train: null
+  test: null
+
+# GFlowNet hyperparameters (all values as in the legacy wandb config)
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 90
+      backward_replay: 10
+      backward_dataset: 0
+    lr: 0.01
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 1000
+    lr_decay_period: 1000 # legacy value (no effect within 100 steps)
+    lr_decay_gamma: 0.5
+  replay_sampling: weighted
+  train_sampling: permutation
+
+# Policy (legacy: shared MLP config 256x3, separate backward weights)
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+
+# Evaluator (legacy: logger.test.period=100, first_it=True,
+# logger.checkpoints.period=1000)
+evaluator:
+  first_it: True
+  period: 100
+  checkpoints_period: 100
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+  tree_test:
+    n_samples: 1000 # legacy periodic test used 500 trees (logger.test.n); 1000
+    # matches the legacy final eval / n_samples instead
+    top_k_trees: 10
+    alpha_value: 0.1 # legacy env.prior=[0.1,0.1,0.1]
+    plot_top_k: True
+    seed: null
+
+# WandB: same entity/project as the legacy LEGACYCODE_NOLEAK_* runs
+logger:
+  lightweight: True
+  run_name: null # set on the CLI: TREECLASS_iris<split>_depth5_steps100
+  project_name: "dt-gfn_classification"
+  entity: alex-hg
+  tags:
+    - gflownet
+    - tree
+    - legacy-comparison
+  do:
+    online: True
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/tree/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}
+
+# Profiling
+profile: false
+profile_sort: cumtime
+profile_n_rows: 20

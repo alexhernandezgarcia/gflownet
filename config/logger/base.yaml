@@ -10,6 +10,12 @@ project_name: "GFlowNet"
 logdir:
   root: ./logs
   ckpts: ckpts
+  # Number of most recent intermediate checkpoints (iter_<step>.ckpt) to keep.
+  # Older ones are deleted every time a new checkpoint is written. Set to null to
+  # keep all of them. The final checkpoint (final.ckpt) is always kept.
+  keep_n_ckpts: 3
+  # Iterations whose checkpoint is kept regardless of keep_n_ckpts, if it exists.
+  keep_ckpts_at: [100, 500, 1000]
   overwrite: True
 debug: False
 lightweight: False

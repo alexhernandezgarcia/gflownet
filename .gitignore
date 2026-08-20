@@ -18,4 +18,8 @@ docs/_build/
 logs
 gflownet-env/
 .claude/
+wandb/
 dt-gfn/
+.claude/
+class_baselines/slurm
+class_baselines/results
