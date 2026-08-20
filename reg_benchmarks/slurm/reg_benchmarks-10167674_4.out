@@ -1,7 +1,0 @@
-==========================================================
-[10167674/4] bart benchmarks on concrete
-Node: cn-a011.server.mila.quebec | started: Tue Jul 21 17:04:59 EDT 2026
-==========================================================
-[=== Module python/3.10 loaded ===]
-python: can't open file '/home/mila/a/arnit/gflownet/reg_benchmarks/run_bart.py': [Errno 2] No such file or directory
-bart benchmarks on concrete FAIL (last error code 2, see above)

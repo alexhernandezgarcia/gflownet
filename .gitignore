@@ -23,3 +23,5 @@ dt-gfn/
 .claude/
 class_benchmarks/slurm/
 class_benchmarks/results/
+reg_benchmarks/results
+reg_benchmarks/slurm
