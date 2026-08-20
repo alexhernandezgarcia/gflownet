@@ -11,7 +11,7 @@ before the search proves optimality, the best tree found so far is used
 (params record the remaining lower/upper bound gap).
 
 Usage (from the repo root, venv active):
-    python class_benchmarks/run_maptree.py [--splits 1 2 ...] [--time-limit 300]
+    python class_baselines/run_maptree.py [--splits 1 2 ...] [--time-limit 300]
 """
 
 import sys

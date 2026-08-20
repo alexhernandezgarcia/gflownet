@@ -11,7 +11,7 @@ train split; the model is then refit on the full train split with the
 selected number of rounds. Predictions are P(y=1).
 
 Usage (from the repo root, venv active):
-    python class_benchmarks/run_gbt.py [--datasets magic] [--splits 1 2 ...]
+    python class_baselines/run_gbt.py [--datasets magic] [--splits 1 2 ...]
                                         [--max-depth 5]
 """
 
