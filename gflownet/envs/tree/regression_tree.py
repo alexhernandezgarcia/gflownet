@@ -365,9 +365,11 @@ class RegressionTree(Tree):
                     except Exception:
                         fig = None
                     if fig is not None:
-                        figs[
-                            f"top_{rank + 1}_tree_rmse_{per_tree_rmse[int(idx)]:.4f}"
-                        ] = fig
+                        # Report the train RMSE in the original target units
+                        # (per_tree_rmse is computed on the standardized
+                        # targets), consistent with the logged metrics.
+                        rmse_orig = per_tree_rmse[int(idx)] * self.y_std_
+                        figs[f"top_{rank + 1}_tree_rmse_{rmse_orig:.4f}"] = fig
 
         # Test split metrics
         if self.X_test is not None and self.y_test is not None:
