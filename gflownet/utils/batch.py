@@ -332,9 +332,16 @@ class Batch:
                         env.copy_state(self.parents[self.trajectories[env.id][1]])
                     )
                     self.done.append(env.done)
-                # Add backward logp for current action
-                self.logprobs_backward.append(logp)
-                self.logprobs_backward_avail.append(True if logp is not None else False)
+                # Add backward logp for current action, or a placeholder (2.0) if it
+                # was not provided (it will be recomputed at loss time)
+                if logp is not None:
+                    self.logprobs_backward.append(logp)
+                    self.logprobs_backward_avail.append(True)
+                else:
+                    self.logprobs_backward.append(
+                        tfloat(2.0, device=self.device, float_type=self.float)
+                    )
+                    self.logprobs_backward_avail.append(False)
                 # Add a placeholder (2.0) forward logp for transition into current state
                 self.logprobs_forward.append(
                     tfloat(2.0, device=self.device, float_type=self.float)
@@ -356,9 +363,16 @@ class Batch:
                     self.parents.append(
                         env.copy_state(self.states[self.trajectories[env.id][-2]])
                     )
-                # Add forward logp for current action
-                self.logprobs_forward.append(logp)
-                self.logprobs_forward_avail.append(True if logp is not None else False)
+                # Add forward logp for current action, or a placeholder (2.0) if it
+                # was not provided (it will be recomputed at loss time)
+                if logp is not None:
+                    self.logprobs_forward.append(logp)
+                    self.logprobs_forward_avail.append(True)
+                else:
+                    self.logprobs_forward.append(
+                        tfloat(2.0, device=self.device, float_type=self.float)
+                    )
+                    self.logprobs_forward_avail.append(False)
                 # Add backward logp for transition into current action
                 if env.done:
                     # If the trajectory is done, the backward logp is always 0.0
