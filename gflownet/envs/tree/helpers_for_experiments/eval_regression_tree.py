@@ -59,6 +59,14 @@ def main():
         help="Where to write the metrics JSON (default: <run_dir>/eval_results.json).",
     )
     parser.add_argument(
+        "--data_path",
+        type=Path,
+        default=None,
+        help="Override env.data_path from the stored config. Needed for run "
+        "directories copied from another cluster, where the absolute dataset "
+        "path baked into .hydra/config.yaml does not exist locally.",
+    )
+    parser.add_argument(
         "--top_k_trees",
         type=int,
         default=10,
@@ -82,6 +90,8 @@ def main():
             sys.exit(1)
 
     config = OmegaConf.load(config_path)
+    if args.data_path is not None:
+        config.env.data_path = str(args.data_path)
     print(f"Loading samples from {samples_path}")
     with open(samples_path, "rb") as f:
         states = pickle.load(f)["x"]
