@@ -166,3 +166,16 @@ hydra:
 profile: false
 profile_sort: cumtime
 profile_n_rows: 20
+# Optional regex to restrict the printed stats to matching function paths,
+# e.g. "gflownet" to only show functions from this package. The dumped
+# train.prof always contains the full, unfiltered stats.
+profile_filter: null
+# torch.profiler alternative (torch_profile=true): op-level view that sees
+# inside autograd's backward, which cProfile reports as one opaque call.
+# Records iterations [wait+2, wait+2+active); see train_with_torch_profiler.
+torch_profile: false
+torch_profile_wait: 10
+torch_profile_active: 5
+# Recording per-op input shapes multiplies profiler memory; needs generous
+# --mem and a short active window.
+torch_profile_shapes: false
