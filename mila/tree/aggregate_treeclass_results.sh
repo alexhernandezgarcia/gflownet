@@ -3,43 +3,54 @@
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%j.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=4:00:00
+#SBATCH --time=2:00:00
 #SBATCH --partition=long-cpu,long-cpu-eek
 
-# Aggregate composite-Tree (TREECLASS) evaluation results across dataset splits.
+# =============================================================================
+# Aggregate DT-GFN tree results (classification + regression) across splits.
+# =============================================================================
 #
-# Runs gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py over every finished run
-# under $WORK_DIR (identified by samples/gfn_samples.pkl), groups them by setup
-# (dataset, max_depth, n_train_steps, n_samples, alpha_value) and prints the
-# mean +/- std table across splits to this job's .out file.
+# Runs gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py:
+# collects every eval_results.json under $ROOT and/or the last logged values of
+# every run in the dt-gfn_classification / dt-gfn_regression wandb projects,
+# groups the runs by training configuration (full resolved config minus the
+# dataset split -- see the python script's docstring) and prints per dataset
+# one mean +/- std table per source to this job's .out file. Debug runs are
+# reported in a separate section. It computes nothing heavy (only JSON/YAML
+# reading and wandb API calls), so it can also be run directly:
 #
-# The first invocation recomputes metrics and caches them in metrics_cache.json
-# next to each gfn_samples.pkl (slow); reruns are near-instant. To force
-# recomputation, add --no-cache to the python call below.
+#   bash mila/tree/aggregate_treeclass_results.sh --source wandb --dataset iris
 #
-# A #!/bin/bash script file is used on purpose: `module` is not available under
-# `sbatch --wrap` (that runs /bin/sh), which is why the wrap one-liner failed.
+# Usage via sbatch:
+#   mkdir -p $SCRATCH/gflownet-logs/slurm
+#   sbatch mila/tree/aggregate_treeclass_results.sh
+#   sbatch --export=ALL,ROOT=$SCRATCH/gflownet-logs/TREECLASS_MAGIC \
+#          mila/tree/aggregate_treeclass_results.sh
+#   sbatch mila/tree/aggregate_treeclass_results.sh --source eval --diff-configs
 #
-# Usage:
-#   mkdir -p $SCRATCH/gflownet-logs/slurm && sbatch mila/tree/aggregate_treeclass_results.sh
+# Environment knobs (overridable via --export=ALL,VAR=value):
+#   ROOT   runs root (whole tree or one campaign folder)
+#          (default: $SCRATCH/gflownet-logs)
+# Any positional arguments are passed straight through to the python script
+# (--source, --dataset, --task, --diff-configs, --group-ignore, ...).
 
 set -u
 
 REPO="/home/mila/a/arnit/gflownet"
 VENV="$HOME/scratch/venvs/gflownet-env"
-WORK_DIR="${WORK_DIR:-$SCRATCH/gflownet-logs}"
+
+ROOT="${ROOT:-$SCRATCH/gflownet-logs}"
 
 module load python/3.10
 source "$VENV/bin/activate"
 cd "$REPO"
 
-# Keep torch's intra-op threading within our allocation.
-export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
-export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
+export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
+export MKL_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 
-# -u: unbuffered stdout so the per-run [INFO] lines and final table stream to
-# the .out file live instead of only flushing when the process exits.
-python -u gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py --logs-root "$WORK_DIR"
+# -u: unbuffered stdout so progress lines and tables stream to the .out live.
+python -u gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py \
+    "$ROOT" "$@"
 
 status=$?
 echo "aggregate_treeclass_results finished with exit code $status"
