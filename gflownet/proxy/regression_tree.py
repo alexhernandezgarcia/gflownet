@@ -40,12 +40,20 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
                    + alpha_0 log beta_0 - alpha_n log beta_n
                    + log Gamma(alpha_n) - log Gamma(alpha_0)
 
-    with the posterior parameters
+    The 2 in log(2 pi) comes from the different notation, because beta_n is 0.5 times
+    the value in the paper. So a factor alpha_n * log(2) needs to be added which is in part
+    absorbed by the log(beta_0) term and the left-over -n/2 * log(2) is put into the pi term.
+
+    with the posterior parameters (n + number of samples in a leaf)
 
         kappa_n = kappa_0 + n
         alpha_n = alpha_0 + n/2
         beta_n  = beta_0 + 1/2 sum_i (y_i - ybar)^2
                   + kappa_0 n (ybar - mu_0)^2 / (2 kappa_n).
+
+    Modern notation is used which translates the following way to the original paper (code -> paper):
+    kappa_0 -> a, kappa_n -> a + n_i (which here is n), alpha_0 -> v/2, alpha_n -> (n_i + v) / 2,
+    beta_0 -> v*lambda/2, ss -> s_i and self._kappa_0 * n * (ybar - self._mu_0) ** 2 / kappa_n -> t_i
 
     The total log-likelihood of a tree is the sum over its leaves, exactly
     mirroring the per-leaf factorization of the classification proxy.
