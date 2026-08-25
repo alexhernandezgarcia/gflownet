@@ -69,8 +69,8 @@ _RIGHT = 1
 
 # Values stored in state["_active"]: _ACTIVE_NONE if no sub-environment is active, _ACTIVE_LEFT if the
 # sub-environment at the left of the sequence is active, _ACTIVE_RIGHT if the one at the end is.
-_ACTIVE_LEFT = 0
-_ACTIVE_NONE = -1
+_ACTIVE_LEFT = -1
+_ACTIVE_NONE = 0
 _ACTIVE_RIGHT = 1
 
 
@@ -99,9 +99,7 @@ class Sequence(CompositeBase):
         - ``insert left`` for each type,
         - ``insert right`` for each type,
         - the global EOS,
-    for a total of ``3 * U + 1`` meta-actions. The dedicated ``insert first`` action
-    removes the only source of ambiguity in the backward direction (a single-element
-    sequence, where ``left`` and ``right`` would otherwise collapse to the same state).
+    for a total of ``2 * U + 1`` meta-actions refering to left/right and the terminal state
     No toggle actions are needed (unlike the Set environments): an insertion is itself
     the unique, reversible action that activates a sub-environment, and a
     sub-environment's EOS is the unique action that returns control to the sequence.
@@ -195,7 +193,7 @@ class Sequence(CompositeBase):
         self.max_elements = max_sequence_length
 
         # Number of meta-actions and dimensionality of the one-hot mask prefix
-        self.n_meta_actions = 3 * self.n_unique_envs + 1
+        self.n_meta_actions = 2 * self.n_unique_envs + 1
         self._prefix_dim = self.n_unique_envs
 
         # Action dimensionality: the longest sub-environment EOS plus 1 (for the prefix)
@@ -206,7 +204,7 @@ class Sequence(CompositeBase):
 
         # Source state: empty sequence
         self.source = {
-            "_active": -1,
+            "_active": _ACTIVE_NONE,
             "_dones": [],
             "_envs_unique": [],
             "_indices": [],
@@ -297,7 +295,7 @@ class Sequence(CompositeBase):
         """Returns the meta-action insert id for a direction and unique type.
         To keep the trajectory length short, meta-actions encode both the insert
         position (first, left or right) and the sub-env to be inserted. If there are
-        e.g. 2 sub-env types available, there are 7 meta-actions: 2x3 + EOS."""
+        e.g. 2 sub-env types available, there are 5 meta-actions: 2x2 + EOS."""
         return direction * self.n_unique_envs + idx_unique
 
     def _reverse_insert_id(self, state: Dict) -> int:
@@ -338,12 +336,14 @@ class Sequence(CompositeBase):
         """
         action_space = []
         # Insert meta-actions
+        # 2 in range(2 * self.n_unique_envs) is left/right
         action_space.extend(
             [
                 self._pad_action((insert_id,), -1)
-                for insert_id in range(3 * self.n_unique_envs)
+                for insert_id in range(2 * self.n_unique_envs)
             ]
         )
+
         # Global EOS
         action_space.append(self.eos)
         # Actions of each unique environment
@@ -432,14 +432,14 @@ class Sequence(CompositeBase):
         else:
             eos_ok = length >= 1 and sum(remaining.values()) == 0
         if eos_ok:
-            core[3 * U] = False  # Allow EOS which is at position n_meta_actions - 1
+            core[2 * U] = False  # Allow EOS which is at position n_meta_actions - 1
         return core
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[Dict] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
-        Forward mask. At a sequence-level state (``_active == -1``) the valid actions
+        Forward mask. At a sequence-level state (``_active == _ACTIVE_NONE ``) the valid actions
         are the insert meta-actions and possibly the global EOS. While a sub-environment
         is active, the valid actions are those of the active sub-environment.
         """
@@ -476,7 +476,7 @@ class Sequence(CompositeBase):
 
         if done:
             core = [True] * self.n_meta_actions
-            core[3 * U] = False  # only EOS valid
+            core[2 * U] = False  # only EOS valid
             return self._format_mask(core, -1)  # -1 is idx_unique of meta actions
 
         length = self._seq_length(state)
@@ -626,7 +626,7 @@ class Sequence(CompositeBase):
                 parent["_envs_unique"].pop()
                 parent["_dones"].pop()
                 parent["_indices"].remove(key)
-                parent["_active"] = -1
+                parent["_active"] = _ACTIVE_NONE
                 # after removing the recently active substate, we also get all the states that correspond to the parent
                 if not self.merge_states:
                     parents = [parent]
@@ -704,15 +704,13 @@ class Sequence(CompositeBase):
             self.state[key] = copy(new_subenv.source)
             if direction == _LEFT:
                 if len(self.state["_indices"]) == 0:
-
                     self.state["_indices"] = [key]
-                    self.state["_active"] = (
-                        _ACTIVE_LEFT  # TODO: Is it an issue that _ACTIVE_LEFT is used also for _LEFT
-                    )
                 else:
+                    # insert in the left
                     self.state["_indices"] = [key] + self.state["_indices"]
-                    self.state["_active"] = _ACTIVE_LEFT
+                self.state["_active"] = _ACTIVE_LEFT
             else:
+                # insert in the right
                 self.state["_indices"] = self.state["_indices"] + [key]
                 self.state["_active"] = _ACTIVE_RIGHT
             return self.state, action, True
@@ -1089,14 +1087,14 @@ class Sequence(CompositeBase):
             (n_states, 1),
         )
         device = substates.device
-
+        # active 3 refers to left/none/right
         active = torch.zeros((n_states, 3), dtype=self.float, device=device)
         remaining = torch.zeros((n_states, U), dtype=self.float, device=device)
         dones = torch.zeros((n_states, M), dtype=self.float, device=device)
         pos_type = torch.zeros((n_states, M * U), dtype=self.float, device=device)
 
         for i, state in enumerate(states):
-            # TODO: fix the formula
+            # _ACTIVE_LEFT = -1 _ACTIVE_NONE = 0 _ACTIVE_RIGHT = 1
             active[i, state["_active"] + 1] = 1.0
             rem = self._remaining_bag(state)
             if rem is not None:
@@ -1201,7 +1199,7 @@ class Sequence(CompositeBase):
         """Resets the environment to an empty sequence."""
         self.subenvs = []
         self.state = {
-            "_active": -1,
+            "_active": _ACTIVE_NONE,
             "_dones": [],
             "_envs_unique": [],
             "_indices": [],
@@ -1288,7 +1286,7 @@ class Sequence(CompositeBase):
         if "_active" not in state_x and "_active" not in state_y:
             # invalid state
             return False
-        if state_x["_active"] == -1 and state_y["_active"] != -1:
+        if state_x["_active"] == _ACTIVE_NONE and state_y["_active"] != _ACTIVE_NONE:
             return False
         if "_dones" not in state_x and "_dones" not in state_y:
             return False
