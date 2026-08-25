@@ -46,10 +46,10 @@ export WANDB_MODE="${WANDB_MODE:-offline}"
 export DATASET="${DATASET:-diabetes}"
 export SEED=0
 
-SPLITS="${SPLITS:-1 2 3 4 5}"
+SPLITS="${SPLITS:-1 2 3}"
 CORES_PER_NODE=192
 # The runs must be fast: give each one 8 cores (24 concurrent on the node).
-export CPUS_PER_RUN="${CPUS_PER_RUN:-8}"
+export CPUS_PER_RUN="${CPUS_PER_RUN:-12}"
 
 # --- The grid: "tag hydra-override [hydra-override ...]" per variant --------
 VARIANTS=(
