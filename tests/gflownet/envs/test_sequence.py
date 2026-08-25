@@ -20,9 +20,13 @@ _RIGHT = 1
 
 # Values stored in state["_active"]: _ACTIVE_NONE if no sub-environment is active, _ACTIVE_LEFT if the
 # sub-environment at the left of the sequence is active, _ACTIVE_RIGHT if the one at the end is.
-_ACTIVE_LEFT = 0
-_ACTIVE_NONE = -1
+_ACTIVE_LEFT = -1
+_ACTIVE_NONE = 0
 _ACTIVE_RIGHT = 1
+
+# _ACTIVE_LEFT = 0
+# _ACTIVE_NONE = -1
+# _ACTIVE_RIGHT = 1
 
 
 # --------------------------------------------------------------------------- #
@@ -153,7 +157,7 @@ def test__action_space_size_is_expected(env_fixture, n_unique, request):
     env = request.getfixturevalue(env_fixture)
     assert env.n_unique_envs == n_unique
     # 3 * U insert actions + 1 EOS + the actions of each unique env
-    n_meta = 3 * n_unique + 1
+    n_meta = 2 * n_unique + 1
     n_subenv_actions = sum(
         env_unique.action_space_dim for env_unique in env.envs_unique
     )
@@ -168,7 +172,7 @@ def test__source_is_empty_sequence(env_fixture, request):
     env = request.getfixturevalue(env_fixture)
     env.reset()
     assert env.is_source(env.state)
-    assert env.state["_active"] == -1
+    assert env.state["_active"] == _ACTIVE_NONE
     assert env.state["_envs_unique"] == []
     assert env.state["_indices"] == []
     parents, actions = env.get_parents()
@@ -196,7 +200,7 @@ def test__ccab_insertion_order_example():
 
     def complete_active():
         guard = 0
-        while env.state["_active"] != -1:
+        while env.state["_active"] != _ACTIVE_NONE:
             key = env._seq_length() - 1
             sub = env.subenvs[key]
             eos = env._pad_action(sub.eos, env.state["_envs_unique"][key])
@@ -213,7 +217,8 @@ def test__ccab_insertion_order_example():
         (_LEFT, tC),
         (_LEFT, tC),
     ]:  # first A, right B, left C, left C
-        _, _, valid = env.step(env._pad_action((env._insert_id(d, t),), -1))
+        action = env._pad_action((env._insert_id(d, t),), -1)
+        _, _, valid = env.step(action)
 
         assert valid
         complete_active()
@@ -261,7 +266,7 @@ def test__left_only_and_right_only_cannot_be_combined():
         (
             "env_grid_cube_5",
             {
-                "_active": 1,
+                "_active": _ACTIVE_RIGHT,
                 "_dones": [1, 1, 1, 0],
                 "_envs_unique": [1, 2, 2, 0],
                 "_indices": [0, 1, 2, 3],
@@ -272,7 +277,7 @@ def test__left_only_and_right_only_cannot_be_combined():
             },
             [
                 {
-                    "_active": -1,
+                    "_active": _ACTIVE_NONE,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [1, 2, 2],
                     "_indices": [0, 1, 2],
@@ -281,7 +286,7 @@ def test__left_only_and_right_only_cannot_be_combined():
                     2: [0, 0],
                 },
                 {
-                    "_active": -1,
+                    "_active": _ACTIVE_NONE,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [2, 1, 2],
                     "_indices": [1, 0, 2],
@@ -290,7 +295,7 @@ def test__left_only_and_right_only_cannot_be_combined():
                     2: [0, 0],
                 },
                 {
-                    "_active": -1,
+                    "_active": _ACTIVE_NONE,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [2, 2, 1],
                     "_indices": [2, 0, 1],
@@ -299,7 +304,7 @@ def test__left_only_and_right_only_cannot_be_combined():
                     2: [0.98, 0.94],
                 },
                 {
-                    "_active": -1,
+                    "_active": _ACTIVE_NONE,
                     "_dones": [1, 1, 1],
                     "_envs_unique": [2, 2, 1],
                     "_indices": [2, 1, 0],
@@ -318,7 +323,7 @@ def test__left_only_and_right_only_cannot_be_combined():
         (
             "env_grid",
             {
-                "_active": -1,
+                "_active": _ACTIVE_NONE,
                 "_dones": [1, 1, 1, 1],
                 "_envs_unique": [0, 0, 0, 0],
                 "_indices": [3, 2, 1, 0],
@@ -339,7 +344,7 @@ def test__left_only_and_right_only_cannot_be_combined():
                 #     3: [1, 1],
                 # },
                 {
-                    "_active": 0,
+                    "_active": _ACTIVE_LEFT,
                     "_dones": [1, 1, 1, 0],
                     "_envs_unique": [0, 0, 0, 0],
                     "_indices": [3, 2, 1, 0],
