@@ -575,10 +575,19 @@ class GFlowNetAgent:
         progress=False,
         collect_forwards_masks=False,
         collect_backwards_masks=False,
+        store_logprobs=False,
     ):
         """
         TODO: extend docstring.
         Builds a batch of data by sampling online and/or offline trajectories.
+
+        If store_logprobs is False (default), the policy is queried under
+        torch.no_grad() and no logprobs are stored in the batch: the logprobs needed
+        by the loss are recomputed there in a single batched forward pass (see
+        compute_logprobs_trajectories), which is much faster and lighter on memory
+        than keeping every per-step sampling forward in the autograd graph. If True,
+        the sampling-time logprobs are stored in the batch with their graph attached
+        (the old behavior; used by tests to verify both paths are equivalent).
         """
         # Obtain the necessary env instances (one per forward/train/replay trajectory)
         # WARNING : These instances must be reset before use.
@@ -610,12 +619,7 @@ class GFlowNetAgent:
         while envs:
             # Sample actions
             t0_a_envs = time.time()
-            # Sampling is done without building the autograd graph: the logprobs
-            # needed by the loss are recomputed there in a single batched forward
-            # pass (see compute_logprobs_trajectories), so storing graph-attached
-            # per-step logprobs here would keep every sampling forward alive in
-            # memory and make the backward pass traverse all of them.
-            with torch.no_grad():
+            with torch.set_grad_enabled(store_logprobs):
                 actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
                     batch_forward,
@@ -627,15 +631,13 @@ class GFlowNetAgent:
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions)
+            if not store_logprobs:
+                logprobs = [None] * len(actions)
+                logprobs_rev = [None] * len(actions)
             # Add to batch
             actions_torch = torch.tensor(actions)
             batch_forward.add_to_batch(
-                envs,
-                actions,
-                [None] * len(actions),
-                [None] * len(actions),
-                valids,
-                train=train,
+                envs, actions, logprobs, logprobs_rev, valids, train=train
             )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
@@ -664,8 +666,7 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            # No autograd graph, no stored logprobs: see the forward loop above.
-            with torch.no_grad():
+            with torch.set_grad_enabled(store_logprobs):
                 actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
                     batch_train,
@@ -678,12 +679,15 @@ class GFlowNetAgent:
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
+            if not store_logprobs:
+                logprobs = [None] * len(actions)
+                logprobs_rev = [None] * len(actions)
             # Add to batch
             batch_train.add_to_batch(
                 envs,
                 actions,
-                [None] * len(actions),
-                [None] * len(actions),
+                logprobs,
+                logprobs_rev,
                 valids,
                 backward=True,
                 train=train,
@@ -724,8 +728,7 @@ class GFlowNetAgent:
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
-            # No autograd graph, no stored logprobs: see the forward loop above.
-            with torch.no_grad():
+            with torch.set_grad_enabled(store_logprobs):
                 actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
                     batch_replay,
@@ -738,12 +741,15 @@ class GFlowNetAgent:
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
+            if not store_logprobs:
+                logprobs = [None] * len(actions)
+                logprobs_rev = [None] * len(actions)
             # Add to batch
             batch_replay.add_to_batch(
                 envs,
                 actions,
-                [None] * len(actions),
-                [None] * len(actions),
+                logprobs,
+                logprobs_rev,
                 valids,
                 backward=True,
                 train=train,

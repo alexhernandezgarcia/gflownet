@@ -77,6 +77,7 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
         n_replay=0,
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
+        store_logprobs=True,
     )
     # Create a copy with placeholder logprobs and unavailable logprobs
     batch_no_lp = copy(batch)
@@ -216,6 +217,7 @@ def test__logprobs_validity(
         n_replay=0,
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
+        store_logprobs=True,
     )
 
     logprobs_fw_from_batch, logprobs_fw_valid = batch.get_logprobs()
