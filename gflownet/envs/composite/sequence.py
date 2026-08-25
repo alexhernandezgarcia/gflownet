@@ -597,8 +597,10 @@ class Sequence(CompositeBase):
             if length == 0:
                 # Case 1a: Source state has no parent
                 return [], []
+
             # Case 1b: Only forward action that ends in meta state is EOS of the most
             # recently inserted sub-environment
+            # Correct this to include all actions
             key = length - 1  # most recently inserted sub-environment
             idx_unique = state["_envs_unique"][key]
             subenv = self._get_env_unique(idx_unique)
@@ -609,7 +611,10 @@ class Sequence(CompositeBase):
             parent["_dones"][
                 key
             ] = 0  # Re-active most recently inserted sub-environment
-            return [parent], [self._pad_action(subenv.eos, idx_unique)]
+            # force both left and right as parents
+            parents = self._enumerate_all_states_for_the_sequence(state=parent)
+            # same action since it goes to EOS of the same subenv
+            return parents, [self._pad_action(subenv.eos, idx_unique)] * len(parents)
 
         # Case 2: A sub-environment is active
         elif state["_active"] in (_ACTIVE_LEFT, _ACTIVE_RIGHT):
@@ -1283,35 +1288,33 @@ class Sequence(CompositeBase):
         """
         # Check if keys of meta data are present and that they contain the same
         # elements
-        if "_active" not in state_x and "_active" not in state_y:
-            # invalid state
-            return False
-        if state_x["_active"] == _ACTIVE_NONE and state_y["_active"] != _ACTIVE_NONE:
-            return False
-        if "_dones" not in state_x and "_dones" not in state_y:
-            return False
-        if Counter(state_x["_dones"]) != Counter(state_y["_dones"]):
-            return False
+        # if "_active" not in state_x and "_active" not in state_y:
+        #     # invalid state
+        #     return False
+        # if state_x["_active"] == _ACTIVE_NONE and state_y["_active"] != _ACTIVE_NONE:
+        #     return False
+        # if "_dones" not in state_x and "_dones" not in state_y:
+        #     return False
+        # if Counter(state_x["_dones"]) != Counter(state_y["_dones"]):
+        #     return False
         # !! it doesn't matter if the initialized _envs_unique is not the same
         # if "_envs_unique" not in state_x and "_envs_unique" not in state_y:
         #     return False
         # if Counter(state_x["_envs_unique"]) != Counter(state_y["_envs_unique"]):
         #     return False
-        if "_indices" not in state_x and "_indices" not in state_y:
-            return False
-        if set(state_x["_indices"]) != set(state_y["_indices"]):
-            # should already compare the number of substates
-            return False
+        # if "_indices" not in state_x and "_indices" not in state_y:
+        #     return False
+        # if set(state_x["_indices"]) != set(state_y["_indices"]):
+        #     # should already compare the number of substates
+        #     return False
         # Compare substates: the state is considered equal if the formed sequence of substates is
         # the same, regardless of the temporal order they were formed
         # 1 construct the two sequences considering the _dones for each
         sequence_x = [
-            (state_x["_envs_unique"][i], state_x["_dones"][i], state_x[i])
-            for i in state_x["_indices"].copy()
+            (state_x["_envs_unique"][i], state_x[i]) for i in state_x["_indices"].copy()
         ]
         sequence_y = [
-            (state_y["_envs_unique"][i], state_y["_dones"][i], state_y[i])
-            for i in state_y["_indices"].copy()
+            (state_y["_envs_unique"][i], state_y[i]) for i in state_y["_indices"].copy()
         ]
         # 2 compare
         if GFlowNetEnv.equal(sequence_x, sequence_y):
@@ -1345,8 +1348,12 @@ class Sequence(CompositeBase):
         # representations are used with the condition that the next number can only be inserted in left or at the right
         # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
         indices = state["_indices"]
-        indices.sort()
+        # indices.sort()
+        indices = list(range(0, max(state["_indices"]) + 1))
         n_indices = len(indices)
+        original_active = state["_active"]
+        new_envs_unique = copy(state)["_envs_unique"]
+        old_indices = copy(state)["_indices"]
         # enumerate all the possible index order
         if n_indices < 2:
             return [state]
@@ -1369,8 +1376,6 @@ class Sequence(CompositeBase):
         # then form the state based on the new_representaions
         for k in range(len(new_representations)):
             new_state = copy(state)
-            new_envs_unique = copy(state)["_envs_unique"]
-            old_indices = copy(state)["_indices"]
             for ind in range(len(new_representations[k])):
                 new_state[new_representations[k][ind]] = copy(state)[
                     old_indices[ind]
@@ -1382,5 +1387,11 @@ class Sequence(CompositeBase):
                 ]  # this is correct
             new_state["_indices"] = new_representations[k]
             new_state["_envs_unique"] = new_envs_unique
-            new_state_representations.append(new_state)
+            # fix the active bool to the correct one based on the order of the indices
+            if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+                if new_representations[k][0] < new_representations[k][-1]:
+                    new_state["_active"] = _ACTIVE_RIGHT
+                else:
+                    new_state["_active"] = _ACTIVE_LEFT
+            new_state_representations.append(copy(new_state))
         return new_state_representations
