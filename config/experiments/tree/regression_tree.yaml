@@ -22,7 +22,7 @@ env:
       n_comp: 3
       beta_params_min: 1.0
       beta_params_max: 100.0
-      min_incr: 0.1
+      min_incr: 0.99 # original value was 0.1, but setting to 0.99 works better and faster (forces cube env to sample threshold in one step)
       fixed_distr_params:
         beta_weights: 1.0
         beta_alpha: 10.0
@@ -31,8 +31,8 @@ env:
         bernoulli_bts_prob: 0.1
       random_distr_params:
         beta_weights: 1.0
-        beta_alpha: 10.0
-        beta_beta: 10.0
+        beta_alpha: 1.0 # to be uniform over [0, 1] for random sampling, old value was 10.0
+        beta_beta: 1.0 # to be uniform over [0, 1] for random sampling, old value was 10.0
         bernoulli_eos_prob: 0.1
         bernoulli_bts_prob: 0.1
 
@@ -103,7 +103,7 @@ gflownet:
     z_dim: 16
     lr_z_mult: 100
     n_train_steps: 50000
-    lr_decay_period: 10000
+    lr_decay_period: 100000
     lr_decay_gamma: 0.5
   replay_sampling: weighted
   train_sampling: permutation
