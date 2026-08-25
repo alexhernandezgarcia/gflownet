@@ -11,10 +11,11 @@ routed to each leaf. The structure priors ("node_count", "exponential",
 """
 
 import math
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 from scipy.special import gammaln
+from sklearn.tree import DecisionTreeRegressor
 
 from gflownet.envs.tree.tree import Tree
 from gflownet.proxy.tree import CategoricalTreeProxy, _route_samples_to_leaves
@@ -69,7 +70,7 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
         mu_0: Optional[float] = None,
         kappa_0: float = 0.1,
         alpha_0: float = 2.0,
-        beta_0: Optional[float] = None,
+        beta_0: Optional[Union[float, str]] = None,
         beta: float = 1.0,
         sigma: float = 0.95,
         phi: float = 2.0,
@@ -90,12 +91,20 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
             weakly informative prior on the leaf means.
         alpha_0 : float
             Shape of the Inverse-Gamma prior over the leaf variance.
-        beta_0 : float, optional
+        beta_0 : float or str, optional
             Scale of the Inverse-Gamma prior over the leaf variance. If None,
             set to ``(alpha_0 - 1) * var(y_train)`` at setup (for
             ``alpha_0 > 1``), so that the prior mean of sigma^2 equals the
             variance of the training targets; for ``alpha_0 <= 1`` the
-            variance itself is used.
+            variance itself is used. If ``"overfit"``, the same rule is
+            applied with ``var(y_train)`` replaced by the residual variance
+            of a deliberately overfit greedy CART (min_samples_leaf=5) fit on
+            the training data, so the prior mean of sigma^2 is the noise
+            level left after overfitting rather than the full target
+            variance. This follows the recommendation of Chipman et al.
+            (1998, Sec. 4.1) to center the variance prior near the residual
+            variance of an overfit greedy tree, which avoids the underfitting
+            bias of a prior centered on the raw variance.
         beta : float
             Penalty coefficient for the ``"exponential"`` structure prior.
         sigma : float
@@ -140,17 +149,42 @@ class NormalGammaTreeProxy(CategoricalTreeProxy):
         self._mu_0 = float(self.mu_0) if self.mu_0 is not None else float(np.mean(y))
         self._kappa_0 = float(self.kappa_0)
         self._alpha_0 = float(self.alpha_0)
-        if self.beta_0 is not None:
-            self._beta_0 = float(self.beta_0)
-        else:
+        if self.beta_0 is None or isinstance(self.beta_0, str):
             var = float(np.var(y))
             if var <= 0.0:
                 var = 1.0
-            self._beta_0 = (self._alpha_0 - 1.0) * var if self._alpha_0 > 1.0 else var
+            if self.beta_0 is None:
+                scale = var
+            elif self.beta_0.lower() == "overfit":
+                scale = self._overfit_residual_variance(env.X_train, y, var)
+            else:
+                raise ValueError(
+                    f"Unknown beta_0 option '{self.beta_0}'. "
+                    f"Expected a float, None, or 'overfit'."
+                )
+            self._beta_0 = (
+                (self._alpha_0 - 1.0) * scale if self._alpha_0 > 1.0 else scale
+            )
+        else:
+            self._beta_0 = float(self.beta_0)
         if self._beta_0 <= 0.0:
             raise ValueError(
                 f"NormalGammaTreeProxy requires beta_0 > 0, got {self._beta_0}."
             )
+
+    @staticmethod
+    def _overfit_residual_variance(X, y: np.ndarray, var: float) -> float:
+        """
+        Residual variance of a deliberately overfit greedy CART on the
+        training data (Chipman et al., 1998: the lower anchor ``s_*`` for the
+        variance prior). ``min_samples_leaf=5`` matches the paper's minimum
+        leaf size. Floored at ``1e-3 * var`` so a (near-)interpolating fit on
+        trivial data cannot produce a degenerate Inverse-Gamma scale.
+        """
+        greedy = DecisionTreeRegressor(min_samples_leaf=5, random_state=0)
+        greedy.fit(X, y)
+        resid_var = float(np.mean((np.asarray(y) - greedy.predict(X)) ** 2))
+        return max(resid_var, 1e-3 * var)
 
     def _compute_log_likelihood(self, state: Dict) -> float:
         """

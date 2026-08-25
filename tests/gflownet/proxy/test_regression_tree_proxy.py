@@ -127,6 +127,29 @@ def test__setup__respects_explicit_hyperparams(env_and_state):
     assert proxy._beta_0 == 4.0
 
 
+def test__setup__beta_0_overfit_uses_greedy_residual_variance(env_and_state):
+    from sklearn.tree import DecisionTreeRegressor
+
+    env, _ = env_and_state
+    proxy = NormalGammaTreeProxy(alpha_0=2.0, beta_0="overfit")
+    proxy.setup(env)
+
+    greedy = DecisionTreeRegressor(min_samples_leaf=5, random_state=0)
+    greedy.fit(env.X_train, env.y_train)
+    resid_var = float(np.mean((env.y_train - greedy.predict(env.X_train)) ** 2))
+    # For alpha_0 = 2: beta_0 = (alpha_0 - 1) * resid_var = resid_var
+    assert proxy._beta_0 == pytest.approx(resid_var)
+    # The overfit residual variance must be strictly below the raw variance
+    # on this noisy split dataset.
+    assert proxy._beta_0 < float(np.var(env.y_train))
+
+
+def test__setup__beta_0_unknown_string_raises(env_and_state):
+    env, _ = env_and_state
+    with pytest.raises(ValueError):
+        NormalGammaTreeProxy(beta_0="bogus").setup(env)
+
+
 def test__setup__raises_without_env_or_data():
     proxy = NormalGammaTreeProxy()
     with pytest.raises(ValueError):

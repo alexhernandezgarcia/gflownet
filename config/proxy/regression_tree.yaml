@@ -24,6 +24,10 @@ prior_type: node_count
 # null values are resolved from the training targets at setup:
 #   mu_0 -> mean(y_train)
 #   beta_0 -> (alpha_0 - 1) * var(y_train), so that E[sigma^2] = var(y_train)
+# beta_0 also accepts the string "overfit": same rule, but with var(y_train)
+# replaced by the residual variance of an overfit greedy CART on the training
+# data, so that E[sigma^2] is the post-fit noise level (Chipman et al., 1998,
+# Sec. 4.1 recommend centering the variance prior near this value).
 mu_0: null
 kappa_0: 0.1
 alpha_0: 2.0
