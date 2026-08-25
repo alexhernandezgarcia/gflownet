@@ -4,7 +4,7 @@ test accuracy, F1, AUC and log-loss across splits for every benchmark method
 found in the results directory (JSON files written by the run_*.py scripts).
 
 Usage (from the repo root):
-    python class_baselines/print_results.py [--results-dir class_baselines/results]
+    python class_baselines/print_results.py [--results-dir DIR]
                                               [--train]
 """
 

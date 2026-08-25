@@ -4,7 +4,7 @@ test RMSE and R2 across splits for every benchmark method found in the
 results directory (JSON files written by the run_*.py scripts).
 
 Usage (from the repo root):
-    python reg_benchmarks/print_results.py [--results-dir reg_benchmarks/results]
+    python reg_benchmarks/print_results.py [--results-dir DIR]
                                             [--train]
 """
 
@@ -18,6 +18,9 @@ import numpy as np
 
 METHOD_ORDER = [
     "bart",
+    "cart",
+    "cart_pruned",
+    "random_forest",
     "xgboost",
     "lightgbm",
     "gp",

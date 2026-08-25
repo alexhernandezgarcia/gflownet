@@ -18,8 +18,9 @@
 #   - bart (tasks 4-6, 48h limit): BART MCMC, hours per dataset, on the
 #     long-cpu partitions set in the directives above.
 #
-# All outputs live in $REPO/reg_benchmarks/: SLURM logs in slurm/, result
-# JSONs in results/ (the run_*.py default). Summarize any time with:
+# SLURM logs live in $REPO/reg_benchmarks/slurm/; result JSONs go to
+# $SCRATCH/gflownet-benchmarks/reg_benchmarks/results (the run_*.py default,
+# override with $GFLOWNET_BENCHMARKS_DIR). Summarize any time with:
 #   python reg_benchmarks/print_results.py
 #
 # Usage (from anywhere; the script submits itself):

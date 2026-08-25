@@ -17,8 +17,9 @@
 #   - mcmc (tasks 1-5, 24h limit, long-cpu): BCART MCMC on split <task>
 #     (~13 min per 10k moves; also writes the bcart_map result).
 #
-# All outputs live in $REPO/class_baselines/: SLURM logs in slurm/, result
-# JSONs in results/ (the run_*.py default). Summarize any time with:
+# SLURM logs live in $REPO/class_baselines/slurm/; result JSONs go to
+# $SCRATCH/gflownet-benchmarks/class_baselines/results (the run_*.py default,
+# override with $GFLOWNET_BENCHMARKS_DIR). Summarize any time with:
 #   python class_baselines/print_results.py
 #
 # Usage (from anywhere; the script submits itself):

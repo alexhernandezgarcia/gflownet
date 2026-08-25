@@ -9,12 +9,14 @@ train/test values, second-to-last column the target) and report test RMSE / R2
 in the original target units, matching RegressionTree.test.
 
 Each run writes one JSON file to the results directory (default:
-reg_benchmarks/results next to this file), named
+$SCRATCH/gflownet-benchmarks/reg_benchmarks/results, see
+DEFAULT_RESULTS_DIR below), named
 "<method>__<dataset>__split<i>.json". Aggregate them with print_results.py.
 """
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
@@ -30,7 +32,20 @@ SPLITS = (1, 2, 3, 4, 5)
 BENCHMARK_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BENCHMARK_DIR.parent
 DATA_DIR = REPO_ROOT / "tests" / "data" / "tree"
-DEFAULT_RESULTS_DIR = BENCHMARK_DIR / "results"
+
+# Results are written outside the repo, under one directory per benchmark
+# suite (<root>/<benchmark_dir_name>/results), so that they survive branch
+# switches and the $SLURM_TMPDIR repo snapshots the training launchers take.
+# The root is $GFLOWNET_BENCHMARKS_DIR if set, else $SCRATCH/gflownet-benchmarks
+# (~/scratch/gflownet-benchmarks if $SCRATCH is unset).
+BENCHMARKS_ROOT = Path(
+    os.environ.get(
+        "GFLOWNET_BENCHMARKS_DIR",
+        Path(os.environ.get("SCRATCH", Path.home() / "scratch"))
+        / "gflownet-benchmarks",
+    )
+)
+DEFAULT_RESULTS_DIR = BENCHMARKS_ROOT / BENCHMARK_DIR.name / "results"
 
 
 def load_split(
