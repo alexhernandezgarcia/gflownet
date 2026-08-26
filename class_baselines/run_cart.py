@@ -5,11 +5,13 @@ continuous features, with --max-depth (default 5) matching the GFlowNet
 trees. For non-default depths the method names are suffixed with _d<depth>
 (e.g. cart_gini_d3) so results of several depths coexist in the results dir.
 
-For the single CART trees, predicted probabilities are Beta(2.5, 2.5)-
-smoothed leaf label frequencies -- the same leaf posterior mean the Bayesian
-baselines (run_bcart.py, run_maptree.py) use -- so log-loss stays finite on
-pure leaves. The random forest averages the unsmoothed per-tree leaf
-frequencies (sklearn predict_proba).
+For the single CART trees, predicted probabilities are Dirichlet(2.5)-
+smoothed leaf label frequencies (Beta(2.5, 2.5) in the binary case) -- the
+same leaf posterior mean the Bayesian baselines (run_bcart.py,
+run_maptree.py) use -- so log-loss stays finite on pure leaves. The random
+forest averages the unsmoothed per-tree leaf frequencies (sklearn
+predict_proba). Both return (n, K) class-probability matrices, so
+multi-class datasets (jannis4) work unchanged.
 
 Usage (from the repo root, venv active):
     python class_baselines/run_cart.py [--datasets magic] [--splits 1 2 ...]
@@ -29,21 +31,20 @@ from common import make_parser, run_methods
 
 DEFAULT_MAX_DEPTH = 5
 N_TREES = 100
-RHO = (2.5, 2.5)
+RHO = 2.5  # symmetric Dirichlet concentration per class (Beta(2.5, 2.5) if K=2)
 N_JOBS = int(os.environ.get("SLURM_CPUS_PER_TASK", 4))
 
 
 def _smoothed_leaf_proba(tree, X_train, y_train):
     """
-    Returns a function X -> P(y=1) predicting the Beta(RHO)-smoothed label
-    frequency of the train points routed to the same leaf.
+    Returns a function X -> (n, K) matrix of Dirichlet(RHO)-smoothed label
+    frequencies of the train points routed to the same leaf.
     """
-    n0 = np.zeros(tree.tree_.node_count)
-    n1 = np.zeros(tree.tree_.node_count)
+    n_classes = int(y_train.max()) + 1
+    counts = np.zeros((tree.tree_.node_count, n_classes))
     leaves = tree.apply(X_train)
-    np.add.at(n0, leaves[y_train == 0], 1)
-    np.add.at(n1, leaves[y_train == 1], 1)
-    proba = (n1 + RHO[1]) / (n0 + n1 + RHO[0] + RHO[1])
+    np.add.at(counts, (leaves, y_train), 1)
+    proba = (counts + RHO) / (counts.sum(axis=1, keepdims=True) + n_classes * RHO)
     return lambda X: proba[tree.apply(X)]
 
 
@@ -57,7 +58,7 @@ def make_fit_predict_cart(criterion, max_depth):
         params = {
             "criterion": criterion,
             "max_depth": max_depth,
-            "rho": RHO[0],
+            "rho": RHO,
             "n_leaves": int(tree.get_n_leaves()),
         }
         return predict(X_train), predict(X_test), params
@@ -73,8 +74,8 @@ def make_fit_predict_random_forest(max_depth):
         forest.fit(X_train, y_train)
         params = {"n_estimators": N_TREES, "max_depth": max_depth}
         return (
-            forest.predict_proba(X_train)[:, 1],
-            forest.predict_proba(X_test)[:, 1],
+            forest.predict_proba(X_train),
+            forest.predict_proba(X_test),
             params,
         )
 

@@ -8,7 +8,9 @@ results dir.
 The number of boosting rounds is chosen by early stopping (50 rounds
 patience, up to 2000 rounds) on a 20% stratified validation carve-out of the
 train split; the model is then refit on the full train split with the
-selected number of rounds. Predictions are P(y=1).
+selected number of rounds. Predictions are (n, K) class-probability
+matrices; on multi-class datasets (jannis4) the boosters switch to their
+multi-class losses (mlogloss / multi_logloss / MultiClass).
 
 Usage (from the repo root, venv active):
     python class_baselines/run_gbt.py [--datasets magic] [--splits 1 2 ...]
@@ -20,6 +22,7 @@ import sys
 from pathlib import Path
 
 import lightgbm as lgb
+import numpy as np
 from catboost import CatBoostClassifier
 from sklearn.model_selection import train_test_split
 from xgboost import XGBClassifier
@@ -42,12 +45,13 @@ def _carve_validation(X_train, y_train, seed):
 
 def fit_predict_xgboost(X_train, y_train, X_test, seed, max_depth):
     X_tr, X_val, y_tr, y_val = _carve_validation(X_train, y_train, seed)
+    binary = len(np.unique(y_train)) == 2
     base_kwargs = dict(
         max_depth=max_depth,
         learning_rate=LEARNING_RATE,
         subsample=0.8,
         colsample_bytree=0.8,
-        eval_metric="logloss",
+        eval_metric="logloss" if binary else "mlogloss",
         random_state=seed,
         n_jobs=N_JOBS,
     )
@@ -63,14 +67,15 @@ def fit_predict_xgboost(X_train, y_train, X_test, seed, max_depth):
     model.fit(X_train, y_train)
     params = {"max_depth": max_depth, "n_estimators": n_rounds}
     return (
-        model.predict_proba(X_train)[:, 1],
-        model.predict_proba(X_test)[:, 1],
+        model.predict_proba(X_train),
+        model.predict_proba(X_test),
         params,
     )
 
 
 def fit_predict_lightgbm(X_train, y_train, X_test, seed, max_depth):
     X_tr, X_val, y_tr, y_val = _carve_validation(X_train, y_train, seed)
+    binary = len(np.unique(y_train)) == 2
     base_kwargs = dict(
         max_depth=max_depth,
         num_leaves=min(31, 2**max_depth - 1),  # < 2**max_depth: the depth cap binds
@@ -88,7 +93,7 @@ def fit_predict_lightgbm(X_train, y_train, X_test, seed, max_depth):
         y_tr,
         eval_X=X_val,
         eval_y=y_val,
-        eval_metric="binary_logloss",
+        eval_metric="binary_logloss" if binary else "multi_logloss",
         callbacks=[lgb.early_stopping(EARLY_STOPPING_ROUNDS, verbose=False)],
     )
     n_rounds = int(probe.best_iteration_)
@@ -97,18 +102,19 @@ def fit_predict_lightgbm(X_train, y_train, X_test, seed, max_depth):
     model.fit(X_train, y_train)
     params = {"max_depth": max_depth, "n_estimators": n_rounds}
     return (
-        model.predict_proba(X_train)[:, 1],
-        model.predict_proba(X_test)[:, 1],
+        model.predict_proba(X_train),
+        model.predict_proba(X_test),
         params,
     )
 
 
 def fit_predict_catboost(X_train, y_train, X_test, seed, max_depth):
     X_tr, X_val, y_tr, y_val = _carve_validation(X_train, y_train, seed)
+    binary = len(np.unique(y_train)) == 2
     base_kwargs = dict(
         depth=max_depth,
         learning_rate=LEARNING_RATE,
-        loss_function="Logloss",
+        loss_function="Logloss" if binary else "MultiClass",
         random_seed=seed,
         thread_count=N_JOBS,
         verbose=0,
@@ -127,8 +133,8 @@ def fit_predict_catboost(X_train, y_train, X_test, seed, max_depth):
     model.fit(X_train, y_train)
     params = {"depth": max_depth, "iterations": n_rounds}
     return (
-        model.predict_proba(X_train)[:, 1],
-        model.predict_proba(X_test)[:, 1],
+        model.predict_proba(X_train),
+        model.predict_proba(X_test),
         params,
     )
 

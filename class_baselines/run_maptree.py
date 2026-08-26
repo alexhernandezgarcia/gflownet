@@ -6,7 +6,9 @@ ThrunGroup/maptree).
 
 Priors match the MAPTree paper defaults (and run_bcart.py): P(split at depth
 d) = alpha_split * (1+d)^(-beta_split), Beta(rho, rho) leaf label prior;
-predictions are the smoothed leaf posterior means. If the time limit is hit
+predictions are the smoothed leaf posterior means. Binary datasets only
+(the maptree package casts labels to bool); multi-class datasets are
+skipped. If the time limit is hit
 before the search proves optimality, the best tree found so far is used
 (params record the remaining lower/upper bound gap).
 
@@ -89,4 +91,4 @@ if __name__ == "__main__":
         "--rho", type=float, default=2.5, help="Beta(rho, rho) leaf label prior."
     )
     args = parser.parse_args()
-    run_methods({"maptree": make_fit_predict_maptree(args)}, args)
+    run_methods({"maptree": make_fit_predict_maptree(args)}, args, binary_only=True)

@@ -18,7 +18,8 @@ Methods:
 Priors match the MAPTree paper defaults: P(split at depth d) =
 alpha_split * (1+d)^(-beta_split) with a uniform choice of binary feature,
 and a Beta(rho, rho) prior on the leaf label probabilities (all predictions
-are smoothed leaf posterior means).
+are smoothed leaf posterior means). Binary datasets only (BinaryProbTree and
+the Beta leaf prior assume 0/1 labels); multi-class datasets are skipped.
 
 Usage (from the repo root, venv active):
     python class_baselines/run_bcart.py [--methods mcmc smc] [--splits 1 2 ...]
@@ -38,15 +39,23 @@ import numpy as np  # noqa: E402
 from scipy.special import logsumexp  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from binary_trees import (binarize_quantiles, bma_proba,  # noqa: E402
-                          parse_node_info)
-from common import (classification_metrics, load_split,  # noqa: E402
-                    make_parser, save_result)
-from tree_smc.bdtmcmc import (parser_add_mcmc_options,  # noqa: E402
-                              precompute, sample_tree)
+from binary_trees import binarize_quantiles, bma_proba, parse_node_info  # noqa: E402
+from common import (
+    classification_metrics,
+    load_split,  # noqa: E402
+    make_parser,
+    save_result,
+)
+from tree_smc.bdtmcmc import (
+    parser_add_mcmc_options,  # noqa: E402
+    precompute,
+    sample_tree,
+)
 from tree_smc.bdtsmc import init_smc, run_smc  # noqa: E402
-from tree_smc.tree_utils import (parser_add_common_options,  # noqa: E402
-                                 parser_add_smc_options)
+from tree_smc.tree_utils import (
+    parser_add_common_options,  # noqa: E402
+    parser_add_smc_options,
+)
 
 
 def make_settings(args, n_particles=None):
@@ -177,6 +186,12 @@ if __name__ == "__main__":
         for split in args.splits:
             seed = split
             X_train, y_train, X_test, y_test = load_split(dataset, split)
+            if np.unique(y_train).size > 2:
+                print(
+                    f"[skip] {dataset} split {split}: "
+                    f"{np.unique(y_train).size} classes, binary-only methods"
+                )
+                continue
             B_train, B_test, thresholds = binarize_quantiles(
                 X_train, X_test, args.thresholds
             )
