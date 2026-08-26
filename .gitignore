@@ -16,12 +16,28 @@ playground/
 .DS_Store
 docs/_build/
 logs
+
+# Gitignores added by the DT-GFN project
+
 gflownet-env/
 .claude/
 wandb/
 dt-gfn/
-.claude/
 reg_benchmarks/results
 reg_benchmarks/slurm
 class_baselines/slurm
 class_baselines/results
+
+# Raw downloads for the prepare_*.py scripts. Fetch them with the curl command
+# in each script's docstring; they are reproducible, so they stay out of git.
+credit/credit.csv
+jannis2/jannis.csv
+jannis4/jannis_41168.pq
+
+# Generated jannis splits: ~27 MB (2-class) and ~39 MB (4-class) each, so five
+# seeds of both would add ~350 MB to a 59 MB repository. They regenerate
+# deterministically from the fixed seeds; rsync them to the clusters instead of
+# committing them. The credit splits (~0.9 MB each) are small enough to track,
+# like magic_*.csv.
+jannis2/jannis2_*.csv
+jannis4/jannis4_*.csv
