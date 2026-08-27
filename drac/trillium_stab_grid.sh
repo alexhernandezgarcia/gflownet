@@ -1,48 +1,55 @@
 #!/bin/bash
-#SBATCH --job-name=prior_grid
+#SBATCH --job-name=stab_grid
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=192
 #SBATCH --time=12:00:00
-#SBATCH --output=prior_grid-%j.out
+#SBATCH --output=stab_grid-%j.out
 # =============================================================================
-# TRILLIUM submitter: grid search over the STRUCTURE PRIOR of the regression
-# tree proxy (companion to trillium_nig_grid.sh, which grids the likelihood).
+# TRILLIUM submitter: training-recipe / stability grid for regression trees.
 # =============================================================================
 #
-# Variants (one per proxy structure prior):
+# Motivated by the REG_NIG_GRID results (2026-08): lr 0.01 diverged even on
+# diabetes, and the best-overall run (config 11fd0d0d, REG_CUBEARGS) differs
+# from the NIG-grid winner (3a08cf4a) in THREE things at once -- NIG params
+# (a2/null vs a3/overfit) AND policy.backward.shared_weights (yes vs no).
+# This grid deconfounds that and tests the stability interventions from the
+# classification (magic) analysis on the regression task.
 #
-#   node_count            current default: -log(4 * n_features) per split
-#   bcart, phi in {0.5, 1.0, 1.5, 2.0} with sigma = 0.95
-#                         Chipman et al. (1998) tree prior; the paper uses
-#                         beta (= phi here) in {0.5, 1.0, 1.5} (Sec. 3.1/7);
-#                         phi = 2.0 is the current repo default (BART-style,
-#                         more aggressive)
-#   none                  no size penalty; upper bound on how far the
-#                         likelihood alone gets (overfitting probe)
+# Baseline = the best known config: shared backward weights, Adam lr 1e-3,
+# alpha_0=2, beta_0=null, node_count prior. Variants change ONE thing each:
 #
-# 6 variants x 3 splits = 18 runs at 10 cores each (all concurrent). The NIG
-# likelihood hyper-parameters and backward-weight sharing are held FIXED
-# across all variants; the defaults are the best known config (11fd0d0d:
-# alpha_0=2, beta_0=null, shared backward weights, Adam lr 1e-3). Override
-# them from the stability-grid winners before launching, e.g.:
+#   ctrl       baseline as-is (replicates 11fd0d0d on diabetes; establishes
+#              the baseline on energy/concrete)
+#   noshare    shared_weights=False       (the confound, isolated)
+#   nig_a3ovf  alpha_0=3, beta_0=overfit  (NIG-grid winner, now WITH shared
+#              weights -> completes the 2x2 with the two existing campaigns)
+#   temp0.1    reward beta=0.1   (tempered posterior^0.1: shrinks the
+#   temp0.01   reward beta=0.01   log-reward range TB has to price)
+#   sgd        method=msgd, momentum 0.8, grad-norm clip 1.0, lr_z_mult 10
+#              (wine SGD recipe; NO reward clipping -- do_clip_rewards stays
+#              False, so the magic reward-floor trap cannot occur)
 #
-#   sbatch --export=ALL,ALPHA0=3.0,BETA0=overfit,SHARED=False ...
+# NOTE on tempered runs: they sample posterior^beta, a deliberately flatter
+# distribution -- judge them by top-k / BMA test metrics, not by the mean of
+# the 1000 samples, and do not mix them into posterior-fidelity comparisons.
 #
-# BETA0 accepts a number, "overfit", or "null" (= var(y)-based default).
-#
-# Training setup identical to trillium_stab_grid.sh: MLP policies, 10000
-# steps, lr 0.001 (0.01 diverges!), batch = 45 forward + 5 backward-replay.
+# 6 variants x 3 splits = 18 runs at 10 cores each -> all concurrent
+# (180/192 cores). ~4-9 h expected (diabetes < energy < concrete), within
+# the 12 h walltime.
 #
 # Usage (from $SCRATCH on Trillium!):
 #   cd $SCRATCH
-#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_prior_grid.sh
+#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_stab_grid.sh
 #   sbatch --account=<acct> --export=ALL,DATASET=energy \
-#          $HOME/gflownet/drac/trillium_prior_grid.sh
+#          $HOME/gflownet/drac/trillium_stab_grid.sh
+#   sbatch --account=<acct> --export=ALL,DATASET=concrete \
+#          $HOME/gflownet/drac/trillium_stab_grid.sh
 #
-# The campaign name defaults to REG_PRIOR_<DATASET>.
+# The campaign name defaults to REG_STAB_<DATASET> so the three jobs land in
+# separate campaign directories.
 #
-# Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS ALPHA0 BETA0 SHARED RUNS_ROOT
-#        TOP_K FORCE CPUS_PER_RUN
+# Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS RUNS_ROOT TOP_K FORCE CPUS_PER_RUN
+# Extra hydra overrides given on the command line are forwarded to every run.
 # =============================================================================
 
 set -u
@@ -51,33 +58,30 @@ REPO="${REPO:-$HOME/gflownet}"
 VENV="${VENV:-$SCRATCH/venvs/gflownet-env}"
 export RUNS_ROOT="${RUNS_ROOT:-$SCRATCH/gflownet-logs}"
 export DATASET="${DATASET:-diabetes}"
-export EXP_NAME="${EXP_NAME:-REG_PRIOR_${DATASET^^}}"
+export EXP_NAME="${EXP_NAME:-REG_STAB_${DATASET^^}}"
 export WANDB_MODE="${WANDB_MODE:-offline}"
 export SEED=0
 
 SPLITS="${SPLITS:-1 2 3}"
-ALPHA0="${ALPHA0:-2.0}"
-BETA0="${BETA0:-null}"
-SHARED="${SHARED:-True}"
 CORES_PER_NODE=192
 # 18 tasks at 10 cores each -> all run at once (180/192 cores).
 export CPUS_PER_RUN="${CPUS_PER_RUN:-10}"
 
 # --- The grid: "tag hydra-override [hydra-override ...]" per variant --------
 VARIANTS=(
-    "nodecount  proxy.prior_type=node_count"
-    "bcart_p0.5 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=0.5"
-    "bcart_p1.0 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=1.0"
-    "bcart_p1.5 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=1.5"
-    "bcart_p2.0 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=2.0"
-    "noprior    proxy.prior_type=none"
+    "ctrl      policy.backward.shared_weights=True"
+    "noshare   policy.backward.shared_weights=False"
+    "nig_a3ovf policy.backward.shared_weights=True proxy.alpha_0=3.0 proxy.beta_0=overfit"
+    "temp0.1   policy.backward.shared_weights=True proxy.reward_function_kwargs.beta=0.1"
+    "temp0.01  policy.backward.shared_weights=True proxy.reward_function_kwargs.beta=0.01"
+    "sgd       policy.backward.shared_weights=True gflownet.optimizer.method=msgd gflownet.optimizer.sgd_momentum=0.8 gflownet.optimizer.clip_grad_norm=1.0 gflownet.optimizer.lr_z_mult=10"
 )
 
 # --- Fixed overrides shared by every run ------------------------------------
+# Baseline recipe = best known config (11fd0d0d): Adam lr 1e-3, 10k steps,
+# batch 45 forward + 5 backward-replay, MLP policies, node_count prior,
+# alpha_0=2 / beta_0=null (the yaml defaults, so not overridden here).
 COMMON=(
-    "proxy.alpha_0=$ALPHA0"
-    "proxy.beta_0=$BETA0"
-    "policy.backward.shared_weights=$SHARED"
     "gflownet.optimizer.n_train_steps=10000"
     "gflownet.optimizer.lr=0.001"
     "gflownet.optimizer.batch_size.forward=45"
@@ -114,13 +118,13 @@ CONCURRENCY=$(( CORES_PER_NODE / CPUS_PER_RUN ))
 
 used=$(( n_tasks < CONCURRENCY ? n_tasks * CPUS_PER_RUN : CORES_PER_NODE ))
 echo "============================================================"
-echo " Trillium structure-prior grid"
+echo " Trillium stability / training-recipe grid"
 echo " Job                : ${SLURM_JOB_ID:-none} on $(hostname)"
 echo " Dataset            : $DATASET   splits: $SPLITS   seed: $SEED"
-echo " Fixed base         : alpha_0=$ALPHA0 beta_0=$BETA0 shared_weights=$SHARED lr=0.001"
 echo " Variants           : ${#VARIANTS[@]}   tasks: $n_tasks"
 echo " Threads per run    : $CPUS_PER_RUN   concurrency: $CONCURRENCY"
 echo " Node utilisation   : ~$used / $CORES_PER_NODE cores"
+echo " Common overrides   : ${COMMON[*]}"
 echo " Runs root          : $RUNS_ROOT   campaign: $EXP_NAME"
 echo "============================================================"
 
