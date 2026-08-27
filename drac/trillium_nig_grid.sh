@@ -64,7 +64,7 @@ VARIANTS=(
 # --- Fixed overrides shared by every run ------------------------------------
 COMMON=(
     "gflownet.optimizer.n_train_steps=10000"
-    "gflownet.optimizer.lr=0.01"
+    "gflownet.optimizer.lr=0.001"
     "gflownet.optimizer.batch_size.forward=45"
     "gflownet.optimizer.batch_size.backward_replay=5"
     "gflownet.optimizer.batch_size.backward_dataset=0"
