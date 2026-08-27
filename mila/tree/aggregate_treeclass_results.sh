@@ -33,7 +33,15 @@
 #   ROOT   runs root (whole tree or one campaign folder)
 #          (default: $SCRATCH/gflownet-logs)
 # Any positional arguments are passed straight through to the python script
-# (--source, --dataset, --task, --diff-configs, --group-ignore, ...).
+# (--source, --dataset, --task, --diff-configs, --group-ignore, --min-splits, ...).
+#
+# Notes:
+#   - Configurations with fewer than 3 dataset splits are hidden by default;
+#     pass --min-splits 1 to show everything.
+#   - Requires the repo to be pip-installed in the venv (pip install -e .);
+#     the script imports gflownet.envs.tree.helpers_for_experiments.
+#   - For interactive inspection (dataset picker, hash2config) open
+#     gflownet/envs/tree/helpers_for_experiments/inspect_treeclass_results.ipynb
 
 set -u
 

@@ -3,7 +3,7 @@ Aggregate DT-GFN tree results (classification + regression) across splits.
 
 Collects finished-run metrics from two independent sources and prints, per
 dataset, one table per source with the runs grouped by training configuration
-(mean +/- std across the 3-5 dataset splits of each configuration):
+(mean +/- std across the n (normally 3 - 5) dataset splits of each configuration):
 
   - ``eval``:  every ``eval_results.json`` found under a runs root on disk
                (written by eval_tree.py / eval_regression_tree.py; use
@@ -15,26 +15,38 @@ dataset, one table per source with the runs grouped by training configuration
                shows the last logged step so partially-trained runs are
                visible as such.
 
-The two sources are never averaged together; they appear as separate tables,
-listing the training configurations in the same order so they can be compared
-line by line.
+The two sources are never averaged together; they appear as separate tables.
+Both tables show the campaign folder as the second column (for wandb runs the
+campaign is recovered from the run directory stored in ``logger.logdir.path``;
+runs without it -- e.g. old local runs -- fall back to the wandb project name)
+and are ordered by launch date, newest configuration first.
+
+Configurations with fewer than ``--min-splits`` (default 3) dataset splits are
+hidden -- a mean over 1-2 splits is not meaningful; pass ``--min-splits 1`` to
+see everything.
+
+Metric naming: the training-time / eval-time metric ``mean_n_nodes`` counts
+only DECISION (internal) nodes -- ``sum(state["_dones"])`` -- so it is
+displayed as ``mean_n_decisionnodes`` here. The classification eval metrics
+``model_size_*`` instead count decision nodes PLUS leaves
+(``count_total_nodes`` in eval_tree.py); the two are related by
+``total = 2 * decision + 1`` for a binary tree.
 
 How runs are grouped
 --------------------
 Two runs belong to the same training configuration iff their FULL resolved
 hydra configs are identical after removing the run-identity keys below
 (dataset split path, run name, log paths, machine-specific ``user`` section,
-...). The config is read from the authoritative source -- the run's
-``.hydra/config.yaml`` on disk, or the config wandb stored at launch -- never
-parsed from the run name. The resulting 8-char group hash is shown in the
+...). The config is read from the the run's ``.hydra/config.yaml`` on disk,
+or the config wandb stored at launch. The resulting 8-char group hash is shown in the
 tables; use ``--diff-configs`` to see exactly which config keys distinguish
 the groups of a dataset when the displayed settings columns look identical.
 
 Debugging runs (name or campaign folder matching DEBUG_NAME_PATTERNS) are
 reported in a separate section after the real runs.
 
-Usage (venv active; light enough for a login node when using --source wandb,
-otherwise prefer a compute node or sbatch mila/tree/aggregate_treeclass_results.sh):
+Usage examples (either with active venv active in interactive session or on a compute node with
+sbatch mila/tree/aggregate_treeclass_results.sh):
 
     # everything, both sources
     python gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py
@@ -45,31 +57,32 @@ otherwise prefer a compute node or sbatch mila/tree/aggregate_treeclass_results.
     # only the iris dataset, only wandb, and show config diffs between groups
     python .../aggregate_treeclass_results.py --dataset iris --source wandb \
         --diff-configs
+
+For interactive inspection (dataset picker, hash2config) open the notebook
+``inspect_treeclass_results.ipynb`` next to this script.
 """
 
 import argparse
 import json
 import math
 import os
-import sys
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-REPO_ROOT = SCRIPT_DIR.parents[3]  # <repo>/gflownet/envs/tree/helpers_for_experiments
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(SCRIPT_DIR))
 
 import numpy as np
 import pandas as pd
-from config_hash import (
+from omegaconf import OmegaConf
+from omegaconf.errors import OmegaConfBaseException
+
+# Requires the repo to be installed (``pip install -e .``); no sys.path hacks.
+from gflownet.envs.tree.helpers_for_experiments.config_hash import (
     EXCLUDED_KEYS,
     config_hash,
     dataset_and_split,
     drop_key,
     policy_label,
 )
-from omegaconf import OmegaConf
 
 # =============================================================================
 # What defines a group, what is displayed -- edit here to extend the report
@@ -100,6 +113,8 @@ TASK_BY_ENV_TARGET = {
 }
 
 # Metrics read from eval_results.json, per task, in display order.
+# NOTE model_size_* (classification) = decision nodes + leaves, while
+# mean_n_nodes (regression eval + all wandb runs) = decision nodes only.
 EVAL_METRICS = {
     "classification": [
         "test_acc_top1",
@@ -123,9 +138,6 @@ WANDB_METRICS = {
     "classification": [
         "test_top_1_acc",
         "test_forest_acc",
-        "logZ",
-        "Loss",
-        "Train batch - logrewards mean",
         "mean_n_nodes",
     ],
     "regression": [
@@ -133,12 +145,20 @@ WANDB_METRICS = {
         "test_forest_r2",
         "test_top_1_rmse",
         "test_top_1_r2",
-        "logZ",
-        "Loss",
-        "Train batch - logrewards mean",
         "mean_n_nodes",
     ],
 }
+
+# Display-only renames applied to the table columns. The underlying JSON /
+# wandb key stays untouched (do NOT rename anything in the training scripts).
+# mean_n_nodes is sum(state["_dones"]) = number of DECISION (internal) nodes;
+# leaves are not counted (see tree.py / regression_tree.py `test`).
+METRIC_DISPLAY_NAMES = {
+    "mean_n_nodes": "mean_n_decisionnodes",
+}
+
+# Hide configurations averaged over fewer than this many dataset splits.
+MIN_SPLITS_DEFAULT = 3
 
 WANDB_ENTITY = "alex-hg"
 WANDB_PROJECTS = ["dt-gfn_classification", "dt-gfn_regression"]
@@ -153,8 +173,9 @@ def settings_from_config(container: dict) -> dict:
     """
     optimizer = container.get("gflownet", {}).get("optimizer", {})
     backward = (container.get("policy", {}) or {}).get("backward") or {}
-    clip = optimizer.get("clip_grad_norm", 0.0) or 0.0
     shared = backward.get("shared_weights", None)
+    clip = optimizer.get("clip_grad_norm", 0.0) or 0.0
+
     return {
         "steps": optimizer.get("n_train_steps", "?"),
         "depth": container.get("env", {}).get("max_depth", "?"),
@@ -227,6 +248,23 @@ def group_identity(container: dict, extra_excluded=()):
     }
 
 
+def campaign_from_config(container: dict, fallback: str) -> str:
+    """Campaign folder of a run, recovered from ``logger.logdir.path``.
+
+    The launchers create runs at ``.../gflownet-logs/<campaign>/<run_dir>``
+    and the Logger stores the run dir as ``logger.logdir.path``; its parent
+    directory name is the campaign. Runs without a stored path (old local
+    runs, other launch styles) fall back to ``fallback``.
+    """
+    logdir = (container.get("logger") or {}).get("logdir") or {}
+    path = logdir.get("path")
+    if path:
+        parts = Path(str(path)).parts
+        if len(parts) >= 2:
+            return parts[-2]
+    return fallback
+
+
 def is_debug(*names) -> bool:
     text = " ".join(str(n).lower() for n in names)
     return any(pat in text for pat in DEBUG_NAME_PATTERNS)
@@ -244,6 +282,26 @@ def fmt_mean_std(values, n_expected):
     if len(values) != n_expected:
         cell += f" [n={len(values)}]"
     return cell
+
+
+def fmt_launch(epoch: float) -> str:
+    """Epoch seconds -> 'YYYY-MM-DD HH:MM' in local time, '?' when unknown."""
+    if not epoch:
+        return "?"
+    return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
+
+
+def parse_wandb_created_at(created_at) -> float:
+    """wandb ISO timestamp ('2026-08-27T17:49:00Z' or with offset) -> epoch
+    seconds, 0.0 when absent or unparseable (sorts last, displays '?')."""
+    if not created_at:
+        return 0.0
+    try:
+        return datetime.fromisoformat(
+            str(created_at).replace("Z", "+00:00")
+        ).timestamp()
+    except ValueError:
+        return 0.0
 
 
 # =============================================================================
@@ -265,11 +323,21 @@ def collect_eval_runs(root: Path, extra_excluded=()):
                 f"[WARN] {run_dir}: eval_results.json but no .hydra/config.yaml; skipped."
             )
             continue
+        cfg = OmegaConf.load(cfg_path)
         try:
-            cfg = OmegaConf.load(cfg_path)
             container = OmegaConf.to_container(cfg, resolve=True)
-        except Exception:
-            container = OmegaConf.to_container(OmegaConf.load(cfg_path), resolve=False)
+        except OmegaConfBaseException as e:
+            # An unresolved config still contains ${...} interpolation strings
+            # and therefore hashes differently from a resolved one: this run
+            # may show up as a spurious extra group. Warn loudly instead of
+            # hiding the run entirely.
+            print(
+                f"[WARN] {run_dir}: could not resolve config "
+                f"({type(e).__name__}: {e}); falling back to the UNRESOLVED "
+                f"config -- its group hash may not match resolved runs of the "
+                f"same configuration."
+            )
+            container = OmegaConf.to_container(cfg, resolve=False)
         identity = group_identity(container, extra_excluded)
         if identity is None:
             continue
@@ -278,7 +346,7 @@ def collect_eval_runs(root: Path, extra_excluded=()):
         )
         try:
             metrics = json.loads(eval_json.read_text())
-        except Exception as e:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
             print(f"[WARN] {run_dir}: unreadable eval_results.json ({e}); skipped.")
             continue
         records.append(
@@ -288,6 +356,9 @@ def collect_eval_runs(root: Path, extra_excluded=()):
                 "campaign": run_dir.parent.name,
                 "debug": is_debug(run_name, run_dir.relative_to(root)),
                 "metrics": metrics,
+                # Launch time ~ when hydra wrote the config at job start.
+                "launched": cfg_path.stat().st_mtime,
+                # Dedupe rank: float mtime -- the newest eval wins.
                 "recency": eval_json.stat().st_mtime,
             }
         )
@@ -310,6 +381,7 @@ def collect_wandb_runs(entity, projects, name_prefix=None, extra_excluded=()):
             runs = api.runs(f"{entity}/{project}", per_page=500)
             n_total = len(runs)
         except Exception as e:
+            # Network/API boundary: anything can fail here; report and go on.
             print(f"[WARN] Could not list {entity}/{project}: {e}")
             continue
         print(f"[INFO] wandb: scanning {n_total} runs in {entity}/{project} ...")
@@ -319,6 +391,7 @@ def collect_wandb_runs(entity, projects, name_prefix=None, extra_excluded=()):
                     continue
                 identity = group_identity(run.config, extra_excluded)
             except Exception as e:
+                # run.name / run.config are lazy API calls; skip broken runs.
                 print(f"[WARN] wandb run {getattr(run, 'name', '?')}: {e}; skipped.")
                 continue
             if identity is None:
@@ -330,28 +403,46 @@ def collect_wandb_runs(entity, projects, name_prefix=None, extra_excluded=()):
                 if isinstance(value, (int, float)) and math.isfinite(value):
                     metrics[key] = float(value)
             step = summary.get("_step")
+            step = int(step) if isinstance(step, (int, float)) else 0
+            launched = parse_wandb_created_at(getattr(run, "created_at", None))
             records.append(
                 {
                     **identity,
                     "run_name": run.name.strip(),
-                    "campaign": project,
+                    "campaign": campaign_from_config(run.config, fallback=project),
                     "debug": is_debug(run.name),
                     "metrics": metrics,
                     "state": run.state,
-                    "step": int(step) if isinstance(step, (int, float)) else 0,
-                    "recency": (
-                        int(step) if isinstance(step, (int, float)) else 0,
-                        str(run.created_at),
-                    ),
+                    "step": step,
+                    "launched": launched,
+                    # Dedupe rank: the run that progressed furthest wins,
+                    # ties broken by launch time (tuples compare elementwise).
+                    "recency": (step, launched),
                 }
             )
     return dedupe(records, "wandb")
 
 
+# Per-source meaning of the "recency" dedupe rank, used in the warning text.
+DEDUPE_KEEP_RULE = {
+    "eval": "keeping the one with the newest eval_results.json",
+    "wandb": "keeping the run that progressed furthest (ties: latest launch)",
+}
+
+
 def dedupe(records, source):
-    """Keep one record per (task, dataset, group hash, split): the most recent
-    on disk, or the wandb run that progressed furthest (relaunches and resumes
-    can leave several runs for the same configuration and split)."""
+    """Keep one record per (task, dataset, group hash, split).
+
+    Relaunches and resumes can leave several runs for the same configuration
+    and split; the record with the highest ``recency`` rank wins. The rank has
+    a different (per-source) meaning and type -- see the collectors and
+    DEDUPE_KEEP_RULE -- so all records of one call must come from one source.
+    """
+    recency_types = {type(rec["recency"]) for rec in records}
+    assert len(recency_types) <= 1, (
+        f"dedupe({source}) got mixed recency types {recency_types}; "
+        f"records from different sources must not be deduped together."
+    )
     best = {}
     for rec in records:
         key = (rec["task"], rec["dataset"], rec["hash"], rec["split"], rec["debug"])
@@ -359,7 +450,8 @@ def dedupe(records, source):
             print(
                 f"[WARN] duplicate {source} runs for {rec['dataset']} split "
                 f"{rec['split']} config {rec['hash']} "
-                f"({best[key]['run_name']} / {rec['run_name']}); keeping the newest."
+                f"({best[key]['run_name']} / {rec['run_name']}); "
+                f"{DEDUPE_KEEP_RULE[source]}."
             )
         if key not in best or rec["recency"] > best[key]["recency"]:
             best[key] = rec
@@ -371,25 +463,44 @@ def dedupe(records, source):
 # =============================================================================
 
 
-def build_table(records, metric_names, source):
-    """One row per training configuration, aggregated over splits."""
+def build_table(records, metric_names, source, min_splits=1):
+    """One row per training configuration, aggregated over splits.
+
+    Rows are ordered by launch date (of the most recently launched split run
+    of each configuration), newest first. Configurations with fewer than
+    ``min_splits`` splits are dropped; returns ``(dataframe, n_hidden)``.
+    """
     groups = defaultdict(list)
     for rec in records:
         groups[(rec["task"], rec["dataset"], rec["hash"])].append(rec)
 
     rows = []
+    n_hidden = 0
     for (task, dataset, ghash), recs in groups.items():
         settings = recs[0]["settings"]
+        # Same group hash => same config => same settings. If this ever fires
+        # the grouping (or an 8-char hash collision) is broken -- fail loudly
+        # rather than silently displaying the settings of an arbitrary run.
+        for rec in recs[1:]:
+            assert rec["settings"] == settings, (
+                f"group {ghash} ({dataset}/{task}) contains runs with "
+                f"different settings: {settings} vs {rec['settings']} "
+                f"(runs {recs[0]['run_name']} / {rec['run_name']})"
+            )
+        if len(recs) < min_splits:
+            n_hidden += 1
+            continue
         splits = sorted(r["split"] for r in recs)
+        launched = max(r.get("launched", 0.0) or 0.0 for r in recs)
         row = {
             "config": ghash,
+            "campaign": ",".join(sorted({r["campaign"] for r in recs})),
+            "launched": fmt_launch(launched),
             **settings,
             "n": len(recs),
             "splits": ",".join(splits),
         }
-        if source == "eval":
-            row["campaign"] = ",".join(sorted({r["campaign"] for r in recs}))
-        else:
+        if source == "wandb":
             steps = [r["step"] for r in recs]
             row["last_step"] = (
                 str(steps[0])
@@ -400,15 +511,21 @@ def build_table(records, metric_names, source):
             row["state"] = ",".join(states)
         for metric in metric_names:
             values = [r["metrics"][metric] for r in recs if metric in r["metrics"]]
-            row[metric] = fmt_mean_std(values, len(recs))
-        # Deterministic order shared by the eval and wandb tables.
-        row["_sort"] = tuple(str(settings[c]) for c in SETTINGS_COLUMNS) + (ghash,)
+            row[METRIC_DISPLAY_NAMES.get(metric, metric)] = fmt_mean_std(
+                values, len(recs)
+            )
+        # Newest launch first; deterministic tie-break on settings + hash.
+        row["_sort"] = (
+            -launched,
+            tuple(str(settings[c]) for c in SETTINGS_COLUMNS),
+            ghash,
+        )
         rows.append(row)
 
     rows.sort(key=lambda r: r["_sort"])
     for row in rows:
         del row["_sort"]
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows), n_hidden
 
 
 def print_config_diffs(records, task, dataset):
@@ -444,7 +561,7 @@ def print_config_diffs(records, task, dataset):
         )
 
 
-def print_section(title, records_by_source, diff_configs):
+def print_section(title, records_by_source, diff_configs, min_splits):
     """Per dataset: the eval table, then the wandb table."""
     printed_header = False
     tasks_datasets = sorted(
@@ -468,9 +585,15 @@ def print_section(title, records_by_source, diff_configs):
                 if source == "eval"
                 else "wandb (last logged values)"
             )
-            print(f"\n--- {label}: mean ± std over splits ---")
-            df = build_table(recs, metric_map[task], source)
-            print(df.to_string(index=False))
+            print(f"\n--- {label}: mean ± std over splits, newest launch first ---")
+            df, n_hidden = build_table(recs, metric_map[task], source, min_splits)
+            if len(df):
+                print(df.to_string(index=False))
+            if n_hidden:
+                print(
+                    f"[note] {n_hidden} configuration(s) with fewer than "
+                    f"{min_splits} splits hidden (pass --min-splits 1 to show)."
+                )
         if diff_configs:
             recs = [
                 r
@@ -512,6 +635,13 @@ def main():
         choices=["classification", "regression", "both"],
         default="both",
         help="Restrict to one task (default: both).",
+    )
+    parser.add_argument(
+        "--min-splits",
+        type=int,
+        default=MIN_SPLITS_DEFAULT,
+        help="Hide configurations with fewer than this many dataset splits "
+        "(default: %(default)s; pass 1 to show everything).",
     )
     parser.add_argument(
         "--name-prefix",
@@ -588,12 +718,13 @@ def main():
         s: [r for r in recs if r["debug"]] for s, recs in records_by_source.items()
     }
 
-    print_section("TRAINING RUNS", real, args.diff_configs)
+    print_section("TRAINING RUNS", real, args.diff_configs, args.min_splits)
     if not args.no_debug:
         print_section(
             "DEBUGGING RUNS (name matches: " + ", ".join(DEBUG_NAME_PATTERNS) + ")",
             debug,
             args.diff_configs,
+            args.min_splits,
         )
 
 
