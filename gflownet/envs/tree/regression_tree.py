@@ -30,7 +30,7 @@ This is the standard conjugate leaf model of Bayesian CART for regression
 """
 
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -139,22 +139,39 @@ class RegressionTree(Tree):
         mu_0: Optional[float],
         kappa_0: float,
         alpha_0: float,
-        beta_0: Optional[float],
+        beta_0: Optional[Union[float, str]],
     ) -> Tuple[float, float, float, float]:
         """
-        Resolves data-driven defaults for the NIG hyper-parameters:
+        Resolves data-driven defaults for the NIG hyper-parameters, with the
+        same semantics as ``NormalGammaTreeProxy.setup``:
 
         - ``mu_0``: mean of the training targets if None.
-        - ``beta_0``: ``(alpha_0 - 1) * var(y_train)`` if None (so that the
-          prior mean of sigma^2 equals the target variance, for alpha_0 > 1).
+        - ``beta_0``: ``(alpha_0 - 1) * scale`` (so that the prior mean of
+          sigma^2 equals ``scale``, for alpha_0 > 1), where ``scale`` is
+          ``var(y_train)`` if None, or the residual variance of an overfit
+          greedy CART if ``"overfit"``.
         """
         if mu_0 is None:
             mu_0 = float(np.mean(self.y_train))
-        if beta_0 is None:
+        if beta_0 is None or isinstance(beta_0, str):
             var = float(np.var(self.y_train))
             if var <= 0.0:
                 var = 1.0
-            beta_0 = (alpha_0 - 1.0) * var if alpha_0 > 1.0 else var
+            if beta_0 is None:
+                scale = var
+            elif beta_0.lower() == "overfit":
+                # Lazy import: the proxy module imports from gflownet.envs.tree
+                from gflownet.proxy.regression_tree import NormalGammaTreeProxy
+
+                scale = NormalGammaTreeProxy._overfit_residual_variance(
+                    self.X_train, self.y_train, var
+                )
+            else:
+                raise ValueError(
+                    f"Unknown beta_0 option '{beta_0}'. "
+                    f"Expected a float, None, or 'overfit'."
+                )
+            beta_0 = (alpha_0 - 1.0) * scale if alpha_0 > 1.0 else scale
         return float(mu_0), float(kappa_0), float(alpha_0), float(beta_0)
 
     def _sample_leaf_nig(
@@ -247,7 +264,7 @@ class RegressionTree(Tree):
         mu_0: Optional[float] = None,
         kappa_0: float = 0.1,
         alpha_0: float = 2.0,
-        beta_0: Optional[float] = None,
+        beta_0: Optional[Union[float, str]] = None,
     ) -> Dict[str, object]:
         """
         Evaluates a batch of sampled terminating trees with regression metrics.
