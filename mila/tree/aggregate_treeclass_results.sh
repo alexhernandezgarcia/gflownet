@@ -3,8 +3,8 @@
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%j.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=2:00:00
-#SBATCH --partition=long-cpu,long-cpu-eek
+#SBATCH --time=1:00:00
+#SBATCH --partition=main-cpu,long-cpu,long-cpu-eek
 
 # =============================================================================
 # Aggregate DT-GFN tree results (classification + regression) across splits.
@@ -19,9 +19,10 @@
 # reported in a separate section. It computes nothing heavy (only JSON/YAML
 # reading and wandb API calls), so it can also be run directly:
 #
-#   bash mila/tree/aggregate_treeclass_results.sh --source wandb --dataset iris
+#   bash mila/tree/aggregate_treeclass_results.sh
+#   Possible to add --source wandb or eval --dataset e.g. iris
 #
-# Usage via sbatch:
+# Usage examples via sbatch:
 #   mkdir -p $SCRATCH/gflownet-logs/slurm
 #   sbatch mila/tree/aggregate_treeclass_results.sh
 #   sbatch --export=ALL,ROOT=$SCRATCH/gflownet-logs/TREECLASS_MAGIC \
