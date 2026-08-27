@@ -20,16 +20,56 @@ Usage:
 """
 
 import argparse
+import io
 import json
 import math
 import pickle
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+# This script is launched by path (``python .../eval_tree.py``), so sys.path[0]
+# is its own directory and the repo root is not importable. Without this the
+# ``gflownet`` package is resolved against site-packages instead of the
+# checkout being evaluated.
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[2]  # <repo>/gflownet/envs/tree
+sys.path.insert(0, str(REPO_ROOT))
 
 import numpy as np
 from scipy.special import gammaln, softmax
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from sklearn.preprocessing import MinMaxScaler
+
+# =============================================================================
+# Sample loading
+# =============================================================================
+
+
+class _CPUUnpickler(pickle.Unpickler):
+    """Unpickler that maps torch storages to CPU.
+
+    Runs trained on a GPU pickle their energies as CUDA tensors, which plain
+    ``pickle.load`` refuses to restore on a CPU-only node. Evaluation only ever
+    needs the states (plain dicts) and the energies as numbers, so the storages
+    are redirected to the CPU on the way in.
+    """
+
+    def find_class(self, module: str, name: str):
+        if module == "torch.storage" and name == "_load_from_bytes":
+            import torch
+
+            return lambda b: torch.load(
+                io.BytesIO(b), map_location="cpu", weights_only=False
+            )
+        return super().find_class(module, name)
+
+
+def load_samples(samples_path: Path) -> Dict:
+    """Load a gfn_samples.pkl, whether it was written on CPU or on GPU."""
+    with open(samples_path, "rb") as f:
+        return _CPUUnpickler(f).load()
+
 
 # =============================================================================
 # Data loading (mirrors Tree._load_dataset + scaling)
@@ -508,8 +548,7 @@ def main():
     # Load samples
     samples_path = Path(args.samples_path)
     print(f"Loading samples from {samples_path}")
-    with open(samples_path, "rb") as f:
-        dct = pickle.load(f)
+    dct = load_samples(samples_path)
 
     states = dct["x"]
 

@@ -26,7 +26,6 @@ posterior draws so that re-running the script reproduces its own numbers.
 
 import argparse
 import json
-import pickle
 import sys
 from pathlib import Path
 
@@ -36,6 +35,8 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+
+from gflownet.envs.tree.eval_tree import load_samples
 
 
 def main():
@@ -93,8 +94,7 @@ def main():
     if args.data_path is not None:
         config.env.data_path = str(args.data_path)
     print(f"Loading samples from {samples_path}")
-    with open(samples_path, "rb") as f:
-        states = pickle.load(f)["x"]
+    states = load_samples(samples_path)["x"]
     print(f"  Loaded {len(states)} trees")
 
     # Rebuilt exactly as gflownet_from_config does, so the env sees the same
