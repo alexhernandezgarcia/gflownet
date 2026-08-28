@@ -429,8 +429,7 @@ class RegressionTree(Tree):
 
         # Per-state closed-form NIG leaf posteriors (from train data)
         leaf_posteriors_list = [
-            self._fit_leaf_posteriors(s, mu_0, kappa_0, alpha_0, beta_0)
-            for s in states
+            self._fit_leaf_posteriors(s, mu_0, kappa_0, alpha_0, beta_0) for s in states
         ]
 
         # Per-tree log-posteriors for ranking (higher is better)
