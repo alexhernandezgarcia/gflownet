@@ -9,40 +9,52 @@
 # tree proxy (companion to trillium_nig_grid.sh, which grids the likelihood).
 # =============================================================================
 #
-# Variants (one per proxy structure prior):
+# Variants -- 6 structure priors plus 2 replay-buffer arms:
 #
-#   node_count            current default: -log(4 * n_features) per split
+#   nodecount             current default: -log(4 * n_features) per split
 #   bcart, phi in {0.5, 1.0, 1.5, 2.0} with sigma = 0.95
 #                         Chipman et al. (1998) tree prior; the paper uses
 #                         beta (= phi here) in {0.5, 1.0, 1.5} (Sec. 3.1/7);
 #                         phi = 2.0 is the current repo default (BART-style,
 #                         more aggressive)
-#   none                  no size penalty; upper bound on how far the
+#   noprior               no size penalty; upper bound on how far the
 #                         likelihood alone gets (overfitting probe)
+#   nodecount_nodivbuf    node_count with buffer.check_diversity=False, i.e.
+#                         the OLD degenerate buffer (the 2026-08-28 replay
+#                         inspection showed it holds 100 copies of ONE tree)
+#                         -- the control arm isolating the buffer fix, since
+#                         all other arms now run with the fixed buffer that
+#                         the experiment configs default to since 2026-08-28
+#   nodecount_rap0.2      node_count + random_action_prob 0.2 (more
+#                         exploration on top of the diverse buffer)
 #
-# 6 variants x 3 splits = 18 runs at 10 cores each (all concurrent). The NIG
-# likelihood hyper-parameters and backward-weight sharing are held FIXED
-# across all variants; the defaults are the best known config (11fd0d0d:
-# alpha_0=2, beta_0=null, shared backward weights, Adam lr 1e-3). Override
-# them from the stability-grid winners before launching, e.g.:
+# 8 variants x 3 splits = 24 runs at 8 cores each = 192 cores, all concurrent.
 #
-#   sbatch --export=ALL,ALPHA0=3.0,BETA0=overfit,SHARED=False ...
+# Fixed base = stability-grid winner (2026-08-27): Adam lr 1e-3, reward
+# beta=1 (tempering lost everywhere), shared backward weights, MLP policies,
+# alpha_0=3 / beta_0=overfit (won on energy + concrete, tied on diabetes),
+# batch 45 forward + 5 backward-replay. Override via knobs, e.g.:
+#
+#   sbatch --export=ALL,ALPHA0=2.0,BETA0=null,SHARED=True ...
 #
 # BETA0 accepts a number, "overfit", or "null" (= var(y)-based default).
-#
-# Training setup identical to trillium_stab_grid.sh: MLP policies, 10000
-# steps, lr 0.001 (0.01 diverges!), batch = 45 forward + 5 backward-replay.
+# N_STEPS: use 20000 for concrete (the 20k REG_trillium run beats every 10k
+# run there -- not converged at 10k). A 20k concrete job may hit the 12 h
+# walltime for the big-tree arms: simply RESUBMIT the same sbatch command;
+# finished runs are skipped and cut-off ones resume from their checkpoints.
 #
 # Usage (from $SCRATCH on Trillium!):
 #   cd $SCRATCH
 #   sbatch --account=<acct> $HOME/gflownet/drac/trillium_prior_grid.sh
 #   sbatch --account=<acct> --export=ALL,DATASET=energy \
 #          $HOME/gflownet/drac/trillium_prior_grid.sh
+#   sbatch --account=<acct> --export=ALL,DATASET=concrete,N_STEPS=20000 \
+#          $HOME/gflownet/drac/trillium_prior_grid.sh
 #
 # The campaign name defaults to REG_PRIOR_<DATASET>.
 #
-# Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS ALPHA0 BETA0 SHARED RUNS_ROOT
-#        TOP_K FORCE CPUS_PER_RUN
+# Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS ALPHA0 BETA0 SHARED N_STEPS
+#        RUNS_ROOT TOP_K FORCE CPUS_PER_RUN
 # =============================================================================
 
 set -u
@@ -56,14 +68,18 @@ export WANDB_MODE="${WANDB_MODE:-offline}"
 export SEED=0
 
 SPLITS="${SPLITS:-1 2 3}"
-ALPHA0="${ALPHA0:-2.0}"
-BETA0="${BETA0:-null}"
+ALPHA0="${ALPHA0:-3.0}"
+BETA0="${BETA0:-overfit}"
 SHARED="${SHARED:-True}"
+N_STEPS="${N_STEPS:-10000}"
 CORES_PER_NODE=192
-# 18 tasks at 10 cores each -> all run at once (180/192 cores).
-export CPUS_PER_RUN="${CPUS_PER_RUN:-10}"
+# 24 tasks at 8 cores each = 192 cores, all concurrent.
+export CPUS_PER_RUN="${CPUS_PER_RUN:-8}"
 
 # --- The grid: "tag hydra-override [hydra-override ...]" per variant --------
+# NOTE: since 2026-08-28 the experiment configs default to the FIXED replay
+# buffer (buffer.check_diversity=True, duplicate states rejected), so every
+# arm below runs with the fix; nodecount_nodivbuf is the old-buffer CONTROL.
 VARIANTS=(
     "nodecount  proxy.prior_type=node_count"
     "bcart_p0.5 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=0.5"
@@ -71,6 +87,8 @@ VARIANTS=(
     "bcart_p1.5 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=1.5"
     "bcart_p2.0 proxy.prior_type=bcart proxy.sigma=0.95 proxy.phi=2.0"
     "noprior    proxy.prior_type=none"
+    "nodecount_nodivbuf proxy.prior_type=node_count buffer.check_diversity=False"
+    "nodecount_rap0.2 proxy.prior_type=node_count gflownet.random_action_prob=0.2"
 )
 
 # --- Fixed overrides shared by every run ------------------------------------
@@ -78,7 +96,7 @@ COMMON=(
     "proxy.alpha_0=$ALPHA0"
     "proxy.beta_0=$BETA0"
     "policy.backward.shared_weights=$SHARED"
-    "gflownet.optimizer.n_train_steps=10000"
+    "gflownet.optimizer.n_train_steps=$N_STEPS"
     "gflownet.optimizer.lr=0.001"
     "gflownet.optimizer.batch_size.forward=45"
     "gflownet.optimizer.batch_size.backward_replay=5"
