@@ -68,6 +68,19 @@ buffer:
   # to exactly 0.0 for most datasets. Storing log-rewards keeps the replay
   # buffer insertion criterion and weighted sampling numerically valid.
   store_log_rewards: True
+  # Replay-buffer duplicate check. With check_diversity: False (the old
+  # default), insertion only requires reward > min(buffer), so the best tree
+  # keeps re-inserting itself until the buffer holds ~100 copies of ONE state
+  # (observed on all 2026-08 tree campaigns; the legacy dt-gfn buffer always
+  # rejected duplicate states). True compares each candidate to buffer entries
+  # with env.isclose and skips duplicates. Set False only to reproduce
+  # pre-2026-08 campaigns.
+  check_diversity: True
+  # Which entries the duplicate check compares against: -1 = the FULL buffer
+  # (recommended). A positive x only checks entries whose reward is within
+  # x * (buffer reward range) of the candidate -- this silently disables the
+  # check once the buffer collapses to a single reward (range = 0).
+  diversity_check_reward_similarity: -1
   train: null
   test: null
 
