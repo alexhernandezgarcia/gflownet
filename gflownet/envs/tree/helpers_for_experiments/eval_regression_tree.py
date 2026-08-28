@@ -9,9 +9,14 @@ the TreeEvaluator calls during training -- so the numbers in the JSON are
 directly comparable to the ones logged to wandb.
 
 Reported (see RegressionTree.test): ``train_``/``test_`` prefixed
-``mean_rmse``, ``mean_r2``, ``forest_rmse``, ``forest_r2``, plus ``top_k_*``
-and ``top_1_*`` when ``--top_k_trees > 0``, and ``mean_nodes``. RMSE values are
-in the original target units even when ``env.scale_y`` standardized them.
+``mean_tree_rmse``, ``mean_tree_r2``, ``mean_tree_nll``, ``forest_rmse``,
+``forest_r2``, ``forest_nll``, ``forest_coverage_90``, plus ``top_k_*`` and
+``top_1_*`` when ``--top_k_trees > 0``, and ``mean_n_nodes`` /
+``mean_log_posterior``. The leaf parameters are integrated out in closed form
+(posterior predictive mean / Student-t), so the evaluation is deterministic.
+Trees are ranked for the top-k metrics by their log-posterior, computed with
+the run's own proxy (i.e. honoring its structure prior). RMSE and NLL values
+are in the original target units even when ``env.scale_y`` standardized them.
 
 Usage:
     python eval_regression_tree.py \\
@@ -20,8 +25,7 @@ Usage:
 
 The NIG hyper-parameters and the dataset are read from
 ``<run_dir>/.hydra/config.yaml``, so the evaluation cannot silently disagree
-with the configuration the run was trained under. ``--seed`` fixes the
-posterior draws so that re-running the script reproduces its own numbers.
+with the configuration the run was trained under.
 """
 
 import argparse
@@ -33,6 +37,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[3]  # <repo>/gflownet/envs/tree/helpers_for_experiments
 sys.path.insert(0, str(REPO_ROOT))
 
+import numpy as np
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
@@ -77,7 +82,9 @@ def main():
         "--seed",
         type=int,
         default=0,
-        help="Seed for the NIG posterior draws, for reproducibility (default: 0).",
+        help="Deprecated and ignored: the evaluation is deterministic (leaf "
+        "parameters are integrated out in closed form). Kept so existing "
+        "launcher scripts do not break.",
     )
     args = parser.parse_args()
 
@@ -106,17 +113,32 @@ def main():
     )
     print(f"  Dataset: {config.env.data_path}")
 
+    # The run's own proxy supplies the per-tree log-posteriors used to rank
+    # trees for the top-k metrics, so the ranking honors the exact structure
+    # prior (prior_type, beta, ...) the run was trained with.
+    proxy = instantiate(
+        config.proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    proxy.setup(env)
+    log_posteriors = proxy(states).cpu().numpy().astype(np.float64)
+    print(
+        f"  Log-posterior range: "
+        f"[{log_posteriors.min():.2f}, {log_posteriors.max():.2f}]"
+    )
+
     # NIG hyper-parameters come from the run's proxy config; nulls are resolved
     # from the training targets inside test() (see _resolve_nig_params).
     result = env.test(
         states,
         top_k_trees=args.top_k_trees,
         plot_top_k=False,
-        seed=args.seed,
         mu_0=config.proxy.get("mu_0", None),
         kappa_0=config.proxy.get("kappa_0", 0.1),
         alpha_0=config.proxy.get("alpha_0", 2.0),
         beta_0=config.proxy.get("beta_0", None),
+        log_posteriors=log_posteriors,
     )
     metrics = result["metrics"]
     if not metrics:
