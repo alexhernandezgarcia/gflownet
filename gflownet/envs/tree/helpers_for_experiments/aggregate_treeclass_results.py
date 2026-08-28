@@ -175,11 +175,16 @@ def settings_from_config(container: dict) -> dict:
     backward = (container.get("policy", {}) or {}).get("backward") or {}
     shared = backward.get("shared_weights", None)
     clip = optimizer.get("clip_grad_norm", 0.0) or 0.0
+    reward_kwargs = (container.get("proxy", {}) or {}).get(
+        "reward_function_kwargs"
+    ) or {}
 
     return {
         "steps": optimizer.get("n_train_steps", "?"),
         "depth": container.get("env", {}).get("max_depth", "?"),
         "lr": optimizer.get("lr", "?"),
+        "opt": optimizer.get("method", "?"),
+        "beta": reward_kwargs.get("beta", "?"),
         "policy": policy_label(container),
         "seed": container.get("seed", "?"),
         "clip": clip if clip else "-",
@@ -192,6 +197,8 @@ SETTINGS_COLUMNS = [
     "steps",
     "depth",
     "lr",
+    "opt",
+    "beta",
     "policy",
     "seed",
     "clip",
@@ -490,7 +497,6 @@ def build_table(records, metric_names, source, min_splits=1):
         if len(recs) < min_splits:
             n_hidden += 1
             continue
-        splits = sorted(r["split"] for r in recs)
         launched = max(r.get("launched", 0.0) or 0.0 for r in recs)
         row = {
             "config": ghash,
@@ -498,7 +504,6 @@ def build_table(records, metric_names, source, min_splits=1):
             "launched": fmt_launch(launched),
             **settings,
             "n": len(recs),
-            "splits": ",".join(splits),
         }
         if source == "wandb":
             steps = [r["step"] for r in recs]
