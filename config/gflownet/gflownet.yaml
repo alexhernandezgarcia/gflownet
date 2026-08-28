@@ -36,6 +36,19 @@ mask_invalid_actions: True
 temperature_logits: 1.0
 # Percentage of random actions
 random_action_prob: 0.0
+# Epsilon-greedy annealing of random_action_prob during training. If enabled,
+# the probability of sampling a random action decays from random_action_prob
+# (epsilon_0, at iteration 1) down to epsilon_min (reached at iteration
+# anneal_steps, then held constant). Disabled by default: epsilon stays fixed
+# at random_action_prob throughout training, as before.
+epsilon_annealing:
+  enabled: False
+  # Final (small, positive) epsilon; must be <= random_action_prob
+  epsilon_min: 0.01
+  # Iterations over which to decay epsilon; null -> optimizer.n_train_steps
+  anneal_steps: null
+  # Decay shape: linear | exponential
+  schedule: linear
 # Replay buffer
 replay_sampling: permutation
 # Train data set backward sampling

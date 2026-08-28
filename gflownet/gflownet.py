@@ -59,6 +59,7 @@ class GFlowNetAgent:
         train_sampling="permutation",
         garbage_collection_period: int = 0,
         collect_reversed_logprobs: bool = False,
+        epsilon_annealing: Optional[dict] = None,
         **kwargs,
     ):
         """
@@ -121,6 +122,13 @@ class GFlowNetAgent:
         collect_reversed_logprobs: bool
             If True, reversed logprobs will be computed and collected during sampling batches
             for training
+        epsilon_annealing : dict, optional
+            Epsilon-greedy annealing config (see gflownet.yaml:epsilon_annealing).
+            If None or enabled is False (default), random_action_prob stays
+            constant throughout training. Otherwise, the probability of sampling
+            random actions decays from random_action_prob (epsilon_0) to
+            epsilon_min over anneal_steps training iterations (linearly or
+            exponentially) and is held at epsilon_min afterwards.
 
         Raises
         ------
@@ -219,6 +227,29 @@ class GFlowNetAgent:
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
+        # Epsilon-greedy annealing of random_action_prob (see
+        # _current_random_action_prob); disabled if the config is absent
+        self.epsilon_annealing_enabled = (
+            epsilon_annealing is not None and epsilon_annealing.get("enabled", False)
+        )
+        if self.epsilon_annealing_enabled:
+            self.epsilon_min = float(epsilon_annealing.get("epsilon_min", 0.01))
+            anneal_steps = epsilon_annealing.get("anneal_steps", None)
+            self.epsilon_anneal_steps = (
+                int(anneal_steps) if anneal_steps is not None else self.n_train_steps
+            )
+            self.epsilon_anneal_schedule = epsilon_annealing.get("schedule", "linear")
+            if self.epsilon_anneal_schedule not in ("linear", "exponential"):
+                raise ValueError(
+                    "epsilon_annealing.schedule must be 'linear' or 'exponential', "
+                    f"got '{self.epsilon_anneal_schedule}'"
+                )
+            if not 0.0 < self.epsilon_min <= self.random_action_prob:
+                raise ValueError(
+                    "epsilon_annealing requires 0 < epsilon_min <= "
+                    f"random_action_prob, got epsilon_min={self.epsilon_min} and "
+                    f"random_action_prob={self.random_action_prob}"
+                )
         self.garbage_collection_period = garbage_collection_period
         # Metrics
         self.l1 = -1.0
@@ -249,6 +280,29 @@ class GFlowNetAgent:
                 )
             parameters += list(self.state_flow.model.parameters())
         return parameters
+
+    def _current_random_action_prob(self) -> float:
+        """
+        Returns the probability of sampling random actions at the current training
+        iteration (self.it).
+
+        If epsilon-greedy annealing is disabled (the default), this is simply
+        self.random_action_prob. Otherwise, epsilon is decayed from
+        random_action_prob (epsilon_0, at iteration 1) to epsilon_min (reached at
+        iteration anneal_steps and held constant afterwards), either linearly or
+        exponentially depending on the configured schedule.
+        """
+        if not self.epsilon_annealing_enabled:
+            return self.random_action_prob
+        progress = min(max(self.it - 1, 0) / max(self.epsilon_anneal_steps - 1, 1), 1.0)
+        if self.epsilon_anneal_schedule == "linear":
+            return self.random_action_prob + progress * (
+                self.epsilon_min - self.random_action_prob
+            )
+        return (
+            self.random_action_prob
+            * (self.epsilon_min / self.random_action_prob) ** progress
+        )
 
     def sample_actions(
         self,
@@ -303,8 +357,10 @@ class GFlowNetAgent:
 
         random_action_prob : float
             Probability of sampling random actions. If None (default),
-            self.random_action_prob is used, unless its value is forced to either 0.0
-            or 1.0 by other arguments (sampling_method or no_random).
+            self._current_random_action_prob() is used (self.random_action_prob,
+            possibly annealed by epsilon-greedy annealing), unless its value is
+            forced to either 0.0 or 1.0 by other arguments (sampling_method or
+            no_random).
         no_random : bool
             If True, the samples will strictly be on-policy, that is
                 - temperature = 1.0
@@ -345,7 +401,7 @@ class GFlowNetAgent:
             if temperature is None:
                 temperature = self.temperature_logits
             if random_action_prob is None:
-                random_action_prob = self.random_action_prob
+                random_action_prob = self._current_random_action_prob()
         if backward:
             model = self.backward_policy
             model_rev = self.forward_policy
@@ -1172,6 +1228,7 @@ class GFlowNetAgent:
                     "logZ": logz,
                     "Learning rate": learning_rates[0],
                     "Learning rate logZ": learning_rates[1],
+                    "Random action prob": self._current_random_action_prob(),
                 },
                 step=self.it,
                 use_context=self.use_context,
