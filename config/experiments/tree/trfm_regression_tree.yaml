@@ -109,6 +109,15 @@ buffer:
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
+  # Epsilon-greedy annealing: when enabled, the random-action probability
+  # decays from random_action_prob (epsilon_0) to epsilon_min over anneal_steps
+  # iterations (null -> n_train_steps), then stays at epsilon_min. Disabled by
+  # default, i.e. epsilon is fixed at random_action_prob for the whole run.
+  epsilon_annealing:
+    enabled: False
+    epsilon_min: 0.01
+    anneal_steps: null
+    schedule: linear
   optimizer:
     batch_size:
       forward: 90
