@@ -332,7 +332,8 @@ def test_build_table_aggregates_metrics_over_splits():
     assert df.iloc[0]["test_acc_top1"].startswith("0.9000 ±")
     assert df.iloc[0]["test_acc_top1"].endswith("[n=2]")
     assert df.iloc[0]["n"] == 3
-    assert df.iloc[0]["splits"] == "1,2,3"
+    # The splits column was dropped for readability: splits are always 1..n.
+    assert "splits" not in df.columns
 
 
 # ---------------------------------------------------------------------------
