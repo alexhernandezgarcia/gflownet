@@ -375,6 +375,101 @@ def test__test__without_data_returns_empty(env_reg_depth2):
 
 
 # ===========================================================================
+# Functional isclose tests (Tree.isclose override, exercised via the
+# RegressionTree subclass)
+# ===========================================================================
+#
+# Two terminal tree states are functional duplicates iff they have the same
+# structure and, at every done node, thresholds that fall between the same two
+# consecutive sorted training values of that feature (=> identical routing of
+# X_train => identical likelihood and posterior).
+
+
+def _make_env_with_grid_data(functional_isclose=True):
+    """Env over a fixed grid dataset: feature x0 takes the values 0.0, 0.1,
+    ..., 0.9, so inter-data-value gaps are known exactly. Root split built at
+    x0 <= 0.52. Returns (env, terminal state)."""
+    rng = np.random.default_rng(3)
+    X = np.stack(
+        [np.tile(np.arange(10) / 10.0, 4), np.repeat(np.arange(4) / 4.0, 10)],
+        axis=1,
+    )
+    y = rng.normal(size=len(X))
+    env = RegressionTree(
+        max_depth=2,
+        X_train=X,
+        y_train=y,
+        scale_data=False,
+        functional_isclose=functional_isclose,
+    )
+    _build_node_with_dtnode_subenv(env, 0, 1, 0.52)
+    env.step(env.eos)
+    from copy import deepcopy
+
+    return env, deepcopy(env.state)
+
+
+def test__isclose__jitter_within_gap_is_duplicate():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data()
+    other = deepcopy(state)
+    # 0.52 -> 0.57: both lie strictly between the data values 0.5 and 0.6,
+    # so every sample routes identically.
+    other[0][1][0] = 0.57
+    assert env.isclose(state, other)
+    assert env.isclose(other, state)
+
+
+def test__isclose__threshold_across_data_value_is_distinct():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data()
+    other = deepcopy(state)
+    # 0.52 -> 0.62 crosses the data value 0.6: samples with x0 == 0.6 flip
+    # sides, so the trees are functionally different.
+    other[0][1][0] = 0.62
+    assert not env.isclose(state, other)
+
+
+def test__isclose__different_feature_is_distinct():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data()
+    other = deepcopy(state)
+    other[0][0][0] = 2  # feature x1 instead of x0
+    assert not env.isclose(state, other)
+
+
+def test__isclose__identical_states_are_duplicates():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data()
+    assert env.isclose(state, deepcopy(state))
+
+
+def test__isclose__flag_off_falls_back_to_elementwise():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data(functional_isclose=False)
+    other = deepcopy(state)
+    other[0][1][0] = 0.57
+    # Same-gap jitter, but the generic comparison sees different numbers.
+    assert not env.isclose(state, other)
+    assert env.isclose(state, deepcopy(state))
+
+
+def test__equal__keeps_exact_elementwise_semantics():
+    from copy import deepcopy
+
+    env, state = _make_env_with_grid_data()
+    other = deepcopy(state)
+    other[0][1][0] = 0.57
+    # do_equal must not use the functional comparison.
+    assert not env.isclose(state, other, do_equal=True)
+
+
+# ===========================================================================
 # Common base tests from common.py
 # ===========================================================================
 

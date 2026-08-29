@@ -4,6 +4,14 @@ defaults:
 _target_: gflownet.envs.tree.tree.Tree
 
 max_depth: 3
+
+# Functional duplicate detection for tree states (used by the replay-buffer
+# diversity check): True (default) treats two trees as duplicates iff they
+# have the same structure and their thresholds route the training data
+# identically (fall in the same inter-data-value gap), collapsing
+# threshold-jitter clones. False = generic elementwise comparison
+# (rtol 1e-5 on raw threshold values).
+functional_isclose: True
 # Example node_kwargs config
 # node_kwargs:
 #   features: 

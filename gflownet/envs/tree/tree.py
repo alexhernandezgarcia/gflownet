@@ -99,6 +99,7 @@ class Tree(CompositeBase):
         y_test: Optional[npt.NDArray] = None,
         data_path: Optional[str] = None,
         scale_data: bool = True,
+        functional_isclose: bool = True,
         **kwargs,
     ):
         """
@@ -134,6 +135,18 @@ class Tree(CompositeBase):
             Whether to apply min-max scaling to the features (scales to
             [0, 1] range). Only relevant when a dataset is provided.
             By default: True.
+        functional_isclose : bool
+            If True (default) and training data is available, ``isclose``
+            compares two terminal tree states FUNCTIONALLY: they are
+            considered duplicates iff they have the same done nodes with the
+            same feature at each node and thresholds that route the training
+            data identically (i.e. fall between the same two consecutive
+            sorted values of that feature). Trees that differ only by
+            threshold jitter within an inter-data-value gap have identical
+            leaf partitions, hence identical likelihood and posterior, so
+            e.g. the replay-buffer duplicate check treats them as one tree.
+            If False, the generic elementwise ``isclose`` of the base
+            environment is used (rtol 1e-5 on raw threshold values).
         """
         if max_depth < 1 or not isinstance(max_depth, int):
             warnings.warn(
@@ -145,6 +158,10 @@ class Tree(CompositeBase):
             raise ValueError(f"Tree requires max_depth >= 1, got {max_depth}.")
         self.max_depth = max_depth
         self.rescale_thresholds = rescale_thresholds
+        self.functional_isclose = functional_isclose
+        # Lazy cache of per-feature sorted training values for the functional
+        # isclose (built on first use, after X_train is final).
+        self._sorted_feature_values = None
 
         # Dataset loading and preprocessing
         node_kwargs = node_kwargs or {}
@@ -283,6 +300,84 @@ class Tree(CompositeBase):
     def _is_idle(self, state: Dict) -> bool:
         """Returns True if no node is currently being built."""
         return state["_active"] == -1
+
+    def _threshold_bucket(self, feature: int, threshold: float) -> int:
+        """
+        Index of the routing partition a threshold falls into for a feature.
+
+        Routing sends a sample left iff ``x <= threshold`` (see
+        ``proxy.tree._route_samples_to_leaves``), so two thresholds route the
+        training data identically iff the same number of sorted training
+        values of that feature are <= each of them.
+        """
+        if self._sorted_feature_values is None:
+            self._sorted_feature_values = [
+                np.sort(self.X_train[:, j]) for j in range(self.X_train.shape[1])
+            ]
+        return int(
+            np.searchsorted(
+                self._sorted_feature_values[feature], threshold, side="right"
+            )
+        )
+
+    def _functional_splits(self, state: Dict) -> Optional[frozenset]:
+        """
+        Summary of a tree state as a set of ``(node, feature,
+        threshold-bucket)`` triples over the done nodes, or None if any done
+        node lacks a complete split (the state cannot be summarized).
+
+        Two states with equal summaries have identical structure and route
+        the training data identically, hence identical likelihood, prior and
+        posterior.
+        """
+        splits = []
+        for k, done in enumerate(state["_dones"]):
+            if not done:
+                continue
+            feature_idx = self.node_env.get_feature(state[k])
+            threshold = self.node_env.get_threshold(state[k])
+            if feature_idx is None or threshold is None:
+                return None
+            splits.append(
+                (k, feature_idx, self._threshold_bucket(feature_idx - 1, threshold))
+            )
+        return frozenset(splits)
+
+    def isclose(self, state_x, state_y, rtol=1e-5, atol=1e-8, do_equal=False):
+        """
+        Functional comparison of two tree states (used e.g. by the replay
+        buffer duplicate check).
+
+        With ``self.functional_isclose`` True and training data available,
+        two states are close iff they have the same done nodes, the same
+        feature at each done node, and thresholds falling between the same
+        two consecutive sorted training values of that feature -- i.e. iff
+        they induce the same partition of the training data and therefore the
+        same posterior. This collapses threshold-jitter clones that the
+        generic elementwise comparison (rtol 1e-5 on raw values) would treat
+        as distinct. The comparison is conservative in the other direction:
+        it never declares two trees with different routing to be duplicates.
+
+        Falls back to the generic elementwise comparison of the base
+        environment when the functional comparison is disabled, no training
+        data is available, ``do_equal`` is requested (exact equality keeps
+        elementwise semantics), or a state cannot be parsed as a tree.
+        """
+        if (
+            do_equal
+            or not self.functional_isclose
+            or self.X_train is None
+            or not isinstance(state_x, dict)
+            or not isinstance(state_y, dict)
+            or "_dones" not in state_x
+            or "_dones" not in state_y
+        ):
+            return GFlowNetEnv.isclose(state_x, state_y, rtol, atol, do_equal)
+        splits_x = self._functional_splits(state_x)
+        splits_y = self._functional_splits(state_y)
+        if splits_x is None or splits_y is None:
+            return GFlowNetEnv.isclose(state_x, state_y, rtol, atol, do_equal)
+        return splits_x == splits_y
 
     def _get_expandable_leaves(self, state: Dict) -> List[int]:
         """
