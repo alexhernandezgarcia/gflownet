@@ -13,9 +13,12 @@
 # tempered posterior beta=0.1 was the clear winner (best test acc AND best
 # raw log-posterior trees), SGD(m=0.8, lr 3e-4, grad clip) a close second,
 # and every campaign ran with a degenerate replay buffer (100 copies of one
-# tree) -- fixed since via buffer.check_diversity=True in the tree configs.
-# This grid transfers the winning variants to credit_quantile / jannis2 with
-# the fixed buffer.
+# tree) -- fixed since via buffer.check_diversity=True PLUS the functional
+# Tree.isclose (env.functional_isclose=True: trees are duplicates iff they
+# route the training data identically -- exact-equality dedup alone cannot
+# catch threshold-jittered copies). Both are config defaults now; the dedup
+# ablation itself runs on magic (Mila), not here. This grid transfers the
+# winning variants to credit_quantile / jannis2 with the fixed buffer.
 #
 # The reward-scale argument: log-posterior magnitude grows ~ linearly with n,
 # so the beta that maps the log-reward range to O(100) nats shrinks ~ 1/n.
@@ -42,8 +45,9 @@
 #
 # BEFORE LAUNCHING (from the Mila side):
 #   1. commit + sync this branch to the Trillium checkout -- the replay-buffer
-#      fix (buffer.check_diversity) and epsilon_annealing keys live in the
-#      configs/code, not in this script;
+#      fix (buffer.check_diversity + the functional Tree.isclose in tree.py,
+#      a base-branch file!) and epsilon_annealing keys live in the configs/
+#      code, not in this script;
 #   2. jannis2 split csvs are gitignored -- rsync tests/data/tree/jannis2/
 #      to the Trillium checkout if not already there.
 #
@@ -88,8 +92,8 @@ VARIANTS=(
 # --- Fixed overrides shared by every run ------------------------------------
 # MAGIC_STAB recipe: 10k steps, batch 45 fwd + 5 bwd-replay, MLP policies,
 # shared_weights=False (yaml default), no lr decay. The replay-buffer dedup
-# (buffer.check_diversity=True, similarity=-1) comes from the experiment
-# config, not from here.
+# (buffer.check_diversity=True, similarity=-1, env.functional_isclose=True)
+# comes from the experiment/env configs, not from here.
 COMMON=(
     "policy.forward.type=mlp"
     "policy.backward.type=mlp"
