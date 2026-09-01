@@ -57,6 +57,11 @@ All use a `target` float column and plain (unstratified) 80/20 splits.
 | `energy`         | UCI Energy Efficiency (`ENB2012_data.xlsx`, tracked) | 768 | 8 | **heating** load Y1 (6.0-43.1) |
 | `energy_cooling` | same raw file as `energy`                    |  768 |  8 | **cooling** load Y2 (10.9-48.0) |
 | `concrete`       | UCI Concrete Compressive Strength (`Concrete_Data.xls`, tracked) | 1030 | 8 | strength in MPa (2.3-82.6) |
+| `slump`          | UCI Concrete Slump Test (`slump_test.data`, tracked) | 103 | 7 | **28-day compressive strength** in MPa (17.2-58.5) |
+| `yacht`          | UCI Yacht Hydrodynamics (`yacht_hydrodynamics.data`, tracked) | 308 | 6 | residuary resistance (0.01-62.4) |
+| `real_estate`    | UCI Real Estate Valuation, New Taipei City (`Real estate valuation data set.xlsx`, tracked) | 414 | 6 | house price per unit area (7.6-117.5) |
+| `qsar_aquatic`   | UCI QSAR Aquatic Toxicity (`qsar_aquatic_toxicity.csv`, tracked) | 546 | 8 | LC50 Daphnia magna, -log10(mol/L) (0.1-10.0) |
+| `qsar_fish`      | UCI QSAR Fish Toxicity (`qsar_fish_toxicity.csv`, tracked) | 908 | 6 | LC50 fathead minnow, -log10(mol/L) (0.1-9.6) |
 
 Notes:
 
@@ -70,9 +75,26 @@ Notes:
   `../energy/ENB2012_data.xlsx` if present.
 - `diabetes` uses the raw (unscaled) feature values on purpose: the Tree env
   min-max scales the data itself.
-- `energy` and `concrete` auto-download their UCI zip on first run if the
-  Excel file is missing (using certifi for TLS, since the cluster Python has
-  no CA bundle); reading them needs `openpyxl` (xlsx) / `xlrd` (legacy xls).
+- `energy`, `concrete` and all five 2026-09-01 additions (`slump`, `yacht`,
+  `real_estate`, `qsar_aquatic`, `qsar_fish`) auto-download their UCI zip on
+  first run if the raw file is missing (using certifi for TLS, since the
+  cluster Python has no CA bundle); reading the Excel files needs `openpyxl`
+  (xlsx: `energy`, `real_estate`) / `xlrd` (legacy xls: `concrete`).
+- **Multi-target raw files.** `slump` has three output columns (SLUMP, FLOW,
+  28-day compressive strength); we keep only the compressive strength: it is
+  fully continuous (17.2-58.5 MPa) and directly analogous to `concrete`,
+  whereas SLUMP and FLOW are censored at their measurement limits (slump
+  clipped to [0, 29] cm, flow to >= 20 cm), which makes them awkward
+  regression targets. Energy's two targets are handled as the two paired
+  datasets above. The other new datasets have a single target.
+- `yacht` comes from a designed experiment: each feature takes only a
+  handful of distinct values (a grid), so it behaves almost categorically
+  despite being numeric. The QSAR datasets contain small-integer count
+  descriptors dominated by zeros (`qsar_fish` `ndsch`/`ndssc`: 84%/69%
+  zeros; `qsar_aquatic` `c040`/`h050`: 76%/54%). Unlike the `credit`
+  pathology below this does not block splitting — a threshold between 0 and
+  1 still separates zero from nonzero — but those features carry few
+  effective split points.
 
 ## The tabular-benchmark datasets (credit, jannis)
 
