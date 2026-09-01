@@ -113,8 +113,8 @@ def make_parser(description: str) -> argparse.ArgumentParser:
         "--datasets",
         nargs="+",
         default=list(DATASETS),
-        choices=list(DATASETS),
-        help="Datasets to run on (default: all).",
+        help="Datasets to run on: any directory under tests/data/tree with "
+        f"<name>_<split>.csv files (default: {' '.join(DATASETS)}).",
     )
     parser.add_argument(
         "--splits",
