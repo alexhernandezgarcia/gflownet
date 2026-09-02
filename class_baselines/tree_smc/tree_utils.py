@@ -1135,8 +1135,14 @@ def compute_ng_normalizer(sum_y, sum_y2, n_points, param, cache):
     y_bar = sum_y / n_points
     kappa = param.kappa_0 + n_points
     alpha = param.alpha_0 + n_points / 2.0
+    # NOTE (2026-09-02): the original code had "0.5 * kappa_0 / (kappa_0 + n)"
+    # here, i.e. it dropped the factor n_points of the standard NIG posterior
+    # beta_n = beta_0 + 1/2 sum (y - ybar)^2 + kappa_0 n (ybar - mu_0)^2 / (2 (kappa_0 + n))
+    # (Murphy 2007, "Conjugate Bayesian analysis of the Gaussian", eq. 86).
+    # Verified against the sequential Student-t predictive product; the fixed
+    # form matches gflownet.proxy.regression_tree.NormalGammaTreeProxy.
     beta = param.beta_0 + 0.5 * (sum_y2 - n_points * (y_bar ** 2)) \
-            + 0.5 * param.kappa_0 / (param.kappa_0 + n_points) * ((y_bar - param.mu_0) ** 2)
+            + 0.5 * param.kappa_0 * n_points / (param.kappa_0 + n_points) * ((y_bar - param.mu_0) ** 2)
     op = cache['ng_prior_term'] - n_points * cache['half_log_2pi'] \
             + gammaln(alpha) - alpha * np.log(beta) - 0.5 * np.log(kappa)
     mu = (param.kappa_0 * param.mu_0 + sum_y) / (param.kappa_0 + n_points)

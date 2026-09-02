@@ -415,6 +415,13 @@ class TreeMCMC(Tree):
     def create_new_statistics(self, nodes_subtree, nodes_not_in_subtree, node_id, settings):
         self.node_info_new = self.node_info.copy()
         self.counts_new = {}
+        # Regression (optype == 'real') statistics; the original code
+        # referenced these without initializing them (regression was only
+        # supported by the SMC sampler).
+        self.sum_y_new = {}
+        self.sum_y2_new = {}
+        self.n_points_new = {}
+        self.param_n_new = {}
         self.train_ids_new = {}
         self.loglik_new = {}
         self.logprior_new = {}
@@ -436,17 +443,26 @@ class TreeMCMC(Tree):
             if settings.optype == 'class':
                 self.counts_new[node] = np.zeros(self.counts[node].shape)
             else:
-                self.sum_y_new[node] = np.nan
-                self.sum_y2_new[node] = np.nan
+                # Re-accumulated from scratch in evaluate_new_subtree
+                # (param_n is a tuple, so the original "* 0.0" reset would
+                # raise; None is overwritten for every non-empty node).
+                self.sum_y_new[node] = 0.0
+                self.sum_y2_new[node] = 0.0
                 self.n_points_new[node] = 0
-                self.param_n_new[node] = self.param_n[node] * 0.0
+                self.param_n_new[node] = None
 
     def evaluate_new_subtree(self, data, node_id_start, param, nodes_subtree, cache, settings):
+        is_class = settings.optype == 'class'
         for i in self.train_ids[node_id_start]:
             x_, y_ = data['x_train'][i, :], data['y_train'][i]
             node_id = copy(node_id_start)
             while True:
-                self.counts_new[node_id][y_] += 1
+                if is_class:
+                    self.counts_new[node_id][y_] += 1
+                else:
+                    self.sum_y_new[node_id] += y_
+                    self.sum_y2_new[node_id] += y_ ** 2
+                    self.n_points_new[node_id] += 1
                 self.train_ids_new[node_id].append(i)
                 if node_id in self.leaf_nodes:
                     break
@@ -457,10 +473,18 @@ class TreeMCMC(Tree):
                 else:
                     node_id = right
         for node_id in nodes_subtree:
-            if np.sum(self.counts_new[node_id]) > 0:
-                self.loglik_new[node_id] = compute_dirichlet_normalizer_fast(self.counts_new[node_id], cache)
+            if is_class:
+                if np.sum(self.counts_new[node_id]) > 0:
+                    self.loglik_new[node_id] = compute_dirichlet_normalizer_fast(self.counts_new[node_id], cache)
+                else:
+                    self.loglik_new[node_id] = -np.inf
             else:
-                self.loglik_new[node_id] = -np.inf
+                if self.n_points_new[node_id] > 0:
+                    self.loglik_new[node_id], self.param_n_new[node_id] = \
+                        compute_normal_normalizer(self.sum_y_new[node_id], self.sum_y2_new[node_id], \
+                            self.n_points_new[node_id], param, cache, settings)
+                else:
+                    self.loglik_new[node_id] = -np.inf
             if node_id in self.leaf_nodes:
                 if stop_split(self.train_ids_new[node_id], settings, data, cache):
                 # if leaf is empty, logprior_new[node_id] = 0.0 is incorrect; however
