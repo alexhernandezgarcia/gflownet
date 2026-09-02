@@ -27,10 +27,12 @@ see everything.
 
 Metric naming: the training-time / eval-time metric ``mean_n_nodes`` counts
 only DECISION (internal) nodes -- ``sum(state["_dones"])`` -- so it is
-displayed as ``mean_n_decisionnodes`` here. The classification eval metrics
-``model_size_*`` instead count decision nodes PLUS leaves
-(``count_total_nodes`` in eval_tree.py); the two are related by
-``total = 2 * decision + 1`` for a binary tree.
+displayed as ``mean_n_decisionnodes`` here. The eval metrics ``model_size_*``
+(classification: eval_tree.py; regression: eval_regression_tree.py) instead
+count decision nodes PLUS leaves (``count_total_nodes`` in eval_tree.py); the
+two are related by ``total = 2 * decision + 1`` for a binary tree.
+``model_size_top1`` is the size of the highest-log-posterior tree, i.e. the
+tree behind the top-1 metrics.
 
 How runs are grouped
 --------------------
@@ -130,6 +132,11 @@ EVAL_METRICS = {
         "test_top_1_rmse",
         "test_top_1_r2",
         "mean_n_nodes",
+        # Total nodes (decision + leaves), written by eval_regression_tree.py
+        # since 2026-09-02; older eval_results.json lack them (shown as "-",
+        # re-run with run_missing_evals.py --force).
+        "model_size_mean",
+        "model_size_top1",
     ],
 }
 

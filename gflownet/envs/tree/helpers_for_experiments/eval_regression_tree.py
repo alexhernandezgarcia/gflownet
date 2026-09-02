@@ -18,6 +18,15 @@ Trees are ranked for the top-k metrics by their log-posterior, computed with
 the run's own proxy (i.e. honoring its structure prior). RMSE and NLL values
 are in the original target units even when ``env.scale_y`` standardized them.
 
+Tree sizes: ``mean_n_nodes`` (from RegressionTree.test, also logged to wandb)
+counts DECISION nodes only, averaged over all sampled trees. This script
+additionally reports -- in the JSON only, nothing is logged to wandb -- the
+total node count (decision nodes + leaves, the same convention as
+``model_size_*`` in eval_tree.py for classification):
+``model_size_top1`` (the highest-log-posterior tree, i.e. the tree behind the
+``*_top_1_*`` metrics), ``model_size_mean`` / ``model_size_std`` over all
+sampled trees, and ``top_1_n_decision_nodes`` for the top-1 tree.
+
 Usage:
     python eval_regression_tree.py \\
         --run_dir $SCRATCH/gflownet-logs/REGTREE/<run_name> \\
@@ -41,7 +50,35 @@ import numpy as np
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 
-from gflownet.envs.tree.eval_tree import load_samples
+from gflownet.envs.tree.eval_tree import (
+    count_internal_nodes,
+    count_total_nodes,
+    load_samples,
+)
+
+
+def tree_size_metrics(states, log_posteriors, top_k_trees):
+    """
+    Node counts of the sampled trees, in the JSON only (not logged to wandb).
+
+    ``model_size_*`` count decision nodes + leaves, matching the classification
+    ``model_size_*`` metrics of eval_tree.py; the top-1 tree is selected
+    exactly like in RegressionTree.test (first index of ``argsort(-log_post)``)
+    so it is the same tree the ``*_top_1_*`` metrics refer to. The top-1
+    entries are only defined when top-k metrics were requested.
+    """
+    total = np.array([count_total_nodes(s) for s in states], dtype=float)
+    metrics = {
+        "model_size_mean": float(total.mean()),
+        "model_size_std": float(total.std()),
+    }
+    if top_k_trees > 0 and len(states) > 0:
+        top_1_idx = int(np.argsort(-np.asarray(log_posteriors, dtype=float))[0])
+        metrics["model_size_top1"] = float(total[top_1_idx])
+        metrics["top_1_n_decision_nodes"] = float(
+            count_internal_nodes(states[top_1_idx])
+        )
+    return metrics
 
 
 def main():
@@ -146,6 +183,7 @@ def main():
         sys.exit(1)
 
     metrics["n_trees"] = len(states)
+    metrics.update(tree_size_metrics(states, log_posteriors, args.top_k_trees))
 
     print("\n=== Regression results ===")
     for key in sorted(metrics):
