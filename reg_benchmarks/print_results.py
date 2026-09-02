@@ -18,6 +18,9 @@ import numpy as np
 
 METHOD_ORDER = [
     "bart",
+    "bcart_mcmc",
+    "bcart_smc",
+    "bcart_map",
     "cart",
     "cart_pruned",
     "random_forest",
