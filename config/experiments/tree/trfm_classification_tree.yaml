@@ -114,10 +114,10 @@ gflownet:
     schedule: linear
   optimizer:
     batch_size:
-      forward: 90
-      backward_replay: 10
+      forward: 45
+      backward_replay: 5
       backward_dataset: 0
-    lr: 0.01
+    lr: 0.001
     z_dim: 16
     lr_z_mult: 100
     n_train_steps: 1000
