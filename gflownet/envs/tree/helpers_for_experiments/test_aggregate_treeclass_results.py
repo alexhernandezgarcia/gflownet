@@ -10,6 +10,7 @@ temporary directories.
 """
 
 import json
+from datetime import datetime
 
 import pytest
 from omegaconf import OmegaConf
@@ -158,13 +159,40 @@ def test_dedupe_wandb_keeps_furthest_step_then_latest_launch():
     assert [r["run_name"] for r in agg.dedupe([a, b], "wandb")] == ["b"]
 
 
-def test_dedupe_keeps_different_splits_and_hashes():
+def test_dedupe_keeps_different_splits_hashes_and_campaigns(capsys):
     recs = [
         make_record(split="1"),
         make_record(split="2"),
         make_record(split="1", ghash="bbbbbbbb"),
+        make_record(split="1", campaign="OTHER_CAMPAIGN"),
     ]
-    assert len(agg.dedupe(recs, "eval")) == 3
+    assert len(agg.dedupe(recs, "eval")) == 4
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_dedupe_same_config_in_two_campaigns_is_not_merged(capsys):
+    # A control configuration relaunched unchanged in a later campaign keeps
+    # both records (one row per campaign), whatever their eval recency.
+    a = make_record(campaign="REG_PRIOR", recency=100.0, run_name="a")
+    b = make_record(campaign="REG_DIVBUF", recency=200.0, run_name="b")
+    kept = agg.dedupe([a, b], "eval")
+    assert sorted(r["campaign"] for r in kept) == ["REG_DIVBUF", "REG_PRIOR"]
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_dedupe_winner_inherits_earliest_launch():
+    # wandb: a resume is a new run (created later) that progressed further;
+    # it wins but keeps the original launch time.
+    original = make_record(recency=(100, 10.0), launched=10.0, run_name="orig")
+    resumed = make_record(recency=(500, 999.0), launched=999.0, run_name="resumed")
+    (kept,) = agg.dedupe([original, resumed], "wandb")
+    assert kept["run_name"] == "resumed"
+    assert kept["launched"] == 10.0
+    # An unknown launch time (0.0) never wins the minimum.
+    unknown = make_record(recency=(50, 0.0), launched=0.0, run_name="unknown")
+    later = make_record(recency=(60, 500.0), launched=500.0, run_name="later")
+    (kept,) = agg.dedupe([unknown, later], "wandb")
+    assert kept["launched"] == 500.0
 
 
 def test_dedupe_rejects_mixed_recency_types():
@@ -315,6 +343,55 @@ def test_build_table_renames_mean_n_nodes():
     assert "mean_n_nodes" not in df.columns
 
 
+def test_build_table_same_config_two_campaigns_two_rows():
+    recs = [
+        make_record(
+            split=str(i),
+            campaign="REG_PRIOR",
+            launched=100.0 + i,
+            metrics={"test_acc_top1": 0.8},
+        )
+        for i in (1, 2, 3)
+    ] + [
+        make_record(
+            split=str(i),
+            campaign="REG_DIVBUF",
+            launched=500.0 + i,
+            metrics={"test_acc_top1": 0.9},
+        )
+        for i in (1, 2, 3)
+    ]
+    df, n_hidden = agg.build_table(recs, ["test_acc_top1"], "eval", 3)
+    assert n_hidden == 0
+    assert list(df["campaign"]) == ["REG_DIVBUF", "REG_PRIOR"]  # newest first
+    assert list(df["config"]) == ["aaaaaaaa", "aaaaaaaa"]
+    assert df.iloc[0]["test_acc_top1"].startswith("0.9000")
+    assert df.iloc[1]["test_acc_top1"].startswith("0.8000")
+    assert list(df["n"]) == [3, 3]
+
+
+def test_shared_config_notes():
+    recs = [
+        make_record(campaign="A"),
+        make_record(campaign="B", split="2"),
+        make_record(campaign="A", ghash="bbbbbbbb"),
+    ]
+    notes = agg.shared_config_notes(recs)
+    assert len(notes) == 1
+    assert "aaaaaaaa" in notes[0] and "(A, B)" in notes[0]
+    assert agg.shared_config_notes([make_record(campaign="A")]) == []
+
+
+def test_print_section_notes_shared_configs(capsys):
+    recs = [
+        make_record(split=str(i), campaign=c, metrics={"test_acc_top1": 0.9})
+        for c in ("A", "B")
+        for i in (1, 2, 3)
+    ]
+    agg.print_section("T", {"eval": recs}, diff_configs=False, min_splits=3)
+    assert "was launched in 2 campaigns (A, B)" in capsys.readouterr().out
+
+
 def test_build_table_asserts_on_settings_mismatch_within_group():
     recs = _three_split_group()
     recs[1]["settings"] = {"lr": 999}
@@ -341,12 +418,21 @@ def test_build_table_aggregates_metrics_over_splits():
 # ---------------------------------------------------------------------------
 
 
-def _write_run(root, campaign, name, cfg, metrics):
+def _write_run(root, campaign, name, cfg, metrics, launch=None):
     run_dir = root / campaign / name
     (run_dir / ".hydra").mkdir(parents=True)
     OmegaConf.save(OmegaConf.create(cfg), run_dir / ".hydra" / "config.yaml")
     (run_dir / "eval_results.json").write_text(json.dumps(metrics))
+    if launch is not None:
+        # Same layout as the record the launchers append to <run_dir>/LAUNCH.
+        (run_dir / "LAUNCH").write_text(
+            f"--- launch {launch} EDT ---\nrun_name     : {name}\n"
+        )
     return run_dir
+
+
+def _launch_epoch(text):
+    return datetime.strptime(text, "%Y-%m-%d %H:%M:%S").timestamp()
 
 
 def test_collect_eval_runs_end_to_end(tmp_path):
@@ -357,6 +443,7 @@ def test_collect_eval_runs_end_to_end(tmp_path):
             f"run_split{split}",
             make_config(data_path=f"/data/iris/iris_{split}.csv"),
             {"test_acc_top1": 0.9},
+            launch="2026-08-28 15:31:51",
         )
     records = agg.collect_eval_runs(tmp_path)
     assert len(records) == 2
@@ -365,9 +452,116 @@ def test_collect_eval_runs_end_to_end(tmp_path):
     assert rec["dataset"] == "iris"
     assert rec["campaign"] == "CAMPAIGN_A"
     assert rec["metrics"] == {"test_acc_top1": 0.9}
-    assert rec["launched"] > 0
+    assert rec["launched"] == _launch_epoch("2026-08-28 15:31:51")
     # Both splits share the training configuration -> one group hash.
     assert len({r["hash"] for r in records}) == 1
+
+
+def test_collect_eval_runs_same_config_two_campaigns_both_kept(tmp_path, capsys):
+    for campaign in ("REG_PRIOR", "REG_DIVBUF"):
+        _write_run(tmp_path, campaign, "run1", make_config(), {"a": 1.0})
+    records = agg.collect_eval_runs(tmp_path)
+    assert sorted(r["campaign"] for r in records) == ["REG_DIVBUF", "REG_PRIOR"]
+    assert len({r["hash"] for r in records}) == 1
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_collect_eval_runs_launch_time_independent_of_eval_time(tmp_path):
+    run_dir = _write_run(
+        tmp_path,
+        "CAMP",
+        "run1",
+        make_config(),
+        {"a": 1.0},
+        launch="2026-08-28 15:31:51",
+    )
+    # A later re-evaluation rewrites eval_results.json and must not move the
+    # launch date (only the dedupe recency).
+    (run_dir / "eval_results.json").write_text(json.dumps({"a": 2.0}))
+    (rec,) = agg.collect_eval_runs(tmp_path)
+    assert rec["launched"] == _launch_epoch("2026-08-28 15:31:51")
+    assert rec["recency"] == (run_dir / "eval_results.json").stat().st_mtime
+
+
+# ---------------------------------------------------------------------------
+# launch_time_from_run_dir: LAUNCH file -> wandb folder -> config mtime
+# ---------------------------------------------------------------------------
+
+
+def test_launch_time_first_launch_record_wins(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "LAUNCH").write_text(
+        "--- launch 2026-08-15 16:19:41 EDT ---\nrun_name : x\n"
+        "--- launch 2026-08-15 20:11:33 EDT ---\nrun_name : x\n"
+    )
+    (run_dir / "wandb" / "run-20260815_201201-abc").mkdir(parents=True)
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == _launch_epoch(
+        "2026-08-15 16:19:41"
+    )
+
+
+def test_launch_time_falls_back_to_earliest_wandb_folder(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "wandb" / "run-20260815_201201-later").mkdir(parents=True)
+    (run_dir / "wandb" / "run-20260815_162010-first").mkdir()
+    (run_dir / "wandb" / "debug.log").write_text("")
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == _launch_epoch(
+        "2026-08-15 16:20:10"
+    )
+
+
+def test_launch_time_falls_back_to_config_mtime(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "LAUNCH").write_text("garbage without a launch record\n")
+    (run_dir / "wandb").mkdir()
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == cfg.stat().st_mtime
+
+
+# ---------------------------------------------------------------------------
+# Campaign filter: exact match for wandb runs, shared by both sources
+# ---------------------------------------------------------------------------
+
+
+def test_wandb_run_selected_exact_campaign_not_prefix():
+    sel = agg.wandb_run_selected
+    assert sel("REG_DIVBUF_ON_x", "REG_DIVBUF_ON", campaigns={"REG_DIVBUF_ON"})
+    assert not sel(
+        "REG_DIVBUF_ON_RAP02_x", "REG_DIVBUF_ON_RAP02", campaigns={"REG_DIVBUF_ON"}
+    )
+    # No campaign filter: everything; the name prefix is an independent filter.
+    assert sel("anything", "dt-gfn_classification")
+    assert sel("MAGIC_x", "C", name_prefix="MAGIC")
+    assert not sel("OTHER_x", "C", name_prefix="MAGIC")
+
+
+def test_campaigns_from_args(tmp_path):
+    root = agg.default_root()
+    assert agg.campaigns_from_args(None, root) is None
+    assert agg.campaigns_from_args(None, tmp_path / "REG_DIVBUF_ON") == {
+        "REG_DIVBUF_ON"
+    }
+    assert agg.campaigns_from_args("", tmp_path / "REG_DIVBUF_ON") is None
+    assert agg.campaigns_from_args("A,B", root) == {"A", "B"}
+
+
+def test_filter_records_by_campaign_dataset_task():
+    recs = {
+        "eval": [
+            make_record(campaign="A"),
+            make_record(campaign="B"),
+            make_record(campaign="A", dataset="wine"),
+            make_record(campaign="A", task="regression"),
+        ]
+    }
+    assert len(agg.filter_records(recs, campaigns={"A"})["eval"]) == 3
+    out = agg.filter_records(
+        recs, datasets={"iris"}, task="classification", campaigns={"A"}
+    )
+    assert len(out["eval"]) == 1
+    assert agg.filter_records(recs)["eval"] == recs["eval"]
 
 
 def test_collect_eval_runs_skips_resume_and_missing_config(tmp_path, capsys):
@@ -408,6 +602,51 @@ def test_wandb_metrics_no_training_diagnostics():
         assert "logZ" not in metrics, task
         assert "Loss" not in metrics, task
         assert "Train batch - logrewards mean" not in metrics, task
+
+
+def test_logz_is_a_debug_only_metric():
+    assert "logZ" in agg.DEBUG_EXTRA_WANDB_METRICS
+
+
+# ---------------------------------------------------------------------------
+# print_section: logZ column only in the debugging section
+# ---------------------------------------------------------------------------
+
+
+def _wandb_debug_records():
+    return [
+        make_record(
+            split=str(i),
+            debug=True,
+            recency=(100, 1.0),
+            step=100,
+            state="finished",
+            metrics={"test_top_1_acc": 0.9, "logZ": 12.5},
+        )
+        for i in (1, 2, 3)
+    ]
+
+
+def test_print_section_shows_logz_when_requested(capsys):
+    agg.print_section(
+        "DEBUGGING RUNS",
+        {"wandb": _wandb_debug_records()},
+        diff_configs=False,
+        min_splits=1,
+        extra_wandb_metrics=agg.DEBUG_EXTRA_WANDB_METRICS,
+    )
+    out = capsys.readouterr().out
+    assert "logZ" in out and "12.5000" in out
+
+
+def test_print_section_omits_logz_by_default(capsys):
+    agg.print_section(
+        "TRAINING RUNS",
+        {"wandb": _wandb_debug_records()},
+        diff_configs=False,
+        min_splits=1,
+    )
+    assert "logZ" not in capsys.readouterr().out
 
 
 if __name__ == "__main__":
