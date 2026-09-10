@@ -25,7 +25,7 @@ sys.path.insert(0, str(ROOT))
 # -- Project information -----------------------------------------------------
 
 project = "gflownet"
-copyright = "2024, Alex Hernandez-Garcia"
+copyright = "2026, Alex Hernandez-Garcia et al."
 author = "Alex Hernandez-Garcia, Nikita Saxena, Alexandra Volokhova, Michał Koziarski, Divya Sharma, Joseph D Viviano, Pierre Luc Carrier, Victor Schmidt and others."
 
 
