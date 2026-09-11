@@ -614,7 +614,10 @@ class Sequence(CompositeBase):
             # force both left and right as parents
             parents = self._enumerate_all_states_for_the_sequence(state=parent)
             # same action since it goes to EOS of the same subenv
-            return parents, [self._pad_action(subenv.eos, parent_i["_envs_unique"][key]) for parent_i in parents] # fixed
+            return parents, [
+                self._pad_action(subenv.eos, parent_i["_envs_unique"][key])
+                for parent_i in parents
+            ]  # fixed
 
         # Case 2: A sub-environment is active
         elif state["_active"] in (_ACTIVE_LEFT, _ACTIVE_RIGHT):
