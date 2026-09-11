@@ -1,0 +1,6 @@
+defaults:
+  - base
+
+_target_: gflownet.losses.s3gfn.S3TrajectoryBalance
+
+aux_weight: 10.0

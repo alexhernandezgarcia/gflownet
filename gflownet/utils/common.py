@@ -290,6 +290,16 @@ def gflownet_from_config(config, env=None):
         proxy=proxy,
         datadir=logger.datadir,
     )
+    negative_buffer = None
+    if config.get("negative_buffer") is not None:
+        negative_datadir = logger.datadir / "negative"
+        negative_datadir.mkdir(parents=True, exist_ok=True)
+        negative_buffer = instantiate(
+            config.negative_buffer,
+            env=env,
+            proxy=proxy,
+            datadir=negative_datadir,
+        )
 
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
@@ -346,6 +356,7 @@ def gflownet_from_config(config, env=None):
         backward_policy=backward_policy,
         state_flow=state_flow,
         buffer=buffer,
+        negative_buffer=negative_buffer,
         logger=logger,
         evaluator=evaluator,
     )

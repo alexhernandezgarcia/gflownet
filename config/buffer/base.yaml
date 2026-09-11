@@ -32,6 +32,9 @@ use_main_buffer: False
 # Whether new samples are compared to samples in the buffer before adding
 check_diversity: False
 
+# Whether replay insertion skips trajectories already present in replay
+reject_duplicate_trajectories: False
+
 # The accepted level of similarity of rewards to include samples from the
 # replay buffer in the diversity check. Assuming check_diversity is True, given
 # a sample x with reward R(x), the diversity check will only be performed

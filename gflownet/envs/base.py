@@ -1062,6 +1062,15 @@ class GFlowNetEnv:
         """
         return readable
 
+    def check_feasibility(self, states: List) -> List[bool]:
+        """
+        Labels states as feasible for S3GFN-style positive/negative splitting.
+
+        By default, all states are feasible. Environments with domain-specific
+        feasibility criteria should override this method.
+        """
+        return [True] * len(states)
+
     def traj2readable(self, traj=None):
         """
         Converts a trajectory into a human-readable string.
