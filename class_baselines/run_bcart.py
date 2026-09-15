@@ -14,6 +14,14 @@ Methods:
   - bcart_smc: posterior predictive averaged over the particles of the
     top-down SMC sampler of Lakshminarayanan et al. (2013), weighted by the
     final particle weights.
+  - single_tree_bcart_mcmc / single_tree_bcart_smc: the single tree with the
+    highest log-posterior among the RETAINED posterior samples of the chain
+    (after burn-in and thinning) resp. among the SMC particles, used alone
+    for prediction. This mirrors the DT-GFN "top-1" protocol (highest
+    log-posterior tree among the sampled trees). single_tree_bcart_mcmc
+    differs from bcart_map only in the candidate set: bcart_map may pick a
+    state visited during burn-in or between thinned samples. All single-tree
+    results record ``tree_size`` (all nodes) and ``tree_depth`` in ``params``.
 
 Priors match the MAPTree paper defaults: P(split at depth d) =
 alpha_split * (1+d)^(-beta_split) with a uniform choice of binary feature,
@@ -24,6 +32,7 @@ the Beta leaf prior assume 0/1 labels); multi-class datasets are skipped.
 Usage (from the repo root, venv active):
     python class_baselines/run_bcart.py [--methods mcmc smc] [--splits 1 2 ...]
                                           [--iterations 50000] [--particles 1000]
+                                          [--outputs single_tree_bcart_mcmc ...]
 """
 
 import random
@@ -56,6 +65,9 @@ from tree_smc.tree_utils import (
     parser_add_common_options,  # noqa: E402
     parser_add_smc_options,
 )
+
+# Methods whose prediction comes from exactly one tree (tree_size recorded).
+SINGLE_TREE_METHODS = ("bcart_map", "single_tree_bcart_mcmc", "single_tree_bcart_smc")
 
 
 def make_settings(args, n_particles=None):
@@ -90,9 +102,9 @@ def make_data(B_train, y_train):
 
 def run_mcmc(B_train, y_train, args, seed):
     """
-    Runs one MH chain; returns (posterior tree samples, best tree, params).
-    Trees are (node_info, leaf_nodes) snapshots; burn-in is discarded and the
-    rest thinned to at most --max-samples samples.
+    Runs one MH chain; returns (posterior tree samples, their log-posteriors,
+    best tree, params). Trees are (node_info, leaf_nodes) snapshots; burn-in
+    is discarded and the rest thinned to at most --max-samples samples.
     """
     settings = make_settings(args)
     data = make_data(B_train, y_train)
@@ -104,14 +116,15 @@ def run_mcmc(B_train, y_train, args, seed):
 
     burn_in = int(args.iterations * args.burn_in_frac)
     thin = max(1, (args.iterations - burn_in) // args.max_samples)
-    samples, best_snapshot, best_post = [], None, -np.inf
+    samples, sample_logposts, best_snapshot, best_post = [], [], None, -np.inf
     for iteration in range(args.iterations):
         p.sample(data, settings, param, cache)
-        post = p.compute_logprob()
+        post = float(p.compute_logprob())
         if post > best_post:
             best_snapshot, best_post = (dict(p.node_info), list(p.leaf_nodes)), post
         if iteration >= burn_in and (iteration - burn_in) % thin == 0:
             samples.append((dict(p.node_info), list(p.leaf_nodes)))
+            sample_logposts.append(post)
     params = {
         "iterations": args.iterations,
         "burn_in": burn_in,
@@ -119,11 +132,12 @@ def run_mcmc(B_train, y_train, args, seed):
         "n_samples": len(samples),
         "best_log_posterior": float(best_post),
     }
-    return samples, best_snapshot, params
+    return samples, np.asarray(sample_logposts), best_snapshot, params
 
 
 def run_smc_sampler(B_train, y_train, args, seed):
-    """Runs SMC; returns (particle trees, particle weights, params)."""
+    """Runs SMC; returns (particle trees, particle weights, particle
+    log-posteriors, params)."""
     settings = make_settings(args, n_particles=args.particles)
     data = make_data(B_train, y_train)
     np.random.seed(seed)
@@ -136,11 +150,30 @@ def run_smc_sampler(B_train, y_train, args, seed):
     log_weights = np.asarray(log_weights_itr)[-1, :]
     weights = np.exp(log_weights - logsumexp(log_weights))
     trees = [(dict(p.node_info), list(p.leaf_nodes)) for p in particles]
+    # Unnormalized log-posterior (marginal log-likelihood + structure prior)
+    # of every particle, used to pick the single_tree_bcart_smc tree.
+    logposts = np.array([float(p.compute_logprob()) for p in particles])
     params = {
         "particles": args.particles,
         "log_marginal_estimate": float(log_pd),
     }
-    return trees, weights, params
+    return trees, weights, logposts, params
+
+
+def single_tree_result(method, snapshots, logposts, params, runtime_s):
+    """
+    Result entry for the single highest-log-posterior tree among
+    ``snapshots`` (the DT-GFN top-1 protocol applied to a sampler's output).
+    """
+    logposts = np.asarray(logposts, dtype=float)
+    best = int(np.argmax(logposts))
+    params = {
+        **params,
+        "n_candidates": int(len(snapshots)),
+        "log_posterior": float(logposts[best]),
+        "n_distinct_candidates": len({str(s) for s in snapshots}),
+    }
+    return (method, [snapshots[best]], np.ones(1), params, runtime_s)
 
 
 def fit_trees(snapshots, B_train, y_train):
@@ -158,6 +191,21 @@ if __name__ == "__main__":
         default=["mcmc", "smc"],
         choices=["mcmc", "smc"],
         help="Samplers to run; mcmc also writes the bcart_map result.",
+    )
+    parser.add_argument(
+        "--outputs",
+        nargs="+",
+        default=None,
+        choices=[
+            "bcart_mcmc",
+            "bcart_map",
+            "single_tree_bcart_mcmc",
+            "bcart_smc",
+            "single_tree_bcart_smc",
+        ],
+        help="Only write the result JSONs of these methods (default: all "
+        "methods produced by the selected samplers). Does not save compute: "
+        "the single-tree results need the full chain / particle set anyway.",
     )
     parser.add_argument(
         "--thresholds",
@@ -203,22 +251,36 @@ if __name__ == "__main__":
                 "rho": args.rho,
             }
 
-            results = []  # (method, snapshots, weights, params)
+            results = []  # (method, snapshots, weights, params, runtime)
             if "mcmc" in args.methods:
                 t0 = time.time()
-                samples, best, params = run_mcmc(B_train, y_train, args, seed)
+                samples, logposts, best, params = run_mcmc(B_train, y_train, args, seed)
                 runtime_s = time.time() - t0
                 results.append(
                     ("bcart_mcmc", samples, np.ones(len(samples)), params, runtime_s)
                 )
                 results.append(("bcart_map", [best], np.ones(1), params, runtime_s))
+                results.append(
+                    single_tree_result(
+                        "single_tree_bcart_mcmc", samples, logposts, params, runtime_s
+                    )
+                )
             if "smc" in args.methods:
                 t0 = time.time()
-                trees, weights, params = run_smc_sampler(B_train, y_train, args, seed)
+                trees, weights, logposts, params = run_smc_sampler(
+                    B_train, y_train, args, seed
+                )
                 runtime_s = time.time() - t0
                 results.append(("bcart_smc", trees, weights, params, runtime_s))
+                results.append(
+                    single_tree_result(
+                        "single_tree_bcart_smc", trees, logposts, params, runtime_s
+                    )
+                )
 
             for method, snapshots, weights, params, runtime_s in results:
+                if args.outputs is not None and method not in args.outputs:
+                    continue
                 trees = fit_trees(snapshots, B_train, y_train)
                 metrics = classification_metrics(
                     y_train,
@@ -226,7 +288,7 @@ if __name__ == "__main__":
                     y_test,
                     bma_proba(trees, weights, B_test, rho),
                 )
-                if method == "bcart_map":
+                if method in SINGLE_TREE_METHODS:
                     params = {
                         **params,
                         "tree_size": trees[0].size(),
