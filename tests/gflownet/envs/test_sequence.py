@@ -184,7 +184,16 @@ def test__empty_source_only_allows_first_inserts(env_two_grids):
     env.reset()
     valid = env.get_valid_actions()
     U = env.n_unique_envs
-    expected = [env._pad_action((env._insert_id(0, t),), -1) for t in range(U)]
+    expected = [
+        env._pad_action(
+            (
+                t,
+                0,
+            ),
+            -1,
+        )
+        for t in range(U)
+    ]
     assert set(valid) == set(expected)
     # The global EOS must not be valid at the empty source
     assert env.eos not in valid
