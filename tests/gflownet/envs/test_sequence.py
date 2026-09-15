@@ -217,7 +217,13 @@ def test__ccab_insertion_order_example():
         (_LEFT, tC),
         (_LEFT, tC),
     ]:  # first A, right B, left C, left C
-        action = env._pad_action((env._insert_id(d, t),), -1)
+        action = env._pad_action(
+            (
+                t,
+                d,
+            ),
+            -1,
+        )
         _, _, valid = env.step(action)
 
         assert valid
@@ -314,10 +320,10 @@ def test__left_only_and_right_only_cannot_be_combined():
                 },
             ],
             [
-                (-1, 2, 0),
-                (-1, 2, 0),
-                (-1, 2, 0),
-                (-1, 2, 0),
+                (-1, 0, 1),
+                (-1, 0, 1),
+                (-1, 0, 1),
+                (-1, 0, 1),
             ],
         ),
         (
