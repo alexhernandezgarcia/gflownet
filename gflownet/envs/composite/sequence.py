@@ -296,7 +296,8 @@ class Sequence(CompositeBase):
         To keep the trajectory length short, meta-actions encode both the insert
         position (first, left or right) and the sub-env to be inserted. If there are
         e.g. 2 sub-env types available, there are 5 meta-actions: 2x2 + EOS."""
-        return direction * self.n_unique_envs + idx_unique
+        # 2 means there are left/right actions
+        return (idx_unique*2)  + direction
 
     def _reverse_insert_id(self, state: Dict) -> int:
         """
@@ -312,6 +313,21 @@ class Sequence(CompositeBase):
         else:
             direction = _RIGHT
         return self._insert_id(direction, idx_unique)
+    
+    def _get_direction_and_env(self, state: Dict) -> int:
+        """
+        Returns the insert id of the meta-action that, in the backward direction, undoes
+        the insertion of the currently active (most recently inserted) sub-environment.
+        """
+        length = self._seq_length(state)
+        idx_unique = state["_envs_unique"][length - 1]  # Most recent sub-env
+        if length == 1:
+            direction = _LEFT
+        elif state["_active"] == _ACTIVE_LEFT:
+            direction = _LEFT
+        else:
+            direction = _RIGHT
+        return direction, idx_unique
 
     def _make_subenv_instance(self, idx_unique: int, key: int) -> GFlowNetEnv:
         """Creates a fresh instance of the unique environment ``idx_unique``."""
@@ -326,7 +342,7 @@ class Sequence(CompositeBase):
         Constructs the list with all possible actions.
 
         The action space consists of, in this order:
-            - The meta-actions to insert a sub-environment: for each direction (left, right) and each unique type, encoded as ``(-1, direction, environment_id, 0...)``.
+            - The meta-actions to insert a sub-environment: for each direction (left, right) and each unique type, encoded as ``(-1, environment_id, direction, 0...)``.
             - The global EOS, encoded as ``(-1, ..., -1)``.
             - The concatenation of the actions of all unique environments, prefixed by
               the unique-type index.
@@ -335,12 +351,14 @@ class Sequence(CompositeBase):
         by their unique-env index.
         """
         action_space = []
-        # Insert meta-actions
-        # 2 in range(2 * self.n_unique_envs) is left/right
+        # Insert meta-actions 
+        # change the meta actions(sequence level not subenv level) to (-1, environment_id, direction, 0,...,0)
+        # 0,...,0 is the padding
         action_space.extend(
             [
-                self._pad_action((insert_id,), -1)
-                for insert_id in range(2 * self.n_unique_envs)
+                self._pad_action((env_id_iter, direction_iter,), -1)
+                for env_id_iter in range(self.n_unique_envs)
+                for direction_iter in (_LEFT, _RIGHT)
             ]
         )
 
@@ -628,7 +646,8 @@ class Sequence(CompositeBase):
 
             # 2a: Subenv is at its source state, parent state is the state before this element was inserted.
             if subenv.is_source(substate):
-                insert_id = self._reverse_insert_id(state)
+                # insert_id = self._reverse_insert_id(state)
+                direction, idx_unique = self._get_direction_and_env(state)
                 parent = copy(state)
                 del parent[key]
                 parent["_envs_unique"].pop()
@@ -640,7 +659,8 @@ class Sequence(CompositeBase):
                     parents = [parent]
                 else:
                     parents = self._enumerate_all_states_for_the_sequence(state=parent)
-                return parents, [self._pad_action((insert_id,), -1)] * len(parents)
+                # fixed the actions to get to the parents using the (-1, env, direction, padding) action notation
+                return parents, [self._pad_action((idx_unique, direction, ), -1)] * len(parents)
 
             # 2b: Parent states are from the active sub-environment, meta state remains unchanged
             parents_subenv, parent_actions = subenv.get_parents(substate, False)
@@ -703,7 +723,8 @@ class Sequence(CompositeBase):
                 self.done = True
                 return self.state, action, True
             # 1b: Insert sub-env
-            direction, idx_unique = divmod(action[1], self.n_unique_envs)
+            direction = action[2]
+            idx_unique = action[1]
             key = self._seq_length(self.state)
             new_subenv = self._make_subenv_instance(idx_unique, key)
             self.subenvs = list(self.subenvs) + [new_subenv]
