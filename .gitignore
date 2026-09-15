@@ -38,3 +38,6 @@ tests/data/tree/jannis4/jannis_41168.pq
 # deterministically from the fixed seeds
 tests/data/tree/jannis2/jannis2_*.csv
 tests/data/tree/jannis4/jannis4_*.csv
+
+# Figures for thesis report
+figures_dt-gfn/
