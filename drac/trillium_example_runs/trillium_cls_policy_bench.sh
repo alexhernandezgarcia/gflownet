@@ -39,8 +39,8 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   mkdir -p $SCRATCH/gflownet-logs && cd $SCRATCH
-#   DATASETS="iris wine"            sbatch --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench.sh
-#   DATASETS="breast_cancer raisin" sbatch --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench.sh
+#   DATASETS="iris wine"            sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench.sh
+#   DATASETS="breast_cancer raisin" sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench.sh
 #
 # (Set DATASETS as a shell variable in front of sbatch rather than through
 # --export: sbatch exports the caller's environment by default, and --export

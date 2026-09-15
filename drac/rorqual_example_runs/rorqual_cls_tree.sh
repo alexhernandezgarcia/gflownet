@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=cls_tree
-#SBATCH --account=def-alexhg
+#SBATCH --account=<account_name>
 #SBATCH --output=/scratch/arnit/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
@@ -15,14 +15,14 @@
 #
 #   mkdir -p $SCRATCH/gflownet-logs/slurm
 #   sbatch --export=ALL,EXP_NAME=<campaign>,DATASET=<dataset> \
-#          drac/rorqual_cls_tree.sh [hydra overrides...]
+#          drac/rorqual_example_runs/rorqual_cls_tree.sh [hydra overrides...]
 #
 #   # transformer policy:
 #   sbatch --export=ALL,EXP_NAME=TRFM_X,DATASET=magic,EXP_CONFIG=tree/trfm_classification_tree \
-#          drac/rorqual_cls_tree.sh policy.backward.shared_weights=False
+#          drac/rorqual_example_runs/rorqual_cls_tree.sh policy.backward.shared_weights=False
 #
 #   # only splits 1 and 3, other resources (the command line beats the header):
-#   sbatch --array=1,3 --time=48:00:00 --mem=32G drac/rorqual_cls_tree.sh
+#   sbatch --array=1,3 --time=48:00:00 --mem=32G drac/rorqual_example_runs/rorqual_cls_tree.sh
 #
 # Knobs (via --export=ALL,VAR=value): EXP_NAME EXP_CONFIG DATASET SEED RUNS_ROOT FORCE
 # --cpus-per-task and --mem are PER ARRAY TASK. The #SBATCH lines cannot expand

@@ -45,11 +45,11 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   cd $SCRATCH
-#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_prior_grid.sh
-#   sbatch --account=<acct> --export=ALL,DATASET=energy \
-#          $HOME/gflownet/drac/trillium_prior_grid.sh
-#   sbatch --account=<acct> --export=ALL,DATASET=concrete,N_STEPS=20000 \
-#          $HOME/gflownet/drac/trillium_prior_grid.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_prior_grid.sh
+#   sbatch --account=<account_name> --export=ALL,DATASET=energy \
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_prior_grid.sh
+#   sbatch --account=<account_name> --export=ALL,DATASET=concrete,N_STEPS=20000 \
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_prior_grid.sh
 #
 # The campaign name defaults to REG_PRIOR_<DATASET>.
 #

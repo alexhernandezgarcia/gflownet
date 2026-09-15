@@ -57,7 +57,7 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   mkdir -p $SCRATCH/gflownet-logs && cd $SCRATCH
-#   sbatch --account=def-alexhg $HOME/gflownet/drac/trillium_uniform_policy_grid.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_uniform_policy_grid.sh
 #
 # DRY_RUN=1 prints the task table and exits (fine on a login node).
 #

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=reg_tree
-#SBATCH --account=def-alexhg
+#SBATCH --account=<account_name>
 #SBATCH --output=/scratch/arnit/gflownet-logs/slurm/%x-%A_%a.out
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -11,14 +11,14 @@
 # like Mila). All the actual work is in drac/reg_tree_worker.sh.
 #
 #   mkdir -p $SCRATCH/gflownet-logs/slurm
-#   sbatch drac/rorqual_reg_tree.sh
+#   sbatch drac/rorqual_example_runs/rorqual_reg_tree.sh
 #
 #   # name the campaign, change the dataset, override any hydra setting:
 #   sbatch --export=ALL,EXP_NAME=REG_lr1e-3,DATASET=energy \
-#          drac/rorqual_reg_tree.sh gflownet.optimizer.lr=1e-3
+#          drac/rorqual_example_runs/rorqual_reg_tree.sh gflownet.optimizer.lr=1e-3
 #
 #   # only splits 1 and 3:
-#   sbatch --array=1,3 drac/rorqual_reg_tree.sh
+#   sbatch --array=1,3 drac/rorqual_example_runs/rorqual_reg_tree.sh
 #
 # --cpus-per-task and --mem are PER ARRAY TASK (5 x 4 CPUs, 5 x 32 GB here).
 # The #SBATCH lines cannot expand variables, so --account and --output are

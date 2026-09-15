@@ -1,78 +1,137 @@
-# Rorqual: DT-GFN tree runs
+# DT-GFN tree experiments on DRAC (Trillium, Rorqual)
 
-Per-core scheduling like Mila: one Slurm array task per dataset split.
-`drac/rorqual_cls_tree.sh` / `drac/rorqual_reg_tree.sh` are the Slurm headers
-(account def-alexhg, 4 CPUs, 64 GB / 32 GB, 36 h / 24 h, `--array=1-5`);
-`drac/cls_tree_worker.sh` / `drac/reg_tree_worker.sh` are the bodies of the
-Mila launchers without the Mila-only header (run naming, config hash, resume
-from `ckpts/`, final eval). Runs land in `$SCRATCH/gflownet-logs/<EXP_NAME>/<run_name>/`.
+These clusters are not Mila: you need the **account name of a professor** to
+submit anything (`--account=<account_name>`). How to get one and how to log in:
+<https://docs.mila.quebec/technical_reference/clusters/drac/?h=drac>.
 
-## 1. Launch (login node, like on Mila)
+| file | what it is |
+| --- | --- |
+| `cls_tree_worker.sh`, `reg_tree_worker.sh` | the actual work: run naming, config hash, train / resume from `ckpts/`, final eval. Every launcher calls these. |
+| `rorqual_example_runs/` | Rorqual launchers: one Slurm array task per dataset split. |
+| `trillium_example_runs/` | Trillium launchers: one whole node running the full grid concurrently. Copy the closest one and edit the grid. |
+| `resume_all_unfinished_runs.sh` | finish every unfinished run of a campaign in one new allocation. |
+
+Runs land in `$SCRATCH/gflownet-logs/<EXP_NAME>/<run_name>/`.
+
+## 1. Launch
+
+In the launcher you use, edit the two `#SBATCH` lines that cannot expand
+variables: `--account=<account_name>` and `--output=/scratch/<user>/...`.
+`--time` sets the walltime; on the command line it (like `--mem`,
+`--cpus-per-task`, `--array`) beats the header.
 
 ```bash
-cd $HOME/gflownet && git pull          # same branch/commit as on Mila
+cd $HOME/gflownet && git pull
 mkdir -p $SCRATCH/gflownet-logs/slurm
 
-# CREDITQUANT_trillium (fe19ccfb) and MAGIC_STAB2_B0.1_EPSANNEAL (32f39131) recipes;
-# shared_weights=False = transformer backward policy with its own trunk.
-CREDIT="gflownet.optimizer.n_train_steps=20000 gflownet.optimizer.lr=0.001 gflownet.optimizer.lr_decay_period=1000000 gflownet.optimizer.batch_size.forward=18 gflownet.optimizer.batch_size.backward_replay=2 gflownet.optimizer.batch_size.backward_dataset=0 policy.backward.shared_weights=False"
-MAGIC="gflownet.optimizer.n_train_steps=20000 gflownet.optimizer.lr=0.001 env.max_depth=5 gflownet.optimizer.batch_size.forward=45 gflownet.optimizer.batch_size.backward_replay=5 gflownet.epsilon_annealing.enabled=True policy.backward.shared_weights=False"
-TRFM=EXP_CONFIG=tree/trfm_classification_tree
+# Rorqual: per-core scheduling like Mila; ask for any CPUs / memory / walltime.
+sbatch --time=36:00:00 --mem=64G \
+  --export=ALL,EXP_NAME=<campaign>,DATASET=magic,EXP_CONFIG=tree/trfm_classification_tree \
+  drac/rorqual_example_runs/rorqual_cls_tree.sh gflownet.optimizer.n_train_steps=20000
 
-# 25 transformer runs
-sbatch --export=ALL,EXP_NAME=TRFM_CREDITQUANT_rorqual,DATASET=credit_quantile,$TRFM              drac/rorqual_cls_tree.sh $CREDIT
-sbatch --export=ALL,EXP_NAME=TRFM_CREDITQUANT_B0.1_rorqual,DATASET=credit_quantile,$TRFM         drac/rorqual_cls_tree.sh $CREDIT proxy.reward_function_kwargs.beta=0.1
-sbatch --export=ALL,EXP_NAME=TRFM_MAGIC_B0.1_EPSANNEAL_rorqual,DATASET=magic,$TRFM               drac/rorqual_cls_tree.sh $MAGIC proxy.reward_function_kwargs.beta=0.1
-sbatch --export=ALL,EXP_NAME=TRFM_MAGIC_B1_EPSANNEAL_rorqual,DATASET=magic,$TRFM                 drac/rorqual_cls_tree.sh $MAGIC proxy.reward_function_kwargs.beta=1.0
-sbatch --export=ALL,EXP_NAME=TRFM_MAGIC_B0.1_EPSANNEAL_REPLAY1K_rorqual,DATASET=magic,$TRFM      drac/rorqual_cls_tree.sh $MAGIC proxy.reward_function_kwargs.beta=0.1 buffer.replay_capacity=1000
-
-# 5 MLP runs: every classification_tree.yaml default (fixed replay buffer, beta 1, batch 45/5), only 20k steps
-sbatch --time=48:00:00 --mem=32G --export=ALL,EXP_NAME=CREDITQUANT_DEFAULTS_rorqual,DATASET=credit_quantile drac/rorqual_cls_tree.sh gflownet.optimizer.n_train_steps=20000
+# Trillium: submit from $SCRATCH ($HOME is read-only on compute nodes).
+cd $SCRATCH
+sbatch --account=<account_name> --time=24:00:00 \
+  $HOME/gflownet/drac/trillium_example_runs/trillium_reg_tree.sh
 ```
 
-`$CREDIT` uses the fixed replay buffer; the fe19ccfb MLP runs had the old one
-(`buffer.check_diversity=False buffer.diversity_check_reward_similarity=0.1`).
+**Trillium** schedules by NODE: the smallest job is one full node (192 CPUs,
+768 GB) and the walltime is **24 h maximum**, so put the whole grid on that one
+node. **Rorqual** is much more flexible — take what you need.
 
-Other campaigns: change `EXP_NAME`, `DATASET`, `EXP_CONFIG` (default
-`tree/classification_tree` = MLP) and the hydra overrides; resources on the
-command line beat the header (`--array=1,3 --time=... --mem=...`).
-
-`--time` too short? Resubmit the SAME line: finished runs are skipped
-(`eval_results.json` exists), unfinished ones resume from `ckpts/` (every 500
-steps). 20k transformer steps on 4 cores will not fit in 36 h (10k steps took
-more than 32 h on 4 Mila cores on much smaller datasets), so expect 2-3 rounds;
-a 20k-step MLP run with batch 45/5 took ~35 h on magic.
-
-Check: `squeue -u $USER`; `head -30 $SCRATCH/gflownet-logs/slurm/cls_tree-<job>_<split>.out`
-prints the run directory.
+Everything after the script name is a hydra override. `--time` too short?
+Resubmit the SAME command: finished runs are skipped (`eval_results.json`
+exists), unfinished ones resume from `ckpts/`. Check with `squeue -u $USER`;
+`head -30 $SCRATCH/gflownet-logs/slurm/<job>.out` prints the run directory.
 
 ## 2. wandb (compute nodes have no internet, runs are written offline)
 
-```bash
-# login node; `module load StdEnv/2023 python/3.10 && source $SCRATCH/venvs/gflownet-env/bin/activate`; `wandb login` once
-cd $SCRATCH/gflownet-logs/wandb && wandb sync --sync-all    # finds ./wandb/offline-run-*
-```
-
-Re-runnable; already-synced runs are skipped. Sync BEFORE resuming a run on
-another cluster, otherwise the unsynced steps are dropped.
-
-## 3. Results -> Mila
-
-Rorqual and Mila share no SSH keys: go through the Mac with agent forwarding.
+From a **login node**, after `wandb login` once:
 
 ```bash
-ssh -A rorqual
-SRC=/scratch/arnit/gflownet-logs
-DST=arnit@login.server.mila.quebec:/network/scratch/a/arnit/gflownet-logs
-# would anything on Mila be overwritten? (same campaign + same config hash = same run dir); empty = safe
-rsync -ahn --itemize-changes --exclude 'wandb/' $SRC/*_rorqual $DST/ | grep '^>f' | grep -v '+++'
-rsync -ahz --progress --partial --exclude 'wandb/' $SRC/*_rorqual $DST/
+module load StdEnv/2023 python/3.10
+source $SCRATCH/venvs/gflownet-env/bin/activate
+cd $SCRATCH/gflownet-logs/wandb
+wandb sync --sync-all --include-offline
 ```
 
-No trailing slash on the sources (they are copied as directories). Re-runnable:
-only new/changed files move. Then on Mila:
+Faster, only some runs by name:
 
 ```bash
-ROOT=$SCRATCH/gflownet-logs/<CAMPAIGN> bash mila/tree/aggregate_treeclass_results.sh
-# a run copied before it finished: python mila/tree/relocate_run.py <run_dir>  BEFORE resuming it on Mila
+cd $SCRATCH/gflownet-logs/wandb/wandb
+ls -d offline-run-20260827_035248-*   # confirm it's the ones you expect
+wandb sync offline-run-20260827_035248-*
 ```
+
+Re-runnable; already-synced runs are skipped. Sync **before** resuming a run on
+another cluster, otherwise the unsynced steps are lost.
+
+## 3. Results → Mila (cluster → your machine → Mila)
+
+DRAC and Mila share no SSH keys, so your own machine is the hop. Everything
+below runs there (macOS rsync is 2.6.9: `--progress`, not `--info=progress2`).
+Swap `rorqual` for `trillium` as needed. Trailing slashes on both sides are
+required, `$SCRATCH` in single quotes expands on the remote side, and `ckpts/`
+must never be excluded.
+
+```bash
+# 0. what's there / how big
+ssh rorqual 'du -sh $SCRATCH/gflownet-logs/*'
+
+# 1. cluster -> your machine (skip wandb: tens of GB of offline runs)
+mkdir -p ~/gflownet-logs-rorqual && cd ~/gflownet-logs-rorqual
+rsync -ahz --progress --partial --partial-dir=.rsync-partial \
+  --exclude 'wandb/' --exclude 'slurm/' \
+  rorqual:'$SCRATCH/gflownet-logs/' ./
+
+# 2. what would be OVERWRITTEN on Mila (dry run; same campaign + same config
+#    hash = same run dir). Empty output = only new files = safe.
+rsync -ahn --itemize-changes ./ mila:'$SCRATCH/gflownet-logs/' \
+  | grep '^>f' | grep -v '+++'
+
+# 3. -> Mila  (--backup-dir = undo button; drop it if step 2 printed nothing.
+#    Spell it out: option values are not shell-expanded on the remote side.)
+rsync -ahz --progress --partial --partial-dir=.rsync-partial \
+  --backup --backup-dir=/network/scratch/<first-letter>/<user>/gflownet-logs-overwritten \
+  ./ mila:'$SCRATCH/gflownet-logs/'
+
+# 3b. or send a colliding campaign somewhere separate instead
+rsync -ahz --progress ./<CAMPAIGN>/ mila:'$SCRATCH/gflownet-logs-rorqual/<CAMPAIGN>/'
+
+# 4. check the run counts match
+ssh rorqual 'for d in $SCRATCH/gflownet-logs/*/; do printf "%-45s %s\n" "$(basename $d)" "$(ls $d|wc -l)"; done'
+ssh mila   'for d in $SCRATCH/gflownet-logs/*/; do printf "%-45s %s\n" "$(basename $d)" "$(ls $d|wc -l)"; done'
+```
+
+All of it is re-runnable: only new/changed files move. A run copied before it
+finished needs `python mila/tree/relocate_run.py <run_dir>` (its dataset and
+replay-buffer paths still point at the other cluster) before it can be resumed
+on Mila.
+
+## 4. Evaluations and results tables
+
+On Mila, with the venv active (or through
+`sbatch mila/tree/aggregate_treeclass_results.sh`):
+
+```bash
+# which finished runs have no eval_results.json yet (--dry-run only lists them)
+python gflownet/envs/tree/helpers_for_experiments/run_missing_evals.py \
+  $SCRATCH/gflownet-logs/<CAMPAIGN> --dry-run
+
+# run them: drop --dry-run (--force re-evaluates runs that already have one)
+python gflownet/envs/tree/helpers_for_experiments/run_missing_evals.py \
+  $SCRATCH/gflownet-logs/<CAMPAIGN>
+
+# results: one mean +/- std table per dataset, runs grouped by training config
+python gflownet/envs/tree/helpers_for_experiments/aggregate_treeclass_results.py \
+  $SCRATCH/gflownet-logs/<CAMPAIGN>
+```
+
+The aggregator prints two independent sources side by side: `eval` (the
+`eval_results.json` on disk) and `wandb` (last logged value of each run, so
+runs without a final eval are visible too). Useful flags: `--source eval|wandb`,
+`--dataset iris,wine`, `--task regression`, `--min-splits 1` (configs with
+fewer than 3 splits are hidden by default), `--diff-configs` (which config keys
+separate two groups) and one filter per settings column (`--steps 10000
+--depth 5 --policy mlp --prior bcart`). `--help` and the script's docstring
+document the rest.

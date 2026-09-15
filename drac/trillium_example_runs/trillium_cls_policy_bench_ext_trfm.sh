@@ -34,9 +34,9 @@
 # 10-20 h -> the full grid does NOT fit one 12 h job. Either split it over
 # three nodes (recommended: one wave each, done in 3-7 h):
 #
-#   VARIANTS=temp_1000                                sbatch --export=ALL --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench_ext_trfm.sh
-#   VARIANTS=sep_1000 DATASETS="raisin breast_cancer" sbatch --export=ALL --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench_ext_trfm.sh
-#   VARIANTS=sep_1000 DATASETS="wine iris"            sbatch --export=ALL --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench_ext_trfm.sh
+#   VARIANTS=temp_1000                                sbatch --export=ALL --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_trfm.sh
+#   VARIANTS=sep_1000 DATASETS="raisin breast_cancer" sbatch --export=ALL --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_trfm.sh
+#   VARIANTS=sep_1000 DATASETS="wine iris"            sbatch --export=ALL --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_trfm.sh
 #
 # or submit the whole grid at once and resubmit the SAME command after the
 # time limit: finished runs are skipped, cut-off runs resume from their last
@@ -44,8 +44,8 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   mkdir -p $SCRATCH/gflownet-logs && cd $SCRATCH
-#   sbatch --export=ALL --account=def-alexhg \
-#       $HOME/gflownet/drac/trillium_cls_policy_bench_ext_trfm.sh
+#   sbatch --export=ALL --account=<account_name> \
+#       $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_trfm.sh
 #
 # DATASETS, when set, FILTERS each variant's dataset list (so
 # DATASETS="wine iris" runs sep_1000 on wine+iris and temp_1000 on wine only).

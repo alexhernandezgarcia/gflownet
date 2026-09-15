@@ -39,11 +39,11 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   cd $SCRATCH
-#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_stab_grid.sh
-#   sbatch --account=<acct> --export=ALL,DATASET=energy \
-#          $HOME/gflownet/drac/trillium_stab_grid.sh
-#   sbatch --account=<acct> --export=ALL,DATASET=concrete \
-#          $HOME/gflownet/drac/trillium_stab_grid.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_stab_grid.sh
+#   sbatch --account=<account_name> --export=ALL,DATASET=energy \
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_stab_grid.sh
+#   sbatch --account=<account_name> --export=ALL,DATASET=concrete \
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_stab_grid.sh
 #
 # The campaign name defaults to REG_STAB_<DATASET> so the three jobs land in
 # separate campaign directories.

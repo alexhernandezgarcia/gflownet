@@ -41,8 +41,8 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   mkdir -p $SCRATCH/gflownet-logs && cd $SCRATCH
-#   DRY_RUN=1 bash $HOME/gflownet/drac/trillium_magic_mlp_grid.sh   # check table
-#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_magic_mlp_grid.sh
+#   DRY_RUN=1 bash $HOME/gflownet/drac/trillium_example_runs/trillium_magic_mlp_grid.sh   # check table
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_magic_mlp_grid.sh
 #
 # Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS SEED RUNS_ROOT FORCE CPUS_PER_RUN
 #        DRY_RUN

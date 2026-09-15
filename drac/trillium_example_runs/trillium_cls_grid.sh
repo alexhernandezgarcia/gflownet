@@ -32,7 +32,7 @@
 #
 # Usage (from $SCRATCH!):
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && cd $SCRATCH
-#   sbatch --account=<your-account> $HOME/gflownet/drac/trillium_cls_grid.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_grid.sh
 #
 # Knobs: EXP_NAME EXP_CONFIG DATASET SPLITS SEED RUNS_ROOT FORCE CPUS_PER_RUN
 # Extra hydra overrides given on the command line are forwarded to every run.

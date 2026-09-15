@@ -6,8 +6,8 @@
 # This is the body of mila/tree/run_regression_tree_training.sh with the Slurm
 # header stripped out, so the identical code path is used by both submitters:
 #
-#   drac/rorqual_reg_tree.sh    -> called once per array task (4 cores each)
-#   drac/trillium_reg_tree.sh   -> called many times in parallel on one node
+#   drac/rorqual_example_runs/rorqual_reg_tree.sh    -> called once per array task (4 cores each)
+#   drac/trillium_example_runs/trillium_reg_tree.sh   -> called many times in parallel on one node
 #
 # Everything is configured through the environment, so the submitters stay
 # small and the run-naming / hashing / resume logic lives in exactly one place.

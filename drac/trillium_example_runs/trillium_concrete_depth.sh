@@ -45,7 +45,7 @@
 # these depths (it changes the config hash -- fine for a new campaign).
 #
 # Usage (from $SCRATCH on Trillium!):
-#   cd $SCRATCH && sbatch --account=<acct> $HOME/gflownet/drac/trillium_concrete_depth.sh evaluator.period=500
+#   cd $SCRATCH && sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_concrete_depth.sh evaluator.period=500
 #
 # Knobs: EXP_NAME DATASET DEPTHS SPLITS N_STEPS RUNS_ROOT TOP_K FORCE
 #        CPUS_PER_RUN. Extra hydra overrides on the command line are

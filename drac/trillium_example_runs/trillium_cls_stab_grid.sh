@@ -53,9 +53,9 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   cd $SCRATCH
-#   sbatch --account=<acct> $HOME/gflownet/drac/trillium_cls_stab_grid.sh
-#   sbatch --account=<acct> --export=ALL,DATASET=jannis2 \
-#          $HOME/gflownet/drac/trillium_cls_stab_grid.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_stab_grid.sh
+#   sbatch --account=<account_name> --export=ALL,DATASET=jannis2 \
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_cls_stab_grid.sh
 #
 # The campaign name defaults to CLS_STAB_<DATASET>, so the two jobs land in
 # separate campaign directories.

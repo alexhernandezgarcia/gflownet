@@ -23,12 +23,12 @@
 #
 # Usage (from $SCRATCH!):
 #   mkdir -p $SCRATCH/gflownet-logs/slurm && cd $SCRATCH
-#   sbatch --account=<your-account> $HOME/gflownet/drac/trillium_reg_tree.sh
+#   sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_reg_tree.sh
 #
 #   # a fuller node: 3 datasets x 5 splits x 3 seeds = 45 runs
-#   sbatch --account=<acct> \
+#   sbatch --account=<account_name> \
 #          --export=ALL,DATASETS="diabetes energy concrete",SEEDS="0 1 2" \
-#          $HOME/gflownet/drac/trillium_reg_tree.sh gflownet.optimizer.lr=1e-3
+#          $HOME/gflownet/drac/trillium_example_runs/trillium_reg_tree.sh gflownet.optimizer.lr=1e-3
 #
 # Knobs: EXP_NAME EXP_CONFIG DATASETS SPLITS SEEDS RUNS_ROOT TOP_K FORCE
 #        CPUS_PER_RUN (default: node/ntasks, capped at 8)

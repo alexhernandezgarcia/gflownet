@@ -40,12 +40,12 @@
 #
 # Usage (from $SCRATCH on Trillium!):
 #   mkdir -p $SCRATCH/gflownet-logs && cd $SCRATCH
-#   sbatch --export=ALL --account=def-alexhg \
-#       $HOME/gflownet/drac/trillium_cls_policy_bench_ext_mlp.sh
+#   sbatch --export=ALL --account=<account_name> \
+#       $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_mlp.sh
 #
 #   # or split over two nodes, one variant set each:
-#   VARIANTS="temp_5000 b1_5000" sbatch --export=ALL --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench_ext_mlp.sh
-#   VARIANTS="temp_1000"         sbatch --export=ALL --account=def-alexhg $HOME/gflownet/drac/trillium_cls_policy_bench_ext_mlp.sh
+#   VARIANTS="temp_5000 b1_5000" sbatch --export=ALL --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_mlp.sh
+#   VARIANTS="temp_1000"         sbatch --export=ALL --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_cls_policy_bench_ext_mlp.sh
 #
 # Knobs are read from the environment. Set them as shell variables in front
 # of sbatch AND pass --export=ALL: the two base-campaign jobs (2259367 and

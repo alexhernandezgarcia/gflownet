@@ -37,7 +37,7 @@
 # does not, resubmit the same command (finished runs skipped, others resume).
 #
 # Usage (from $SCRATCH on Trillium!):
-#   cd $SCRATCH && sbatch --account=<acct> $HOME/gflownet/drac/trillium_small_reg_grid.sh
+#   cd $SCRATCH && sbatch --account=<account_name> $HOME/gflownet/drac/trillium_example_runs/trillium_small_reg_grid.sh
 #
 # Knobs: EXP_NAME DATASETS SPLITS N_STEPS RUNS_ROOT TOP_K FORCE CPUS_PER_RUN
 # =============================================================================
