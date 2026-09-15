@@ -31,9 +31,33 @@
 #
 # Tunables via environment variables (forwarded by --export=ALL):
 #   DATASETS="magic"       space-separated subset of the datasets above
+#   METHODS="cart gbt maptree smc mcmc"   subset of methods to (re)run; the
+#                          fast array is skipped when it has nothing to do,
+#                          likewise the mcmc array. E.g. to rerun only the
+#                          Bayesian single-tree baselines with more compute:
+#     METHODS="maptree mcmc" MAPTREE_TIME_LIMIT=3600 MCMC_ITERATIONS=200000 \
+#         DATASETS="magic credit_quantile jannis2" bash mila/tree/class_baselines.sh
+#                          NOTE: results overwrite <method>__<dataset>__split<i>.json
+#                          in the results dir; copy it first to keep the old ones.
+#   OUTPUTS=""             result JSONs run_bcart.py writes (default: all of
+#                          bcart_mcmc bcart_map single_tree_bcart_mcmc
+#                          bcart_smc single_tree_bcart_smc). E.g. to add only
+#                          the single-tree rows from the same seeded chains as
+#                          the existing 200k-move bcart_mcmc results:
+#     METHODS="smc mcmc" OUTPUTS="single_tree_bcart_mcmc single_tree_bcart_smc" \
+#         MCMC_ITERATIONS=200000 DATASETS="magic credit_quantile" \
+#         bash mila/tree/class_baselines.sh
 #   MCMC_ITERATIONS=50000  SMC_PARTICLES=1000  MAPTREE_TIME_LIMIT=300
 #   BINARIZATION_THRESHOLDS=9
-#   FAST_TIME=3:00:00     FAST_PARTITION=main-cpu
+#   FAST_TIME=3:00:00     FAST_PARTITION=main-cpu   FAST_MEM=24G
+#                          (the fast task runs all 5 splits of a dataset one
+#                          after the other, so FAST_TIME must cover at least
+#                          5 x MAPTREE_TIME_LIMIT plus the SMC runs. MAPTree's
+#                          search frontier grows with its time limit: 300 s
+#                          fit in 24G, but 3600 s was OOM-killed at 25 GB after
+#                          16-37 min on magic/credit_quantile/jannis2
+#                          (2026-09-02) -- raise FAST_MEM together with
+#                          MAPTREE_TIME_LIMIT, roughly 1.5 GB per minute)
 # On the jannis datasets one MCMC move sweeps all ~46-67k samples x ~470
 # binarized features, roughly 15x the magic cost; if a sbatch time mcmc task times
 # out, rerun that dataset with a smaller MCMC_ITERATIONS.
@@ -59,9 +83,30 @@ BINARIZATION_THRESHOLDS="${BINARIZATION_THRESHOLDS:-9}"
 MAX_DEPTH="${MAX_DEPTH:-5}"
 FAST_TIME="${FAST_TIME:-12:00:00}"
 FAST_PARTITION="${FAST_PARTITION:-main-cpu}"
+FAST_MEM="${FAST_MEM:-24G}"
+METHODS="${METHODS:-cart gbt maptree smc mcmc}"
+OUTPUTS="${OUTPUTS:-}"
+# --outputs flag for run_bcart.py, empty (= write everything) by default
+OUTPUTS_FLAG=()
+if [ -n "$OUTPUTS" ]; then
+    # shellcheck disable=SC2206  # OUTPUTS is a space-separated list on purpose
+    OUTPUTS_FLAG=(--outputs $OUTPUTS)
+fi
 
 read -r -a DS_ARR <<< "$DATASETS"
 N_DATASETS="${#DS_ARR[@]}"
+
+# wants <method>: true iff <method> is listed in $METHODS
+wants() { case " $METHODS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+for m in $METHODS; do
+    case "$m" in cart|gbt|maptree|smc|mcmc) ;; *)
+        echo "ERROR: unknown method '$m' in METHODS (cart gbt maptree smc mcmc)" >&2
+        exit 1 ;;
+    esac
+done
+RUN_FAST=1; RUN_MCMC=1
+if ! wants cart && ! wants gbt && ! wants maptree && ! wants smc; then RUN_FAST=0; fi
+if ! wants mcmc; then RUN_MCMC=0; fi
 
 # ---- Submit wrapper ---------------------------------------------------------
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
@@ -72,11 +117,18 @@ if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
         exec sbatch --export=ALL,MODE=fast --array="0-$((N_DATASETS - 1))" \
             --time="$FAST_TIME" --partition="$FAST_PARTITION" "$SCRIPT"
     fi
-    echo "[submit] queueing fast benchmarks (1 task/dataset: $DATASETS)"
-    sbatch --export=ALL,MODE=fast --array="0-$((N_DATASETS - 1))" \
-        --time="$FAST_TIME" --partition="$FAST_PARTITION" "$SCRIPT"
-    echo "[submit] queueing BCART MCMC benchmarks (1 task/dataset x split, sbatch time limit)"
-    exec sbatch --export=ALL,MODE=mcmc --array="0-$((5 * N_DATASETS - 1))" "$SCRIPT"
+    echo "[submit] methods: $METHODS | bcart outputs: ${OUTPUTS:-all}"
+    if [ "$RUN_FAST" -eq 1 ]; then
+        echo "[submit] queueing fast benchmarks (1 task/dataset: $DATASETS)"
+        sbatch --export=ALL,MODE=fast --array="0-$((N_DATASETS - 1))" \
+            --time="$FAST_TIME" --partition="$FAST_PARTITION" \
+            --mem="$FAST_MEM" "$SCRIPT"
+    fi
+    if [ "$RUN_MCMC" -eq 1 ]; then
+        echo "[submit] queueing BCART MCMC benchmarks (1 task/dataset x split, sbatch time limit)"
+        exec sbatch --export=ALL,MODE=mcmc --array="0-$((5 * N_DATASETS - 1))" "$SCRIPT"
+    fi
+    exit 0
 fi
 
 # ---- Worker -----------------------------------------------------------------
@@ -103,22 +155,30 @@ export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 
 status=0
 if [ "$MODE" = "fast" ]; then
-    python class_baselines/run_cart.py --datasets "$DATASET" \
-        --max-depth "$MAX_DEPTH" || status=$?
-    python class_baselines/run_gbt.py --datasets "$DATASET" \
-        --max-depth "$MAX_DEPTH" || status=$?
+    if wants cart; then
+        python class_baselines/run_cart.py --datasets "$DATASET" \
+            --max-depth "$MAX_DEPTH" || status=$?
+    fi
+    if wants gbt; then
+        python class_baselines/run_gbt.py --datasets "$DATASET" \
+            --max-depth "$MAX_DEPTH" || status=$?
+    fi
     if [ "$MAX_DEPTH" -eq 5 ]; then
-        python class_baselines/run_maptree.py --datasets "$DATASET" \
-            --thresholds "$BINARIZATION_THRESHOLDS" \
-            --time-limit "$MAPTREE_TIME_LIMIT" || status=$?
-        python class_baselines/run_bcart.py --datasets "$DATASET" \
-            --methods smc --particles "$SMC_PARTICLES" \
-            --thresholds "$BINARIZATION_THRESHOLDS" || status=$?
+        if wants maptree; then
+            python class_baselines/run_maptree.py --datasets "$DATASET" \
+                --thresholds "$BINARIZATION_THRESHOLDS" \
+                --time-limit "$MAPTREE_TIME_LIMIT" || status=$?
+        fi
+        if wants smc; then
+            python class_baselines/run_bcart.py --datasets "$DATASET" \
+                --methods smc --particles "$SMC_PARTICLES" "${OUTPUTS_FLAG[@]}" \
+                --thresholds "$BINARIZATION_THRESHOLDS" || status=$?
+        fi
     fi
 else
     python class_baselines/run_bcart.py --datasets "$DATASET" \
         --splits "$SPLIT" \
-        --methods mcmc --iterations "$MCMC_ITERATIONS" \
+        --methods mcmc --iterations "$MCMC_ITERATIONS" "${OUTPUTS_FLAG[@]}" \
         --thresholds "$BINARIZATION_THRESHOLDS" || status=$?
 fi
 

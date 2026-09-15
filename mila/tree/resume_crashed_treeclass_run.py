@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Relaunch every crashed magic run so training continues from its checkpoint.
+"""Relaunch every crashed tree run so training continues from its checkpoint.
 
-Scans the campaign directories under $SCRATCH/gflownet-logs that contain magic
-runs, classifies each magic run directory from what is on disk, and submits one
-Slurm job (mila/tree/resume_crashed_magic_worker.sh) per run whose TRAINING is
-unfinished. Resources match how the run was launched originally:
+Scans the given campaign directories under $SCRATCH/gflownet-logs, classifies
+each run directory (classification or regression) from what is on disk, and
+submits one Slurm job (mila/tree/resume_crashed_treeclass_run_worker.sh) per
+run whose TRAINING is unfinished. Resources match how the run was launched
+originally:
 
   device: cpu   in .hydra/config.yaml -> long-cpu partition, no GPU
   device: cuda  in .hydra/config.yaml -> long partition, one l40s (48 GB);
@@ -26,16 +27,17 @@ the checkpoint file names times --sec-per-step, plus a margin, capped at
 to finish by simply running this script again: DONE runs are skipped and
 everything else resumes from its newest checkpoint.
 
-Usage (from anywhere, on a login node):
+Usage (from anywhere, on a login node; campaigns are directory names under
+--runs-root):
 
   # 1. See the plan, submit nothing:
-  python mila/tree/resume_crashed_magic.py --dry-run
+  python mila/tree/resume_crashed_treeclass_run.py TREECLASS_MAGIC TRFM_MAGIC --dry-run
 
   # 2. Debug with a single real submission:
-  python mila/tree/resume_crashed_magic.py --limit 1
+  python mila/tree/resume_crashed_treeclass_run.py TREECLASS_MAGIC --limit 1
 
   # 3. The real thing:
-  python mila/tree/resume_crashed_magic.py
+  python mila/tree/resume_crashed_treeclass_run.py TREECLASS_MAGIC TRFM_MAGIC
 """
 
 import argparse
@@ -44,8 +46,6 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-
-EXP_DIRS = ["TRFM_MAGIC", "TREECLASS_MAGIC", "BWD_POLICY_ABLATION", "DEBUG_UNIFORM"]
 
 CPU_PARTITION = "long-cpu,long-cpu-eek"
 CPU_MEM = "24G"
@@ -114,16 +114,21 @@ def sbatch_command(info: dict, args) -> list[str]:
         cmd += [
             f"--partition={GPU_PARTITION}",
             f"--gres=gpu:{gpu}:1",
-            f"--mem={GPU_MEM}",
+            f"--mem={args.mem or GPU_MEM}",
         ]
     else:
-        cmd += [f"--partition={CPU_PARTITION}", f"--mem={CPU_MEM}"]
-    cmd.append(str(Path(__file__).with_name("resume_crashed_magic_worker.sh")))
+        cmd += [f"--partition={CPU_PARTITION}", f"--mem={args.mem or CPU_MEM}"]
+    cmd.append(str(Path(__file__).with_name("resume_crashed_treeclass_run_worker.sh")))
     return cmd
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "campaigns",
+        nargs="+",
+        help="campaign directories under --runs-root to scan, e.g. TREECLASS_MAGIC",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -140,15 +145,9 @@ def main():
         "--runs-root", type=Path, default=Path(os.environ["SCRATCH"]) / "gflownet-logs"
     )
     parser.add_argument(
-        "--exp-dirs",
-        nargs="+",
-        default=EXP_DIRS,
-        help=f"campaign directories to scan (default: {EXP_DIRS})",
-    )
-    parser.add_argument(
         "--match",
-        default="magic",
-        help="only run dirs whose name contains this (default: magic)",
+        default="",
+        help="only run dirs whose name contains this (default: all runs)",
     )
     parser.add_argument(
         "--sec-per-step",
@@ -166,10 +165,15 @@ def main():
         "--max-hours", type=int, default=48, help="walltime cap in hours (default: 48)"
     )
     parser.add_argument("--cpus", type=int, default=4)
+    parser.add_argument(
+        "--mem",
+        default=None,
+        help=f"memory per job (default: {CPU_MEM} for CPU runs, {GPU_MEM} for GPU runs)",
+    )
     args = parser.parse_args()
 
     runs = []
-    for exp in args.exp_dirs:
+    for exp in args.campaigns:
         exp_dir = args.runs_root / exp
         if not exp_dir.is_dir():
             print(f"WARNING: campaign directory not found, skipping: {exp_dir}")
@@ -184,8 +188,9 @@ def main():
     if args.limit is not None:
         queue = queue[: args.limit]
 
+    label = f" '{args.match}'" if args.match else ""
     print(
-        f"Scanned {len(runs)} '{args.match}' runs under {args.runs_root}: "
+        f"Scanned {len(runs)}{label} runs under {args.runs_root}: "
         f"{len(done)} training-done (skipped), {len(broken)} broken, "
         f"{len(queue)} to resume.\n"
     )

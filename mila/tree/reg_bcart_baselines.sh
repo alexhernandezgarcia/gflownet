@@ -12,8 +12,11 @@
 # which runs the other regression baselines (BART, boosters, GP, linear).
 #
 # One array task per dataset; each task runs all 5 splits, MCMC first (also
-# writes the bcart_map result) then SMC. The regression datasets are small
-# (< 1100 rows), so a task takes well under an hour with the defaults.
+# writes the bcart_map and single_tree_bcart_mcmc results) then SMC (also
+# writes single_tree_bcart_smc). The regression datasets are small
+# (< 1100 rows), so a task takes well under an hour with the defaults
+# (2026-09-02: 13-40 min per dataset). Runs are seeded by the split id, so a
+# rerun reproduces the existing bcart_* JSONs and adds the single-tree ones.
 #
 # SLURM logs live in $REPO/reg_benchmarks/slurm/; result JSONs go to
 # $SCRATCH/gflownet-benchmarks/reg_benchmarks/results (the run_*.py default,
@@ -33,6 +36,11 @@
 #
 # Tunables via environment variables (forwarded by --export=ALL):
 #   METHODS="mcmc smc"      samplers to run (mcmc also writes bcart_map)
+#   OUTPUTS=""              result JSONs to write (default: all of the
+#                           selected samplers). E.g. to add only the single-
+#                           tree rows without touching the existing files:
+#     OUTPUTS="single_tree_bcart_mcmc single_tree_bcart_smc" \
+#         bash mila/tree/reg_bcart_baselines.sh diabetes energy yacht real_estate
 #   MCMC_ITERATIONS=50000   SMC_PARTICLES=1000   BINARIZATION_THRESHOLDS=9
 #   NIG_KAPPA_0=0.1  NIG_ALPHA_0=2.0             leaf prior (see run_bcart.py)
 
@@ -43,6 +51,7 @@ VENV="$HOME/scratch/venvs/gflownet-env"
 SCRIPT="$REPO/mila/tree/reg_bcart_baselines.sh"
 
 METHODS="${METHODS:-mcmc smc}"
+OUTPUTS="${OUTPUTS:-}"
 MCMC_ITERATIONS="${MCMC_ITERATIONS:-50000}"
 SMC_PARTICLES="${SMC_PARTICLES:-1000}"
 BINARIZATION_THRESHOLDS="${BINARIZATION_THRESHOLDS:-9}"
@@ -69,7 +78,7 @@ done
 # ---- Submit wrapper ---------------------------------------------------------
 if [ -z "${SLURM_ARRAY_TASK_ID:-}" ]; then
     mkdir -p "$REPO/reg_benchmarks/slurm"
-    echo "[submit] datasets: $DATASETS | methods: $METHODS"
+    echo "[submit] datasets: $DATASETS | methods: $METHODS | outputs: ${OUTPUTS:-all}"
     echo "[submit] MCMC_ITERATIONS=$MCMC_ITERATIONS SMC_PARTICLES=$SMC_PARTICLES"
     exec sbatch --export=ALL --array="1-$n" "$SCRIPT"
 fi
@@ -90,9 +99,14 @@ export OMP_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 export MKL_NUM_THREADS="$SLURM_CPUS_PER_TASK"
 
 status=0
+outputs_flag=()
+if [ -n "$OUTPUTS" ]; then
+    # shellcheck disable=SC2206  # OUTPUTS is a space-separated list on purpose
+    outputs_flag=(--outputs $OUTPUTS)
+fi
 # shellcheck disable=SC2086  # METHODS is a space-separated list on purpose
 python reg_benchmarks/run_bcart.py --datasets "$dataset" \
-    --methods $METHODS \
+    --methods $METHODS "${outputs_flag[@]}" \
     --iterations "$MCMC_ITERATIONS" --particles "$SMC_PARTICLES" \
     --thresholds "$BINARIZATION_THRESHOLDS" \
     --kappa-0 "$NIG_KAPPA_0" --alpha-0 "$NIG_ALPHA_0" || status=$?

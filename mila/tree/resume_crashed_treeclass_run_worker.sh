@@ -1,18 +1,20 @@
 #!/bin/bash
-#SBATCH --job-name=magic_resume
+#SBATCH --job-name=treeclass_resume
 #SBATCH --output=/home/mila/a/arnit/scratch/gflownet-logs/slurm/%x-%j.out
 #SBATCH --cpus-per-task=4
 #SBATCH --requeue
 
 # =============================================================================
-# Resume ONE existing run from its latest checkpoint. Training only: no eval.
+# Resume ONE existing tree run (classification or regression) from its latest
+# checkpoint. Training only: no eval.
 # =============================================================================
 #
-# Companion worker of resume_crashed_magic.py, which scans the campaign
+# Companion worker of resume_crashed_treeclass_run.py, which scans the campaign
 # directories, decides which runs are unfinished and submits one of these jobs
-# per run. All resources that differ between runs (partition, gres, mem, time)
-# are passed by the driver on the sbatch command line, which overrides the
-# directives above; only the invariants live here.
+# per run; it can also be submitted by hand for a single run. All resources that
+# differ between runs (partition, gres, mem, time) are passed on the sbatch
+# command line, which overrides the directives above; only the invariants live
+# here.
 #
 # Required (via --export):
 #   RUN_DIR   absolute path of the run directory to resume
