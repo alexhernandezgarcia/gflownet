@@ -103,15 +103,11 @@ ssh rorqual 'for d in $SCRATCH/gflownet-logs/*/; do printf "%-45s %s\n" "$(basen
 ssh mila   'for d in $SCRATCH/gflownet-logs/*/; do printf "%-45s %s\n" "$(basename $d)" "$(ls $d|wc -l)"; done'
 ```
 
-All of it is re-runnable: only new/changed files move. A run copied before it
-finished needs `python mila/tree/relocate_run.py <run_dir>` (its dataset and
-replay-buffer paths still point at the other cluster) before it can be resumed
-on Mila.
+All of it is re-runnable: only new/changed files move.
 
 ## 4. Evaluations and results tables
 
-On Mila, with the venv active (or through
-`sbatch mila/tree/aggregate_treeclass_results.sh`):
+On Mila, with the venv active:
 
 ```bash
 # which finished runs have no eval_results.json yet (--dry-run only lists them)
