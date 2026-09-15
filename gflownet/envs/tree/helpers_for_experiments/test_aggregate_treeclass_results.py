@@ -593,6 +593,248 @@ def test_collect_eval_runs_skips_corrupt_json(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
+# prior column
+# ---------------------------------------------------------------------------
+
+CLS_PROXY = {
+    "_target_": "gflownet.proxy.tree.CategoricalTreeProxy",
+    "prior_type": "node_count",
+    "alpha_type": "uniform",
+    "alpha_value": 0.1,
+    "beta": 1.0,
+    "sigma": 0.95,
+    "phi": 2.0,
+    "reward_function_kwargs": {"beta": 1.0, "alpha": 1.0},
+}
+
+REG_PROXY = {
+    "_target_": "gflownet.proxy.regression_tree.NormalGammaTreeProxy",
+    "prior_type": "node_count",
+    "mu_0": None,
+    "kappa_0": 0.1,
+    "alpha_0": 3.0,
+    "beta_0": "overfit",
+    "beta": 1.0,
+    "sigma": 0.95,
+    "phi": 2.0,
+    "reward_function_kwargs": {"beta": 1.0, "alpha": 1.0},
+}
+
+
+def _prior(proxy_overrides=None, base=REG_PROXY):
+    """prior label as it ends up in the settings of a real record, i.e. via
+    group_identity (numbers normalized: 3.0 -> 3)."""
+    cfg = make_config(proxy={**base, **(proxy_overrides or {})})
+    return agg.group_identity(cfg)["settings"]["prior"]
+
+
+def test_prior_label_classification():
+    assert (
+        _prior(base=CLS_PROXY) == "node_count | Dir(alpha_type=uniform alpha_value=0.1)"
+    )
+
+
+def test_prior_label_regression_structure_priors():
+    assert _prior() == "node_count | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    assert _prior({"prior_type": "bcart", "phi": 0.5}) == (
+        "bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+    assert _prior({"prior_type": "exponential", "beta": 0.1}) == (
+        "exponential(beta=0.1) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+    assert _prior({"prior_type": "none"}) == (
+        "none | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+
+
+def test_prior_label_nig_null_beta0_and_explicit_mu0():
+    assert _prior({"beta_0": None, "alpha_0": 1.5}) == (
+        "node_count | NIG(kappa_0=0.1 alpha_0=1.5 beta_0=null)"
+    )
+    # mu_0 is omitted when null (mean of the targets) and shown when set.
+    assert "mu_0" not in _prior()
+    assert _prior({"mu_0": 2.5}).startswith("node_count | NIG(mu_0=2.5 kappa_0=0.1")
+
+
+def test_prior_label_without_prior_type():
+    # Proxies without a structure prior (e.g. the uniform proxy) show their
+    # class name; a config without a proxy section shows "?".
+    cfg = make_config(proxy={"_target_": "gflownet.proxy.uniform.Uniform"})
+    assert agg.prior_label(cfg) == "Uniform"
+    assert agg.prior_label(make_config()) == "?"
+    assert agg.settings_from_config(make_config())["prior"] == "?"
+
+
+def test_prior_is_a_settings_column_and_changes_the_hash():
+    assert agg.SETTINGS_COLUMNS[-1] == "prior"
+    assert set(agg.SETTINGS_COLUMNS) == set(agg.settings_from_config(make_config()))
+    assert set(agg.SETTINGS_COLUMNS) == set(agg.SETTINGS_CONFIG_KEYS)
+    a = agg.group_identity(make_config(proxy=REG_PROXY))
+    b = agg.group_identity(make_config(proxy={**REG_PROXY, "prior_type": "bcart"}))
+    assert a["hash"] != b["hash"]
+    assert a["settings"]["prior"] != b["settings"]["prior"]
+
+
+def test_build_table_shows_prior_column():
+    recs = [
+        make_record(
+            split=str(i),
+            settings=agg.settings_from_config(make_config(proxy=REG_PROXY)),
+            metrics={"test_forest_rmse": 1.0},
+        )
+        for i in (1, 2, 3)
+    ]
+    df, _ = agg.build_table(recs, ["test_forest_rmse"], "eval", 3)
+    assert (
+        df.iloc[0]["prior"]
+        == "node_count | NIG(kappa_0=0.1 alpha_0=3.0 beta_0=overfit)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Recipe filters
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_setting_value():
+    norm = agg.normalize_setting_value
+    assert norm("10000") == norm(10000) == norm(1e4)
+    assert norm("1e-3") == norm(0.001) == norm("0.0010")
+    assert norm("-") == norm(0) == norm("0.0")  # clip: "-" means no clipping
+    assert norm("MLP") == norm("mlp") == "mlp"
+    assert norm("?") == "?"
+
+
+def test_setting_matches_plain_columns():
+    m = agg.setting_matches
+    assert m("steps", 10000, ["10000"])
+    assert m("steps", 10000, ["1000", "10000"])
+    assert not m("steps", 1000, ["10000"])
+    assert m("lr", 0.001, ["1e-3"])
+    assert m("clip", "-", ["0"]) and m("clip", "-", ["-"])
+    assert not m("clip", 1.0, ["0"])
+    assert m("policy", "mlp", ["MLP"])
+    assert m("pb_shared", "no", ["no"]) and not m("pb_shared", "yes", ["no"])
+    # Unknown settings ("?" for configs predating a key) never match a value.
+    assert not m("steps", "?", ["10000"])
+
+
+BCART_LABEL = "bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+
+
+def test_prior_matches_tokens():
+    pm = agg.prior_matches
+    assert pm(BCART_LABEL, "bcart")
+    assert pm(BCART_LABEL, "BCART")
+    assert pm(BCART_LABEL, "NIG")
+    assert not pm(BCART_LABEL, "node_count")
+    assert not pm(BCART_LABEL, "bcar")  # tokens, not substrings
+    # key=value tokens, numeric comparison of the value.
+    assert pm(BCART_LABEL, "phi=0.5") and pm(BCART_LABEL, "phi=0.50")
+    assert pm(BCART_LABEL, "alpha_0=3.0") and not pm(BCART_LABEL, "alpha_0=3.5")
+    assert not pm(BCART_LABEL, "phi=2")
+    # Bare values match the value of any key=value token.
+    assert pm(BCART_LABEL, "overfit") and pm(BCART_LABEL, "3.0")
+    assert not pm(BCART_LABEL, "null")
+    # All tokens of a value must occur (AND); a pasted label works.
+    assert pm(BCART_LABEL, "bcart phi=0.5")
+    assert not pm(BCART_LABEL, "bcart phi=2")
+    assert pm(BCART_LABEL, BCART_LABEL)
+    assert pm(BCART_LABEL, "NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)")
+    assert not pm("node_count | NIG(kappa_0=0.1 alpha_0=3 beta_0=null)", BCART_LABEL)
+    # Comma-separated values are alternatives.
+    assert agg.setting_matches("prior", BCART_LABEL, ["node_count", "bcart"])
+    assert not agg.setting_matches("prior", BCART_LABEL, ["node_count", "none"])
+
+
+def _rec_with(**overrides):
+    settings = agg.settings_from_config(make_config(proxy=REG_PROXY))
+    settings.update(overrides)
+    return make_record(settings=settings, run_name=str(overrides))
+
+
+def test_filter_records_by_settings():
+    recs = {
+        "eval": [
+            _rec_with(steps=10000, depth=5),
+            _rec_with(steps=10000, depth=3),
+            _rec_with(steps=1000, depth=5),
+            _rec_with(
+                steps=10000,
+                depth=5,
+                prior="bcart(sigma=0.95 phi=2) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)",
+            ),
+        ]
+    }
+    out = agg.filter_records(recs, settings={"steps": ["10000"]})["eval"]
+    assert [r["settings"]["steps"] for r in out] == [10000, 10000, 10000]
+    # Filters combine with AND, values within a filter with OR.
+    out = agg.filter_records(recs, settings={"steps": ["10000"], "depth": ["5"]})
+    assert len(out["eval"]) == 2
+    out = agg.filter_records(recs, settings={"depth": ["3", "5"], "prior": ["bcart"]})
+    assert len(out["eval"]) == 1 and "bcart" in out["eval"][0]["settings"]["prior"]
+    # Prior tokens: node_count vs bcart, AND within a value.
+    assert (
+        len(agg.filter_records(recs, settings={"prior": ["node_count"]})["eval"]) == 3
+    )
+    assert (
+        len(agg.filter_records(recs, settings={"prior": ["bcart phi=0.5"]})["eval"])
+        == 0
+    )
+    assert len(agg.filter_records(recs, settings={"prior": ["overfit"]})["eval"]) == 4
+    # Records without the setting ("?") are dropped by a filter on it.
+    assert len(agg.filter_records(recs, settings={"opt": ["adam"]})["eval"]) == 0
+    # No filter: untouched.
+    assert agg.filter_records(recs, settings={})["eval"] == recs["eval"]
+
+
+def test_filter_records_uses_recipe_not_wandb_progress():
+    # A wandb run launched for 10000 steps that stopped at step 4000: the
+    # recipe says 10000, so --steps 10000 keeps it and --steps 4000 does not.
+    rec = _rec_with(steps=10000)
+    rec.update(step=4000, state="crashed", recency=(4000, 1.0))
+    recs = {"wandb": [rec]}
+    assert len(agg.filter_records(recs, settings={"steps": ["10000"]})["wandb"]) == 1
+    assert len(agg.filter_records(recs, settings={"steps": ["4000"]})["wandb"]) == 0
+
+
+def test_setting_filters_from_args():
+    parser = agg.build_parser()
+    args = parser.parse_args(
+        [
+            "--steps",
+            "10000",
+            "--depth",
+            "3,5",
+            "--pb-shared",
+            "no",
+            "--rand_prob",
+            "0.1",
+            "--prior",
+            "bcart phi=0.5,node_count",
+            "--clip",
+            "",
+        ]
+    )
+    assert agg.setting_filters_from_args(args) == {
+        "steps": ["10000"],
+        "depth": ["3", "5"],
+        "pb_shared": ["no"],
+        "rand_prob": ["0.1"],
+        "prior": ["bcart phi=0.5", "node_count"],
+    }
+    assert agg.setting_filters_from_args(parser.parse_args([])) == {}
+    # Every settings column has its option; the underscore and dash spellings
+    # of the two-word ones are both accepted.
+    for column in agg.SETTINGS_COLUMNS:
+        assert (
+            getattr(parser.parse_args([f"--{column}", "x"]), f"filter_{column}") == "x"
+        )
+    assert parser.parse_args(["--pb_shared", "yes"]).filter_pb_shared == "yes"
+    assert parser.parse_args(["--rand-prob", "0"]).filter_rand_prob == "0"
+
+
+# ---------------------------------------------------------------------------
 # Metric configuration sanity
 # ---------------------------------------------------------------------------
 

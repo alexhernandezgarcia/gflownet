@@ -57,6 +57,27 @@ relaunched in a later campaign from its original. Relaunches and resumes of
 one run (same campaign, hash and split) are collapsed to one record per
 source (see ``dedupe``).
 
+The settings columns (SETTINGS_COLUMNS: steps, depth, lr, opt, beta, policy,
+seed, clip, pb_shared, rand_prob, prior) summarize the recipe of each row.
+``prior`` is ``<structure prior> | <leaf prior>`` with the config keys that
+define them, e.g. ``node_count | Dir(alpha_type=uniform alpha_value=0.1)``
+for classification or ``bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1
+alpha_0=3 beta_0=overfit)`` for regression (see ``prior_label``).
+
+Filtering by recipe
+-------------------
+Every settings column is also a command-line filter: ``--steps 10000`` keeps
+only rows whose RECIPE says 10000 training steps, ``--depth 3,5`` accepts
+either value, several filters combine with AND. The filters read the config
+the run was launched with, never its progress or metrics, so a wandb run
+launched for 10000 steps that crashed at step 4000 still matches
+``--steps 10000`` (the ``last_step`` column shows how far it got). Numbers
+compare numerically (``--lr 1e-3`` == ``0.001``), other values
+case-insensitively; ``--clip 0`` (or ``-``) selects unclipped runs. ``--prior``
+is token based: ``--prior bcart``, ``--prior overfit``, ``--prior alpha_0=3``,
+``--prior "bcart phi=0.5"`` (all tokens must occur) or a whole label pasted
+from the table (see ``prior_matches``).
+
 Debugging runs (name or campaign folder matching DEBUG_NAME_PATTERNS) are
 reported in a separate section after the real runs (``--only-debug`` prints
 only that section, ``--no-debug`` drops it). Their wandb table carries the
@@ -85,6 +106,14 @@ sbatch mila/tree/aggregate_treeclass_results.sh):
     # exist for a single split, hence --min-splits 1)
     python .../aggregate_treeclass_results.py --dataset iris --source wandb \
         --only-debug --min-splits 1
+
+    # only 10000-step, depth-5 MLP recipes with a BCART structure prior
+    python .../aggregate_treeclass_results.py --task regression \
+        --steps 10000 --depth 5 --policy mlp --prior bcart
+
+    # NIG grid: every recipe whose leaf prior has alpha_0 = 3 and beta_0 = overfit
+    python .../aggregate_treeclass_results.py --dataset diabetes \
+        --prior "alpha_0=3 beta_0=overfit"
 
 For interactive inspection (dataset picker, hash2config) open the notebook
 ``inspect_treeclass_results.ipynb`` next to this script.
@@ -206,12 +235,84 @@ WANDB_ENTITY = "alex-hg"
 WANDB_PROJECTS = ["dt-gfn_classification", "dt-gfn_regression"]
 
 
+# Config keys (under ``proxy``) that define each structure prior over trees
+# (``proxy.prior_type``); shown in the ``prior`` column as
+# ``<prior_type>(<key>=<value> ...)``. node_count and none have no
+# parameters. NOTE ``proxy.beta`` is the coefficient of the exponential prior
+# (log_prior = -beta * n_internal) and unrelated to the reward temperature
+# ``proxy.reward_function_kwargs.beta`` shown in the ``beta`` column.
+STRUCTURE_PRIOR_PARAMS = {
+    "node_count": [],
+    "exponential": ["beta"],
+    "bcart": ["sigma", "phi"],
+    "none": [],
+}
+
+# Priors over the leaf parameters, detected by the presence of their config
+# keys under ``proxy``: (label, keys in display order, keys shown only when
+# set). ``Dir`` = Dirichlet over the leaf class probabilities (classification,
+# CategoricalTreeProxy); ``NIG`` = Normal-Inverse-Gamma over the leaf
+# (mu, sigma^2) (regression, NormalGammaTreeProxy). ``mu_0=null`` (mean of the
+# training targets) is omitted; ``beta_0=null`` means (alpha_0 - 1) *
+# var(y_train), ``beta_0=overfit`` the same rule on the residual variance of
+# an overfit CART -- see config/proxy/regression_tree.yaml.
+LEAF_PRIORS = [
+    ("Dir", ["alpha_type", "alpha_value"], []),
+    ("NIG", ["mu_0", "kappa_0", "alpha_0", "beta_0"], ["mu_0"]),
+]
+
+
+def fmt_setting_value(value) -> str:
+    """Config value as displayed in the settings columns (yaml spelling)."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return str(value).lower()
+    return str(value)
+
+
+def prior_label(container: dict) -> str:
+    """``<structure prior> | <leaf prior>`` of a run, e.g.
+    ``node_count | Dir(alpha_type=uniform alpha_value=0.1)`` or
+    ``bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)``.
+
+    Both parts list the config keys that define them (``proxy.<key>``, see
+    STRUCTURE_PRIOR_PARAMS / LEAF_PRIORS) with the values of the recipe; the
+    parameters are space-separated so that the whole label -- or any of its
+    tokens -- can be passed to ``--prior`` (see prior_matches). Proxies
+    without a ``prior_type`` (e.g. the uniform proxy) are labelled by their
+    class name; a config without a proxy section gives ``?``.
+    """
+    proxy = container.get("proxy") or {}
+    prior_type = proxy.get("prior_type")
+    if prior_type is None:
+        return str(proxy.get("_target_", "")).rsplit(".", 1)[-1] or "?"
+
+    def with_params(name, keys):
+        if not keys:
+            return name
+        return (
+            f"{name}("
+            + " ".join(f"{k}={fmt_setting_value(proxy.get(k))}" for k in keys)
+            + ")"
+        )
+
+    prior_type = str(prior_type).lower()
+    parts = [with_params(prior_type, STRUCTURE_PRIOR_PARAMS.get(prior_type, []))]
+    for name, keys, optional in LEAF_PRIORS:
+        if all(k in proxy for k in keys if k not in optional):
+            shown = [k for k in keys if k not in optional or proxy.get(k) is not None]
+            parts.append(with_params(name, shown))
+            break
+    return " | ".join(parts)
+
+
 def settings_from_config(container: dict) -> dict:
     """The human-readable hyperparameters shown for each training configuration.
 
     Read from the resolved config, with defensive defaults for configs written
-    before a key existed. Add a key here (and nothing else) to display another
-    setting.
+    before a key existed. Add a key here AND to SETTINGS_COLUMNS to display
+    (and make filterable) another setting.
     """
     optimizer = container.get("gflownet", {}).get("optimizer", {})
     backward = (container.get("policy", {}) or {}).get("backward") or {}
@@ -232,9 +333,12 @@ def settings_from_config(container: dict) -> dict:
         "clip": clip if clip else "-",
         "pb_shared": {True: "yes", False: "no"}.get(shared, "?"),
         "rand_prob": container.get("gflownet", {}).get("random_action_prob", "?"),
+        "prior": prior_label(container),
     }
 
 
+# Settings columns of the tables, in display order. Every column is also a
+# ``--<column>`` recipe filter of the command line (see setting_matches).
 SETTINGS_COLUMNS = [
     "steps",
     "depth",
@@ -246,7 +350,24 @@ SETTINGS_COLUMNS = [
     "clip",
     "pb_shared",
     "rand_prob",
+    "prior",
 ]
+
+# The config key behind each settings column (shown in --help).
+SETTINGS_CONFIG_KEYS = {
+    "steps": "gflownet.optimizer.n_train_steps",
+    "depth": "env.max_depth",
+    "lr": "gflownet.optimizer.lr",
+    "opt": "gflownet.optimizer.method (adam, msgd, ...)",
+    "beta": "proxy.reward_function_kwargs.beta (reward temperature)",
+    "policy": "forward policy label (mlp, trfm, ...)",
+    "seed": "seed",
+    "clip": "gflownet.optimizer.clip_grad_norm ('-' or 0: no clipping)",
+    "pb_shared": "policy.backward.shared_weights (yes, no)",
+    "rand_prob": "gflownet.random_action_prob",
+    "prior": "proxy.prior_type + its parameters | leaf prior + its "
+    "parameters (see prior_label)",
+}
 
 
 # =============================================================================
@@ -808,8 +929,128 @@ def campaigns_from_args(campaign_arg, root: Path):
     return None
 
 
-def filter_records(records_by_source, datasets=None, task="both", campaigns=None):
-    """Apply the --dataset / --task / --campaign filters to every source."""
+# =============================================================================
+# Recipe filters (--steps, --depth, ..., --prior)
+# =============================================================================
+
+# Splits a prior label into its tokens: prior names and key=value pairs.
+# Parentheses, the " | " separator and whitespace are separators, commas are
+# not (they separate alternatives on the command line, and the label
+# deliberately contains none).
+PRIOR_TOKEN_RE = re.compile(r"[\s()|]+")
+
+
+def normalize_setting_value(value):
+    """Comparable form of a displayed setting or of a ``--<setting>`` value.
+
+    Numbers compare numerically (``1e-3`` == ``0.001``, ``3`` == ``3.0``),
+    the ``clip`` placeholder ``-`` as 0, everything else as a lower-cased
+    string.
+    """
+    text = str(value).strip()
+    if text == "-":
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return text.lower()
+
+
+def prior_matches(label, wanted) -> bool:
+    """True iff every token of ``wanted`` occurs in the prior ``label``.
+
+    ``wanted`` is tokenized like the label (whitespace / parentheses / ``|``),
+    so ``bcart``, ``"bcart phi=0.5"``, ``alpha_0=3.0`` and a whole label
+    pasted from the table all work. A token matches a label token if it
+    equals it, or -- for ``key=value`` label tokens -- if it equals the value
+    alone (``overfit``, ``3.0``); comparisons are case-insensitive and
+    numeric where possible (``alpha_0=3.0`` matches ``alpha_0=3``).
+    """
+    tokens = [t for t in PRIOR_TOKEN_RE.split(str(label)) if t]
+    terms = [t for t in PRIOR_TOKEN_RE.split(str(wanted)) if t]
+
+    def token_matches(token, term):
+        if normalize_setting_value(token) == normalize_setting_value(term):
+            return True
+        key, sep, value = token.partition("=")
+        if not sep:
+            return False
+        term_key, term_sep, term_value = term.partition("=")
+        if term_sep:
+            return key.lower() == term_key.lower() and (
+                normalize_setting_value(value) == normalize_setting_value(term_value)
+            )
+        return normalize_setting_value(value) == normalize_setting_value(term)
+
+    return all(any(token_matches(tok, term) for tok in tokens) for term in terms)
+
+
+def setting_matches(column, actual, wanted) -> bool:
+    """True iff the displayed setting ``actual`` of column ``column`` satisfies
+    one of the accepted values ``wanted`` (the comma-separated alternatives of
+    a ``--<column>`` option). ``prior`` is token based (prior_matches), every
+    other column is an exact match after normalize_setting_value."""
+    if column == "prior":
+        return any(prior_matches(actual, w) for w in wanted)
+    return normalize_setting_value(actual) in {
+        normalize_setting_value(w) for w in wanted
+    }
+
+
+def add_setting_filter_arguments(parser):
+    """One ``--<column>`` option per settings column (``--pb-shared`` and
+    ``--rand-prob`` also accept the underscore spelling)."""
+    group = parser.add_argument_group(
+        "training-recipe filters",
+        "Keep only runs whose training RECIPE (the resolved config, i.e. what "
+        "was launched) has one of the given comma-separated values in the "
+        "corresponding settings column, e.g. --steps 10000 or --depth 3,5. "
+        "Several filters combine with AND. Numbers compare numerically "
+        "(--lr 1e-3 == 0.001), other values case-insensitively; --clip 0 (or "
+        "-) selects unclipped runs. The filters never look at a run's "
+        "progress: a wandb run launched for 10000 steps that stopped at 4000 "
+        "still matches --steps 10000 (its last_step column tells). --prior is "
+        "token based: every token of a value (split at whitespace and "
+        "parentheses) must occur in the prior label, where bare values such "
+        "as overfit or 3.0 match the value of any key=value token; so "
+        "--prior bcart, --prior 'bcart phi=0.5', --prior alpha_0=3 and a "
+        "whole label pasted from the table all work.",
+    )
+    for column in SETTINGS_COLUMNS:
+        flags = [f"--{column}"]
+        if "_" in column:
+            flags.append(f"--{column.replace('_', '-')}")
+        group.add_argument(
+            *flags,
+            dest=f"filter_{column}",
+            default=None,
+            metavar="VALUES",
+            help=SETTINGS_CONFIG_KEYS[column],
+        )
+
+
+def setting_filters_from_args(args) -> dict:
+    """``{settings column: [accepted values]}`` from the ``--<column>``
+    options; options not given (or given an empty value) impose no filter."""
+    filters = {}
+    for column in SETTINGS_COLUMNS:
+        raw = getattr(args, f"filter_{column}", None)
+        if raw is None:
+            continue
+        values = [v.strip() for v in str(raw).split(",") if v.strip()]
+        if values:
+            filters[column] = values
+    return filters
+
+
+def filter_records(
+    records_by_source, datasets=None, task="both", campaigns=None, settings=None
+):
+    """Apply the --dataset / --task / --campaign filters and the recipe
+    filters ``settings`` (``{column: [accepted values]}``, see
+    setting_filters_from_args) to every source. The recipe filters read the
+    run's ``settings`` (derived from its config), never its metrics or its
+    wandb progress."""
     filtered = {}
     for source, recs in records_by_source.items():
         if datasets is not None:
@@ -818,11 +1059,17 @@ def filter_records(records_by_source, datasets=None, task="both", campaigns=None
             recs = [r for r in recs if r["task"] == task]
         if campaigns is not None:
             recs = [r for r in recs if r["campaign"] in campaigns]
+        for column, wanted in (settings or {}).items():
+            recs = [
+                r
+                for r in recs
+                if setting_matches(column, r["settings"].get(column, "?"), wanted)
+            ]
         filtered[source] = recs
     return filtered
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(
         description=__doc__.split("\n\n")[0],
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -909,10 +1156,21 @@ def main():
         help="Print ONLY the debugging-runs section (which is the only one "
         "with a logZ column); the real training runs are hidden.",
     )
-    args = parser.parse_args()
+    add_setting_filter_arguments(parser)
+    return parser
+
+
+def main():
+    args = build_parser().parse_args()
 
     extra_excluded = args.group_ignore.split(",") if args.group_ignore else ()
     datasets = set(args.dataset.split(",")) if args.dataset else None
+    setting_filters = setting_filters_from_args(args)
+    if setting_filters:
+        print(
+            "[INFO] recipe filters (on the launched config, both sources): "
+            + ", ".join(f"{k}={' | '.join(v)}" for k, v in setting_filters.items())
+        )
 
     campaigns = campaigns_from_args(args.campaign, args.root)
     if campaigns is not None and args.campaign is None:
@@ -934,7 +1192,11 @@ def main():
         )
 
     records_by_source = filter_records(
-        records_by_source, datasets=datasets, task=args.task, campaigns=campaigns
+        records_by_source,
+        datasets=datasets,
+        task=args.task,
+        campaigns=campaigns,
+        settings=setting_filters,
     )
 
     n_total = sum(len(r) for r in records_by_source.values())
