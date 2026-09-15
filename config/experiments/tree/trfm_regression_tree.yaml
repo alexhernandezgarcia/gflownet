@@ -52,13 +52,16 @@ proxy:
   sigma: 0.95
   phi: 2.0
 
-  # --- Normal-Inverse-Gamma prior over leaf parameters (mu, sigma^2) ---
+ # --- Normal-Inverse-Gamma prior over leaf parameters (mu, sigma^2) ---
   # null values are resolved from the training targets at setup:
   # mu_0 -> mean(y_train); beta_0 -> (alpha_0 - 1) * var(y_train)
+  # beta_0 also accepts "overfit": (alpha_0 - 1) * residual variance of an
+  # overfit greedy CART, i.e. the variance prior is centered near the post-fit
+  # noise level as recommended by Chipman et al. (1998, Sec. 4.1).
   mu_0: null
   kappa_0: 0.1
-  alpha_0: 2.0
-  beta_0: null
+  alpha_0: 3.0
+  beta_0: overfit
 
   # If True, divide the marginal log-likelihood by N_train so the proxy reports
   # the average per-sample log-likelihood. This rescales the likelihood term (a

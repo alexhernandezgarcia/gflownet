@@ -55,8 +55,8 @@ proxy:
   # noise level as recommended by Chipman et al. (1998, Sec. 4.1).
   mu_0: null
   kappa_0: 0.1
-  alpha_0: 2.0
-  beta_0: null
+  alpha_0: 3.0
+  beta_0: overfit
 
   # If True, divide the marginal log-likelihood by N_train so the proxy reports
   # the average per-sample log-likelihood. This rescales the likelihood term (a
