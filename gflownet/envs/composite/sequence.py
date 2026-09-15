@@ -297,7 +297,7 @@ class Sequence(CompositeBase):
         position (first, left or right) and the sub-env to be inserted. If there are
         e.g. 2 sub-env types available, there are 5 meta-actions: 2x2 + EOS."""
         # 2 means there are left/right actions
-        return (idx_unique*2)  + direction
+        return (idx_unique * 2) + direction
 
     def _reverse_insert_id(self, state: Dict) -> int:
         """
@@ -313,7 +313,7 @@ class Sequence(CompositeBase):
         else:
             direction = _RIGHT
         return self._insert_id(direction, idx_unique)
-    
+
     def _get_direction_and_env(self, state: Dict) -> int:
         """
         Returns the insert id of the meta-action that, in the backward direction, undoes
@@ -351,12 +351,18 @@ class Sequence(CompositeBase):
         by their unique-env index.
         """
         action_space = []
-        # Insert meta-actions 
+        # Insert meta-actions
         # change the meta actions(sequence level not subenv level) to (-1, environment_id, direction, 0,...,0)
         # 0,...,0 is the padding
         action_space.extend(
             [
-                self._pad_action((env_id_iter, direction_iter,), -1)
+                self._pad_action(
+                    (
+                        env_id_iter,
+                        direction_iter,
+                    ),
+                    -1,
+                )
                 for env_id_iter in range(self.n_unique_envs)
                 for direction_iter in (_LEFT, _RIGHT)
             ]
@@ -660,7 +666,15 @@ class Sequence(CompositeBase):
                 else:
                     parents = self._enumerate_all_states_for_the_sequence(state=parent)
                 # fixed the actions to get to the parents using the (-1, env, direction, padding) action notation
-                return parents, [self._pad_action((idx_unique, direction, ), -1)] * len(parents)
+                return parents, [
+                    self._pad_action(
+                        (
+                            idx_unique,
+                            direction,
+                        ),
+                        -1,
+                    )
+                ] * len(parents)
 
             # 2b: Parent states are from the active sub-environment, meta state remains unchanged
             parents_subenv, parent_actions = subenv.get_parents(substate, False)
