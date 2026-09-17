@@ -446,10 +446,10 @@ class Sequence(CompositeBase):
         # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
         active_env = state["envs_unique"][-1]
 
-        if state["active"] == -1:
+        if state["active"] == _ACTIVE_LEFT:
             core[self._insert_id(_LEFT, active_env)] = False
             return core
-        elif state["active"] == 1:
+        elif state["active"] == _ACTIVE_RIGHT:
             core[self._insert_id(_RIGHT, active_env)] = False
             return core
         # Inserts (only if there is room)
@@ -752,25 +752,33 @@ class Sequence(CompositeBase):
                 self.done = True
                 return self.state, action, True
             # 1b: Insert sub-env
-            direction = action[2]
-            idx_unique = action[1]
-            key = self._seq_length(self.state)
-            new_subenv = self._make_subenv_instance(idx_unique, key)
-            self.subenvs = list(self.subenvs) + [new_subenv]
-            self.state["_envs_unique"].append(idx_unique)
-            self.state["_dones"].append(0)
-            self.state[key] = copy(new_subenv.source)
-            if direction == _LEFT:
-                if len(self.state["_indices"]) == 0:
-                    self.state["_indices"] = [key]
+            if self.state["_active"] != _ACTIVE_NONE:
+                # 1b1: Case: toggle action forward
+                # 2) [Step] next iter, it will choose the "toggle" action deterministically since it has no other choice
+                # to do the step, if active != 0 (in the state) then it means that it is a toggle action
+                # so the state will only change the value of the active key in the state
+                # just change the state
+                self.state["_active"] = _ACTIVE_NONE
+            else:  # meta action of inserting a subenv
+                direction = action[2]
+                idx_unique = action[1]
+                key = self._seq_length(self.state)
+                new_subenv = self._make_subenv_instance(idx_unique, key)
+                self.subenvs = list(self.subenvs) + [new_subenv]
+                self.state["_envs_unique"].append(idx_unique)
+                self.state["_dones"].append(0)
+                self.state[key] = copy(new_subenv.source)
+                if direction == _LEFT:
+                    if len(self.state["_indices"]) == 0:
+                        self.state["_indices"] = [key]
+                    else:
+                        # insert in the left
+                        self.state["_indices"] = [key] + self.state["_indices"]
+                    self.state["_active"] = _ACTIVE_LEFT
                 else:
-                    # insert in the left
-                    self.state["_indices"] = [key] + self.state["_indices"]
-                self.state["_active"] = _ACTIVE_LEFT
-            else:
-                # insert in the right
-                self.state["_indices"] = self.state["_indices"] + [key]
-                self.state["_active"] = _ACTIVE_RIGHT
+                    # insert in the right
+                    self.state["_indices"] = self.state["_indices"] + [key]
+                    self.state["_active"] = _ACTIVE_RIGHT
             return self.state, action, True
 
         # Case 2: Sub-environment action
@@ -799,10 +807,10 @@ class Sequence(CompositeBase):
                 # this action is needed in the backward direction but is deterministic (p = 1) going forwards
                 # i need to think how to do it
                 # we need to change 4 parts of the code:
-                # 1) [Masking] after eos, `active` is still the same but we can change the mask to deactivate subenvs,
+                # 1) [DONE][Masking] after eos, `active` is still the same but we can change the mask to deactivate subenvs,
                 # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
                 # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
-                # [Step] this part of the step shouldn't change the `active` key
+                # [Step][DONE] this part of the step shouldn't change the `active` key
                 # 2) [Step] next iter, it will choose the "toggle" action deterministically since it has no other choice
                 # to do the step, if active != 0 (in the state) then it means that it is a toggle action
                 # so the state will only change the value of the active key in the state
@@ -1171,6 +1179,7 @@ class Sequence(CompositeBase):
 
         for i, state in enumerate(states):
             # _ACTIVE_LEFT = -1 _ACTIVE_NONE = 0 _ACTIVE_RIGHT = 1
+            # TODO change this formula vvv
             active[i, state["_active"] + 1] = 1.0
             rem = self._remaining_bag(state)
             if rem is not None:
