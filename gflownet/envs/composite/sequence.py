@@ -446,9 +446,9 @@ class Sequence(CompositeBase):
         # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
         active_env = state["envs_unique"][-1]
         if state["active"] == -1:
-            core[self._insert_id(_LEFT, active_env)] = False 
+            core[self._insert_id(_LEFT, active_env)] = False
         elif state["active"] == 1:
-            core[self._insert_id(_RIGHT, active_env)] = False 
+            core[self._insert_id(_RIGHT, active_env)] = False
         # Inserts (only if there is room)
         if length < self.max_elements:
             if length == 0:
@@ -790,7 +790,7 @@ class Sequence(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
             if action_subenv == subenv.eos:
-                #TODO add an action for the subenv EOS 
+                # TODO add an action for the subenv EOS
                 # when subenv is eos, the meta state goes from active to not active
                 # Toggle active env into inactive
                 # this action is needed in the backward direction but is deterministic (p = 1) going forwards
@@ -809,7 +809,7 @@ class Sequence(CompositeBase):
                 # 5) Test if other parts are broken
                 self._set_subdone(key, True)
                 # don't change the state anymore
-                # self.state["_active"] = _ACTIVE_NONE 
+                # self.state["_active"] = _ACTIVE_NONE
             else:
                 self._set_substate(key, subenv.state)
             return self.state, action, True
