@@ -439,6 +439,16 @@ class Sequence(CompositeBase):
             allowed = list(range(U))
         else:  # In the bag sequence case only the remaining sub-envs can be inserted
             allowed = [t for t in range(U) if remaining.get(t, 0) > 0]
+        # here we insert a deterministic masking rule for the meta actions in the forward direction
+        # TODO determine if it works for all cases in the backward direction
+        # after subenv eos, state[`active`] is still the same but we can change the mask to deactivate subenvs,
+        # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
+        # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
+        active_env = state["envs_unique"][-1]
+        if state["active"] == -1:
+            core[self._insert_id(_LEFT, active_env)] = False 
+        elif state["active"] == 1:
+            core[self._insert_id(_RIGHT, active_env)] = False 
         # Inserts (only if there is room)
         if length < self.max_elements:
             if length == 0:
@@ -638,10 +648,11 @@ class Sequence(CompositeBase):
             # force both left and right as parents
             parents = self._enumerate_all_states_for_the_sequence(state=parent)
             # same action since it goes to EOS of the same subenv
-            return parents, [
+            actions = [
                 self._pad_action(subenv.eos, parent_i["_envs_unique"][key])
                 for parent_i in parents
             ]  # fixed
+            return parents, actions
 
         # Case 2: A sub-environment is active
         elif state["_active"] in (_ACTIVE_LEFT, _ACTIVE_RIGHT):
@@ -666,7 +677,7 @@ class Sequence(CompositeBase):
                 else:
                     parents = self._enumerate_all_states_for_the_sequence(state=parent)
                 # fixed the actions to get to the parents using the (-1, env, direction, padding) action notation
-                return parents, [
+                actions = [
                     self._pad_action(
                         (
                             idx_unique,
@@ -675,6 +686,7 @@ class Sequence(CompositeBase):
                         -1,
                     )
                 ] * len(parents)
+                return parents, actions
 
             # 2b: Parent states are from the active sub-environment, meta state remains unchanged
             parents_subenv, parent_actions = subenv.get_parents(substate, False)
@@ -778,8 +790,26 @@ class Sequence(CompositeBase):
                 return self.state, action, False
             self.n_actions += 1
             if action_subenv == subenv.eos:
+                #TODO add an action for the subenv EOS 
+                # when subenv is eos, the meta state goes from active to not active
+                # Toggle active env into inactive
+                # this action is needed in the backward direction but is deterministic (p = 1) going forwards
+                # i need to think how to do it
+                # we need to change 4 parts of the code:
+                # 1) [Masking] after eos, `active` is still the same but we can change the mask to deactivate subenvs,
+                # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
+                # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
+                # [Step] this part of the step shouldn't change the `active` key
+                # 2) [Step] next iter, it will choose the "toggle" action deterministically since it has no other choice
+                # to do the step, if active != 0 (in the state) then it means that it is a toggle action
+                # so the state will only change the value of the active key in the state
+                # i think code changes is needed in changing the state, no changes in action
+                # 3) [Backwards], we need to think about it [check how backward is done]
+                # 4) [Get Parents], we need to think about it [check how parents are obtained]
+                # 5) Test if other parts are broken
                 self._set_subdone(key, True)
-                self.state["_active"] = _ACTIVE_NONE
+                # don't change the state anymore
+                # self.state["_active"] = _ACTIVE_NONE 
             else:
                 self._set_substate(key, subenv.state)
             return self.state, action, True
