@@ -811,7 +811,7 @@ class Sequence(CompositeBase):
                 # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
                 # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
                 # [Step][DONE] this part of the step shouldn't change the `active` key
-                # 2) [Step] next iter, it will choose the "toggle" action deterministically since it has no other choice
+                # 2) [Step][DONE] next iter, it will choose the "toggle" action deterministically since it has no other choice
                 # to do the step, if active != 0 (in the state) then it means that it is a toggle action
                 # so the state will only change the value of the active key in the state
                 # i think code changes is needed in changing the state, no changes in action
@@ -847,27 +847,37 @@ class Sequence(CompositeBase):
 
         # Case 1: Meta-action (undo an insertion)
         elif action[0] == -1:
-            do_step, _, _ = self._pre_step(action, backward=True, skip_mask_check=True)
-            if do_step and not skip_mask_check:
-                do_step = self._meta_action_is_valid(action, backward=True)
-            if not do_step:
-                return self.state, action, False
-
-            key = self._seq_length(self.state) - 1
-            self.subenvs = list(self.subenvs)[:-1]
-            del self.state[key]
-            self.state["_envs_unique"].pop()
-            self.state["_dones"].pop()
-            self.state["_indices"].remove(key)
-            self.state["_active"] = _ACTIVE_NONE
-            self.n_actions += 1
-
-            # here insert other variations of the 1-step-backward-state that represents the same sequence
-            # merge states indicate if the states that can represent the same sequence will be enumerated
-            if (self.merge_states) and (len(self.state["_indices"]) > 1):
-                self.state = self._get_random_equivalent_sequence(
-                    self.state, self.merge_states
+            # consider the case for the toggle action which only happens if the active env is the meta env
+            if self.state["_active"] == _ACTIVE_NONE:
+                # activate the previous subenvironment from the action[1] and the direction action[2]
+                self.state["_active"] = (
+                    _ACTIVE_LEFT if action[2] == _LEFT else _ACTIVE_RIGHT
                 )
+            else:
+                # original backward actions
+                do_step, _, _ = self._pre_step(
+                    action, backward=True, skip_mask_check=True
+                )
+                if do_step and not skip_mask_check:
+                    do_step = self._meta_action_is_valid(action, backward=True)
+                if not do_step:
+                    return self.state, action, False
+
+                key = self._seq_length(self.state) - 1
+                self.subenvs = list(self.subenvs)[:-1]
+                del self.state[key]
+                self.state["_envs_unique"].pop()
+                self.state["_dones"].pop()
+                self.state["_indices"].remove(key)
+                self.state["_active"] = _ACTIVE_NONE
+                self.n_actions += 1
+
+                # here insert other variations of the 1-step-backward-state that represents the same sequence
+                # merge states indicate if the states that can represent the same sequence will be enumerated
+                if (self.merge_states) and (len(self.state["_indices"]) > 1):
+                    self.state = self._get_random_equivalent_sequence(
+                        self.state, self.merge_states
+                    )
             return self.state, action, True
 
         # Case 2: Sub-environment action
