@@ -445,10 +445,19 @@ class Sequence(CompositeBase):
         # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
         # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
         active_env = state["envs_unique"][-1]
+        
         if state["active"] == -1:
+<<<<<<< HEAD
             core[self._insert_id(_LEFT, active_env)] = False
         elif state["active"] == 1:
             core[self._insert_id(_RIGHT, active_env)] = False
+=======
+            core[self._insert_id(_LEFT, active_env)] = False 
+            return core
+        elif state["active"] == 1:
+            core[self._insert_id(_RIGHT, active_env)] = False 
+            return core
+>>>>>>> create_sequence_class_dev
         # Inserts (only if there is room)
         if length < self.max_elements:
             if length == 0:
