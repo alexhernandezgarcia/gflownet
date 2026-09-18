@@ -444,14 +444,14 @@ class Sequence(CompositeBase):
         # after subenv eos, state[`active`] is still the same but we can change the mask to deactivate subenvs,
         # the only action available in the mask should be to "toggle" the active subenv (get the same action that was used to insert it)
         # to get it, look at the `active` key in the state to know which direction and look at the `envs_unique` key to know which subenv
-        active_env = state["envs_unique"][-1]
-
-        if state["active"] == _ACTIVE_LEFT:
-            core[self._insert_id(_LEFT, active_env)] = False
-            return core
-        elif state["active"] == _ACTIVE_RIGHT:
-            core[self._insert_id(_RIGHT, active_env)] = False
-            return core
+        if len(state["_envs_unique"]) >= 1:
+            active_env = state["_envs_unique"][-1]
+            if state["_active"] == _ACTIVE_LEFT:
+                core[self._insert_id(_LEFT, active_env)] = False
+                return core
+            elif state["_active"] == _ACTIVE_RIGHT:
+                core[self._insert_id(_RIGHT, active_env)] = False
+                return core
         # Inserts (only if there is room)
         if length < self.max_elements:
             if length == 0:
@@ -482,15 +482,17 @@ class Sequence(CompositeBase):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if state["_active"] == _ACTIVE_NONE or done:
-            return self._format_mask(self._meta_forward_mask(state, done), -1)
+        if state["_active"] == _ACTIVE_NONE or done or min(state["_dones"]) == 1:
+            mask = self._format_mask(self._meta_forward_mask(state, done), -1)
+            return mask
         # A sub-environment is active
         key = self._get_active_key(state)
         idx_unique = state["_envs_unique"][key]
         subenv = self._get_env_unique(idx_unique)
         substate = self._get_substate(state, key)
         core = subenv.get_mask_invalid_actions_forward(substate, False)
-        return self._format_mask(core, idx_unique)
+        mask = self._format_mask(core, idx_unique)
+        return mask
 
     def get_mask_invalid_actions_backward(
         self, state: Optional[Dict] = None, done: Optional[bool] = None
@@ -514,7 +516,8 @@ class Sequence(CompositeBase):
         if done:
             core = [True] * self.n_meta_actions
             core[2 * U] = False  # only EOS valid
-            return self._format_mask(core, -1)  # -1 is idx_unique of meta actions
+            mask = self._format_mask(core, -1)  # -1 is idx_unique of meta actions
+            return mask
 
         length = self._seq_length(state)
         if state["_active"] == _ACTIVE_NONE:
@@ -527,7 +530,8 @@ class Sequence(CompositeBase):
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
             core = subenv.get_mask_invalid_actions_backward(substate, True)
-            return self._format_mask(core, idx_unique)
+            mask = self._format_mask(core, idx_unique)
+            return mask
 
         # A sub-environment is active
         key = self._get_active_key(state)  # Get active subenv (always biggest index)
@@ -538,13 +542,19 @@ class Sequence(CompositeBase):
         substate = self._get_substate(
             state, key
         )  # Return acctual state of the subenv at position key
+        if bool(state["_dones"][key]):  # similar to state
+            core = subenv.get_mask_invalid_actions_backward(substate, True)
+            mask = self._format_mask(core, idx_unique)
+            return mask
         if subenv.is_source(substate):
             # Only the reverse-insertion meta-action is valid
             core = [True] * self.n_meta_actions
             core[self._reverse_insert_id(state)] = False
-            return self._format_mask(core, -1)
+            mask = self._format_mask(core, -1)
+            return mask
         core = subenv.get_mask_invalid_actions_backward(substate, False)
-        return self._format_mask(core, idx_unique)
+        mask = self._format_mask(core, idx_unique)
+        return mask
 
     def get_valid_actions(
         self,
@@ -631,6 +641,7 @@ class Sequence(CompositeBase):
 
         # Case 1: Meta-level (sequence) active
         elif state["_active"] == _ACTIVE_NONE:
+            # only this case will have other representations of the sequence
             if length == 0:
                 # Case 1a: Source state has no parent
                 return [], []
@@ -645,14 +656,23 @@ class Sequence(CompositeBase):
             parent["_active"] = (
                 _ACTIVE_LEFT if parent["_indices"][0] == key else _ACTIVE_RIGHT
             )
-            parent["_dones"][
-                key
-            ] = 0  # Re-active most recently inserted sub-environment
+            # parent["_dones"][
+            #     key
+            # ] = 0  # Re-active most recently inserted sub-environment
             # force both left and right as parents
             parents = self._enumerate_all_states_for_the_sequence(state=parent)
+            # remove duplicated parents randomly
+            # if len(parents) >= 4:
+            #     parents = self._get_random_parents_of_same_action(parents)
             # same action since it goes to EOS of the same subenv
             actions = [
-                self._pad_action(subenv.eos, parent_i["_envs_unique"][key])
+                self._pad_action(
+                    (
+                        parent_i["_envs_unique"][key],
+                        _LEFT if _ACTIVE_LEFT == parent_i["_active"] else _RIGHT,
+                    ),
+                    -1,
+                )
                 for parent_i in parents
             ]  # fixed
             return parents, actions
@@ -664,6 +684,16 @@ class Sequence(CompositeBase):
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
 
+            # subenv is active but is done
+            if min(state["_dones"]) == 1:
+                parent = copy(state)
+                parent["_dones"][-1] = 0
+                parents = [parent]
+                # the action would be that the subenv became EOS
+                # get the subenv that was previously active which is the idx_unique and
+                actions = [self._pad_action(subenv.eos, idx_unique)] * len(parents)
+                return parents, actions
+
             # 2a: Subenv is at its source state, parent state is the state before this element was inserted.
             if subenv.is_source(substate):
                 # insert_id = self._reverse_insert_id(state)
@@ -671,14 +701,14 @@ class Sequence(CompositeBase):
                 parent = copy(state)
                 del parent[key]
                 parent["_envs_unique"].pop()
-                parent["_dones"].pop()
-                parent["_indices"].remove(key)
-                parent["_active"] = _ACTIVE_NONE
-                # after removing the recently active substate, we also get all the states that correspond to the parent
-                if not self.merge_states:
-                    parents = [parent]
+                if min(state["_dones"]) == 0:
+                    parent["_dones"].pop()
+                    parent["_indices"].remove(key)
+                    parent["_active"] = _ACTIVE_NONE
                 else:
-                    parents = self._enumerate_all_states_for_the_sequence(state=parent)
+                    parent["_dones"][-1] = 0
+                # after removing the recently active substate, we also get all the states that correspond to the parent
+                parents = [parent]
                 # fixed the actions to get to the parents using the (-1, env, direction, padding) action notation
                 actions = [
                     self._pad_action(
@@ -815,7 +845,7 @@ class Sequence(CompositeBase):
                 # to do the step, if active != 0 (in the state) then it means that it is a toggle action
                 # so the state will only change the value of the active key in the state
                 # i think code changes is needed in changing the state, no changes in action
-                # 3) [Backwards], we need to think about it [check how backward is done]
+                # 3) [Backwards][DONE], we need to think about it [check how backward is done]
                 # 4) [Get Parents], we need to think about it [check how parents are obtained]
                 # 5) Test if other parts are broken
                 self._set_subdone(key, True)
@@ -1428,6 +1458,24 @@ class Sequence(CompositeBase):
                 np.random.choice(len(all_possible_states))
             ]
             return chosen_state
+
+    def _get_random_parents_of_same_action(self, parents):
+        # function that will force uniqueness in parent-action pairs
+        # if more than one parents can be reached using the same action, choose among the parent
+        # return unique_parents
+        # unique-ness refer to unique action that it can take
+        # input will only accept parents (not any state)
+        all_left_parents = [
+            parent_l for parent_l in parents if parent_l["_active"] == -1
+        ]
+        all_right_parents = [
+            parent_r for parent_r in parents if parent_r["_active"] == 1
+        ]
+        chosen_left_parent = all_left_parents[np.random.choice(len(all_left_parents))]
+        chosen_right_parent = all_right_parents[
+            np.random.choice(len(all_right_parents))
+        ]
+        return [chosen_left_parent, chosen_right_parent]
 
     def _enumerate_all_states_for_the_sequence(self, state):
         """DONE and TESTED
