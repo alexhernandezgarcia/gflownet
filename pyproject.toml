@@ -70,6 +70,7 @@ molecules = [
     "rdkit ==2024.9.5",
     "torch-geometric >=2.6.1",
     "torchani >=2.2.4",
+    "ultranest >=4.5.0",
 ]
 tree = [
     "torch-geometric >=2.6.1",
