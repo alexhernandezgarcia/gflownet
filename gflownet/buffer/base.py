@@ -505,7 +505,7 @@ class BaseBuffer:
 
         Parameters
         ----------
-        samples : list, tensor, array, dict
+        sample : list, tensor, array, dict
             A terminating state.
         trajectory : list
             A list of trajectory actions of leading to the terminating state.
