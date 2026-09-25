@@ -517,7 +517,7 @@ class BaseBuffer:
         Returns
         -------
         bool
-            Whether the same is added to the buffer or not.
+            Whether the sample is added to the buffer or not.
         """
         # Check whether the sample is close to any sample already present in the buffer
         # If a match is found, drop it and return if the new value is smaller than the
