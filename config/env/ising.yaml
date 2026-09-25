@@ -1,0 +1,10 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.ising.Ising
+
+id: ising
+# Dimensions of hypergrid
+n_dim: 2
+# Number of cells per dimension
+length: 4

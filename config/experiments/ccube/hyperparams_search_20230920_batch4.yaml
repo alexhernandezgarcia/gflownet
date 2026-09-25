@@ -61,7 +61,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -75,7 +75,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -89,7 +89,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -103,7 +103,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -117,7 +117,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 5
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -131,7 +131,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 5
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -145,7 +145,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 5
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -159,7 +159,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 5
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -173,7 +173,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 1
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -187,7 +187,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 1
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -201,7 +201,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 1
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
@@ -215,7 +215,7 @@ jobs:
       env:
         __value__: ccube
         n_comp: 1
-        beta_params_min: 0.1
+        beta_params_min: 1.0
         beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0

@@ -3,17 +3,17 @@
 # wandb: https://wandb.ai/alexhg/cube/runs/leu63yso
 
 defaults:
-   - override /env: hcube
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: box/corners
-   - override /logger: wandb
+  - override /env: hcube
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: box/corners
+  - override /logger: wandb
 
 # Environment
 env:
   n_comp: 5
   n_dim: 2
-  beta_params_min: 0.1
+  beta_params_min: 1.0
   beta_params_max: 100.0
   min_incr: 0.1
   fixed_distr_params:

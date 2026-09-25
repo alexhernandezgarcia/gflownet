@@ -1084,11 +1084,13 @@ def test__backward_sampling_multiple_envs_with_logprobs_all_as_expected(
     assert not torch.all(logprobs_rev_valid)
     logprobs_rev_batch_nonval = logprobs_rev_batch[~logprobs_rev_valid]
     assert torch.allclose(
-        logprobs_rev_batch_nonval, torch.zeros_like(logprobs_rev_batch_nonval)
+        logprobs_rev_batch_nonval, torch.full_like(logprobs_rev_batch_nonval, 2.0)
     )
     logprobs_rev_batch_val = logprobs_rev_batch[logprobs_rev_valid]
     assert torch.all(
-        ~torch.isclose(logprobs_rev_batch_val, torch.zeros_like(logprobs_rev_batch_val))
+        ~torch.isclose(
+            logprobs_rev_batch_val, torch.full_like(logprobs_rev_batch_val, 2.0)
+        )
     )
     assert torch.equal(
         logprobs_rev_batch_val,

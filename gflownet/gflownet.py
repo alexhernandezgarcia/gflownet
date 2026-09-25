@@ -6,10 +6,13 @@ TODO:
 
 import copy
 import gc
+import logging
 import pickle
 import time
 from collections import defaultdict
+from contextlib import redirect_stderr, redirect_stdout
 from functools import partial
+from io import StringIO
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -93,7 +96,7 @@ class GFlowNetAgent:
         random_action_prob : float
             Probability of sampling random actions. If None (default),
             self.random_action_prob is used, unless its value is forced to either 0.0 or
-            1.0 by other arguments (sampling_method or no_random).
+            1.0 by other arguments.
         logger : gflownet.utils.logger.Logger
             Logger object to be used for logging and saving checkpoints
             (`gflownet/utils/logger.py:Logger`).
@@ -221,7 +224,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.corr_prob_traj_rewards = 0.0
+        self.corr_probs_rewards = 0.0
+        self.corr_logprobs_logrewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
         self.mean_logprobs_std = -1.0
@@ -375,7 +379,6 @@ class GFlowNetAgent:
             mask=mask_invalid_actions,
             states_from=states,
             is_backward=backward,
-            sampling_method=sampling_method,
             random_action_prob=random_action_prob,
             temperature_logits=temperature,
         )
@@ -751,47 +754,80 @@ class GFlowNetAgent:
         bs_num_samples=10000,
     ):
         r"""
-        Estimates the probability of sampling with current GFlowNet policy
-        (self.forward_policy) the objects in a data set given by the argument data. The
-        (log) probabilities are estimated by sampling a number of backward trajectories
-        (n_trajectories) through importance sampling and calculating the forward
-        probabilities of the trajectories.
+        Estimates the log probabilities of sampling the objects in a data set.
+
+        In particular, this method estimates the log probability of sampling each
+        object in a data set given by the argument ``data`` according to the current
+        GFlowNet forward policy, ``self.forward_policy``.
+
+        The log probabilities are estimated through **importance sampling** with the
+        GFlowNet backward policy, ``self.backward_policy``, as the proposal
+        distribution.
+
+        Recall that the likelihood of a sample $x$ is the sum of the likelihoods of all
+        trajectories that end in $x$:
+        $$
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau} P_F(\tau)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau] P_F(\tau)d\tau \\
+        = \mathbb{E}_{P_F(\tau)}[\mathbb{1}[x \rightarrow \perp \in \tau]].
+        $$
+
+        However, this integral (or sum in the discrete case) is intractable in most
+        practical cases.
+
+        Given $N$ samples $\tau_i$ from $P_F(\tau)$, an unbiased Monte Carlo estimator
+        of the above expectation is
+        $$
+        \hat{p}_T(x) = \frac{1}{N} \sum_{i=1}^{N}
+        \mathbb{1}[x \rightarrow \perp \in \tau_i].
+        $$
+
+        However, sampling from $P_F$ to estimate $\hat{p}_T(x)$ is clearly inefficient
+        since most trajectories would not end in $x$.
+
+        This motivates the use of **importance sampling** with a lower-variance
+        proposal distribution, such as the backward policy given sample $x$,
+        $P_B(\tau|x)$:
 
         $$
-        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
-        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
-        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
-        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau}
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau]
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x) \\
+        = \mathbb{E}_{P_B(\tau|x)} \left[ \frac{P_F(\tau)}{P_B(\tau|x)} \right].
         $$
 
-        Note: torch.logsumexp is used to compute the log of the sum, in order to have
-        numerical stability, since we have the log PF and log PB, instead of directly
-        PF and PB.
+        If we sample $N$ backward trajectories (``n_trajectories``) following the
+        backward policy, starting from $x$, then we can estimate the log likelihood as
+        $$
+        \log \hat{p}_T(x) = \log \sum_{i=1}^{N} \frac{P_F(\tau_i)}{P_B(\tau_i|x)}
+        - \log N.
+        $$
+
+        Note: ``torch.logsumexp`` is used to compute the log of the sum, in order to
+        have numerical stability, since we have $\log P_F$ and $\log P_B$, instead of
+        directly $P_F$ and $P_B$.
 
         Note: the correct indexing of data points and trajectories is ensured by the
         fact that the indices of the environments are set in a consistent way with the
         indexing when storing the log probabilities.
 
-        Args
-        ----
+        Parameters
+        ----------
         data : list or string
             A data set of terminating states. The data set may be passed directly as a
             list of states, or it may be a string defining the path to a pickled data
             set where the terminating states are stored in key "samples".
-
         n_trajectories : int
             The number of trajectories per object to sample for estimating the log
             probabilities.
-
         max_iters_per_traj : int
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
-
         max_data_size : int
             Maximum number of data points in the data set to avoid an accidental
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
-
         bs_num_samples: int
             Number of bootstrap resampling times for std estimation of logprobs_estimates.
             Doesn't require recomputing of log probabilities, so can be arbitrary large
@@ -801,10 +837,8 @@ class GFlowNetAgent:
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
-
         logprobs_std: torch.tensor
             Bootstrap std of the logprobs_estimates
-
         probs_std: torch.tensor
             Bootstrap std of the torch.exp(logprobs_estimates)
         """
@@ -860,13 +894,17 @@ class GFlowNetAgent:
                 device=self.device,
                 float_type=self.float,
             )
-            # Create an environment for each data point and trajectory and set the state
+            # Obtain the necessary env instances: one per trajectory in the batch
+            # WARNING : These instances must be reset before use.
+            n_trajectories_batch = (end_batch - init_batch) * n_trajectories
+            env_instances = self.get_env_instances(n_trajectories_batch)
+            # For each data point and trajectory, set the state on an environment
             envs = []
-            pbar2.reset((end_batch - init_batch) * n_trajectories)
+            pbar2.reset(n_trajectories_batch)
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
-                    env = self.env_maker().set_id(idx)
+                    env = env_instances.pop().reset(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
                     pbar2.update(1)
@@ -975,7 +1013,6 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
-                    batch.zero_logprobs()
 
             # Log training iteration: progress bar, buffer, metrics, intermediate
             # models
@@ -1227,19 +1264,57 @@ class GFlowNetAgent:
 
         return self.sample_space_batch, self.rewards_sample_space
 
-    # TODO: implement other proposal distributions
-    # TODO: rethink whether it is needed to convert to reward
     def sample_from_reward(
         self,
         n_samples: int,
         proposal_distribution: str = "uniform",
-        epsilon=1e-4,
+        epsilon: float = 1e-4,
+        method: str = "rejection",
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Sampling from reward using rejection sampling or nested sampling.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution for rejection sampling. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+        method : str
+            Identifier of the sampling method. Currently only `rejection` and `nested` are
+            implemented.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        if method == "rejection":
+            return self.sample_from_reward_rejection(
+                n_samples, proposal_distribution, epsilon
+            )
+        elif method == "nested":
+            return self.sample_from_reward_nested(n_samples)
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward_rejection(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon: float = 1e-4,
     ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
         """
         Rejection sampling with proposal the uniform distribution defined over the
         sample space.
 
-        Returns a tensor in GFloNet (state) format.
+        Returns a tensor in environment format.
 
         Parameters
         ----------
@@ -1280,6 +1355,83 @@ class GFlowNetAgent:
             samples_accepted = [samples_uniform[idx] for idx in indices_accept]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return samples_final
+
+    def sample_from_reward_nested(
+        self, n_samples: int
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Nested sampling from reward, using ultranest.
+
+        Returns a tensor in GFlowNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        import ultranest
+
+        # Disable DEBUG and INFO logging messages from ultranest
+        ultranest_logger = logging.getLogger("ultranest")
+        ultranest_logger.setLevel(logging.WARNING)
+        ultranest_logger.handlers.clear()
+        ultranest_logger.addHandler(logging.NullHandler())
+
+        def reward_func(angles):
+            # angles here is np array
+            states = np.concatenate(
+                [angles, np.ones((angles.shape[0], 1))], axis=1
+            ).tolist()
+            rewards = (
+                self.proxy.proxy2reward(self.proxy(self.env.states2proxy(states)))
+                .detach()
+                .cpu()
+                .numpy()
+            )
+            return np.log(rewards)
+
+        def prior_transform(cube):
+            params = cube.copy()
+            # transform location parameter: uniform prior
+            low = 0
+            high = 2 * np.pi
+            for idx, elem in enumerate(cube):
+                params[idx] = elem * (high - low) + low
+            return params
+
+        samples = []
+        n_sampled = 0
+        iteration = 0
+        print(f"\nRunning nested sampling (until {n_samples} samples are obtained)...")
+        while n_sampled < n_samples:
+            param_names = [f"theta_{i}" for i in range(self.env.n_dim)]
+
+            sampler = ultranest.ReactiveNestedSampler(
+                param_names,
+                reward_func,
+                prior_transform,
+                vectorized=True,
+                ndraw_min=1000,
+            )
+            result = sampler.run(
+                show_status=False, viz_callback=None, log_interval=None
+            )
+
+            samples.append(result["samples"])
+            n_sampled += result["samples"].shape[0]
+            print(f"\tTotal samples (iteration #{iteration}): {n_sampled}.")
+            iteration += 1
+        samples = np.concatenate(samples, axis=0)
+        # add dummy step dimension
+        samples = np.concatenate([samples, np.ones((samples.shape[0], 1))], axis=1)
+        np.random.shuffle(samples)
+        return torch.Tensor(samples[:n_samples])
 
     def load_checkpoint(self, checkpoint: dict):
         """

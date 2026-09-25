@@ -1,12 +1,12 @@
 # @package _global_
 
 defaults:
-   - override /env: tree
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /policy: mlp
-   - override /proxy: tree
-   - override /logger: wandb
+  - override /env: tree
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: tree
+  - override /logger: wandb
 
 # Environment
 env:

@@ -1,0 +1,91 @@
+# @package _global_
+
+defaults:
+  - override /env: tetris
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: tetris
+  - override /logger: wandb
+
+env:
+  width: 5
+  height: 8
+  pieces: ["I", "J", "L", "O", "S", "T", "Z"]
+  rotations: [0, 90, 180, 270]
+
+# Buffer
+buffer:
+  replay_capacity: 1000
+  check_diversity: True
+  diversity_check_reward_similarity: 0.01
+  test:
+    type: random
+    n: 100
+
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: 10.0
+    alpha: 1.0
+
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay: 5
+      backward_dataset: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 100000
+    lr_decay_period: 11000
+    lr_decay_gamma: 0.5
+  replay_sampling: weighted
+  train_sampling: permutation
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: -1
+  checkpoints_period: 500
+  n_trajs_logprobs: 100
+  logprobs_batch_size: 10
+  n: 10
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "tetris"
+  run_name: "5x8"
+  tags:
+    - gflownet
+    - tetris
+    - 5x8
+  do:
+    online: True
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/tetris/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S_%f}

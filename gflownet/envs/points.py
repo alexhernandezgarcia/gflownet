@@ -4,8 +4,8 @@ Class to represent in Euclidean spaces.
 
 from typing import Optional
 
+from gflownet.envs.composite.setfix import SetFix
 from gflownet.envs.cube import ContinuousCube, HybridCube
-from gflownet.envs.set import SetFix
 
 
 class Points(SetFix):
@@ -38,7 +38,7 @@ class Points(SetFix):
         cube_kwargs: Optional[dict] = {
             "min_incr": 0.1,
             "n_comp": 1,
-            "beta_params_min": 0.1,
+            "beta_params_min": 1.0,
             "beta_params_max": 100.0,
             "epsilon": 1e-6,
             "kappa": 1e-3,

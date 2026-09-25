@@ -9,7 +9,7 @@ import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -26,6 +26,7 @@ from gflownet.utils.common import (
     tbool,
     tfloat,
     tlong,
+    torch2np,
 )
 
 CMAP = mpl.colormaps["cividis"]
@@ -81,7 +82,6 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
 
     @abstractmethod
     def get_action_space(self):
@@ -89,6 +89,21 @@ class GFlowNetEnv:
         Constructs list with all possible actions (excluding end of sequence)
         """
         pass
+
+    @property
+    def policy_input_dim(self) -> int:
+        """
+        Returns the dimensionality of the policy representation of the states.
+
+        Returns
+        -------
+        int
+            The dimensionality of the policy representation of the states, which is
+            the input to the policy models.
+        """
+        if not hasattr(self, "_policy_input_dim"):
+            self._policy_input_dim = len(self.state2policy())
+        return self._policy_input_dim
 
     @property
     def action_space_dim(self) -> int:
@@ -167,6 +182,40 @@ class GFlowNetEnv:
         """
         return action
 
+    def action_produces_permutation(
+        self, action: Tuple, is_backward: bool = False
+    ) -> bool:
+        """
+        Determines whether an action produces permutations in the resulting state.
+
+        Permutations can be introduced, for example, in environments that need to
+        incorporate permutation invariance, as in sets of elements. In these cases,
+        some actions may result in states with elements that are randomly permuted.
+
+        This method allows to identify these actions, which is useful, for instance, in
+        unit tests.
+
+        By default, actions do not produce permutations and the returned value of this
+        method is False.
+
+        Environments with actions that produce permutations should override this method
+        and properly identify such actions.
+
+        Parameters
+        ----------
+        action : tuple
+            An action of the environment.
+        is_backward : bool
+            Whether the transition to consider is backward (True) or forward (False).
+
+        Returns
+        -------
+        bool
+            Whether the input actions produces permutations in the resulting state, in
+            the direction indicated by ``is_backward``.
+        """
+        return False
+
     def action2index(self, action: Tuple) -> int:
         """
         Returns the index in the action space of the action passed as an argument, or
@@ -204,25 +253,37 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
-    def _get_state(self, state: Union[List, TensorType["state_dims"]]):
+    def _get_state(
+        self, state: Union[List, TensorType["state_dims"]], do_copy: bool = False
+    ):
         """
-        A helper method for other methods to determine whether state should be taken
-        from the arguments or from the instance (self.state): if is None, it is taken
-        from the instance.
+        Returns the input state or ``self.state`` if it is None.
 
-        Args
-        ----
-        state : list or tensor or None
-            None, or a state in GFlowNet format.
+        This is meant to be used as a helper method for other methods to determine
+        whether the state should be taken from the arguments or from the environment
+        instance (``self.state``): if is None, it is taken from the environment.
+
+        If ``do_copy`` is True (False by default), the state is copied before returning
+        it.
+
+        Parameters
+        ----------
+        state : list or tensor or dict or None
+            A state in environment format, or None.
+        do_copy : bool
+            Whether to copy the state before returning it.
 
         Returns
         -------
-        state : list or tensor
+        state : list or tensor or dict or None
             The argument state, or self.state if state is None.
         """
         if state is None:
-            state = copy(self.state)
-        return state
+            state = self.state
+        if do_copy:
+            return copy(state)
+        else:
+            return state
 
     def _get_done(self, done: bool):
         """
@@ -370,10 +431,8 @@ class GFlowNetEnv:
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [(self.eos,)]
         parents = []
@@ -511,6 +570,11 @@ class GFlowNetEnv:
         Replaces the rows of `policy_outputs` by a vector corresponding to a random
         sampling policy with the probability indicated by `probability_random_action`.
 
+        Note that the tensor of policy outputs is not cloned if neither tempering nor
+        random actions are incorporated. This implies that the original tensor of
+        policy outputs may be modified by subsequent methods (namely
+        sample_actions_batch()), for example to mask the invalid actions.
+
         Parameters
         ----------
         policy_outputs : tensor
@@ -534,16 +598,29 @@ class GFlowNetEnv:
             The modified policy outputs.
         """
         if not math.isclose(temperature, 1.0, abs_tol=1e-08):
-            policy_outputs /= temperature
+            do_temper = True
+        else:
+            do_temper = False
         if not math.isclose(probability_random_action, 0.0, abs_tol=1e-08):
+            do_random = True
+        else:
+            do_random = False
+        if not do_temper and not do_random:
+            return policy_outputs
+
+        # Clone the sampling logits in order not to change the original tensor
+        logits_sampling = policy_outputs.clone().detach()
+        if do_temper:
+            logits_sampling /= temperature
+        if do_random:
             idx_random = tbool(
                 Bernoulli(
                     probability_random_action * torch.ones(policy_outputs.shape[0])
                 ).sample(),
                 device=self.device,
             )
-            policy_outputs[idx_random, :] = self.random_policy_output
-        return policy_outputs
+            logits_sampling[idx_random, :] = self.random_policy_output
+        return logits_sampling
 
     def sample_actions_batch(
         self,
@@ -551,10 +628,8 @@ class GFlowNetEnv:
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
         states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
-        sampling_method: Optional[str] = "policy",
         random_action_prob: Optional[float] = 0.0,
         temperature_logits: Optional[float] = 1.0,
-        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -593,11 +668,6 @@ class GFlowNetEnv:
             True if the actions are backward, False if the actions are forward
             (default). Ignored in discrete environments and only required in certain
             continuous environments.
-        sampling_method : str, optional
-            The sampling method to use to sample actions. The implemented options are:
-                - policy: the model outputs are used, optionally after tempering the
-                  distribution and randomizing actions.
-                - uniform: all actions are sampled with equal probability.
         random_action_prob : float, optional
             The probability of sampling a random action. If larger than one, the model
             outputs will be replaced by a random policy vector with probability
@@ -605,66 +675,27 @@ class GFlowNetEnv:
         temperature_logits : float, optional
             A scalar by which the model outputs are divided to temper the sampling
             distribution.
-        max_sampling_attempts : int, optional
-            Maximum of number of attempts to sample actions that are not invalid
-            according to the mask before throwing an error, in order to ensure that
-            non-invalid actions are returned without getting stuck.
 
         Returns
         -------
         actions : list
             The list of sampled actions.
         """
-        device = policy_outputs.device
-        n_states = policy_outputs.shape[0]
-        ns_range = torch.arange(n_states, device=device)
-
-        if sampling_method == "policy":
-            logits_sampling = policy_outputs.clone().detach()
-        elif sampling_method == "uniform":
-            logits_sampling = torch.ones(
-                policy_outputs.shape, dtype=self.float, device=device
-            )
-        else:
-            raise NotImplementedError(
-                f"Sampling method {sampling_method} is invalid. "
-                "Options are: policy, uniform."
-            )
-
         # Randomize actions and temper the logits
         logits_sampling = self.randomize_and_temper_sampling_distribution(
-            logits_sampling, random_action_prob, temperature_logits
+            policy_outputs, random_action_prob, temperature_logits
         )
-        # Obtain the mask of invalid actions by making the logits equal to -inf.
-        mask_logits = torch.zeros(policy_outputs.shape, dtype=self.float, device=device)
+
+        # Make the logits of invalid actions equal to -inf.
         if mask is not None:
-            assert not torch.all(mask, dim=1).any(), dedent(
-                """
-            All actions in the mask are invalid for some states in the batch.
-            """
-            )
-            mask_logits[mask] = -torch.inf
-            logits_sampling += mask_logits
-
-        # Sample actions and make sure no action is invalid according to the mask.
-        # Otherwise throw an error.
-        for _ in range(max_sampling_attempts):
-            try:
-                action_indices = Categorical(logits=logits_sampling).sample()
-            except:
-                import ipdb
-
-                ipdb.set_trace()
-            if not torch.any(mask[ns_range, action_indices]):
-                break
-        else:
-            raise ValueError(
-                dedent(
-                    f"""
-            No valid action could be sampled after {max_sampling_attempts} attempts.
-            """
+            if torch.all(mask, dim=1).any():
+                raise RuntimeError(
+                    "All actions in the mask are invalid for some states in the batch."
                 )
-            )
+            logits_sampling[mask] = -torch.inf
+
+        # Sample actions from the Categorical distributions defined by the logits
+        action_indices = Categorical(logits=logits_sampling).sample()
         # Build actions
         actions = [self.action_space[idx] for idx in action_indices]
         return actions
@@ -718,7 +749,6 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    # TODO: add seed
     def step_random(self, backward: bool = False):
         """
         Samples a random action and executes the step.
@@ -739,28 +769,15 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        if backward:
-            mask_invalid = torch.unsqueeze(
-                tbool(self.get_mask_invalid_actions_backward(), device=self.device), 0
-            )
-        else:
-            mask_invalid = torch.unsqueeze(
-                tbool(self.get_mask_invalid_actions_forward(), device=self.device), 0
-            )
-        # TODO: implement random sampling policy in sample_actions_batch
-        random_policy = torch.unsqueeze(
-            tfloat(
-                self.random_policy_output, float_type=self.float, device=self.device
-            ),
-            0,
-        )
-        actions = self.sample_actions_batch(
-            random_policy,
+        mask_invalid = tbool(
+            self.get_mask(backward=backward), device=self.device
+        ).unsqueeze(0)
+        action = self.sample_actions_batch(
+            self.random_policy_output.clone().unsqueeze(0),
             mask_invalid,
             [self.state],
             backward,
-        )
-        action = actions[0]
+        )[0]
         if backward:
             return self.step_backwards(action)
         return self.step(action)
@@ -1036,8 +1053,7 @@ class GFlowNetEnv:
         """
         Converts a state into human-readable representation.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return str(state)
 
     def readable2state(self, readable):
@@ -1051,6 +1067,15 @@ class GFlowNetEnv:
         Converts a trajectory into a human-readable string.
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
+
+    def states2kde(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> Union[List, npt.NDArray, TensorType["batch", "kde_dim"]]:
+        """
+        Converts a batch of states into a batch of states suitable for the KDE computations.
+        """
+        states_kde = self.states2proxy(states)
+        return torch2np(states_kde)
 
     def reset(self, env_id: Union[int, str] = None):
         """
@@ -1108,88 +1133,269 @@ class GFlowNetEnv:
         return deepcopy(self)
 
     @staticmethod
-    def equal(state_x, state_y):
-        if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
-            return state_x == state_y
-        if type(state_x) != type(state_y):
-            return False
-        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
-            # Check for nans because (torch.nan == torch.nan) == False
-            x_nan = torch.isnan(state_x)
-            if torch.any(x_nan):
-                y_nan = torch.isnan(state_y)
-                if not torch.equal(x_nan, y_nan):
-                    return False
-                return torch.equal(state_x[~x_nan], state_y[~y_nan])
-            return torch.equal(state_x, state_y)
-        if isinstance(state_x, dict) and isinstance(state_y, dict):
-            if len(state_x) != len(state_y):
-                return False
-            return all(
-                [
-                    key_x == key_y and GFlowNetEnv.equal(value_x, value_y)
-                    for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
-                    )
-                ]
-            )
-        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
-            isinstance(state_x, tuple) and isinstance(state_y, tuple)
-        ):
-            if len(state_x) != len(state_y):
-                return False
-            if len(state_x) == 0:
-                return True
-            if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
-                value_type = type(state_x[0])
-                if all([isinstance(sx, value_type) for sx in state_x]) and all(
-                    [isinstance(sy, value_type) for sy in state_y]
-                ):
-                    return state_x == state_y
-        return all([GFlowNetEnv.equal(sx, sy) for sx, sy in zip(state_x, state_y)])
+    def equal(
+        state_x: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        state_y: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+    ) -> bool:
+        """
+        Checks whether the two input states are equal.
+
+        This method handles recursively multiple structure types: numbers, strings,
+        tensors, dictionaries, lists and tuples.
+
+        The result is only True if the content of the two input states is identical.
+
+        The core functionality is implemented in
+        :py:meth:`gflownet.envs.base.GFlowNetEnv.isclose` and this method simply calls
+        it with ``do_equal=True``.
+
+        Parameters
+        ----------
+        state_x: number, str, tensor, dict, list, tuple
+            One of the states to be compared.
+        state_y: number, str, tensor, dict, list, tuple
+            The other state to be compared.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal; False otherwise.
+
+        Raises
+        ------
+        NotImplementedError
+            If the input types are not part of the explicitly handles types.
+        """
+        return GFlowNetEnv.isclose(state_x, state_y, do_equal=True)
 
     @staticmethod
-    def isclose(state_x, state_y, atol=1e-8):
-        if isinstance(state_x, numbers.Number) or isinstance(state_x, str):
-            return np.isclose(state_x, state_y, atol=atol)
-        if type(state_x) != type(state_y):
+    def isclose(
+        state_x: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        state_y: Union[numbers.Number, str, torch.Tensor, Dict, List, Tuple],
+        rtol: float = 1e-5,
+        atol: float = 1e-8,
+        do_equal: bool = False,
+    ) -> bool:
+        """
+        Checks whether the two input states are close, according to a tolerance.
+
+        This method relies on numpy's and torch's ``isclose()`` methods, which both use
+        the following formula:
+
+        ``abs(x - y) <= rtol * abs(y) + atol``
+
+        This method is used as well by :py:meth:`gflownet.envs.base.GFlowNetEnv.equal`
+        in order to avoid code repetition. In this case, ``do_equal`` is True and
+        numpy's and torch's ``equal()`` methods are used. This is preferred over using
+        ``rtol`` and ``atol`` equal to 0.0 for efficiency reasons.
+
+        This method handles recursively multiple structure types: numbers, strings,
+        tensors, dictionaries, lists and tuples.
+
+        The result is only True if the content of the two input states is identical or
+        close enough, as defined by the tolerance values ``rtol`` and ``atol``. In the
+        case of strings, True is only returned if the states are identical.
+
+        Parameters
+        ----------
+        state_x: number, str, tensor, dict, list, tuple
+            One of the states to be compared.
+        state_y: number, str, tensor, dict, list, tuple
+            The other state to be compared.
+        rtol : float
+            Relative tolerance for numeric values.
+        atol : float
+            Maximum absolute tolerance threshold for numeric values.
+        do_equal : bool
+            If True, comparisons are by equality instead of closeness and ``rtol`` and
+            ``atol`` are ignored.
+
+        Returns
+        -------
+        bool
+            True if the two input states are equal or closer than the maximum
+            tolerance; False otherwise.
+
+        Raises
+        ------
+        NotImplementedError
+            If the input types are not part of the explicitly handles types.
+        """
+        # Strings
+        if isinstance(state_x, str):
+            return state_x == state_y
+        # Numbers
+        elif isinstance(state_x, numbers.Number):
+            if do_equal:
+                return state_x == state_y
+            return np.isclose(state_x, state_y, rtol=rtol, atol=atol)
+        # Types
+        elif type(state_x) != type(state_y):
             return False
-        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+        # Tensors
+        elif torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
             if torch.any(x_nan):
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
+                if do_equal:
+                    return torch.equal(state_x[~x_nan], state_y[~y_nan])
                 return torch.all(
-                    torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
+                    torch.isclose(
+                        state_x[~x_nan], state_y[~y_nan], rtol=rtol, atol=atol
+                    )
                 )
-            return torch.equal(state_x, state_y)
-        if isinstance(state_x, dict) and isinstance(state_y, dict):
+            if do_equal:
+                return torch.equal(state_x, state_y)
+            return torch.all(torch.isclose(state_x, state_y, rtol=rtol, atol=atol))
+        # Numpy
+        elif isinstance(state_x, np.ndarray) and isinstance(state_y, np.ndarray):
+            if do_equal:
+                return np.array_equal(state_x, state_y, equal_nan=True)
+            return np.allclose(state_x, state_y, rtol=rtol, atol=atol, equal_nan=True)
+        # Dictionaries
+        elif isinstance(state_x, dict) and isinstance(state_y, dict):
             if len(state_x) != len(state_y):
                 return False
-            return all(
-                [
-                    key_x == key_y and GFlowNetEnv.isclose(value_x, value_y)
-                    for (key_x, value_x), (key_y, value_y) in zip(
-                        sorted(state_x.items()), sorted(state_y.items())
-                    )
-                ]
-            )
-        if (isinstance(state_x, list) and isinstance(state_y, list)) or (
+            for key_x, value_x in state_x.items():
+                if key_x not in state_y:
+                    return False
+                # Recursive comparison of the values
+                if not GFlowNetEnv.isclose(
+                    value_x, state_y[key_x], rtol=rtol, atol=atol, do_equal=do_equal
+                ):
+                    return False
+            else:
+                return True
+        # Lists and tuples
+        elif (isinstance(state_x, list) and isinstance(state_y, list)) or (
             isinstance(state_x, tuple) and isinstance(state_y, tuple)
         ):
             if len(state_x) != len(state_y):
                 return False
             if len(state_x) == 0:
                 return True
-            if isinstance(state_x[0], numbers.Number) or isinstance(state_x[0], str):
+            # If all the elements of the list or tuple are numbers compare the list or
+            # tuple via np.all(np.isclose(state_x == state_y))
+            if isinstance(state_x[0], numbers.Number):
                 value_type = type(state_x[0])
-                if all([isinstance(sx, value_type) for sx in state_x]) and all(
-                    [isinstance(sy, value_type) for sy in state_y]
+                for sx, sy in zip(state_x, state_y):
+                    if not isinstance(sx, value_type):
+                        break
+                else:
+                    if do_equal:
+                        return state_x == state_y
+                    return np.all(np.isclose(state_x, state_y, rtol=rtol, atol=atol))
+            # Otherwise, iterate over the lists or tuples and compare them recursively
+            for sx, sy in zip(state_x, state_y):
+                if not GFlowNetEnv.isclose(
+                    sx, sy, rtol=rtol, atol=atol, do_equal=do_equal
                 ):
-                    return np.all(np.isclose(state_x, state_y, atol=atol))
-        return all([GFlowNetEnv.isclose(sx, sy) for sx, sy in zip(state_x, state_y)])
+                    return False
+        else:
+            raise NotImplementedError(f"Unknown type: {type(state_x)}")
+        return True
+
+    def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
+        """
+        Checks whether the current environment instance is equal to the input
+        environment instance.
+
+        The attribute ``self.id`` is ignored to determine whether the environments are
+        equal.
+
+        Parameters
+        ----------
+        other : GFlowNetEnv
+            The environment instance to be compared.
+        ignored_keys : list
+            A list of keys (strings) to be ignored in the comparison. This parameter
+            may be used by subclasses that may need to ignore certain keys.
+
+        Returns
+        -------
+        bool
+            True if the environments's attributes are considered equal; False otherwise.
+        """
+        # Check if other is not a GFlowNet environment
+        if not isinstance(other, GFlowNetEnv):
+            return False
+        # Obtain dictionary of attributes of the other instance and iterate over the
+        # dictionary of self to compare all attributes
+        other_dict = other.__dict__
+        for k, v in self.__dict__.items():
+            # Ignore id
+            if k == "id":
+                continue
+            # Ignore keys in ignored_keys
+            if k in ignored_keys:
+                continue
+            # Check if the attribute is not in the other dict
+            if k not in other_dict:
+                return False
+            v_other = other_dict[k]
+            # Check if value types are different
+            if type(v_other) != type(v):
+                return False
+            # If the attribute is an environment, enter recursion to check the
+            # attributes of the sub-environment
+            if isinstance(v, GFlowNetEnv):
+                if not v.__eq__(v_other):
+                    return False
+            # If the attribute is a list / tuple / dict of environments, enter
+            # recursion to check the attributes of the sub-environment. This method
+            # does not catch differences in sub-environments that are not at the first
+            # level of a list, tuple or dict
+            elif isinstance(v, list) or isinstance(v, tuple):
+                if len(v) != len(v_other):
+                    return False
+                if len(v) == 0:
+                    return True
+                for v_el, v_other_el in zip(v, v_other):
+                    if isinstance(v_el, GFlowNetEnv):
+                        if not v_el.__eq__(v_other_el):
+                            return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_el, v_other_el):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
+            elif isinstance(v, dict):
+                for (v_k, v_v), (v_other_k, v_other_v) in zip(
+                    v.items(), v_other.items()
+                ):
+                    if v_k != v_other_k:
+                        return False
+                    if isinstance(v_v, GFlowNetEnv):
+                        if not v_v.__eq__(v_other_v):
+                            return False
+                    else:
+                        # Compare the values with GFlowNet.equal()
+                        try:
+                            if not GFlowNetEnv.equal(v_v, v_other_v):
+                                return False
+                        except NotImplementedError:
+                            # If the types are not handled by self.equal, then ignore
+                            # this attribute for lack of means to determine whether the
+                            # values are equal
+                            continue
+            else:
+                # Compare the values with GFlowNet.equal()
+                try:
+                    if not GFlowNetEnv.equal(v, v_other):
+                        return False
+                except NotImplementedError:
+                    # If the types are not handled by self.equal, then ignore this
+                    # attribute for lack of means to determine whether the values are equal
+                    continue
+        return True
 
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions

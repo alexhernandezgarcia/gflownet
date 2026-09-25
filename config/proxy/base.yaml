@@ -19,6 +19,7 @@ logreward_function: null
 # - shift: R(x) = x + beta
 # - product: R(x) = x * beta
 # - rbf_exponential: R(x) = alpha * exp(distance(x, center) * beta)
+# - sigmoid: R(x) = alpha / (1 + gamma * exp(beta * x))
 reward_function_kwargs: {}
 # Minimum reward. Used to clip the rewards.
 reward_min: 0.0

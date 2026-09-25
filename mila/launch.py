@@ -427,15 +427,13 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout, is_private=False):
     repo_url = ssh_to_https(repo.remotes.origin.url) if not is_private else str(ROOT)
     repo_name = repo_url.split("/")[-1].split(".git")[0]
 
-    return dedent(
-        """\
+    return dedent("""\
         $SLURM_TMPDIR
         git clone {git_url} tmp-{repo_name}
         cd tmp-{repo_name}
         {git_checkout}
         echo "Current commit: $(git rev-parse HEAD)"
-    """
-    ).format(
+    """).format(
         git_url=repo_url,
         git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
         repo_name=repo_name,

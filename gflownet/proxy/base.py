@@ -359,11 +359,24 @@ class Proxy(ABC):
                     )(x)
                 ),
             )
+        elif reward_function.lower().startswith("sigmoid"):
+            return (
+                Proxy._sigmoid(**kwargs),
+                lambda x: torch.log(kwargs["alpha"])
+                - torch.log(
+                    (
+                        1.0
+                        + Proxy._exponential(
+                            beta=kwargs["beta"], alpha=kwargs["gamma"]
+                        )(x)
+                    )
+                ),
+            )
 
         else:
             raise ValueError(
                 "reward_function must be one of: id(entity), abs(olute) pow(er), "
-                f"exp(onential), shift, prod(uct), rbf_exp(onential). "
+                f"exp(onential), shift, prod(uct), rbf_exp(onential), sigmoid"
                 f"Received {reward_function} instead."
             )
 
@@ -532,6 +545,53 @@ class Proxy(ABC):
             raise NotImplementedError(
                 f"{distance} is not a valid identifier of a distance metric"
             )
+
+    @staticmethod
+    def _sigmoid(
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        gamma: float = 1.0,
+    ) -> Callable:
+        r"""
+        Returns a lambda expression where the output is a sigmoid of the inputs (proxy
+        values).
+
+        $$
+        R(x) = \frac{\alpha}{1 + \gamma\exp(\beta\varepsilon(x)),
+        $$
+
+        The parameter $$\alpha$$ controls the maximum reward that can be attained, that
+        is the asymptotic upper bound of the sigmoid. The value of $$\alpha$$ should be
+        strictly positive.
+
+        The parameter $$\beta$$ controls the steepness of the exponential. The higher,
+        the steeper. If $$\beta$$ is negative, the sigmoid returns higher rewards for
+        higher proxy values. If $$\beta$$ is positive, the relationship is reversed.
+
+        The parameter $$\gamma$$ controls the start of the of the exponential growth.
+        The value of $$\gamma$$ must be strictly positive to keep the sigmoidal
+        behaviour and avoid degenerate, invalid functions. For negative $$\beta$$, the
+        larger $$\gamma$$, the later (more positive) the exponential growth begins and
+        thus the reward for proxy values of zero is
+        smaller.
+
+        Parameters
+        ----------
+        alpha : float
+            The factor multiplying the exponential.
+        beta : float
+            The factor by which the proxy values are multiplied.
+        gamma : float
+            The factor by which the proxy values are multiplied.
+
+        Returns
+        -------
+        A lambda expression that returns a sigmoid function applied on the proxy
+        values.
+        """
+        return lambda proxy_values: alpha / (
+            1.0 + Proxy._exponential(beta=beta, alpha=gamma)(proxy_values)
+        )
 
     def infer_on_train_set(self):
         """

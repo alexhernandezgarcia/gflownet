@@ -17,10 +17,10 @@ import torch
 from torchtyping import TensorType
 from tqdm import tqdm
 
+from gflownet.envs.composite.setflex import SetFlex
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFlex
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tfloat
 
 # Constants to identify the indices of the Cube and Grid unique environments
@@ -58,8 +58,8 @@ class SetBox(Stack):
         self.cube_kwargs = cube_kwargs or {}
         self.grid_kwargs = grid_kwargs or {}
         # Define sub-environments of the Stack
-        self.stage_conditioning_grid = 0
-        self.stage_set = 1
+        self.idx_conditioning_grid = 0
+        self.idx_set = 1
         subenvs = [
             Grid(n_dim=2, length=self.max_elements_per_subenv + 1),
             SetFlex(
@@ -83,7 +83,7 @@ class SetBox(Stack):
         -------
         Grid
         """
-        return self.subenvs[self.stage_conditioning_grid]
+        return self.subenvs[self.idx_conditioning_grid]
 
     @property
     def set(self) -> SetFlex:
@@ -94,7 +94,7 @@ class SetBox(Stack):
         -------
         SetFlex
         """
-        return self.subenvs[self.stage_set]
+        return self.subenvs[self.idx_set]
 
     @property
     def cube(self) -> ContinuousCube:
@@ -140,47 +140,11 @@ class SetBox(Stack):
         """
         return True
 
-    def _apply_constraints(
-        self,
-        action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-        is_backward: bool = False,
-    ):
-        """
-        Applies constraints across sub-environments, when applicable.
-
-        This method sets up the Set of cubes and grids, once the first conditioning
-        environment (grid) of the Stack is done.
-
-        The first dimension (0) of the conditioning grid indicates the number of cubes
-        in the Set and the second dimension indicates the number of grids. If both are
-        zero, then the number of grids and cubes will be set at random.
-
-        This method is used in step() and set_state().
-
-        Parameters
-        ----------
-        action : tuple
-            An action from the SetBox environment.
-        state : list or tensor (optional)
-            A state from the SetBox environment.
-        is_backward : bool
-            Boolean flag to indicate whether the action is in the backward direction.
-        dones : list
-            A list indicating the sub-environments that are done.
-        """
-        if is_backward:
-            self._apply_constraints_backward(action)
-        else:
-            self._apply_constraints_forward(action, state, dones)
-
     def _apply_constraints_forward(
         self,
         action: Tuple = None,
-        state: Union[List, torch.Tensor] = None,
-        dones: List[bool] = None,
-    ):
+        state: Dict = None,
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the forward
         direction.
@@ -189,13 +153,16 @@ class SetBox(Stack):
         ----------
         action : tuple
             An action from the SetBox environment.
-        state : list or tensor (optional)
+        state : dict
             A state from the SetBox environment.
-        dones : list
-            A list indicating the sub-environments that are done.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        if self.conditioning_grid.done and (
-            action is None or self._depad_action(action) == self.conditioning_grid.eos
+        if self._do_constraints_for_subenv(
+            state, self.idx_conditioning_grid, action, is_backward=False
         ):
             n_cubes = self.conditioning_grid.state[IDX_CUBE]
             n_grids = self.conditioning_grid.state[IDX_GRID]
@@ -210,13 +177,18 @@ class SetBox(Stack):
             # sub-environment
             if state is not None:
                 self.set.set_state(
-                    self._get_substate(state, self.stage_set),
-                    done=bool(dones[self.stage_set]),
+                    self._get_substate(state, self.idx_set),
+                    done=self.set.done,
                 )
             # Update global Stack state with state of Set
-            self._set_substate(self.stage_set, self.set.state)
+            self._set_substate(self.idx_set, self.set.state)
+            return True
+        else:
+            return False
 
-    def _apply_constraints_backward(self, action: Tuple = None):
+    def _apply_constraints_backward(
+        self, action: Tuple = None, state: Optional[Dict] = None
+    ) -> bool:
         """
         Applies constraints across sub-environments, when applicable, in the backward
         direction.
@@ -225,14 +197,28 @@ class SetBox(Stack):
         ----------
         action : tuple
             An action from the SetBox environment.
+        state : dict
+            A state from the SetBox environment.
+
+        Returns
+        -------
+        bool
+            True if any constraint was applied; False otherwise.
         """
-        if action is None or self._depad_action(action) == self.conditioning_grid.eos:
-            # Reset source of Set and update global Stack state
+        if self._do_constraints_for_subenv(
+            state, self.idx_conditioning_grid, action, is_backward=True
+        ):
+            # Reset source of Set, set subenvs of Set to None and update global Stack
+            # state
             self.set.state = copy(self.set.source)
-            self._set_substate(self.stage_set, self.set.state)
+            self.set.subenvs = None
+            self._set_substate(self.idx_set, self.set.state)
+            return True
+        else:
+            return False
 
     def states2proxy(
-        self, states: List[List]
+        self, states: List[Dict]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy.
@@ -251,7 +237,7 @@ class SetBox(Stack):
         """
         # Keep only the part of the state corresponding to the Set
         states_proxy_set = self.set.states2proxy(
-            [self._get_substate(state, self.stage_set) for state in states]
+            [self._get_substate(state, self.idx_set) for state in states]
         )
         states_proxy = []
         for state in states_proxy_set:
