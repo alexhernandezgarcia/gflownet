@@ -74,7 +74,7 @@ logger:
   lightweight: True
   project_name: "cube"
   run_name: "Cube Corners Replay Loss"
-  tags: 
+  tags:
     - gflownet
     - continuous
     - ccube
