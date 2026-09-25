@@ -482,11 +482,12 @@ class BaseBuffer:
         if the state value is larger than the minimum value in the buffer.
 
         Additionally, the following mechanism is applied: If the state is equal or
-        similar to a state already in the buffer, the state and value are replaced
-        unless the value is smaller than the minimum value in the buffer, in which case
-        the existing matching state is dropped. This is done under the assumption that
-        the existing state and value are obsolete and the new state and value do not
-        meet the criteria to be in the bufffer.
+        similar to a state already in the buffer, the state and value are replaced with
+        the new state and value. An alternative would be to simply drop (without
+        replacement) the state value if the new value is lower than the minimum in the
+        buffer. While this could make sense, a side effect is that dropping an element
+        would leave a gap in the buffer and the next candidate will always be added,
+        potentially with even a lower value.
 
         For example, if the buffer has states and values (A, 10) and (B, 20) with
         capacity 2 (full), we can consider the following situations for candidate
@@ -495,13 +496,10 @@ class BaseBuffer:
               is smaller than the minimum in the buffer.
             - (C, 15): add because the value is larger than the minimum in the buffer.
               Replace (A, 10).
-            - (B, 25): add because the state is already in the buffer and the value is
-              greater than the currently stored value. Replace (B, 20).
-            - (B, 15): add because the state is already in the buffer and the value is
-              greater than the minimum in the buffer. Replace (B, 20).
-            - (B, 5): do not add because the state although already in the buffer, the
-              value is smaller than the minimum in the buffer. However, drop (B, 20)
-              from the buffer.
+            - (B, 25): add because the state is already in the buffer and the state and
+              value should be updated. Replace (B, 20).
+            - (B, 5): add because the state is already in the buffer and the state and
+              value should be updated. Replace (B, 20).
 
         Parameters
         ----------
@@ -526,10 +524,7 @@ class BaseBuffer:
         for idx, rsample in enumerate(self.replay["samples"]):
             if self.env.isclose(sample, rsample):
                 self.replay.drop(self.replay.index[idx], inplace=True)
-                if value < self.replay["values"].min():
-                    return False
-                else:
-                    break
+                break
 
         # If the buffer is full but the value is smaller than the minimum value in the
         # buffer, then drop the sample with minimum value to add the new one.
