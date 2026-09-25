@@ -23,6 +23,22 @@ from gflownet.utils.policy import parse_policy_config
 
 
 class BaseTestsCommon:
+    def test__reset__reverts_all_attributes(self, n_repeat=10):
+        method_name = _get_current_method_name()
+
+        if hasattr(self, "repeats") and method_name in self.repeats:
+            n_repeat = self.repeats[method_name]
+
+        # Deep copy of the environment before changing it
+        env_orig = self.env.copy()
+
+        for _ in range(n_repeat):
+            # Sample a random trajectory
+            self.env.trajectory_random()
+            # Reset the environment
+            self.env.reset(self.env.id)
+            assert env_orig == self.env
+
     def test__set_state__sets_expected_state_and_creates_copy(
         self, n_repeat=1, n_states=3
     ):
@@ -366,6 +382,14 @@ class BaseTestsCommon:
                     assert n_actions <= self.env.max_traj_length
 
     def test__trajectories_are_reversible(self, n_repeat=1):
+        """
+        This test checks whether a sequence of actions in the forward direction results
+        in the same sequence of states if the sequence of actions is applied in reverse
+        starting from the last state.
+
+        Note that this test should be skipped in environments that include actions that
+        produce permutations, such as the Set, with certain configurations.
+        """
         # Skip for certain environments until fixed:
         skip_envs = [
             "Tree",
@@ -879,8 +903,38 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 assert n_actions <= self.env.max_traj_length
                 assert self.env.n_actions == n_actions
                 parents, parents_a = self.env.get_parents()
-                assert any([self.env.equal(p, state) for p in parents])
                 assert len(parents) == len(parents_a)
+                # Check that the state before the forward transition is one of the
+                # parents of the current state
+                for p, p_a in zip(parents, parents_a):
+                    if self.env.equal(p, state):
+                        assert True
+                        break
+                else:
+                    # Catch the special case where the actions produce permutations in
+                    # the resulting state: keep calculating parents until a match is
+                    # found or the maximum number of attempts is reached
+                    if any(
+                        self.env.action_produces_permutation(a, is_backward=True)
+                        for a in parents_a
+                    ):
+                        match_found = False
+                        max_attempts = 10000
+                        count = 0
+                        while not match_found:
+                            parents, parents_a = self.env.get_parents()
+                            for p, p_a in zip(parents, parents_a):
+                                if self.env.equal(p, state):
+                                    assert True
+                                    match_found = True
+                                    break
+                            count += 1
+                            if count > max_attempts:
+                                assert False
+                    else:
+                        assert False
+                # Check that the forward mask of the parents is compatible with the
+                # parent actions
                 for p, p_a in zip(parents, parents_a):
                     mask = self.env.get_mask_invalid_actions_forward(p, False)
                     assert self.env.action2representative(
@@ -1005,8 +1059,7 @@ def _get_terminating_states(env, n):
     elif hasattr(env, "get_random_terminating_states"):
         return env.get_random_terminating_states(n, 0)
     else:
-        warnings.warn(
-            f"""
+        warnings.warn(f"""
         Testing backward sampling or setting terminating states requires that
         the environment implements one of the following:
             - get_all_terminating_states()
@@ -1015,8 +1068,7 @@ def _get_terminating_states(env, n):
             - get_random_terminating_states()
         Environment {env.__class__} does not have any of the above, therefore
         backward sampling will not be tested.
-        """
-        )
+        """)
         return None
 
 

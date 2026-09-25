@@ -160,7 +160,7 @@ class Tree(GFlowNetEnv):
         continuous: bool = True,
         n_thresholds: Optional[int] = 9,
         threshold_components: int = 1,
-        beta_params_min: float = 0.1,
+        beta_params_min: float = 1.0,
         beta_params_max: float = 2.0,
         fixed_distr_params: dict = {
             "beta_alpha": 2.0,
@@ -342,8 +342,7 @@ class Tree(GFlowNetEnv):
         Returns the stage of the current environment from self.state[-1, 0] or from the
         state passed as an argument.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return state[-1, 0]
 
     def _set_stage(
@@ -353,8 +352,7 @@ class Tree(GFlowNetEnv):
         Sets the stage of the current environment (self.state) or of the state passed
         as an argument by updating state[-1, 0].
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state[-1, 0] = stage
         return state
 
@@ -643,12 +641,10 @@ class Tree(GFlowNetEnv):
         """
         if done is True and self._get_stage() != Stage.COMPLETE:
             done = False
-            warnings.warn(
-                f"""
+            warnings.warn(f"""
             Attempted to set state {self.state2readable(state)} with done = True, which
             is not compatible with the environment. Forcing done = False.
-            """
-            )
+            """)
         return super().set_state(state, done)
 
     # TODO: needs to be update
@@ -871,8 +867,8 @@ class Tree(GFlowNetEnv):
         """
         Converts a state into human-readable representation.
         """
-        if state is None:
-            state = self.state.clone().detach()
+        # TODO: call to _get_state(state) might need do_copy=True
+        state = self._get_state(state)
         state = state.cpu().numpy()
         readable = ""
         for idx in range(self.n_nodes):
@@ -1004,10 +1000,8 @@ class Tree(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         if done:
             return [True] * self.policy_output_dim
@@ -1085,10 +1079,8 @@ class Tree(GFlowNetEnv):
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         if done:
             return [state], [self.eos]

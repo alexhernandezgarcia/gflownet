@@ -2,6 +2,7 @@ import common
 import pytest
 import torch
 
+import gflownet.envs.grid as grid_module
 from gflownet.envs.grid import Grid
 from gflownet.utils.common import tfloat
 
@@ -84,6 +85,32 @@ def test__state2proxy__returns_expected(env, state, state2proxy):
 )
 def test__states2proxy__returns_expected(env, states, states2proxy):
     assert torch.equal(torch.Tensor(states2proxy), env.states2proxy(states))
+
+
+def test__states2policy__creates_helper_indices_on_env_device(monkeypatch):
+    recorded_devices = []
+
+    def tracked_arange(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.arange(*args, **kwargs)
+
+    class TorchProxy:
+        def __getattr__(self, name):
+            if name == "arange":
+                return tracked_arange
+            return getattr(torch, name)
+
+    monkeypatch.setattr(grid_module, "torch", TorchProxy())
+
+    env = Grid(n_dim=3, length=4, cell_min=-1.0, cell_max=1.0, device="cpu")
+    states_policy = env.states2policy([[0, 1, 2]])
+
+    assert states_policy.device == env.device
+    assert recorded_devices
+    assert all(
+        device is not None and torch.device(device) == env.device
+        for device in recorded_devices
+    )
 
 
 @pytest.mark.parametrize(

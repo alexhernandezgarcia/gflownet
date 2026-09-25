@@ -15,7 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.envs.set import SetFix
+from gflownet.envs.composite.setfix import SetFix
 from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
 CELL_MIN = -1.0
@@ -62,7 +62,7 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
-        beta_params_min: float = 0.1,
+        beta_params_min: float = 1.0,
         beta_params_max: float = 100.0,
         epsilon: float = 1e-6,
         kappa: float = 1e-3,
@@ -152,6 +152,7 @@ class CubeBase(GFlowNetEnv, ABC):
         states = tfloat(states, device=self.device, float_type=self.float)
         return 2.0 * torch.clip(states, min=0.0, max=CELL_MAX) - CELL_MAX
 
+    # TODO: Change value of ignored dimensions / source values
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_dim"]:
@@ -1546,12 +1547,10 @@ class ContinuousCube(CubeBase):
         if any([s > 1.0 for s in effective_dims]) or any(
             [s < 0.0 for s in effective_dims]
         ):
-            warnings.warn(
-                f"""
+            warnings.warn(f"""
                 State is out of cube bounds.
                 \nCurrent state:\n{self.state}\nAction:\n{action}\nNext state: {state}
-                """
-            )
+                """)
             return self.state, action, False
 
         # Otherwise, set self.state as the udpated state and return valid.

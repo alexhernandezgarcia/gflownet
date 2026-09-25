@@ -3,7 +3,7 @@
 defaults:
   - override /env: tetris
   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
+  - override /loss: trajectorybalance
   - override /policy: mlp
   - override /proxy: tetris
   - override /logger: wandb

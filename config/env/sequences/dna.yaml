@@ -1,0 +1,11 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.sequences.dna.DNA
+
+id: dna
+# Min and max length
+min_length: 1
+max_length: 30
+# Proxy format
+proxy_fmt: "onehot-np"

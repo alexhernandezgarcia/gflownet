@@ -1,0 +1,27 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.crystals.corners.CrystalCorners
+
+mu: 0.75
+sigma: 0.05
+
+# Optional config parameter
+# A list of dictionaries specifying the parameters of the Corners
+# sub-proxies. Each element in the list is a dictionary that must contain one
+# (and only one) of the following keys: spacegroup, element
+# Additionally, it must contain the following keys: mu, sigma
+# Example:
+# config:
+#   - spacegroup: 225
+#     mu: 0.85
+#     sigma: 0.05
+#   - spacegroup: 229
+#     mu: 0.65
+#     sigma: 0.05
+#   - element: 46
+#     mu: 0.75
+#     sigma: 0.2
+#   - element: 78
+#     mu: 0.75
+#     sigma: 0.1

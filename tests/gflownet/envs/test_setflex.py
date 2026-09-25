@@ -14,12 +14,14 @@ import pytest
 import torch
 from torch import Tensor
 
+import gflownet.envs.composite.setflex as setflex_module
+from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.composite.setflex import SetFlex
+from gflownet.envs.composite.stack import Stack
 from gflownet.envs.constant import Constant
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.dummy import Dummy
 from gflownet.envs.grid import Grid
-from gflownet.envs.set import SetFlex
-from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tbool, tfloat
 
 
@@ -411,7 +413,14 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [0, 1], [0, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
         ),
         (
             "env_two_grids",
@@ -419,12 +428,27 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
         ),
         (
             "env_three_cubes",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[-1, 0, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
         ),
         (
             "env_three_cubes",
@@ -432,7 +456,15 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 1], [0, 0, -1]], {0: [-1, -1], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [0, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [-1, -1],
+                1: [-1, -1],
+            },
         ),
         (
             "env_three_cubes",
@@ -441,17 +473,40 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 0], [0, 0, 0]], {0: [-1, -1], 1: [-1, -1], 2: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1],
+            },
         ),
         (
             "env_three_cubes_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [0, 1, 1], [1, -1, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [0, 0],
+            },
         ),
         (
             "env_three_cubes_grids",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[-1, 0, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
         ),
         (
             "env_three_cubes_grids",
@@ -459,7 +514,15 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 1], [1, 0, -1]], {0: [0, 0], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
         ),
         (
             "env_three_cubes_grids",
@@ -468,7 +531,16 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 0], [0, 1, 0]], {0: [-1, -1], 1: [0, 0], 2: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
         ),
         (
             "env_two_stacks",
@@ -486,13 +558,15 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                    1: [0, [-1, -1], [0, 0]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                1: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+            },
         ),
         (
             "env_three_stacks_diff",
@@ -516,14 +590,16 @@ def test__compute_unique_indices_of_subenvs__returns_expected(
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0, 0], [0, 0, 1]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                    1: [0, [-1, -1], [0, 0]],
-                    2: [0, [0, 0], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                1: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                2: {"_active": 0, 0: [0, 0], 1: [-1, -1]},
+            },
         ),
     ],
 )
@@ -542,19 +618,40 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [0, 1], [0, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             True,
         ),
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[0, 1, [0, 1], [0, -1]], {0: [0, 0]}],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             False,
         ),
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [1, 1], [0, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             False,
         ),
         (
@@ -563,7 +660,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             True,
         ),
         (
@@ -572,7 +677,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [[-1, 0, [0, 1], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             False,
         ),
         (
@@ -581,19 +694,40 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [[-1, 0, [0, 1], [0, 0]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+            },
             False,
         ),
         (
             "env_three_cubes",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[-1, 0, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[0, 1, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             False,
         ),
         (
@@ -602,7 +736,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 1], [0, 0, -1]], {0: [-1, -1], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [0, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [-1, -1],
+                1: [-1, -1],
+            },
             True,
         ),
         (
@@ -611,7 +753,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 1], [0, 0, -1]], {0: [0.1, 0.2], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [0, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0.1, 0.2],
+                1: [-1, -1],
+            },
             False,
         ),
         (
@@ -621,31 +771,68 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 0], [0, 0, 0]], {0: [-1, -1], 1: [-1, -1], 2: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [-1, -1],
+                2: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [0, 1, 1], [1, -1, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [0, 0],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [[-1, 0, [1, 1, 1], [1, -1, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [0, 0],
+            },
             False,
         ),
         (
             "env_three_cubes_grids",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[-1, 0, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
-            [[-1, 0, [0, 1, 1], [1, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             False,
         ),
         (
@@ -654,7 +841,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 1], [1, 0, -1]], {0: [0, 0], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         (
@@ -664,7 +859,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 0, 0], [0, 1, 0]], {0: [-1, -1], 1: [0, 0], 2: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             True,
         ),
         (
@@ -674,7 +878,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [[-1, 0, [0, 1, 0], [0, 1, 0]], {0: [-1, -1], 1: [0, 0], 2: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             False,
         ),
         (
@@ -693,13 +906,15 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                    1: [0, [-1, -1], [0, 0]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                1: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+            },
             True,
         ),
         (
@@ -718,12 +933,14 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+            },
             False,
         ),
         (
@@ -748,14 +965,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0, 0], [0, 0, 1]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                    1: [0, [-1, -1], [0, 0]],
-                    2: [0, [0, 0], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                1: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                2: {"_active": 0, 0: [0, 0], 1: [-1, -1]},
+            },
             True,
         ),
         (
@@ -780,14 +999,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0, 0], [0, 0, 1]],
-                {
-                    0: [0, [-1, -1], [0, 0]],
-                    1: [0, [-1, -1], [0, 0]],
-                    2: [1, [0, 0], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 0, 1],
+                "_keys": [0, 1, 2],
+                0: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                1: {"_active": 0, 0: [-1, -1], 1: [0, 0]},
+                2: {"_active": 1, 0: [0, 0], 1: [-1, -1]},
+            },
             False,
         ),
         (
@@ -812,14 +1033,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [0, [3], [-1, -1]],
-                    1: [0, [4], [-1, -1]],
-                    2: [0, [5], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: {"_active": 0, 0: [3], 1: [-1, -1]},
+                1: {"_active": 0, 0: [4], 1: [-1, -1]},
+                2: {"_active": 0, 0: [5], 1: [-1, -1]},
+            },
             True,
         ),
         (
@@ -844,14 +1067,16 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [0, [5], [-1, -1]],
-                    1: [0, [6], [-1, -1]],
-                    2: [0, [7], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: {"_active": 0, 0: [5], 1: [-1, -1]},
+                1: {"_active": 0, 0: [6], 1: [-1, -1]},
+                2: {"_active": 0, 0: [7], 1: [-1, -1]},
+            },
             True,
         ),
         (
@@ -864,12 +1089,14 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [-1, 0, [0, 1, 1], [0, -1, -1]],
-                {
-                    0: [0, [5], [-1, -1]],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: {"_active": 0, 0: [5], 1: [-1, -1]},
+            },
             True,
         ),
         (
@@ -882,12 +1109,14 @@ def test__set_subenvs__applies_changes_as_expected(env, subenvs, state, request)
                     )
                 ),
             ),
-            [
-                [0, 1, [0, 1, 1], [0, -1, -1]],
-                {
-                    0: [0, [5], [-1, -1]],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: {"_active": 0, 0: [5], 1: [-1, -1]},
+            },
             False,
         ),
     ],
@@ -905,33 +1134,90 @@ def test__is_source__returns_expected(env, subenvs, state, is_source, request):
 
 
 @pytest.mark.parametrize(
+    "env, subenvs, state",
+    [
+        (
+            "env_two_grids",
+            (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
+        ),
+    ],
+)
+def test__get_parents__returns_no_parents_in_initial_state(
+    env, subenvs, state, request
+):
+    env = request.getfixturevalue(env)
+    env.set_subenvs(subenvs)
+    assert env.is_source(state)
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
+@pytest.mark.parametrize(
     "env, state, done, subenvs",
     [
         (
             "env_two_grids",
             # Source
-            [[-1, 0, [0, 1], [0, -1]], {0: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             False,
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
         ),
         (
             "env_two_grids",
             # Intermediate
-            [[-1, 0, [0, 1], [0, -1]], {0: [1, 2]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 2],
+            },
             False,
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
         ),
         (
             "env_two_grids",
             # Done
-            [[-1, 0, [1, 1], [0, -1]], {0: [1, 2]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 2],
+            },
             True,
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
         ),
         (
             "env_two_grids",
             # Source
-            [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             False,
             (
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
@@ -941,7 +1227,15 @@ def test__is_source__returns_expected(env, subenvs, state, is_source, request):
         (
             "env_two_grids",
             # Intermediate
-            [[0, 1, [0, 1], [0, 0]], {0: [0, 2], 1: [1, 1]}],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 2],
+                1: [1, 1],
+            },
             False,
             (
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
@@ -951,21 +1245,43 @@ def test__is_source__returns_expected(env, subenvs, state, is_source, request):
         (
             "env_three_cubes_grids",
             # Source
-            [[-1, 0, [0, 1, 1], [0, -1, -1]], {0: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             False,
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
         ),
         (
             "env_three_cubes_grids",
             # Done
-            [[-1, 0, [1, 1, 1], [0, -1, -1]], {0: [0.1234, 0.4321]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [0.1234, 0.4321],
+            },
             False,
             (ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),),
         ),
         (
             "env_three_cubes_grids",
             # Source
-            [[-1, 0, [0, 0, 1], [1, 0, -1]], {0: [0, 0], 1: [-1, -1]}],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             False,
             (
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
@@ -975,7 +1291,15 @@ def test__is_source__returns_expected(env, subenvs, state, is_source, request):
         (
             "env_three_cubes_grids",
             # Intermediate
-            [[0, 1, [0, 1, 1], [1, 0, -1]], {0: [1, 1], 1: [0.1224, 0.4321]}],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.1224, 0.4321],
+            },
             False,
             (
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
@@ -1002,7 +1326,13 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
 
     # Check states of subenvs
     for idx, subenv in enumerate(env.subenvs):
-        assert env.equal(subenv.state, env._get_substate(state, idx))
+        if not env.equal(subenv.state, env._get_substate(state, idx)):
+            # If substates are dictionaries and have the key "_keys", compare using
+            # the Set's equal(). Otherwise, use GFlowNetEnv's equal().
+            if type(subenv.state) == dict and "_keys" in subenv.state:
+                assert env.equal(subenv.state, env._get_substate(state, idx))
+            else:
+                assert GFlowNetEnv.equal(subenv.state, env._get_substate(state, idx))
 
     # Check global done
     assert env.done == done
@@ -1022,12 +1352,14 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1043,13 +1375,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1064,13 +1398,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [0, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
@@ -1085,13 +1421,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [1, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, True, # ACTIVE SUBENV
@@ -1107,13 +1445,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1129,13 +1469,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1151,13 +1493,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
@@ -1173,13 +1517,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1195,13 +1541,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1217,13 +1565,15 @@ def test__set_state__sets_state_dones_and_subenvs(env, state, done, subenvs, req
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1256,12 +1606,14 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # only one. EOS invalid
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1273,13 +1625,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # The main mask is the Set mask: can activate any of the two envs. EOS invalid.
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1290,13 +1644,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, two envs
         (
             "env_two_grids",
-            [
-                [0, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV
@@ -1307,13 +1663,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, two envs
         (
             "env_two_grids",
-            [
-                [1, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, True, # ACTIVE SUBENV
@@ -1325,13 +1683,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # There are two envs of three, so activating last one is invalid. EOS invalid.
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1343,13 +1703,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, before activating subenv
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1361,13 +1723,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, before subenv action
         (
             "env_three_cubes_grids",
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
@@ -1379,13 +1743,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, after subenv action
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1397,13 +1763,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # Intermediate, one subenv is done
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1415,13 +1783,15 @@ def test__get_mask_invalid_actions_forward__returns_expected(
         # All subenvs are done
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1452,12 +1822,14 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
         (
             "env_two_grids",
             (Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),),
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1472,13 +1844,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1494,13 +1868,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [0, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1516,13 +1892,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
             ),
-            [
-                [1, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1537,13 +1915,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1559,13 +1939,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1582,13 +1964,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1605,13 +1989,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
@@ -1627,13 +2013,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1649,13 +2037,15 @@ def test__get_mask_invalid_actions_forward__returns_expected_without_setting_sub
                 Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
                 ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
             ),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1686,12 +2076,14 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Source, one env
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1702,13 +2094,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Source, two envs
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1720,13 +2114,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Active 0, toggle flag 1
         (
             "env_two_grids",
-            [
-                [0, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1738,13 +2134,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Active 1, toggle flag 1
         (
             "env_two_grids",
-            [
-                [1, 1, [0, 0], [0, 0]],
-                {
-                    0: [1, 2],
-                    1: [0, 1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [1, 2],
+                1: [0, 1],
+            },
             # fmt: off
             [
                 False, False, # ACTIVE SUBENV
@@ -1755,13 +2153,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Source
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1773,13 +2173,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Intermediate, no active environment
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1792,13 +2194,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Active 0, toggle flag 1
         (
             "env_three_cubes_grids",
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1811,13 +2215,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Active 0, toggle flag 0
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 True, False, False, # ACTIVE SUBENV
@@ -1829,13 +2235,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # Intermediate, no active subenv, one subenv is source
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -1847,13 +2255,15 @@ def test__get_mask_invalid_actions_backward__returns_expected(
         # All subenvs are done
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [2, 1],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [2, 1],
+                1: [0.25, 0.15],
+            },
             # fmt: off
             [
                 False, False, False, # ACTIVE SUBENV
@@ -2024,291 +2434,351 @@ def test__extract_core_mask__returns_expected(
         # From source, one env: activate subenv 0
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             (-1, 0, 0),
-            [
-                [0, 1, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             True,
         ),
         # From source -> activate grid: grid action
         (
             "env_two_grids",
-            [
-                [0, 1, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             (0, 1, 0),
-            [
-                [0, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         # From source -> activate grid -> grid action: toggle subenv 0
         (
             "env_two_grids",
-            [
-                [0, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, 0, 0),
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         # From done subenv, global EOS
         (
             "env_two_grids",
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, -1, -1),
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         # Invalid: From done subenv, activate subenv 0
         (
             "env_two_grids",
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, 0, 0),
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             False,
         ),
         # From source: activate subenv 0
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             (-1, 0, 0, 0),
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # From source -> toggle 0: subenv 0 action
         (
             "env_three_cubes_grids",
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             (1, 1, 0, 0),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # From source -> toggle 0 -> subenv 0 action: toggle 0
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 0, 0, 0),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # Invalid: From source -> toggle 0 -> subenv 0 action: toggle 1
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 1, 0, 0),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             False,
         ),
         # From intermediate: toggle 1
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 1, 0, 0),
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # From active 1, subenv 1 action
         (
             "env_three_cubes_grids",
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (0, 0.25, 0.15, 1),
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             True,
         ),
         # Invalid: From active 1, invalid subenv 1 action
         (
             "env_three_cubes_grids",
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (0, 0.25, 0.15, 0),
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             False,
         ),
         # From active 1 -> subenv 1 action: toggle 1
         (
             "env_three_cubes_grids",
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 1, 0, 0),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             True,
         ),
         # Invalid: From active 1 -> subenv 1 action: toggle 0
         (
             "env_three_cubes_grids",
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 0, 0, 0),
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             False,
         ),
         # From all subenvs done, global EOS
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, -1, -1, -1),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             True,
         ),
     ],
@@ -2344,246 +2814,298 @@ def test__step__works_as_expected(
     [
         (
             "env_two_grids",
-            [
-                [0, 1, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             (-1, 0, 0),
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             True,
         ),
         (
             "env_two_grids",
-            [
-                [0, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (0, 1, 0),
-            [
-                [0, 1, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             True,
         ),
         (
             "env_two_grids",
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, 0, 0),
-            [
-                [0, 0, [0, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         (
             "env_two_grids",
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, 0, 0),
-            [
-                [0, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             (-1, 0, 0, 0),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (1, 1, 0, 0),
-            [
-                [0, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [0, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 0, 0, 0),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         (
             "env_three_cubes_grids",
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 1, 0, 0),
-            [
-                [0, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             False,
         ),
         # From intermediate: toggle 1
         (
             "env_three_cubes_grids",
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (-1, 1, 0, 0),
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # From active 1, subenv 1 action
         (
             "env_three_cubes_grids",
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (0, 0.25, 0.15, 1),
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             True,
         ),
         # Invalid: From active 1, invalid subenv 1 action
         (
             "env_three_cubes_grids",
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             (0, 0.25, 0.15, 0),
-            [
-                [1, 1, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [-1, -1],
+            },
             False,
         ),
         # From active 1 -> subenv 1 action: toggle 1
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 1, 0, 0),
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             True,
         ),
         # Invalid: From active 1 -> subenv 1 action: toggle 0
         (
             "env_three_cubes_grids",
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 0, 0, 0),
-            [
-                [1, 0, [0, 0, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             False,
         ),
     ],
@@ -2615,96 +3137,116 @@ def test__step_backwards__works_as_expected(
     [
         (
             "env_two_grids",
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, -1, -1),
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             True,
         ),
         # Invalid: activate subenv 0
         (
             "env_two_grids",
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             (-1, 0, 0),
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 0],
+            },
             False,
         ),
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, -1, -1, -1),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             True,
         ),
         # Invalid: activate subenv 0
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 0, 0, 0),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             False,
         ),
         # Invalid: activate subenv 1
         (
             "env_three_cubes_grids",
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             (-1, 1, 0, 0),
-            [
-                [-1, 0, [1, 1, 1], [1, 0, -1]],
-                {
-                    0: [1, 0],
-                    1: [0.25, 0.15],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 1],
+                "_envs_unique": [1, 0, -1],
+                "_keys": [0, 1, -1],
+                0: [1, 0],
+                1: [0.25, 0.15],
+            },
             False,
         ),
     ],
@@ -2738,236 +3280,272 @@ def test__step_backwards_from_global_done__works_as_expected(
             "env_two_grids",
             # One subenv only
             # Source
-            [
-                [-1, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             [(-1, 0, 0)],
         ),
         (
             "env_two_grids",
             # One subenv only
             # Active subenv 0, toggle flag 1
-            [
-                [0, 1, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             [(0, 0, 0), (0, 1, 0), (0, 0, 1)],
         ),
         (
             "env_two_grids",
             # One subenv only
             # Active subenv 0, toggle flag 0
-            [
-                [0, 0, [0, 1], [0, -1]],
-                {
-                    0: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [0, 0],
+            },
             [(-1, 0, 0)],
         ),
         (
             "env_two_grids",
             # One subenv only
             # Subenv done
-            [
-                [-1, 0, [1, 1], [0, -1]],
-                {
-                    0: [1, 1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1],
+                "_envs_unique": [0, -1],
+                "_keys": [0, -1],
+                0: [1, 1],
+            },
             [(-1, -1, -1)],
         ),
         (
             "env_two_grids",
             # Two subenvs
             # Source
-            [
-                [-1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             [(-1, 0, 0), (-1, 1, 0)],
         ),
         (
             "env_two_grids",
             # Two subenvs
             # Active subenv 0, toggle flag 1
-            [
-                [0, 1, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             [(0, 0, 0), (0, 1, 0), (0, 0, 1)],
         ),
         (
             "env_two_grids",
             # Two subenvs
             # Active subenv 1, toggle flag 1
-            [
-                [1, 1, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             [(0, 0, 0), (0, 1, 0), (0, 0, 1)],
         ),
         (
             "env_two_grids",
             # Two subenvs
             # Active subenv 0, toggle flag 0
-            [
-                [0, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": 0,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             [(-1, 0, 0)],
         ),
         (
             "env_two_grids",
             # Two subenvs
             # Active subenv 1, toggle flag 0
-            [
-                [1, 0, [0, 0], [0, 0]],
-                {
-                    0: [0, 0],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0],
+                "_envs_unique": [0, 0],
+                "_keys": [0, 1],
+                0: [0, 0],
+                1: [0, 0],
+            },
             [(-1, 1, 0)],
         ),
         (
             "env_three_cubes_grids",
             # One subenv only
             # Source
-            [
-                [-1, 0, [0, 1, 1], [0, -1, -1]],
-                {
-                    0: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 1, 1],
+                "_envs_unique": [0, -1, -1],
+                "_keys": [0, -1, -1],
+                0: [-1, -1],
+            },
             [(-1, 0, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Two subenvs
             # Source
-            [
-                [-1, 0, [0, 0, 1], [0, 1, -1]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 1],
+                "_envs_unique": [0, 1, -1],
+                "_keys": [0, 1, -1],
+                0: [-1, -1],
+                1: [0, 0],
+            },
             [(-1, 0, 0, 0), (-1, 1, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Source
-            [
-                [-1, 0, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                    2: [-1, -1],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             [(-1, 0, 0, 0), (-1, 1, 0, 0), (-1, 2, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Source
-            [
-                [-1, 0, [0, 0, 0], [1, 0, 1]],
-                {
-                    0: [0, 0],
-                    1: [-1, -1],
-                    2: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [1, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [0, 0],
+                1: [-1, -1],
+                2: [0, 0],
+            },
             [(-1, 0, 0, 0), (-1, 1, 0, 0), (-1, 2, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Active subenv 1, toggle 1
-            [
-                [1, 1, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                    2: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 1,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             [(1, 0, 0, 0), (1, 1, 0, 0), (1, 0, 1, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Active subenv 1, toggle 0
-            [
-                [1, 0, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                    2: [-1, -1],
-                },
-            ],
+            {
+                "_active": 1,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             [(-1, 1, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Active subenv 2, toggle 1
-            [
-                [2, 1, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                    2: [-1, -1],
-                },
-            ],
+            {
+                "_active": 2,
+                "_toggle": 1,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             [(0, 0.0, 0.0, 1)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # Active subenv 1, toggle 0
-            [
-                [2, 0, [0, 0, 0], [0, 1, 0]],
-                {
-                    0: [-1, -1],
-                    1: [0, 0],
-                    2: [-1, -1],
-                },
-            ],
+            {
+                "_active": 2,
+                "_toggle": 0,
+                "_dones": [0, 0, 0],
+                "_envs_unique": [0, 1, 0],
+                "_keys": [0, 1, 2],
+                0: [-1, -1],
+                1: [0, 0],
+                2: [-1, -1],
+            },
             [(-1, 2, 0, 0)],
         ),
         (
             "env_three_cubes_grids",
             # Three subenvs
             # No active subenvs, with done subenvs
-            [
-                [-1, 0, [1, 1, 0], [1, 0, 1]],
-                {
-                    0: [1, 2],
-                    1: [0.25, 0.75],
-                    2: [0, 0],
-                },
-            ],
+            {
+                "_active": -1,
+                "_toggle": 0,
+                "_dones": [1, 1, 0],
+                "_envs_unique": [1, 0, 1],
+                "_keys": [0, 1, 2],
+                0: [1, 2],
+                1: [0.25, 0.75],
+                2: [0, 0],
+            },
             [(-1, 2, 0, 0)],
         ),
     ],
@@ -2994,18 +3572,22 @@ def test__get_valid_actions__forward_returns_expected(
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
             ],
         ),
         (
@@ -3013,19 +3595,23 @@ def test__get_valid_actions__forward_returns_expected(
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3033,71 +3619,91 @@ def test__get_valid_actions__forward_returns_expected(
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
             ],
         ),
         (
@@ -3105,18 +3711,22 @@ def test__get_valid_actions__forward_returns_expected(
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
             ],
         ),
         (
@@ -3124,20 +3734,24 @@ def test__get_valid_actions__forward_returns_expected(
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3145,19 +3759,23 @@ def test__get_valid_actions__forward_returns_expected(
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3165,48 +3783,60 @@ def test__get_valid_actions__forward_returns_expected(
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [-1, -1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 0],
+                    2: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
             ],
         ),
         (
@@ -3214,122 +3844,154 @@ def test__get_valid_actions__forward_returns_expected(
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [-1, -1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [1, 1],
-                        1: [2, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0, 1],
-                        2: [2, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.25, 0.15],
-                        1: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 0],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 0],
+                    2: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0, 1],
+                    2: [2, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.25, 0.15],
+                    1: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 0],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
             ],
         ),
     ],
@@ -3362,71 +4024,91 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
             ],
         ),
         (
@@ -3434,122 +4116,154 @@ def test__sample_actions_forward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [0, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.1234, 0.4321],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [1, 1],
-                        1: [2, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0, 1],
-                        2: [2, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.25, 0.15],
-                        1: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 0],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.1234, 0.4321],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0, 1],
+                    2: [2, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.25, 0.15],
+                    1: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 0],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
             ],
         ),
     ],
@@ -3582,18 +4296,22 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
             ],
         ),
         (
@@ -3601,19 +4319,23 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3621,71 +4343,91 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
             ],
         ),
         (
@@ -3693,18 +4435,22 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
             ],
         ),
         (
@@ -3712,20 +4458,24 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Same elements in the sets
             # Two source states
             [
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3733,19 +4483,23 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
         ),
         (
@@ -3753,48 +4507,60 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Two source states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [-1, -1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 0],
+                    2: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
             ],
         ),
         (
@@ -3802,122 +4568,154 @@ def test__sample_actions_backward__returns_valid_actions(env, states, request):
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [-1, 0, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [-1, -1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [1, 1],
-                        1: [2, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0, 1],
-                        2: [2, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.25, 0.15],
-                        1: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 0],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 0],
+                    2: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0, 1],
+                    2: [2, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.25, 0.15],
+                    1: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 0],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
             ],
         ),
     ],
@@ -3953,8 +4751,24 @@ def test__get_logprobs_forward__all_finite(env, states, request):
             "env_three_cubes_grids",
             # Found while debugging
             [
-                [[-1, 0, [0, 0, 1], [0, 0, -1]], {0: [-1, -1], 1: [-1, -1]}],
-                [[-1, 0, [0, 0, 1], [0, 0, -1]], {0: [-1, -1], 1: [-1, -1]}],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 0, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 0, -1],
+                    "_keys": [0, 1, -1],
+                    0: [-1, -1],
+                    1: [-1, -1],
+                },
             ],
             [(-1, 1, 0, 0), (-1, 0, 0, 0)],
             [
@@ -4052,71 +4866,91 @@ def test__get_logprobs_forward_with_actions_policy_outputs__all_finite(
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 1], [0, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [0, 0, [0, 0], [0, 0]],
-                    {
-                        0: [0, 1],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [1, 0], [0, 0]],
-                    {
-                        0: [1, 0],
-                        1: [0, 1],
-                    },
-                ],
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 1],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 1],
+                    1: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [1, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 0],
+                    1: [0, 1],
+                },
             ],
         ),
         (
@@ -4124,122 +4958,154 @@ def test__get_logprobs_forward_with_actions_policy_outputs__all_finite(
             # Mixed sets in the batch
             # Multiple states
             [
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 0], [1, 1, 1]],
-                    {
-                        0: [0, 0],
-                        1: [0, 1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [0, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.1234, 0.4321],
-                        1: [0, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 0], [1, 0, 1]],
-                    {
-                        0: [0, 0],
-                        1: [-1, -1],
-                        2: [0, 0],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [1, -1, -1]],
-                    {
-                        0: [1, 2],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [1, 1, -1]],
-                    {
-                        0: [1, 1],
-                        1: [2, 1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 1, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0, 1],
-                        2: [2, 2],
-                    },
-                ],
-                [
-                    [0, 1, [0, 1, 1], [0, -1, -1]],
-                    {
-                        0: [-1, -1],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [0, 1, -1]],
-                    {
-                        0: [0.25, 0.15],
-                        1: [1, 2],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [1, 0, 1]],
-                    {
-                        0: [1, 1],
-                        1: [0.1234, 0.4321],
-                        2: [2, 0],
-                    },
-                ],
-                [
-                    [1, 1, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 0],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [1, 0, [0, 0, 1], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
-                [
-                    [-1, 0, [0, 0, 0], [0, 1, 0]],
-                    {
-                        0: [0.8765, 0.6543],
-                        1: [2, 1],
-                        2: [0.1234, 0.4321],
-                    },
-                ],
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [0, 1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.1234, 0.4321],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 0],
+                    1: [-1, -1],
+                    2: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [1, 2],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [1, 1],
+                    1: [2, 1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 1, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0, 1],
+                    2: [2, 2],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 1, 1],
+                    "_envs_unique": [0, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [-1, -1],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0.25, 0.15],
+                    1: [1, 2],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [1, 1],
+                    1: [0.1234, 0.4321],
+                    2: [2, 0],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 0],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 1],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [0, 1, 0],
+                    "_keys": [0, 1, 2],
+                    0: [0.8765, 0.6543],
+                    1: [2, 1],
+                    2: [0.1234, 0.4321],
+                },
             ],
         ),
     ],
@@ -4274,8 +5140,23 @@ def test__get_logprobs_backward__all_finite(env, states, request):
         (
             "env_two_grids",
             [
-                [[-1, 0, [0, 0], [0, -1]], {0: [0, 0]}],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
             ],
             torch.stack(
                 [
@@ -4320,9 +5201,32 @@ def test__get_logprobs_backward__all_finite(env, states, request):
         (
             "env_two_grids",
             [
-                [[-1, 0, [0, 0], [0, -1]], {0: [0, 0]}],
-                [[-1, 0, [0, 0], [0, 0]], {0: [0, 0], 1: [0, 0]}],
-                [[0, 1, [0, 0], [0, 0]], {0: [1, 1], 1: [0, 1]}],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, -1],
+                    "_keys": [0, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [0, 0],
+                    1: [0, 0],
+                },
+                {
+                    "_active": 0,
+                    "_toggle": 1,
+                    "_dones": [0, 0],
+                    "_envs_unique": [0, 0],
+                    "_keys": [0, 1],
+                    0: [1, 1],
+                    1: [0, 1],
+                },
             ],
             torch.stack(
                 [
@@ -4384,8 +5288,23 @@ def test__get_logprobs_backward__all_finite(env, states, request):
         (
             "env_three_cubes_grids",
             [
-                [[-1, 0, [0, 0, 0], [1, -1, -1]], {0: [0, 0]}],
-                [[-1, 0, [0, 0, 0], [1, 0, -1]], {0: [0, 0], 1: [-1, -1]}],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [-1, -1],
+                },
             ],
             torch.stack(
                 [
@@ -4448,9 +5367,33 @@ def test__get_logprobs_backward__all_finite(env, states, request):
         (
             "env_three_cubes_grids",
             [
-                [[-1, 0, [0, 0, 0], [1, -1, -1]], {0: [0, 0]}],
-                [[-1, 0, [0, 0, 0], [1, 0, -1]], {0: [0, 0], 1: [-1, -1]}],
-                [[1, 1, [1, 0, 0], [1, 0, 1]], {0: [0, 1], 1: [0.2, 0.6], 2: [1, 2]}],
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, -1, -1],
+                    "_keys": [0, -1, -1],
+                    0: [0, 0],
+                },
+                {
+                    "_active": -1,
+                    "_toggle": 0,
+                    "_dones": [0, 0, 0],
+                    "_envs_unique": [1, 0, -1],
+                    "_keys": [0, 1, -1],
+                    0: [0, 0],
+                    1: [-1, -1],
+                },
+                {
+                    "_active": 1,
+                    "_toggle": 1,
+                    "_dones": [1, 0, 0],
+                    "_envs_unique": [1, 0, 1],
+                    "_keys": [0, 1, 2],
+                    0: [0, 1],
+                    1: [0.2, 0.6],
+                    2: [1, 2],
+                },
             ],
             torch.stack(
                 [
@@ -4542,6 +5485,48 @@ def test__states2policy__returns_expected(env, states, states_policy_exp, reques
     env = request.getfixturevalue(env)
     states_policy = env.states2policy(states)
     assert torch.all(torch.isclose(states_policy_exp, env.states2policy(states)))
+
+
+def test__states2policy__creates_helper_tensors_on_env_device(monkeypatch):
+    recorded_devices = []
+
+    def tracked_zeros(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.zeros(*args, **kwargs)
+
+    def tracked_tensor(*args, **kwargs):
+        recorded_devices.append(kwargs.get("device"))
+        return torch.tensor(*args, **kwargs)
+
+    class TorchProxy:
+        def __getattr__(self, name):
+            if name == "zeros":
+                return tracked_zeros
+            if name == "tensor":
+                return tracked_tensor
+            return getattr(torch, name)
+
+    monkeypatch.setattr(setflex_module, "torch", TorchProxy())
+
+    env = SetFlex(
+        envs_unique=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+        ),
+        max_elements=2,
+        subenvs=(
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+            Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0, device="cpu"),
+        ),
+        device="cpu",
+    )
+    states_policy = env.states2policy([env.state])
+
+    assert states_policy.device == env.device
+    assert recorded_devices
+    assert all(
+        device is not None and torch.device(device) == env.device
+        for device in recorded_devices
+    )
 
 
 class TestSetFlexTwoGrids(common.BaseTestsDiscrete):

@@ -3,17 +3,17 @@
 # wandb: https://wandb.ai/alexhg/Hartmann/runs/9l4ry4gm
 
 defaults:
-   - override /env: ccube
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: box/hartmann
-   - override /logger: wandb
+  - override /env: ccube
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: box/hartmann
+  - override /logger: wandb
 
 # Environment
 env:
   n_dim: 6
   n_comp: 5
-  beta_params_min: 0.1
+  beta_params_min: 1.0
   beta_params_max: 100.0
   min_incr: 0.1
   fixed_distr_params:

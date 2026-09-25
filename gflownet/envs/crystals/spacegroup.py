@@ -183,10 +183,8 @@ class SpaceGroup(GFlowNetEnv):
             - True if the forward action is invalid given the current state.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True for _ in self.action_space]
         cls_idx, ps_idx, sg_idx = state
@@ -408,8 +406,7 @@ class SpaceGroup(GFlowNetEnv):
                 69 | Fmmm | orthorhombic (3) | centrosymmetric (2) |
                 rhombic-dipyramidal | mmm |
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         cls_idx, ps_idx, sg_idx = state
         crystal_lattice_system = self.get_crystal_lattice_system(state)
         point_symmetry = self.get_point_symmetry(state)
@@ -456,10 +453,8 @@ class SpaceGroup(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [self.eos]
         else:
@@ -579,8 +574,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the crystal system given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state = self._set_constrained_properties(state)
         if state[self.cls_idx] != 0:
             return self.crystal_lattice_systems[state[self.cls_idx]]["crystal_system"]
@@ -595,8 +589,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the lattice system given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state = self._set_constrained_properties(state)
         if state[self.cls_idx] != 0:
             return self.crystal_lattice_systems[state[self.cls_idx]]["lattice_system"]
@@ -611,8 +604,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the crystal-lattice system given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         crystal_system = self.get_crystal_system(state)
         lattice_system = self.get_lattice_system(state)
         if crystal_system != lattice_system:
@@ -628,8 +620,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the point symmetry given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         state = self._set_constrained_properties(state)
         if state[self.ps_idx] != 0:
             return self.point_symmetries[state[self.ps_idx]]["point_symmetry"]
@@ -644,8 +635,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the space group symbol given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if state[self.sg_idx] != 0:
             return self.space_groups[state[self.sg_idx]]["full_symbol"]
         else:
@@ -659,8 +649,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the index of the space group symbol given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if state[self.sg_idx] != 0:
             return state[self.sg_idx]
         else:
@@ -676,8 +665,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the crystal_class given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if state[self.sg_idx] != 0:
             return self.space_groups[state[self.sg_idx]]["crystal_class"]
         else:
@@ -693,8 +681,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Returns the name of the point group given a state.
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         if state[self.sg_idx] != 0:
             return self.space_groups[state[self.sg_idx]]["point_group"]
         else:
@@ -713,8 +700,7 @@ class SpaceGroup(GFlowNetEnv):
             2: crystal-lattice system is unset; point symmetry is set
             3: both crystal-lattice system and point symmetry are set
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         return sum([int(s > 0) * f for s, f in zip(state, (1, 2))])
 
     def set_n_atoms_compatibility_dict(self, n_atoms: List):

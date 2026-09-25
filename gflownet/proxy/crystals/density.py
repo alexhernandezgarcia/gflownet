@@ -26,7 +26,7 @@ class Density(Proxy):
     def setup(self, env=None):
         if isinstance(env, Crystal):
             self.atomic_mass = torch.zeros(N_ELEMENTS_ORACLE + 1, dtype=self.float)
-            elements = env.subenvs[env.stage_composition].elements
+            elements = env.subenvs[env.idx_composition].elements
             atomic_mass_elements = tfloat(
                 [ATOMIC_MASS[n] for n in elements],
                 float_type=self.float,

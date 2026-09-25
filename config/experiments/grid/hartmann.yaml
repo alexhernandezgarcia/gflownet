@@ -3,11 +3,11 @@
 # wandb: https://wandb.ai/alexhg/Hartmann/runs/1l1y5xwb
 
 defaults:
-   - override /env: grid
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: box/hartmann
-   - override /logger: wandb
+  - override /env: grid
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: box/hartmann
+  - override /logger: wandb
 
 # Environment
 env:

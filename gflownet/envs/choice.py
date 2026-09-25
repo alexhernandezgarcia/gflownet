@@ -1,5 +1,5 @@
 """
-A very simple environment to sample one option from a given set of options.
+A very simple environment to sample one element from a given set of options.
 
 Given a set of options, the environment proceeds to select one of the options from the
 source state and then only the end-of-sequence action is valid.
@@ -14,16 +14,16 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import tfloat, tlong
 
 
-class Options(GFlowNetEnv):
+class Choice(GFlowNetEnv):
     """
-    Options environment.
+    Choice environment.
 
     States are represented by a single-element list, indicating the index of the
-    selected option (starting from 1), or 0 if no option has been selected yet (source
+    selected element (starting from 1), or 0 if no option has been selected yet (source
     state).
 
     The actions of the environment are single-element tuples indicating the index of
-    the option to be selected, or -1 for the EOS.
+    the element to be selected, or -1 for the EOS.
 
     Attributes
     ----------
@@ -49,7 +49,7 @@ class Options(GFlowNetEnv):
         **kwargs,
     ):
         """
-        Initializes an Options environment.
+        Initializes a Choice environment.
 
         Parameters
         ----------
@@ -74,9 +74,10 @@ class Options(GFlowNetEnv):
             assert self.source_readable not in options
         self.options = options
         self.n_options = len(self.options)
+        self.options_indices = set(range(1, self.n_options + 1))
         # Available options
         if options_available is None:
-            self.options_available = tuple(range(1, self.n_options + 1))
+            self.options_available = tuple(self.options_indices)
         else:
             self.options_available = tuple(options_available)
         # Source state: [0]
@@ -98,7 +99,7 @@ class Options(GFlowNetEnv):
         list
             A list of tuples representing the actions.
         """
-        return [(el,) for el in range(1, self.n_options + 1)] + [self.eos]
+        return [(el,) for el in self.options_indices] + [self.eos]
 
     def get_mask_invalid_actions_forward(
         self,
@@ -131,7 +132,7 @@ class Options(GFlowNetEnv):
         if self.is_source(state):
             mask = [
                 False if idx in self.options_available else True
-                for idx in range(1, self.n_options + 1)
+                for idx in self.options_indices
             ] + [True]
             return mask
         # Otherwise, only EOS is valid
@@ -223,6 +224,13 @@ class Options(GFlowNetEnv):
         self.state[0] = action[0]
 
         return self.state, action, valid
+
+    def set_available_options(self, options: Iterable):
+        """
+        Updates the attribute
+        :py:meth:`~gflownet.envs.choice.Choice.options_available`.
+        """
+        self.options_available = options
 
     def _get_max_trajectory_length(self) -> int:
         """

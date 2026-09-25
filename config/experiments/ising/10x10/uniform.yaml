@@ -2,11 +2,11 @@
 # 10x10 Ising model with uniform reward
 
 defaults:
-   - override /env: ising
-   - override /gflownet: trajectorybalance
-   - override /loss: trajectorybalance
-   - override /proxy: uniform
-   - override /logger: wandb
+  - override /env: ising
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: uniform
+  - override /logger: wandb
 
 # Environment
 env:

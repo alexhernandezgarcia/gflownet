@@ -108,10 +108,8 @@ class Grid(GFlowNetEnv):
             - True if the forward action is invalid from the current state.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
@@ -178,10 +176,17 @@ class Grid(GFlowNetEnv):
         """
         states = tlong(states, device=self.device)
         n_states = states.shape[0]
-        cols = states + torch.arange(self.n_dim) * self.length
-        rows = torch.repeat_interleave(torch.arange(n_states), self.n_dim)
+        device = states.device
+        index_dtype = states.dtype
+        cols = (
+            states
+            + torch.arange(self.n_dim, device=device, dtype=index_dtype) * self.length
+        )
+        rows = torch.repeat_interleave(
+            torch.arange(n_states, device=device, dtype=index_dtype), self.n_dim
+        )
         states_policy = torch.zeros(
-            (n_states, self.length * self.n_dim), dtype=self.float, device=self.device
+            (n_states, self.length * self.n_dim), dtype=self.float, device=device
         )
         states_policy[rows, cols.flatten()] = 1.0
         return states_policy
@@ -230,10 +235,8 @@ class Grid(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done:
             return [state], [self.eos]
         else:
