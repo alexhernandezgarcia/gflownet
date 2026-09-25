@@ -481,14 +481,14 @@ class BaseBuffer:
         Adds a single sample (with the trajectory actions and value) to the buffer
         if the state value is larger than the minimum value in the buffer.
 
-        Additionally, the following mechanism is followed: If the state is equal or
+        Additionally, the following mechanism is applied: If the state is equal or
         similar to a state already in the buffer, the state and value are replaced
         unless the value is smaller than the minimum value in the buffer, in which case
         the existing matching state is dropped. This is done under the assumption that
         the existing state and value are obsolete and the new state and value do not
         meet the criteria to be in the bufffer.
 
-        For example, if the buffer as states and values (A, 10) and (B, 20) with
+        For example, if the buffer has states and values (A, 10) and (B, 20) with
         capacity 2 (full), we can consider the following situations for candidate
         states and values:
             - (C, 5): do not add because the state is not in the buffer and the value
