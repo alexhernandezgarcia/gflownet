@@ -421,8 +421,7 @@ def test__select_ctorus(env_ctorus, proxy_ctorus, tmp_local, mode):
             [True, True, True],
             [1, 2, 2],
         ),
-        # Should add last sample ([0, 0]) because the state is already in the buffer
-        # and the value (25) is greater than the currently stored value (10).
+        # Should update last sample ([0, 0]) because the state is already in the buffer.
         (
             [[0, 0], [0, 1], [0, 0]],
             [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
@@ -430,8 +429,7 @@ def test__select_ctorus(env_ctorus, proxy_ctorus, tmp_local, mode):
             [True, True, True],
             [1, 2, 2],
         ),
-        # Should add last sample ([0, 0]) because the state is already in the buffer
-        # and the value (15) is greater than the minimum in the buffer (10).
+        # Should update last sample ([0, 0]) because the state is already in the buffer.
         (
             [[0, 0], [0, 1], [0, 0]],
             [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
@@ -439,15 +437,13 @@ def test__select_ctorus(env_ctorus, proxy_ctorus, tmp_local, mode):
             [True, True, True],
             [1, 2, 2],
         ),
-        # Should not add last sample ([0, 0]) because while the state is already in the
-        # buffer, the value (5) is smaller than the minimum in the buffer (10). The
-        # existing sample should be dropped.
+        # Should update last sample ([0, 0]) because the state is already in the buffer.
         (
             [[0, 0], [0, 1], [0, 0]],
             [[(0, 0)], [(0, 1), (0, 0)], [(0, 0)]],
             [10, 20, 5],
-            [True, True, False],
-            [1, 2, 1],
+            [True, True, True],
+            [1, 2, 2],
         ),
     ],
 )
