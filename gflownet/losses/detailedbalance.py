@@ -36,6 +36,18 @@ class DetailedBalance(BaseLoss):
         self.acronym = "DB"
         self.id = "detailedbalance"
 
+    def aggregates_over(self) -> str:
+        """
+        Returns a label indentifying over which objects in the batch
+        aggregation happens.
+
+        Returns
+        -------
+        str
+            "states"
+        """
+        return "states"
+
     def requires_backward_policy(self) -> bool:
         """
         Returns True if the loss function requires a backward policy.

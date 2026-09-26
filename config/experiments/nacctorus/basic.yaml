@@ -1,0 +1,82 @@
+# @package _global_
+
+defaults:
+   - override /env: nacctorus
+   - override /evaluator: base
+   - override /gflownet: trajectorybalance
+   - override /proxy: torus
+   - override /logger: wandb
+   - override /regularizer: flowreg
+
+device: cpu
+
+# Environment
+env:
+  n_dim: 2
+  n_comp: 5
+  vonmises_min_concentration: 4
+  policy_encoding_dim_per_angle: 10
+
+buffer:
+  replay_capacity: 200
+  test:
+    type: grid
+    n: 100
+    output_pkl: test.pkl
+  train: 
+    type: grid
+    n: 100
+
+# Proxy
+proxy:
+  normalize: False
+  alpha: 3.0
+  beta: 2.0
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_replay: 10
+      backward_dataset: 20
+    lr: 0.00001
+    z_dim: 16
+    lr_z_mult: 1000
+    n_train_steps: 5000
+
+# Evaluator
+evaluator:
+  reward_sampling_method: nested
+  n_grid: 1000 # this is the number of grid points to visualize KDE of the reward samples, gfn sample, and reward in the plot where gfn samples are plotted together with reward on the background
+  n: 10000 # number of samples from reward and from gfn
+  period: 100
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    shared_weights: False
+    checkpoint: backward
+
+# WandB
+logger:
+  do:
+    online: true
+  lightweight: True
+  project_name: "nacctorus"
+  tags:
+    - nacctorus
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/nacctorus/${now:%Y-%m-%d_%H-%M-%S}

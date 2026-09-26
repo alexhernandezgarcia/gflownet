@@ -24,7 +24,7 @@ class BaseLoss(metaclass=ABCMeta):
     # TODO: improve dependence on policies (needs re-implementation of policies)
     def __init__(
         self,
-        forward_policy: Policy,
+        forward_policy: Policy = None,
         backward_policy: Policy = None,
         state_flow: Policy = None,
         logZ: Parameter = None,
@@ -119,6 +119,19 @@ class BaseLoss(metaclass=ABCMeta):
         Returns True if the loss function requires logZ in its computation.
         """
         return self._requires_log_z
+
+    @abstractmethod
+    def aggregates_over(self) -> str:
+        """
+        Returns a label indentifying over which objects in the batch
+        aggregation happens. Possible values are "states" or "trajectories"
+
+        Returns
+        -------
+        str
+            "states" or "trajectories"
+        """
+        pass
 
     @abstractmethod
     def requires_backward_policy(self) -> bool:
