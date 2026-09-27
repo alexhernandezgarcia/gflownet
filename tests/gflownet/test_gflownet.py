@@ -74,7 +74,8 @@ def test__compute_logprobs_trajectories__logprobs_from_batch_are_same_as_compute
     batch, times = gfn.sample_batch(
         n_forward=n_forward,
         n_train=n_train,
-        n_replay=0,
+        n_replay_reward=0,
+        n_replay_loss=0,
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
@@ -213,7 +214,8 @@ def test__logprobs_validity(
     batch, times = gfn.sample_batch(
         n_forward=n_forward,
         n_train=n_train,
-        n_replay=0,
+        n_replay_reward=0,
+        n_replay_loss=0,
         collect_forwards_masks=True,
         collect_backwards_masks=collect_backwards_masks,
     )
