@@ -1263,7 +1263,7 @@ class GFlowNetAgent:
                 buffer="replay",
             )
         # Update loss replay buffer
-        if "replay_reward" in self.buffers:
+        if "replay_loss" in self.buffers:
             self.buffers.replay_loss.add(
                 states_term,
                 actions_trajectories,
