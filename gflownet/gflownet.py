@@ -230,6 +230,40 @@ class GFlowNetAgent:
                 "test metrics, the test configuration of the buffer should be "
                 "provided."
             )
+        # Reward-based replay buffer: the reward-based replay buffer is defined in a
+        # buffer with name "replay_reward" and reward criterion reward
+        if (
+            "replay_reward" in self.buffers
+            and self.buffers.replay_reward.replay is not None
+            and self.buffers.replay_reward.replay_criterion == "reward"
+        ):
+            self.has_replay_reward = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].replay is not None
+            and self.buffers["buffer"].replay_criterion == "reward"
+        ):
+            self.has_replay_reward = True
+            self.buffers["replay_reward"] = self.buffers["buffer"]
+        else:
+            self.has_replay_reward = False
+        # Loss-based replay buffer: the loss-based replay buffer is defined in a
+        # buffer with name "replay_loss" and reward criterion loss
+        if (
+            "replay_loss" in self.buffers
+            and self.buffers.replay_loss.replay is not None
+            and self.buffers.replay_loss.replay_criterion == "loss"
+        ):
+            self.has_replay_loss = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].replay is not None
+            and self.buffers["buffer"].replay_criterion == "loss"
+        ):
+            self.has_replay_loss = True
+            self.buffers["replay_loss"] = self.buffers["buffer"]
+        else:
+            self.has_replay_loss = False
 
         # Models
         self.forward_policy = forward_policy
@@ -736,8 +770,7 @@ class GFlowNetAgent:
         )
         if (
             n_replay_reward > 0
-            and "replay_reward" in self.buffers
-            and self.buffers.replay_reward.replay is not None
+            and self.has_replay_reward
             and len(self.buffers.replay_reward.replay) > 0
         ):
             n_replay = min(n_replay_reward, len(self.buffers.replay_reward.replay))
@@ -794,8 +827,7 @@ class GFlowNetAgent:
         )
         if (
             n_replay_loss > 0
-            and "replay_loss" in self.buffers
-            and self.buffers.replay_loss.replay is not None
+            and self.has_replay_loss
             and len(self.buffers.replay_loss.replay) > 0
         ):
             n_replay = min(n_replay_loss, len(self.buffers.replay_loss.replay))
