@@ -80,7 +80,7 @@ evaluator:
 logger:
   lightweight: True
   project_name: "cube"
-  run_name: "Cube Corners Replay Reward"
+  run_name: "Cube Corners Replay Reward & Loss"
   tags:
     - gflownet
     - continuous
