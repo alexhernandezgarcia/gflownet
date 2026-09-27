@@ -281,15 +281,44 @@ def gflownet_from_config(config, env=None):
         )
         env = env_maker()
 
+    # Buffer(s)
     # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
     # dataset) it has the correct infro from env
     # proxy.setup(env)
-    buffer = instantiate(
-        config.buffer,
-        env=env,
-        proxy=proxy,
-        datadir=logger.datadir,
-    )
+    if "buffers" in config:
+        buffers = {}
+        for buffer_config in config.buffers:
+            # Set OmegaConf to non-structured mode to allow modifications
+            OmegaConf.set_struct(buffer_config, False)
+            buffer_name = buffer_config.pop("name")
+            if buffer_name in buffers:
+                raise ValueError(
+                    f"The names of the buffers must be unique. Received {buffer_name} "
+                    "at least twice."
+                )
+            # If the Buffer item does not have a target, use the default Buffer's target
+            if "_target_" not in buffer_config:
+                buffer_config["_target_"] = config.buffer._target_
+            # Set OmegaConf back to structured mode
+            OmegaConf.set_struct(buffer_config, True)
+            buffers[buffer_name] = instantiate(
+                buffer_config,
+                env=env,
+                proxy=proxy,
+                datadir=logger.datadir,
+            )
+    else:
+        # This enables backward compatibility with previous config files that do not define a
+        # list of buffers, but rather a single buffer describing the multiple
+        # functionalities
+        buffers = {
+            "buffer": instantiate(
+                config.buffer,
+                env=env,
+                proxy=proxy,
+                datadir=logger.datadir,
+            )
+        }
 
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
