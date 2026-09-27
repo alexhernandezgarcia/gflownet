@@ -138,12 +138,6 @@ class BaseBuffer:
 
         # Define train data set
         self.train, dict_tr = self.make_data_set(self.train_config)
-        if self.train is None:
-            print(
-                "\tImportant: offline trajectories will NOT be sampled. In order to "
-                " sample offline trajectories, the train configuration of the buffer "
-                " should be provided."
-            )
         # Save train.csv and train.pkl
         # TODO: implement flag to prevent storing data set for large data sets. Store
         # path instead.
@@ -156,12 +150,6 @@ class BaseBuffer:
 
         # Define test data set
         self.test, dict_tr = self.make_data_set(self.test_config)
-        if self.test is None:
-            print(
-                "\tImportant: test metrics will NOT be computed. In order to compute "
-                "test metrics, the test configuration of the buffer should be "
-                "provided."
-            )
         # Save test.csv and test.pkl
         # TODO: implement flag to prevent storing data set for large data sets. Store
         # path instead.

@@ -312,7 +312,7 @@ def gflownet_from_config(config, env=None):
         # list of buffers, but rather a single buffer describing the multiple
         # functionalities
         buffers = {
-            "buffer": instantiate(
+            "_backward_compatible_buffer": instantiate(
                 config.buffer,
                 env=env,
                 proxy=proxy,
@@ -374,7 +374,7 @@ def gflownet_from_config(config, env=None):
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,
-        buffer=buffer,
+        buffers=buffers,
         logger=logger,
         evaluator=evaluator,
     )
