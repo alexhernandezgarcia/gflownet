@@ -505,7 +505,7 @@ class BaseEvaluator(AbstractEvaluator):
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if "test" in self.gfn.buffers and self.gfn.buffers.test.test is None:
+        if "test" not in self.gfn.buffers or self.gfn.buffers.test.test is None:
             return {
                 "metrics": {
                     k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
