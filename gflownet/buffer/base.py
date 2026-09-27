@@ -21,6 +21,19 @@ class BaseBuffer:
     Implements the functionality to manage various buffers of data: the records of
     training samples, the train and test data sets, a replay buffer for training, etc.
 
+    Note that to train a GFlowNet, the GFlowNet agent can receive as an argument a
+    dictionary with multiple buffers. The keys of these dictionaries matter. In
+    particular, the following keys are supported:
+        - ``"train"``: A train set to sample backward trajectories for the training
+          batches.
+        - ``"test"``: A test set for evaluation.
+        - ``"replay_reward"``: A replay buffer based on the reward values.
+        - ``"replay_loss"``: A replay buffer based on the loss values.
+
+    To specify these buffers through Hydra configuration, the configuration file can
+    contain a top-level element named ``buffers`` with a list of buffer parameters as
+    well as a ``name`` specifying the name of the buffer, as per the keys listed above.
+
     Attributes
     ----------
     replay_updated : bool

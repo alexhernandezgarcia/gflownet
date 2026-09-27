@@ -82,7 +82,12 @@ class GFlowNetAgent:
         optimizer : dict
             Optimizer config dictionary. See gflownet.yaml:optimizer for details.
         buffers : dict
-            A dictionary of Buffers.
+            A dictionary of Buffers. The following keys are supported:
+            - ``"train"``: A train set to sample backward trajectories for the training
+              batches.
+            - ``"test"``: A test set for evaluation.
+            - ``"replay_reward"``: A replay buffer based on the reward values.
+            - ``"replay_loss"``: A replay buffer based on the loss values.
         forward_policy : gflownet.policy.base.Policy
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
