@@ -445,20 +445,50 @@ def load_gflownet_from_rundir(
         # Set run id in logger to enable WandB resume
         config.logger.run_id = checkpoint["run_id"]
 
+        # TODO: implement alternative way that does not involve changing the config
         # Set up Buffer configuration to load data sets and buffers from run
-        if checkpoint["buffer"]["train"]:
-            config.buffer.train = {
-                "type": "pkl",
-                "path": checkpoint["buffer"]["train"],
-            }
-        if checkpoint["buffer"]["test"]:
-            config.buffer.test = {
-                "type": "pkl",
-                "path": checkpoint["buffer"]["test"],
-            }
-        if checkpoint["buffer"]["replay"]:
-            config.buffer.replay_buffer = checkpoint["buffer"]["replay"]
-        # load them here
+        if checkpoint["buffers"]["train"]:
+            if "buffers" in config:
+                config.buffers.train.train = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["train"],
+                }
+            else:
+                # This is to support backward compatibility with previous configs
+                config.buffer.train = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["train"],
+                }
+        if checkpoint["buffers"]["test"]:
+            if "buffers" in config:
+                config.buffers.test.test = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["test"],
+                }
+            else:
+                # This is to support backward compatibility with previous configs
+                config.buffer.test = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["test"],
+                }
+        if checkpoint["buffers"]["replay_reward"]:
+            if "buffers" in config:
+                config.buffers.replay_reward.replay_buffer = checkpoint["buffers"][
+                    "replay_reward"
+                ]
+            else:
+                # This is to support backward compatibility with previous configs
+                assert config.buffer.replay_criterion == "reward"
+                config.buffer.replay_buffer = checkpoint["buffers"]["replay_reward"]
+        if checkpoint["buffers"]["replay_loss"]:
+            if "buffers" in config:
+                config.buffers.replay_loss.replay_buffer = checkpoint["buffers"][
+                    "replay_loss"
+                ]
+            else:
+                # This is to support backward compatibility with previous configs
+                assert config.buffer.replay_criterion == "loss"
+                config.buffer.replay_buffer = checkpoint["buffers"]["replay_loss"]
 
         if is_resumed:
             config.logger.logdir.root = rundir
