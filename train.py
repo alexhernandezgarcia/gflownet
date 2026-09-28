@@ -56,10 +56,10 @@ def main(config):
         dct = {"x": x_sampled, "energy": energies}
         pickle.dump(dct, open(samples_dir / "gfn_samples.pkl", "wb"))
 
-    # Print replay buffer
-    if len(gflownet.buffer.replay) > 0:
+    # Print reward-based replay buffer
+    if gflownet.has_replay_reward and len(gflownet.buffers.replay_reward.replay) > 0:
         print("\nReplay buffer:")
-        print(gflownet.buffer.replay)
+        print(gflownet.buffers.replay_reward.replay)
 
     # Close logger
     # TODO: make it gflownet.end() - perhaps there are other things to end
