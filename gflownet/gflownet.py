@@ -724,7 +724,7 @@ class GFlowNetAgent:
             collect_forwards_masks=collect_forwards_masks,
             collect_backwards_masks=collect_backwards_masks,
         )
-        if n_train > 0 and self.has_train is not None:
+        if n_train > 0 and self.has_train:
             envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
             x_train = BaseBuffer.select(
                 self.buffers.train.train, n_train, self.train_sampling, self.rng
