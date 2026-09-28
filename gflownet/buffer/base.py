@@ -230,7 +230,7 @@ class BaseBuffer:
                     "trajectories_readable",
                 ],
             )
-            replay_csv = self.datadir / "replay.csv"
+            replay_csv = self.datadir / f"replay_{self.replay_criterion}.csv"
 
         return replay, replay_csv
 
