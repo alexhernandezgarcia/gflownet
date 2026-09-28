@@ -269,6 +269,17 @@ class GFlowNetAgent:
             self.buffers["replay_loss"] = self.buffers["buffer"]
         else:
             self.has_replay_loss = False
+        # Main buffer
+        if "main" in self.buffers and self.buffers.main.use_main_buffer:
+            self.has_main_buffer = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].use_main_buffer
+        ):
+            self.has_main_buffer = True
+            self.buffers["main"] = self.buffers["buffer"]
+        else:
+            self.has_main_buffer = False
 
         # Models
         self.forward_policy = forward_policy
@@ -1248,7 +1259,7 @@ class GFlowNetAgent:
 
         # Update main buffer
         actions_trajectories = batch.get_actions_trajectories()
-        if "main" in self.buffers and self.buffer.use_main_buffer:
+        if self.has_main_buffer and "main" in self.buffers:
             self.buffers.main.add(
                 states_term,
                 actions_trajectories,
