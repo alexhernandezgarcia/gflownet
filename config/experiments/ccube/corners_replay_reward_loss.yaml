@@ -31,15 +31,15 @@ env:
 
 # Buffer
 buffers:
-  - name: replay_reward
+  replay_reward:
     replay_capacity: 50
     replay_criterion: reward
     check_diversity: True
-  - name: replay_loss
+  replay_loss:
     replay_capacity: 20
     replay_criterion: loss
     check_diversity: True
-  - name: test
+  test:
     test:
       type: grid
       n: 900

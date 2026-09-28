@@ -287,15 +287,10 @@ def gflownet_from_config(config, env=None):
     # proxy.setup(env)
     if "buffers" in config:
         buffers = {}
-        for buffer_config in config.buffers:
+        for buffer_name in config.buffers:
+            buffer_config = config.buffers[buffer_name]
             # Set OmegaConf to non-structured mode to allow modifications
             OmegaConf.set_struct(buffer_config, False)
-            buffer_name = buffer_config.pop("name")
-            if buffer_name in buffers:
-                raise ValueError(
-                    f"The names of the buffers must be unique. Received {buffer_name} "
-                    "at least twice."
-                )
             # If the Buffer item does not have a target, use the default Buffer's target
             if "_target_" not in buffer_config:
                 buffer_config["_target_"] = config.buffer._target_

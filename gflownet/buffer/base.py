@@ -31,8 +31,8 @@ class BaseBuffer:
         - ``"replay_loss"``: A replay buffer based on the loss values.
 
     To specify these buffers through Hydra configuration, the configuration file can
-    contain a top-level element named ``buffers`` with a list of buffer parameters as
-    well as a ``name`` specifying the name of the buffer, as per the keys listed above.
+    contain a top-level element named ``buffers``, with sub-elements named with the
+    keys described above, each containing the parameters of a specific buffer.
 
     Attributes
     ----------
