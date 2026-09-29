@@ -281,15 +281,39 @@ def gflownet_from_config(config, env=None):
         )
         env = env_maker()
 
+    # Buffer(s)
     # TOREVISE: set up proxy so when buffer calls it (when it creates train / test
     # dataset) it has the correct infro from env
     # proxy.setup(env)
-    buffer = instantiate(
-        config.buffer,
-        env=env,
-        proxy=proxy,
-        datadir=logger.datadir,
-    )
+    if "buffers" in config:
+        buffers = {}
+        for buffer_name in config.buffers:
+            buffer_config = config.buffers[buffer_name]
+            # Set OmegaConf to non-structured mode to allow modifications
+            OmegaConf.set_struct(buffer_config, False)
+            # If the Buffer item does not have a target, use the default Buffer's target
+            if "_target_" not in buffer_config:
+                buffer_config["_target_"] = config.buffer._target_
+            # Set OmegaConf back to structured mode
+            OmegaConf.set_struct(buffer_config, True)
+            buffers[buffer_name] = instantiate(
+                buffer_config,
+                env=env,
+                proxy=proxy,
+                datadir=logger.datadir,
+            )
+    else:
+        # This enables backward compatibility with previous config files that do not define a
+        # list of buffers, but rather a single buffer describing the multiple
+        # functionalities
+        buffers = {
+            "_backward_compatible_buffer": instantiate(
+                config.buffer,
+                env=env,
+                proxy=proxy,
+                datadir=logger.datadir,
+            )
+        }
 
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
@@ -345,7 +369,7 @@ def gflownet_from_config(config, env=None):
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,
-        buffer=buffer,
+        buffers=buffers,
         logger=logger,
         evaluator=evaluator,
     )
@@ -421,20 +445,50 @@ def load_gflownet_from_rundir(
         # Set run id in logger to enable WandB resume
         config.logger.run_id = checkpoint["run_id"]
 
+        # TODO: implement alternative way that does not involve changing the config
         # Set up Buffer configuration to load data sets and buffers from run
-        if checkpoint["buffer"]["train"]:
-            config.buffer.train = {
-                "type": "pkl",
-                "path": checkpoint["buffer"]["train"],
-            }
-        if checkpoint["buffer"]["test"]:
-            config.buffer.test = {
-                "type": "pkl",
-                "path": checkpoint["buffer"]["test"],
-            }
-        if checkpoint["buffer"]["replay"]:
-            config.buffer.replay_buffer = checkpoint["buffer"]["replay"]
-        # load them here
+        if checkpoint["buffers"]["train"]:
+            if "buffers" in config:
+                config.buffers.train.train = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["train"],
+                }
+            else:
+                # This is to support backward compatibility with previous configs
+                config.buffer.train = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["train"],
+                }
+        if checkpoint["buffers"]["test"]:
+            if "buffers" in config:
+                config.buffers.test.test = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["test"],
+                }
+            else:
+                # This is to support backward compatibility with previous configs
+                config.buffer.test = {
+                    "type": "pkl",
+                    "path": checkpoint["buffers"]["test"],
+                }
+        if checkpoint["buffers"]["replay_reward"]:
+            if "buffers" in config:
+                config.buffers.replay_reward.replay_buffer = checkpoint["buffers"][
+                    "replay_reward"
+                ]
+            else:
+                # This is to support backward compatibility with previous configs
+                assert config.buffer.replay_criterion == "reward"
+                config.buffer.replay_buffer = checkpoint["buffers"]["replay_reward"]
+        if checkpoint["buffers"]["replay_loss"]:
+            if "buffers" in config:
+                config.buffers.replay_loss.replay_buffer = checkpoint["buffers"][
+                    "replay_loss"
+                ]
+            else:
+                # This is to support backward compatibility with previous configs
+                assert config.buffer.replay_criterion == "loss"
+                config.buffer.replay_buffer = checkpoint["buffers"]["replay_loss"]
 
         if is_resumed:
             config.logger.logdir.root = rundir

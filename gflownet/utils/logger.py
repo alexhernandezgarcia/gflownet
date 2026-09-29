@@ -321,7 +321,7 @@ class Logger:
         state_flow,
         logZ,
         optimizer,
-        buffer,
+        buffers,
         step: int,
         final: bool = False,
     ):
@@ -363,20 +363,32 @@ class Logger:
             logZ_ckpt = None
 
         # Buffer
-        buffer_ckpt = {
+        buffers_ckpt = {
             "train": None,
             "test": None,
-            "replay": None,
+            "replay_reward": None,
+            "replay_loss": None,
         }
-        if hasattr(buffer, "train") and buffer.train is not None:
-            if hasattr(buffer.train_config, "pkl") and buffer.train_config.pkl:
-                buffer_ckpt["train"] = str(buffer.train_config.pkl)
-        if hasattr(buffer, "test") and buffer.test is not None:
-            if hasattr(buffer.test_config, "pkl") and buffer.test_config.pkl:
-                buffer_ckpt["test"] = str(buffer.test_config.pkl)
-        if hasattr(buffer, "replay") and len(buffer.replay) > 0:
-            if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
-                buffer_ckpt["replay"] = str(buffer.replay_csv)
+        if "train" in buffers:
+            buffer = buffers.train
+            if hasattr(buffer, "train") and buffer.train is not None:
+                if hasattr(buffer.train_config, "pkl") and buffer.train_config.pkl:
+                    buffers_ckpt["train"] = str(buffer.train_config.pkl)
+        if "test" in buffers:
+            buffer = buffers.test
+            if hasattr(buffer, "test") and buffer.test is not None:
+                if hasattr(buffer.test_config, "pkl") and buffer.test_config.pkl:
+                    buffers_ckpt["test"] = str(buffer.test_config.pkl)
+        if "replay_reward" in buffers:
+            buffer = buffers.replay_reward
+            if hasattr(buffer, "replay") and len(buffer.replay) > 0:
+                if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
+                    buffers_ckpt["replay_reward"] = str(buffer.replay_csv)
+        if "replay_loss" in buffers:
+            buffer = buffers.replay_loss
+            if hasattr(buffer, "replay") and len(buffer.replay) > 0:
+                if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
+                    buffers_ckpt["replay_loss"] = str(buffer.replay_csv)
 
         # WandB run ID
         if self.do.online:
@@ -391,7 +403,7 @@ class Logger:
             "state_flow": state_flow_ckpt,
             "logZ": logZ_ckpt,
             "optimizer": optimizer.state_dict(),
-            "buffer": buffer_ckpt,
+            "buffers": buffers_ckpt,
             "run_id": run_id_ckpt,
         }
         torch.save(checkpoint, ckpt_path)

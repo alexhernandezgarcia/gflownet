@@ -1,8 +1,7 @@
 # @package _global_
-# A configuration that works well with a 10x10 Grid environment and the corners proxy.
 
 defaults:
-  - override /env: grid
+  - override /env: ccube
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
   - override /proxy: box/corners
@@ -10,10 +9,23 @@ defaults:
 
 # Environment
 env:
+  n_comp: 5
   n_dim: 2
-  length: 20
-  max_increment: 1
-  max_dim_per_action: 1
+  beta_params_min: 1.0
+  beta_params_max: 100.0
+  min_incr: 0.1
+  fixed_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_eos_prob: 0.1
+    bernoulli_bts_prob: 0.1
+  random_distr_params:
+    beta_weights: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_eos_prob: 0.1
+    bernoulli_bts_prob: 0.1
 
 # Buffer
 buffer:
@@ -23,7 +35,8 @@ buffer:
     type: random
     n: 20
   test:
-    type: all
+    type: grid
+    n: 900
 
 # GFlowNet hyperparameters
 gflownet:
@@ -36,9 +49,7 @@ gflownet:
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 3000
-  replay_sampling: weighted
-  train_sampling: permutation
+    n_train_steps: 10000
 
 # Policy
 policy:
@@ -46,31 +57,30 @@ policy:
     type: mlp
     n_hid: 128
     n_layers: 2
+    checkpoint: forward
   backward:
     shared_weights: True
-
-# WandB
-logger:
-  do:
-    online: False
-  lightweight: True
-  project_name: "grid"
-  run_name: "20x20 Buffers"
-  tags: 
-    - gflownet
-    - grid
-    - corners
-    - buffers
+    checkpoint: backward
 
 # Evaluator
 evaluator:
-  first_it: True
+  first_it: False
   period: 500
   n: 1000
   checkpoints_period: 500
 
+# WandB
+logger:
+  lightweight: True
+  project_name: "cube"
+  run_name: "Cube Corners Buffers"
+  tags: 
+    - gflownet
+    - continuous
+    - ccube
+    - buffers
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/grid/corners/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/ccube/${now:%Y-%m-%d_%H-%M-%S_%f}

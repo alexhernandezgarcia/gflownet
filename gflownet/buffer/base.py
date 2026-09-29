@@ -21,6 +21,19 @@ class BaseBuffer:
     Implements the functionality to manage various buffers of data: the records of
     training samples, the train and test data sets, a replay buffer for training, etc.
 
+    Note that to train a GFlowNet, the GFlowNet agent can receive as an argument a
+    dictionary with multiple buffers. The keys of these dictionaries matter. In
+    particular, the following keys are supported:
+        - ``"train"``: A train set to sample backward trajectories for the training
+          batches.
+        - ``"test"``: A test set for evaluation.
+        - ``"replay_reward"``: A replay buffer based on the reward values.
+        - ``"replay_loss"``: A replay buffer based on the loss values.
+
+    To specify these buffers through Hydra configuration, the configuration file can
+    contain a top-level element named ``buffers``, with sub-elements named with the
+    keys described above, each containing the parameters of a specific buffer.
+
     Attributes
     ----------
     replay_updated : bool
@@ -138,12 +151,6 @@ class BaseBuffer:
 
         # Define train data set
         self.train, dict_tr = self.make_data_set(self.train_config)
-        if self.train is None:
-            print(
-                "\tImportant: offline trajectories will NOT be sampled. In order to "
-                " sample offline trajectories, the train configuration of the buffer "
-                " should be provided."
-            )
         # Save train.csv and train.pkl
         # TODO: implement flag to prevent storing data set for large data sets. Store
         # path instead.
@@ -156,12 +163,6 @@ class BaseBuffer:
 
         # Define test data set
         self.test, dict_tr = self.make_data_set(self.test_config)
-        if self.test is None:
-            print(
-                "\tImportant: test metrics will NOT be computed. In order to compute "
-                "test metrics, the test configuration of the buffer should be "
-                "provided."
-            )
         # Save test.csv and test.pkl
         # TODO: implement flag to prevent storing data set for large data sets. Store
         # path instead.
@@ -229,7 +230,7 @@ class BaseBuffer:
                     "trajectories_readable",
                 ],
             )
-            replay_csv = self.datadir / "replay.csv"
+            replay_csv = self.datadir / f"replay_{self.replay_criterion}.csv"
 
         return replay, replay_csv
 

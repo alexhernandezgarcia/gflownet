@@ -3,11 +3,11 @@
 # wandb: https://wandb.ai/alexhg/cube/runs/9u2d3zzh
 
 defaults:
-  - override /env: ccube
-  - override /gflownet: trajectorybalance
-  - override /loss: trajectorybalance
-  - override /proxy: box/corners
-  - override /logger: wandb
+   - override /env: ccube
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: box/corners
+   - override /logger: wandb
 
 # Environment
 env:
@@ -30,13 +30,19 @@ env:
     bernoulli_bts_prob: 0.1
 
 # Buffer
-buffer:
-  replay_capacity: 50
-  replay_criterion: loss
-  check_diversity: True
+buffers:
+  replay_reward:
+    replay_capacity: 50
+    replay_criterion: reward
+    check_diversity: True
+  replay_loss:
+    replay_capacity: 20
+    replay_criterion: loss
+    check_diversity: True
   test:
-    type: grid
-    n: 900
+    test:
+      type: grid
+      n: 900
 
 # GFlowNet hyperparameters
 gflownet:
@@ -44,7 +50,8 @@ gflownet:
   optimizer:
     batch_size:
       forward: 80
-      backward_replay_reward: 20
+      backward_replay_reward: 10
+      backward_replay_loss: 10
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 100
@@ -73,12 +80,12 @@ evaluator:
 logger:
   lightweight: True
   project_name: "cube"
-  run_name: "Cube Corners Replay Loss"
+  run_name: "Cube Corners Replay Reward & Loss"
   tags:
     - gflownet
     - continuous
     - ccube
-    - replayloss
+    - replayreward
 
 # Hydra
 hydra:

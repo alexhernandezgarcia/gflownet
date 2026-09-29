@@ -368,7 +368,7 @@ class BaseEvaluator(AbstractEvaluator):
 
         x_sampled = density_true = density_pred = None
 
-        if self.gfn.buffer.test_config.type == "all":
+        if self.gfn.buffers.test.test_config.type == "all":
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
@@ -381,7 +381,7 @@ class BaseEvaluator(AbstractEvaluator):
                 )
                 z_true = rewards.sum()
                 density_true = rewards / z_true
-                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
+                with open(self.gfn.buffers.test.test_config.pkl, "wb") as f:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
@@ -424,7 +424,7 @@ class BaseEvaluator(AbstractEvaluator):
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true and kde_true to pickled test dict
-                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
+                with open(self.gfn.buffers.test.test_config.pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
                     dict_tt["kde_true"] = kde_true
                     pickle.dump(dict_tt, f)
@@ -505,7 +505,7 @@ class BaseEvaluator(AbstractEvaluator):
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if self.gfn.buffer.test is None:
+        if "test" not in self.gfn.buffers or self.gfn.buffers.test.test is None:
             return {
                 "metrics": {
                     k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
@@ -514,9 +514,9 @@ class BaseEvaluator(AbstractEvaluator):
                 "data": {},
             }
 
-        with open(self.gfn.buffer.test_config.pkl, "rb") as f:
+        with open(self.gfn.buffers.test.test_config.pkl, "rb") as f:
             dict_tt = pickle.load(f)
-        x_tt = self.gfn.buffer.test.samples.values.tolist()
+        x_tt = self.gfn.buffers.test.test.samples.values.tolist()
         all_data = {}
         all_metrics = {}
 
