@@ -309,8 +309,8 @@ class BaseBuffer:
                 do_update = True
         else:
             raise ValueError(
-                f"Unknown criterion identifier. Received {buffer}, "
-                "expected reward or loss"
+                f"Unknown criterion identifier. Received {self.replay_criterion}, "
+                "expected 'reward' or 'loss'"
             )
 
         if buffer == "main":
