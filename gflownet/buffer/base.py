@@ -428,23 +428,38 @@ class BaseBuffer:
             else:
                 return
 
-        # Check whether the sample is close to any sample already present in the buffer
-        # Otherwise, return immediately since the buffer should not be updated.
+        # If the sample is close to any sample already present in the buffer:
+        # - If the value of the new sample is higher than the value of the existing
+        # sample, drop the existing sample and exit the loop to add the new one
+        # - If the value of the new sample is lower than the value of the existing
+        # sample, return immediately because the buffer should not be updated
         if self.check_diversity:
             # If the value similarity is negative, compare with the full replay buffer
             if self.diversity_check_value_similarity < 0.0:
-                for rsample in self.replay["samples"]:
+                for idx, rsample in enumerate(self.replay["samples"]):
                     if self.env.isclose(sample, rsample):
-                        return
+                        if value > self.replay["values"][idx]:
+                            self.replay.drop(self.replay.index[idx], inplace=True)
+                            index = -1
+                            break
+                        else:
+                            return
             # Otherwise, compare only with samples with similar value
             else:
                 values_range = self.replay["values"].max() - self.replay["values"].min()
                 max_value_diff = self.diversity_check_value_similarity * values_range
-                for rsample in self.replay.loc[
-                    np.abs(self.replay["values"] - value) < max_value_diff
-                ]["samples"]:
+                for idx, rsample in enumerate(
+                    self.replay.loc[
+                        np.abs(self.replay["values"] - value) < max_value_diff
+                    ]["samples"]
+                ):
                     if self.env.isclose(sample, rsample):
-                        return
+                        if value > self.replay["values"][idx]:
+                            self.replay.drop(self.replay.index[idx], inplace=True)
+                            index = -1
+                            break
+                        else:
+                            return
 
         # If index_min is larger than zero, drop the sample with the minimum value
         if index_min >= 0:
