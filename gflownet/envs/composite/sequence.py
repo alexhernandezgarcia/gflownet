@@ -1219,7 +1219,6 @@ class Sequence(CompositeBase):
 
         for i, state in enumerate(states):
             # _ACTIVE_LEFT = -1 _ACTIVE_NONE = 0 _ACTIVE_RIGHT = 1
-            # TODO change this formula vvv
             active[i, state["_active"] + 1] = 1.0
             rem = self._remaining_bag(state)
             if rem is not None:
