@@ -527,10 +527,16 @@ class Sequence(CompositeBase):
             # Re-enter the most recently inserted sub-environment (undo its EOS)
             key = length - 1  # Most recently inserted subenv always has index len-1
             idx_unique = state["_envs_unique"][key]
+            # fix the backward action to include the toggle
+            # get the direction of where to go
+            direction = _LEFT if state["_indices"][0] == key else _RIGHT
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
-            core = subenv.get_mask_invalid_actions_backward(substate, True)
-            mask = self._format_mask(core, idx_unique)
+            core = [True] * self.n_meta_actions
+            # change subenvironment action as valid
+            core[self._insert_id(direction, idx_unique)] = False
+            # mask for the meta action
+            mask = self._format_mask(core, -1)
             return mask
 
         # A sub-environment is active
@@ -662,8 +668,8 @@ class Sequence(CompositeBase):
             # force both left and right as parents
             parents = self._enumerate_all_states_for_the_sequence(state=parent)
             # remove duplicated parents randomly
-            # if len(parents) >= 4:
-            #     parents = self._get_random_parents_of_same_action(parents)
+            if len(parents) >= 4:
+                parents = self._get_random_parents_of_same_action(parents)
             # same action since it goes to EOS of the same subenv
             actions = [
                 self._pad_action(
