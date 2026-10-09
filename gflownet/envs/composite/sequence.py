@@ -1372,10 +1372,12 @@ class Sequence(CompositeBase):
 
     def set_state(self, state: Dict, done: Optional[bool] = False):
         """Sets a state and done, rebuilding the placed sub-environments."""
-        self.subenvs = [
-            self._make_subenv_instance(idx_unique, key)
-            for key, idx_unique in enumerate(state["_envs_unique"])
-        ]
+        self.subenvs = []
+        for key, idx_unique in enumerate(state["_envs_unique"]):
+            sub = self._make_subenv_instance(idx_unique, key)
+            # incorporate the dones (finished or not) of the subenv
+            sub.set_state(copy(state[key]), done=bool(state["_dones"][key]))
+            self.subenvs.append(sub)
         return super().set_state(state, done)
 
     def is_source(self, state: Optional[Dict] = None) -> bool:
