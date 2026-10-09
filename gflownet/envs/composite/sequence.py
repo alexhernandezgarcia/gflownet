@@ -197,7 +197,8 @@ class Sequence(CompositeBase):
         self._prefix_dim = self.n_unique_envs
 
         # Action dimensionality: the longest sub-environment EOS plus 1 (for the prefix)
-        self.action_dim = max([len(env.eos) for env in self.envs_unique]) + 1
+        # add 2 as the minimum olength since we need (prefix, env_id, direction, padding)
+        self.action_dim = max([2]+[len(env.eos) for env in self.envs_unique]) + 1
 
         # The global EOS is a tuple of -1's
         self.eos = (-1,) * self.action_dim
@@ -1100,7 +1101,12 @@ class Sequence(CompositeBase):
         """
         logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
         for idx, state in enumerate(states):
-            n_unique = len(self._enumerate_all_states_for_the_sequence(state))
+            # n_unique = len(self._enumerate_all_states_for_the_sequence(state))
+            n_indices = len(copy(state)["_indices"])
+            if n_indices <= 2: 
+                n_unique = 1
+            else:
+                n_unique = 2**(n_indices-2)
             logprobs[idx] = -torch.log(
                 tfloat(n_unique, device=self.device, float_type=self.float)
             )
@@ -1133,21 +1139,22 @@ class Sequence(CompositeBase):
             )
 
             # here we also recompute probabilities for states representing equivalent sequences
-            if is_backward and self.merge_states:
-                eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
-                # filter out eos actions
-                is_eos_state = torch.zeros_like(is_meta)
-                is_eos_state[is_meta] = torch.any(actions[is_meta] != eos_tensor, dim=1)
-                if torch.any(is_eos_state):
-                    # remove the eos actions
-                    states_stochastic = [
-                        s for s, f in zip(states_from, is_eos_state) if f
-                    ]
-                    # log(n) correction for multiple states of the parent of the same sequences
-                    # not sure yet if it is the parent that should be considered
-                    logprobs[is_eos_state] += self._get_logprobs_of_same_sequences(
-                        states_stochastic
-                    )
+            # if is_backward and self.merge_states:
+            #     eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+            #     # filter out eos actions
+            #     is_stochastic = torch.zeros_like(is_meta)
+            #     is_stochastic[is_meta] = torch.any(actions[is_meta] != eos_tensor, dim=1)
+            #     # Copy part of setbase
+            #     if torch.any(is_stochastic):
+            #         # remove the eos actions
+            #         states_stochastic = [
+            #             s for s, f in zip(states_from, is_stochastic) if f
+            #         ]
+            #         # log(n) correction for multiple states of the parent of the same sequences
+            #         # not sure yet if it is the parent that should be considered
+            #         logprobs[is_stochastic] += self._get_logprobs_of_same_sequences(
+            #             states_stochastic
+            #         )
 
         # Extract unique env idx for states active at sub-env level
         indices_active = torch.where(mask[is_active, : self._prefix_dim])[1]
