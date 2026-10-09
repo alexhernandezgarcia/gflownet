@@ -676,7 +676,9 @@ class Sequence(CompositeBase):
             )
             # remove duplicated parents randomly
             if len(parents) >= 4:
-                parents = self._get_random_parents_of_same_action(parents, allowed_action=allowed_action)
+                parents = self._get_random_parents_of_same_action(
+                    parents, allowed_action=allowed_action
+                )
             # same action since it goes to EOS of the same subenv
             actions = [
                 self._pad_action(
@@ -941,7 +943,7 @@ class Sequence(CompositeBase):
 
         # Case 2: Sub-environment action
         else:
-            # added a toggle, so the two cases are decomposed 
+            # added a toggle, so the two cases are decomposed
             # Case 2a: Sub-env active and undoing a sub-env action
             # At meta level only the toggle (Case 1) is valid backward
             if self.state["_active"] == _ACTIVE_NONE:
@@ -1488,9 +1490,7 @@ class Sequence(CompositeBase):
                 state, allowed_action=allowed_action
             )
         # then choose a random state among the possible states with uniform probability
-        chosen_state = all_possible_states[
-            np.random.choice(len(all_possible_states))
-        ]
+        chosen_state = all_possible_states[np.random.choice(len(all_possible_states))]
         return chosen_state
 
     def _get_random_parents_of_same_action(self, parents, allowed_action):
@@ -1509,9 +1509,9 @@ class Sequence(CompositeBase):
         chosen_right_parent = all_right_parents[
             np.random.choice(len(all_right_parents))
         ]
-        if allowed_action=='right_only':
+        if allowed_action == "right_only":
             return [chosen_right_parent]
-        elif allowed_action=='left_only':
+        elif allowed_action == "left_only":
             return [chosen_left_parent]
         else:
             return [chosen_left_parent, chosen_right_parent]
@@ -1564,7 +1564,9 @@ class Sequence(CompositeBase):
                     ][
                         old_indices[ind]
                     ]  # this is correct
-                    new_dones[new_representations[k][ind]] = state["_dones"][old_indices[ind]]
+                    new_dones[new_representations[k][ind]] = state["_dones"][
+                        old_indices[ind]
+                    ]
                 new_state["_indices"] = new_representations[k]
                 new_state["_envs_unique"] = new_envs_unique
                 new_state["_dones"] = new_dones
