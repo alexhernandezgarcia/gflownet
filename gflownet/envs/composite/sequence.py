@@ -912,9 +912,14 @@ class Sequence(CompositeBase):
                 # here insert other variations of the 1-step-backward-state that represents the same sequence
                 # merge states indicate if the states that can represent the same sequence will be enumerated
                 if (self.merge_states) and (len(self.state["_indices"]) > 1):
-                    self.state = self._get_random_equivalent_sequence(
+                    new_state = self._get_random_equivalent_sequence(
                         self.state, self.merge_states
                     )
+                    # backward should also go to the new random representation of the same state
+                    self.set_state(new_state, done=False)
+                    # set the states of the subenv to map the correct subenv index 
+                    for k, sub in enumerate(self.subenvs):
+                        sub.set_state(self.state[k], done=bool(self.state["_dones"][k]))
             return self.state, action, True
 
         # Case 2: Sub-environment action
