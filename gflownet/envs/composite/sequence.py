@@ -676,7 +676,7 @@ class Sequence(CompositeBase):
             )
             # remove duplicated parents randomly
             if len(parents) >= 4:
-                parents = self._get_random_parents_of_same_action(parents)
+                parents = self._get_random_parents_of_same_action(parents, allowed_action=allowed_action)
             # same action since it goes to EOS of the same subenv
             actions = [
                 self._pad_action(
@@ -941,12 +941,13 @@ class Sequence(CompositeBase):
 
         # Case 2: Sub-environment action
         else:
-            was_inactive = (
-                self.state["_active"] == _ACTIVE_NONE
-            )  # Needed because there are two cases:
+            # added a toggle, so the two cases are decomposed 
             # Case 2a: Sub-env active and undoing a sub-env action
-            # Case 2b: At meta-level and action is to undo EOS of most recent sub-env
+            # At meta level only the toggle (Case 1) is valid backward
+            if self.state["_active"] == _ACTIVE_NONE:
+                return self.state, action, False
             key = self._seq_length(self.state) - 1  # most recently inserted element
+
             idx_unique = action[0]
             subenv = self.subenvs[key]
             action_subenv = self._depad_action(action, idx_unique)
@@ -966,11 +967,6 @@ class Sequence(CompositeBase):
             self.n_actions += 1
             self._set_substate(key, subenv.state)
             self._set_subdone(key, subenv.done)
-            if was_inactive:  # Case 2b: need to change _active flag
-                # We re-entered the element to undo its EOS: activate it (left/right)
-                self.state["_active"] = (
-                    _ACTIVE_LEFT if self.state["_indices"][0] == key else _ACTIVE_RIGHT
-                )
             return self.state, action, True
 
     # ------------------------------------------------------------------ #
@@ -1489,13 +1485,13 @@ class Sequence(CompositeBase):
             all_possible_states = self._enumerate_all_states_for_the_sequence(
                 state, allowed_action=allowed_action
             )
-            # then choose a random state among the possible states with uniform probability
-            chosen_state = all_possible_states[
-                np.random.choice(len(all_possible_states))
-            ]
-            return chosen_state
+        # then choose a random state among the possible states with uniform probability
+        chosen_state = all_possible_states[
+            np.random.choice(len(all_possible_states))
+        ]
+        return chosen_state
 
-    def _get_random_parents_of_same_action(self, parents):
+    def _get_random_parents_of_same_action(self, parents, allowed_action):
         # function that will force uniqueness in parent-action pairs
         # if more than one parents can be reached using the same action, choose among the parent
         # return unique_parents
@@ -1511,7 +1507,12 @@ class Sequence(CompositeBase):
         chosen_right_parent = all_right_parents[
             np.random.choice(len(all_right_parents))
         ]
-        return [chosen_left_parent, chosen_right_parent]
+        if allowed_action=='right_only':
+            return [chosen_right_parent]
+        elif allowed_action=='left_only':
+            return [chosen_left_parent]
+        else:
+            return [chosen_left_parent, chosen_right_parent]
 
     def _enumerate_all_states_for_the_sequence(self, state, allowed_action="both"):
         """DONE and TESTED
@@ -1551,6 +1552,7 @@ class Sequence(CompositeBase):
             # then form the state based on the new_representaions
             for k in range(len(new_representations)):
                 new_state = copy(state)
+                new_dones = list(copy(new_state)["_dones"])
                 for ind in range(len(new_representations[k])):
                     new_state[new_representations[k][ind]] = copy(state)[
                         old_indices[ind]
@@ -1560,8 +1562,10 @@ class Sequence(CompositeBase):
                     ][
                         old_indices[ind]
                     ]  # this is correct
+                    new_dones[new_representations[k][ind]] = state["_dones"][old_indices[ind]]
                 new_state["_indices"] = new_representations[k]
                 new_state["_envs_unique"] = new_envs_unique
+                new_state["_dones"] = new_dones
                 # fix the active bool to the correct one based on the order of the indices
                 if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
                     if new_representations[k][0] < new_representations[k][-1]:
@@ -1571,4 +1575,4 @@ class Sequence(CompositeBase):
                 new_state_representations.append(copy(new_state))
             return new_state_representations
         else:
-            return state
+            return [state]
