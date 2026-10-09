@@ -118,7 +118,6 @@ class Sequence(CompositeBase):
         left_only: Optional[bool] = False,
         right_only: Optional[bool] = False,
         do_random_subenvs: Optional[bool] = False,
-        merge_representations: bool = False,
         **kwargs,
     ):
         """
@@ -153,7 +152,6 @@ class Sequence(CompositeBase):
         self.left_only = left_only
         self.right_only = right_only
         self.do_random_subenvs = do_random_subenvs
-        self.merge_states = merge_representations
 
         # Determine the unique environments
         if envs_unique is None:
@@ -911,10 +909,8 @@ class Sequence(CompositeBase):
 
                 # here insert other variations of the 1-step-backward-state that represents the same sequence
                 # merge states indicate if the states that can represent the same sequence will be enumerated
-                if (self.merge_states) and (len(self.state["_indices"]) > 1):
-                    new_state = self._get_random_equivalent_sequence(
-                        self.state, self.merge_states
-                    )
+                if len(self.state["_indices"]) > 1:
+                    new_state = self._get_random_equivalent_sequence(self.state)
                     # backward should also go to the new random representation of the same state
                     self.set_state(new_state, done=False)
                     # set the states of the subenv to map the correct subenv index 
@@ -1144,7 +1140,7 @@ class Sequence(CompositeBase):
             )
 
             # here we also recompute probabilities for states representing equivalent sequences
-            # if is_backward and self.merge_states:
+            # if is_backward:
             #     eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
             #     # filter out eos actions
             #     is_stochastic = torch.zeros_like(is_meta)
@@ -1459,22 +1455,18 @@ class Sequence(CompositeBase):
         else:
             return False
 
-    def _get_random_equivalent_sequence(self, state, merge_states=False):
+    def _get_random_equivalent_sequence(self, state):
         """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
-        if not merge_states:
-            # return the original state
+        # first get all the possible states
+        if len(state["_indices"]) < 2:
             return state
-        else:
-            # first get all the possible states
-            if len(state["_indices"]) < 2:
-                return state
-            all_possible_states = self._enumerate_all_states_for_the_sequence(state)
-            # then choose a random state among the possible states with uniform probability
-            chosen_state = all_possible_states[
-                np.random.choice(len(all_possible_states))
-            ]
-            return chosen_state
+        all_possible_states = self._enumerate_all_states_for_the_sequence(state)
+        # then choose a random state among the possible states with uniform probability
+        chosen_state = all_possible_states[
+            np.random.choice(len(all_possible_states))
+        ]
+        return chosen_state
 
     def _get_random_parents_of_same_action(self, parents):
         # function that will force uniqueness in parent-action pairs
