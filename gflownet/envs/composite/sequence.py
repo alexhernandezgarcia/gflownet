@@ -665,7 +665,13 @@ class Sequence(CompositeBase):
             #     key
             # ] = 0  # Re-active most recently inserted sub-environment
             # force both left and right as parents
-            parents = self._enumerate_all_states_for_the_sequence(state=parent)
+            if self.right_only:
+                allowed_action = 'right_only'
+            elif self.left_only:
+                allowed_action = 'left_only'
+            else:
+                allowed_action = 'both'
+            parents = self._enumerate_all_states_for_the_sequence(state=parent, allowed_action=allowed_action)
             # remove duplicated parents randomly
             if len(parents) >= 4:
                 parents = self._get_random_parents_of_same_action(parents)
@@ -884,10 +890,13 @@ class Sequence(CompositeBase):
         elif action[0] == -1:
             # consider the case for the toggle action which only happens if the active env is the meta env
             if self.state["_active"] == _ACTIVE_NONE:
+                if not skip_mask_check and not self._meta_action_is_valid(action, backward=True):
+                    return self.state, action, False
                 # activate the previous subenvironment from the action[1] and the direction action[2]
                 self.state["_active"] = (
                     _ACTIVE_LEFT if action[2] == _LEFT else _ACTIVE_RIGHT
                 )
+                self.n_actions += 1
             else:
                 # original backward actions
                 do_step, _, _ = self._pre_step(
@@ -910,7 +919,13 @@ class Sequence(CompositeBase):
                 # here insert other variations of the 1-step-backward-state that represents the same sequence
                 # merge states indicate if the states that can represent the same sequence will be enumerated
                 if len(self.state["_indices"]) > 1:
-                    new_state = self._get_random_equivalent_sequence(self.state)
+                    if self.left_only: 
+                        allowed_action = 'left_only'
+                    elif self.right_only:
+                        allowed_action = 'right_only'
+                    else: 
+                        allowed_action = 'both'
+                    new_state = self._get_random_equivalent_sequence(self.state, allowed_action=allowed_action)
                     # backward should also go to the new random representation of the same state
                     self.set_state(new_state, done=False)
                     # set the states of the subenv to map the correct subenv index 
@@ -1455,18 +1470,22 @@ class Sequence(CompositeBase):
         else:
             return False
 
-    def _get_random_equivalent_sequence(self, state):
+    def _get_random_equivalent_sequence(self, state, allowed_action='both'):
+        # allowed action can be 'both', 'left_only', 'right_only'
         """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
             return state
-        all_possible_states = self._enumerate_all_states_for_the_sequence(state)
-        # then choose a random state among the possible states with uniform probability
-        chosen_state = all_possible_states[
-            np.random.choice(len(all_possible_states))
-        ]
-        return chosen_state
+        if allowed_action == 'both':
+            all_possible_states = self._enumerate_all_states_for_the_sequence(state)
+        else:
+            all_possible_states = self._enumerate_all_states_for_the_sequence(state, allowed_action=allowed_action)
+            # then choose a random state among the possible states with uniform probability
+            chosen_state = all_possible_states[
+                np.random.choice(len(all_possible_states))
+            ]
+            return chosen_state
 
     def _get_random_parents_of_same_action(self, parents):
         # function that will force uniqueness in parent-action pairs
@@ -1486,7 +1505,7 @@ class Sequence(CompositeBase):
         ]
         return [chosen_left_parent, chosen_right_parent]
 
-    def _enumerate_all_states_for_the_sequence(self, state):
+    def _enumerate_all_states_for_the_sequence(self, state, allowed_action='both'):
         """DONE and TESTED
         input: state dict
         output: list of states
@@ -1504,41 +1523,44 @@ class Sequence(CompositeBase):
         # enumerate all the possible index order
         if n_indices < 2:
             return [state]
-        all_representations = [[0, 1], [1, 0]]  # initialize
-        # all_representations = [[0, 1]]  # initialize
-        for i in range(2, n_indices):
-            new_representations = []
-            for j in range(len(all_representations)):
-                # append in the left
-                new_representations.append([indices[i]] + all_representations[j])
-                # append in the right
-                new_representations.append(all_representations[j] + [indices[i]])
-            all_representations = new_representations
-        # now we have all the representations from the permutation of other subenvs
-        # but we didn't consider the case where
-        # (1) 2 subenvs are the same
-        # and (2) that multiple subenvs can be represented as a single subenv
-        new_representations = all_representations
-        new_state_representations = []
-        # then form the state based on the new_representaions
-        for k in range(len(new_representations)):
-            new_state = copy(state)
-            for ind in range(len(new_representations[k])):
-                new_state[new_representations[k][ind]] = copy(state)[
-                    old_indices[ind]
-                ]  # this is correct
-                new_envs_unique[new_representations[k][ind]] = copy(state)[
-                    "_envs_unique"
-                ][
-                    old_indices[ind]
-                ]  # this is correct
-            new_state["_indices"] = new_representations[k]
-            new_state["_envs_unique"] = new_envs_unique
-            # fix the active bool to the correct one based on the order of the indices
-            if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
-                if new_representations[k][0] < new_representations[k][-1]:
-                    new_state["_active"] = _ACTIVE_RIGHT
-                else:
-                    new_state["_active"] = _ACTIVE_LEFT
-            new_state_representations.append(copy(new_state))
-        return new_state_representations
+        if allowed_action=='both':
+            all_representations = [[0, 1], [1, 0]]  # initialize
+            # all_representations = [[0, 1]]  # initialize
+            for i in range(2, n_indices):
+                new_representations = []
+                for j in range(len(all_representations)):
+                    # append in the left
+                    new_representations.append([indices[i]] + all_representations[j])
+                    # append in the right
+                    new_representations.append(all_representations[j] + [indices[i]])
+                all_representations = new_representations
+            # now we have all the representations from the permutation of other subenvs
+            # but we didn't consider the case where
+            # (1) 2 subenvs are the same
+            # and (2) that multiple subenvs can be represented as a single subenv
+            new_representations = all_representations
+            new_state_representations = []
+            # then form the state based on the new_representaions
+            for k in range(len(new_representations)):
+                new_state = copy(state)
+                for ind in range(len(new_representations[k])):
+                    new_state[new_representations[k][ind]] = copy(state)[
+                        old_indices[ind]
+                    ]  # this is correct
+                    new_envs_unique[new_representations[k][ind]] = copy(state)[
+                        "_envs_unique"
+                    ][
+                        old_indices[ind]
+                    ]  # this is correct
+                new_state["_indices"] = new_representations[k]
+                new_state["_envs_unique"] = new_envs_unique
+                # fix the active bool to the correct one based on the order of the indices
+                if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+                    if new_representations[k][0] < new_representations[k][-1]:
+                        new_state["_active"] = _ACTIVE_RIGHT
+                    else:
+                        new_state["_active"] = _ACTIVE_LEFT
+                new_state_representations.append(copy(new_state))
+            return new_state_representations
+        else:
+            return state
