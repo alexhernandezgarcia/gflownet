@@ -196,7 +196,7 @@ class Sequence(CompositeBase):
 
         # Action dimensionality: the longest sub-environment EOS plus 1 (for the prefix)
         # add 2 as the minimum olength since we need (prefix, env_id, direction, padding)
-        self.action_dim = max([2]+[len(env.eos) for env in self.envs_unique]) + 1
+        self.action_dim = max([2] + [len(env.eos) for env in self.envs_unique]) + 1
 
         # The global EOS is a tuple of -1's
         self.eos = (-1,) * self.action_dim
@@ -666,12 +666,14 @@ class Sequence(CompositeBase):
             # ] = 0  # Re-active most recently inserted sub-environment
             # force both left and right as parents
             if self.right_only:
-                allowed_action = 'right_only'
+                allowed_action = "right_only"
             elif self.left_only:
-                allowed_action = 'left_only'
+                allowed_action = "left_only"
             else:
-                allowed_action = 'both'
-            parents = self._enumerate_all_states_for_the_sequence(state=parent, allowed_action=allowed_action)
+                allowed_action = "both"
+            parents = self._enumerate_all_states_for_the_sequence(
+                state=parent, allowed_action=allowed_action
+            )
             # remove duplicated parents randomly
             if len(parents) >= 4:
                 parents = self._get_random_parents_of_same_action(parents)
@@ -890,7 +892,9 @@ class Sequence(CompositeBase):
         elif action[0] == -1:
             # consider the case for the toggle action which only happens if the active env is the meta env
             if self.state["_active"] == _ACTIVE_NONE:
-                if not skip_mask_check and not self._meta_action_is_valid(action, backward=True):
+                if not skip_mask_check and not self._meta_action_is_valid(
+                    action, backward=True
+                ):
                     return self.state, action, False
                 # activate the previous subenvironment from the action[1] and the direction action[2]
                 self.state["_active"] = (
@@ -919,16 +923,18 @@ class Sequence(CompositeBase):
                 # here insert other variations of the 1-step-backward-state that represents the same sequence
                 # merge states indicate if the states that can represent the same sequence will be enumerated
                 if len(self.state["_indices"]) > 1:
-                    if self.left_only: 
-                        allowed_action = 'left_only'
+                    if self.left_only:
+                        allowed_action = "left_only"
                     elif self.right_only:
-                        allowed_action = 'right_only'
-                    else: 
-                        allowed_action = 'both'
-                    new_state = self._get_random_equivalent_sequence(self.state, allowed_action=allowed_action)
+                        allowed_action = "right_only"
+                    else:
+                        allowed_action = "both"
+                    new_state = self._get_random_equivalent_sequence(
+                        self.state, allowed_action=allowed_action
+                    )
                     # backward should also go to the new random representation of the same state
                     self.set_state(new_state, done=False)
-                    # set the states of the subenv to map the correct subenv index 
+                    # set the states of the subenv to map the correct subenv index
                     for k, sub in enumerate(self.subenvs):
                         sub.set_state(self.state[k], done=bool(self.state["_dones"][k]))
             return self.state, action, True
@@ -1119,10 +1125,10 @@ class Sequence(CompositeBase):
         for idx, state in enumerate(states):
             # n_unique = len(self._enumerate_all_states_for_the_sequence(state))
             n_indices = len(copy(state)["_indices"])
-            if n_indices <= 2: 
+            if n_indices <= 2:
                 n_unique = 1
             else:
-                n_unique = 2**(n_indices-2)
+                n_unique = 2 ** (n_indices - 2)
             logprobs[idx] = -torch.log(
                 tfloat(n_unique, device=self.device, float_type=self.float)
             )
@@ -1470,17 +1476,19 @@ class Sequence(CompositeBase):
         else:
             return False
 
-    def _get_random_equivalent_sequence(self, state, allowed_action='both'):
+    def _get_random_equivalent_sequence(self, state, allowed_action="both"):
         # allowed action can be 'both', 'left_only', 'right_only'
         """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
             return state
-        if allowed_action == 'both':
+        if allowed_action == "both":
             all_possible_states = self._enumerate_all_states_for_the_sequence(state)
         else:
-            all_possible_states = self._enumerate_all_states_for_the_sequence(state, allowed_action=allowed_action)
+            all_possible_states = self._enumerate_all_states_for_the_sequence(
+                state, allowed_action=allowed_action
+            )
             # then choose a random state among the possible states with uniform probability
             chosen_state = all_possible_states[
                 np.random.choice(len(all_possible_states))
@@ -1505,7 +1513,7 @@ class Sequence(CompositeBase):
         ]
         return [chosen_left_parent, chosen_right_parent]
 
-    def _enumerate_all_states_for_the_sequence(self, state, allowed_action='both'):
+    def _enumerate_all_states_for_the_sequence(self, state, allowed_action="both"):
         """DONE and TESTED
         input: state dict
         output: list of states
@@ -1523,7 +1531,7 @@ class Sequence(CompositeBase):
         # enumerate all the possible index order
         if n_indices < 2:
             return [state]
-        if allowed_action=='both':
+        if allowed_action == "both":
             all_representations = [[0, 1], [1, 0]]  # initialize
             # all_representations = [[0, 1]]  # initialize
             for i in range(2, n_indices):
