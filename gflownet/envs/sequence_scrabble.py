@@ -125,7 +125,7 @@ class SequenceScrabble(Sequence):
             envs_unique=tuple(subenvs),
             merge_representations=True,
             max_sequence_length=3,
-            right_only=True,
+            right_only=False,
             left_only=False,
             **kwargs,
         )
