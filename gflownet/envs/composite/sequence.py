@@ -818,6 +818,16 @@ class Sequence(CompositeBase):
                 direction = action[2]
                 idx_unique = action[1]
                 key = self._seq_length(self.state)
+                # before inserting the subenv, get a random representation of the state
+                # i hope this is correct
+                if len(self.state["_indices"]) > 1 and not (
+                    self.left_only or self.right_only
+                ):
+                    # new state (i hope it is always correct)
+                    new_state = self._get_random_equivalent_sequence(
+                        self.state, allowed_action="both"
+                    )
+                    self.set_state(new_state, done=False)
                 new_subenv = self._make_subenv_instance(idx_unique, key)
                 self.subenvs = list(self.subenvs) + [new_subenv]
                 self.state["_envs_unique"].append(idx_unique)
