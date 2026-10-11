@@ -798,16 +798,6 @@ class Sequence(CompositeBase):
                 return self.state, action, True
             # 1b: Insert sub-env
             if self.state["_active"] != _ACTIVE_NONE:
-                # now to mirror the randomization in the backward action, after toggle, we also randomize the state
-                # the thing unchecked here is that idk what is the action chosen, i just assumed that it is EOS always
-                if len(self.state["_indices"]) > 1 and not (
-                    self.left_only or self.right_only
-                ):
-                    # new state (i hope it is always correct)
-                    new_state = self._get_random_equivalent_sequence(
-                        self.state, allowed_action="both"
-                    )
-                    self.set_state(new_state, done=False)
                 # 1b1: Case: toggle action forward
                 # 2) [Step] next iter, it will choose the "toggle" action deterministically since it has no other choice
                 # to do the step, if active != 0 (in the state) then it means that it is a toggle action
