@@ -34,7 +34,7 @@ from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class BaseEvaluator(AbstractEvaluator):
-    def __init__(self, gfn_agent=None, **config):
+    def __init__(self, gfn_agent=None, reward_sampling_method="rejection", **config):
         """
         Base evaluator class for GFlowNetAgent.
 
@@ -55,6 +55,7 @@ class BaseEvaluator(AbstractEvaluator):
         details about other methods and attributes, including the
         :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
         """
+        self.reward_sampling_method = reward_sampling_method
         super().__init__(gfn_agent, **config)
 
     def define_new_metrics(self):
@@ -394,9 +395,9 @@ class BaseEvaluator(AbstractEvaluator):
         elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states(proxy=True)
+            x_sampled = self.gfn.env.states2kde(batch.get_terminating_states())
             # TODO make it work with conditional env
-            x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
+            x_tt = self.gfn.env.states2kde(x_tt)
             kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
                 kernel=self.config.kde.kernel,
@@ -407,8 +408,10 @@ class BaseEvaluator(AbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.gfn.env.states2proxy(
-                    self.gfn.sample_from_reward(n_samples=self.config.n)
+                x_from_reward = self.gfn.env.states2kde(
+                    self.gfn.sample_from_reward(
+                        n_samples=self.config.n, method=self.reward_sampling_method
+                    )
                 )
                 # Fit KDE with samples from reward
                 kde_true = self.gfn.env.fit_kde(
