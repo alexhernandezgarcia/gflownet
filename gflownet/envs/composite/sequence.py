@@ -532,8 +532,12 @@ class Sequence(CompositeBase):
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
             core = [True] * self.n_meta_actions
+            # backwards allow toggle of left or right
+            left_key, right_key = state["_indices"][0], state["_indices"][-1]
             # change subenvironment action as valid
-            core[self._insert_id(direction, idx_unique)] = False
+            core[self._insert_id(_LEFT, state["_envs_unique"][left_key])] = False
+            if length >= 2:
+                core[self._insert_id(_RIGHT, state["_envs_unique"][right_key])] = False
             # mask for the meta action
             mask = self._format_mask(core, -1)
             return mask
@@ -908,6 +912,15 @@ class Sequence(CompositeBase):
                     action, backward=True
                 ):
                     return self.state, action, False
+                # get another representatoin of the sequence from the left or right only
+                n = self._seq_length(self.state)
+                freeze_dir_ind = 0 if action[2] == _LEFT else -1
+                # only when the correct backward action is chosen
+                if self.state["_indices"][freeze_dir_ind] != n - 1:
+                    new_state = self._get_random_equivalent_sequence(
+                        self.state, allowed_action=allowed_action, freeze_direction=action[2]
+                    )
+                    self.set_state(new_state, done=False)
                 # activate the previous subenvironment from the action[1] and the direction action[2]
                 self.state["_active"] = (
                     _ACTIVE_LEFT if action[2] == _LEFT else _ACTIVE_RIGHT
@@ -1486,19 +1499,29 @@ class Sequence(CompositeBase):
         else:
             return False
 
-    def _get_random_equivalent_sequence(self, state, allowed_action="both"):
+    def _get_random_equivalent_sequence(self, state, allowed_action="both", freeze_direction=None):
         # allowed action can be 'both', 'left_only', 'right_only'
         """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
             return state
-        if allowed_action == "both":
-            all_possible_states = self._enumerate_all_states_for_the_sequence(state)
-        else:
-            all_possible_states = self._enumerate_all_states_for_the_sequence(
-                state, allowed_action=allowed_action
-            )
+        all_possible_states = self._enumerate_all_states_for_the_sequence(state, allowed_action=allowed_action)
+        # ok so here we add an option to "not touch" the last active direction 
+        if freeze_direction is not None: 
+            if freeze_direction==_LEFT:
+                # freeze the first index 
+                freeze_dir_index = 0 
+            elif freeze_direction==_RIGHT:
+                # get the last subenv
+                freeze_dir_index = -1
+            else:
+                print("freeze direction should be ", _LEFT, _RIGHT)
+            n = len(state["_indices"])
+            # filter state where the same direction is there
+            all_possible_states = [
+                s for s in all_possible_states if s["_indices"][freeze_dir_index] == n - 1
+            ]
         # then choose a random state among the possible states with uniform probability
         chosen_state = all_possible_states[np.random.choice(len(all_possible_states))]
         return chosen_state
