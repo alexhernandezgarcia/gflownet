@@ -924,7 +924,9 @@ class Sequence(CompositeBase):
                     else:
                         allowed_action = "both"
                     new_state = self._get_random_equivalent_sequence(
-                        self.state, allowed_action=allowed_action, freeze_direction=action[2]
+                        self.state,
+                        allowed_action=allowed_action,
+                        freeze_direction=action[2],
                     )
                     self.set_state(new_state, done=False)
                 # activate the previous subenvironment from the action[1] and the direction action[2]
@@ -1505,20 +1507,24 @@ class Sequence(CompositeBase):
         else:
             return False
 
-    def _get_random_equivalent_sequence(self, state, allowed_action="both", freeze_direction=None):
+    def _get_random_equivalent_sequence(
+        self, state, allowed_action="both", freeze_direction=None
+    ):
         # allowed action can be 'both', 'left_only', 'right_only'
         """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
             return state
-        all_possible_states = self._enumerate_all_states_for_the_sequence(state, allowed_action=allowed_action)
-        # ok so here we add an option to "not touch" the last active direction 
-        if freeze_direction is not None: 
-            if freeze_direction==_LEFT:
-                # freeze the first index 
-                freeze_dir_index = 0 
-            elif freeze_direction==_RIGHT:
+        all_possible_states = self._enumerate_all_states_for_the_sequence(
+            state, allowed_action=allowed_action
+        )
+        # ok so here we add an option to "not touch" the last active direction
+        if freeze_direction is not None:
+            if freeze_direction == _LEFT:
+                # freeze the first index
+                freeze_dir_index = 0
+            elif freeze_direction == _RIGHT:
                 # get the last subenv
                 freeze_dir_index = -1
             else:
@@ -1526,7 +1532,9 @@ class Sequence(CompositeBase):
             n = len(state["_indices"])
             # filter state where the same direction is there
             all_possible_states = [
-                s for s in all_possible_states if s["_indices"][freeze_dir_index] == n - 1
+                s
+                for s in all_possible_states
+                if s["_indices"][freeze_dir_index] == n - 1
             ]
         # then choose a random state among the possible states with uniform probability
         chosen_state = all_possible_states[np.random.choice(len(all_possible_states))]
