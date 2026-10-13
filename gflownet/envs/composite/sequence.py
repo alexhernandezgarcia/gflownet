@@ -532,12 +532,20 @@ class Sequence(CompositeBase):
             subenv = self._get_env_unique(idx_unique)
             substate = self._get_substate(state, key)
             core = [True] * self.n_meta_actions
-            # backwards allow toggle of left or right
+            # backwards allow toggle of left or right depending on right_only and left_only
             left_key, right_key = state["_indices"][0], state["_indices"][-1]
-            # change subenvironment action as valid
-            core[self._insert_id(_LEFT, state["_envs_unique"][left_key])] = False
+            if length == 1:
+                core[self._insert_id(_LEFT, state["_envs_unique"][left_key])] = False
             if length >= 2:
-                core[self._insert_id(_RIGHT, state["_envs_unique"][right_key])] = False
+                # unmask subenvironment action as valid but only the valid action
+                if not self.right_only:
+                    core[self._insert_id(_LEFT, state["_envs_unique"][left_key])] = (
+                        False
+                    )
+                if not self.left_only:
+                    core[self._insert_id(_RIGHT, state["_envs_unique"][right_key])] = (
+                        False
+                    )
             # mask for the meta action
             mask = self._format_mask(core, -1)
             return mask
