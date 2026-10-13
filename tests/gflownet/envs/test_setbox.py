@@ -127,7 +127,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             # fmt: off
             [
                 True, False, # ACTIVE SUBENV (Stack)
-                True, True, False, # MASK (Conditioning Grid)
+                False, True, True, # MASK (Conditioning Grid)
                 False, False, False, # PADDING
             ]
             # fmt: on
