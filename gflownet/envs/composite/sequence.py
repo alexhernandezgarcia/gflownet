@@ -33,8 +33,8 @@ self.state dict used
 
 Required:
 ``_envs_unique``: list of GFlowNetEnv objects (from initialization)
-``_active``: int -1/0
-    - value of -1 = composite or sequence level; 0 = subenvironment is active
+``_active``: int -1/0/1 
+    - value of -1 = left subenvironment is active; 1 = right subenvironment is active; 0 = meta/composite environment is active
 ``_dones``: list of int; 0/1 boolean done flag refering to the subenvironments
 ``_indices``: list of int;
     - refers to the order of the keys in the state
