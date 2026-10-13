@@ -9,6 +9,7 @@ defaults:
   - user: default
   - evaluator: base
   - buffer: base
+  - regularizer: none
 
 # Device
 device: cpu

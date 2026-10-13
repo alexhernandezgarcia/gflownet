@@ -1,0 +1,4 @@
+_target_: gflownet.regularizers.flowregularization.FlowRegularization
+
+gamma: 1.0 
+use_log: true
