@@ -1,5 +1,41 @@
 """
-Runnable script with hydra capabilities
+This script trains a GFlowNet with configuration handling based on Hydra.
+
+Example of use:
+
+Train a GFlowNet from scratch:
+
+.. code-block:: bash
+
+    python train.py arg1=value1 arg2=value2 ...
+
+Resume an interrupted run:
+
+.. code-block:: bash
+
+    python train.py rundir=path/to/logging/directory/
+
+Resume an interrupted run with different configuration, for example, more iterations:
+
+.. code-block:: bash
+
+    python train.py rundir=path/to/logging/directory/ gflownet.optimizer.n_train_steps=1000
+
+Note that resuming is only possible if model checkpoints are saved.
+
+The script implements functionality for an automatic resuming after a preemption in a SLURM-based cluster. In order
+to enable this, the initial slurm job should be submitted using a bash script analogous
+to `mila/sbatch/sbatch_example_preemption_handling.sh`. The key aspects facilitating preemption:
+1. Use partitions which allow for enough time to handle preemption. On Mila cluster it
+    is main-grace and long-grace
+2. Store the path to the bash script in a separate variable, e.g.
+    `SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"`
+3. Use `srun` (not `sbatch`) to submit the job inside the bash script
+4. Pass the path to the bash script using this argument `sbatch_script_path=$SCRIPT_PATH`
+5. Pass the path to the rundir using exactly this argument and exactly this
+    env variable: `rundir="${MY_RUN_DIR:-null}"`
+6. Submit the script itself using sbatch, e.g.
+`sbatch mila/sbatch/sbatch_example_preemption_handling.sh +experiments=conformer/ctorus_sanity user=$USER logger.do.online=true`
 """
 
 import os
