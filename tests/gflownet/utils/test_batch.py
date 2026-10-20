@@ -1970,6 +1970,31 @@ def test__get_proxy_values__single_env_returns_expected_non_terminating(
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
+def test__get_terminating_proxy_values__single_env_returns_expected(
+    env, proxy, batch, request
+):
+    env = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    proxy.setup(env)
+    env = env.reset()
+    batch.set_env(env)
+    batch.set_proxy(proxy)
+
+    # Add a random trajectory to the batch
+    while not env.done:
+        _, action, valid = env.step_random()
+        batch.add_to_batch([env], [action], [None], [None], [valid])
+
+    # The proxy values are not computed yet
+    proxy_values_batch = batch.get_terminating_proxy_values()
+    assert torch.allclose(proxy_values_batch, proxy(env.state2proxy()))
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+)
 def test__get_logrewards__single_env_returns_expected_non_terminating(
     env, proxy, batch, request
 ):
