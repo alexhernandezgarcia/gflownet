@@ -100,6 +100,38 @@ class BaseEvaluator(AbstractEvaluator):
                 "display_name": "BS Std(logp) / NLL",
                 "requirements": ["log_probs"],
             },
+            "on_policy_rewards_mean": {
+                "display_name": "On-policy samples - rewards mean",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_rewards_max": {
+                "display_name": "On-policy samples - rewards max",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_logrewards_mean": {
+                "display_name": "On-policy samples - logrewards mean",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_logrewards_max": {
+                "display_name": "On-policy samples - logrewards max",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_scores_mean": {
+                "display_name": "On-policy samples - scores mean",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_scores_min": {
+                "display_name": "On-policy samples - scores min",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_scores_max": {
+                "display_name": "On-policy samples - scores max",
+                "requirements": ["on_policy"],
+            },
+            "on_policy_unique_fraction": {
+                "display_name": "On-policy samples - fraction of unique samples",
+                "requirements": ["on_policy"],
+            },
         }
 
     # TODO: this method will most likely crash if used (top_k_period != -1) because
@@ -328,6 +360,79 @@ class BaseEvaluator(AbstractEvaluator):
             "data": lp_data,
         }
 
+    @torch.no_grad()
+    def compute_on_policy_metrics(self, metrics=None):
+        """
+        Compute metrics from samples of the current GFlowNet, sampled on-policy, that
+        is without random actions. These metrics do not need a test set.
+
+        Known metrics:
+
+        - ``on_policy_rewards_mean``: Mean of the rewards.
+        - ``on_policy_rewards_max``: Maximum of the rewards.
+        - ``on_policy_logrewards_mean``: Mean of the log-rewards.
+        - ``on_policy_logrewards_max``: Maximum of the log-rewards.
+        - ``on_policy_scores_mean``: Mean of the proxy values.
+        - ``on_policy_scores_min``: Minimum of the proxy values.
+        - ``on_policy_scores_max``: Maximum of the proxy values.
+        - ``on_policy_unique_fraction``: Fraction of unique samples.
+
+        Parameters
+        ----------
+        metrics : List[str], optional
+            List of metrics to compute, by default ``None`` i.e. the evaluator's
+            ``self.metrics``
+
+        Returns
+        -------
+        dict
+            Computed dict of metrics and data as
+            ``{"metrics": {str: float}, "data": {str: object}}``.
+        """
+        metrics = self.make_metrics(metrics)
+
+        # train=False: no random actions
+        batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
+        assert batch.is_valid()
+        # The batch from sample_batch() has no proxy
+        batch.set_proxy(self.gfn.proxy)
+        x_sampled = batch.get_terminating_states()
+        logrewards = batch.get_terminating_rewards(log=True)
+        # Avoid calling the proxy twice
+        rewards = torch.exp(logrewards)
+        proxy_vals = batch.get_terminating_proxy_values()
+
+        op_metrics = {}
+        if "on_policy_rewards_mean" in metrics:
+            op_metrics["on_policy_rewards_mean"] = rewards.mean().item()
+
+        if "on_policy_rewards_max" in metrics:
+            op_metrics["on_policy_rewards_max"] = rewards.max().item()
+
+        if "on_policy_logrewards_mean" in metrics:
+            op_metrics["on_policy_logrewards_mean"] = logrewards.mean().item()
+
+        if "on_policy_logrewards_max" in metrics:
+            op_metrics["on_policy_logrewards_max"] = logrewards.max().item()
+
+        if "on_policy_scores_mean" in metrics:
+            op_metrics["on_policy_scores_mean"] = proxy_vals.mean().item()
+
+        if "on_policy_scores_min" in metrics:
+            op_metrics["on_policy_scores_min"] = proxy_vals.min().item()
+
+        if "on_policy_scores_max" in metrics:
+            op_metrics["on_policy_scores_max"] = proxy_vals.max().item()
+
+        if "on_policy_unique_fraction" in metrics:
+            n_unique = len(set(self.gfn.env.state2readable(x) for x in x_sampled))
+            op_metrics["on_policy_unique_fraction"] = n_unique / len(x_sampled)
+
+        return {
+            "metrics": op_metrics,
+            "data": {},
+        }
+
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
         """
         Compute density metrics for the given test data.
@@ -504,21 +609,27 @@ class BaseEvaluator(AbstractEvaluator):
         """
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
+        all_data = {}
+        all_metrics = {}
+
+        # On-policy metrics do not need a test set
+        if "on_policy" in reqs:
+            op_results = self.compute_on_policy_metrics(metrics=metrics)
+            all_metrics.update(op_results.get("metrics", {}))
+            all_data.update(op_results.get("data", {}))
 
         if "test" not in self.gfn.buffers or self.gfn.buffers.test.test is None:
+            for k in metrics:
+                if k not in all_metrics:
+                    all_metrics[k] = getattr(self.gfn, k, None)
             return {
-                "metrics": {
-                    k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
-                    for k in metrics
-                },
-                "data": {},
+                "metrics": all_metrics,
+                "data": all_data,
             }
 
         with open(self.gfn.buffers.test.test_config.pkl, "rb") as f:
             dict_tt = pickle.load(f)
         x_tt = self.gfn.buffers.test.test.samples.values.tolist()
-        all_data = {}
-        all_metrics = {}
 
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
