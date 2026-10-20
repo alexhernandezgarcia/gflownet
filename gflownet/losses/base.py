@@ -234,7 +234,9 @@ class BaseLoss(metaclass=ABCMeta):
         """
         losses = self.compute_losses_of_batch(batch)
         if get_sublosses:
-            return self.aggregate_losses_of_batch(losses, batch)
+            losses_dict = self.aggregate_losses_of_batch(losses, batch)
+            losses_dict["units"] = losses
+            return losses_dict
         else:
             return losses.mean()
 

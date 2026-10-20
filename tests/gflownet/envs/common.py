@@ -914,7 +914,10 @@ class BaseTestsDiscrete(BaseTestsCommon):
                     # Catch the special case where the actions produce permutations in
                     # the resulting state: keep calculating parents until a match is
                     # found or the maximum number of attempts is reached
-                    if any(self.env.action_produces_permutation(a) for a in parents_a):
+                    if any(
+                        self.env.action_produces_permutation(a, is_backward=True)
+                        for a in parents_a
+                    ):
                         match_found = False
                         max_attempts = 10000
                         count = 0

@@ -26,6 +26,7 @@ from gflownet.utils.common import (
     tbool,
     tfloat,
     tlong,
+    torch2np,
 )
 
 CMAP = mpl.colormaps["cividis"]
@@ -81,7 +82,6 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
 
     @abstractmethod
     def get_action_space(self):
@@ -89,6 +89,21 @@ class GFlowNetEnv:
         Constructs list with all possible actions (excluding end of sequence)
         """
         pass
+
+    @property
+    def policy_input_dim(self) -> int:
+        """
+        Returns the dimensionality of the policy representation of the states.
+
+        Returns
+        -------
+        int
+            The dimensionality of the policy representation of the states, which is
+            the input to the policy models.
+        """
+        if not hasattr(self, "_policy_input_dim"):
+            self._policy_input_dim = len(self.state2policy())
+        return self._policy_input_dim
 
     @property
     def action_space_dim(self) -> int:
@@ -1052,6 +1067,15 @@ class GFlowNetEnv:
         Converts a trajectory into a human-readable string.
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
+
+    def states2kde(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> Union[List, npt.NDArray, TensorType["batch", "kde_dim"]]:
+        """
+        Converts a batch of states into a batch of states suitable for the KDE computations.
+        """
+        states_kde = self.states2proxy(states)
+        return torch2np(states_kde)
 
     def reset(self, env_id: Union[int, str] = None):
         """
