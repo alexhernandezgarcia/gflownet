@@ -32,16 +32,19 @@ To write documentation or test your changes, you'll want to **build the document
 
 **Install documentation dependencies:**
 
+The documentation dependencies are included in the `dev` extras:
+
 .. code-block:: bash
 
-    pip install -r docs/requirements-docs.txt
+    python -m pip install .[dev]
 
 **Build the documentation:**
 
+The documentation can be build from directory `./docs` with `make html`:
+
 .. code-block:: bash
 
-    cd docs/
-    make html
+    make -C docs/ html
 
 **View the documentation:**
 
@@ -52,10 +55,8 @@ Open the generated ``docs/_build/html/index.html`` file in your browser:
     # On most systems:
     open docs/_build/html/index.html
     
-    # Or use a simple HTTP server:
-    cd docs/_build/html
-    python -m http.server 8000
-    # Then visit http://localhost:8000
+    # Or run a simple HTTP server and visit http://localhost:8000:
+    python -m http.server 8000 --directory docs/_build/html
 
 .. note::
 
@@ -202,7 +203,6 @@ FAQ
     - `Sphinx Math Dollar <https://www.sympy.org/sphinx-math-dollar/>`_ enables the ``$...$`` math syntax
     - `Sphinx autodoc type ints <https://github.com/tox-dev/sphinx-autodoc-typehints>`_ enables more fine-grained control on how types are displayed in the docs
     - `MyST <https://myst-parser.readthedocs.io/en/latest/intro.html>`_ enables the parsing of enhanced Markdown syntax in the ``.rst`` documentation.
-    - `Hover X Ref <https://sphinx-hoverxref.readthedocs.io/en/latest/index.html>`_ Enables tooltips to display contents on the hover of links
     - `Napoleon <https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html>`_ enables the parsing of Google-style docstrings
 
 .. _about shpinx:
