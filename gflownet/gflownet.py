@@ -1060,6 +1060,7 @@ class GFlowNetAgent:
 
             t0_iter = time.time()
             is_s3gfn = getattr(self.loss, "uses_s3gfn_aux", False)
+            # TODO: flag of using s3gfn loss
             batch = Batch(
                 env=self.env,
                 proxy=self.proxy,
@@ -1081,7 +1082,9 @@ class GFlowNetAgent:
                 if not all([torch.isfinite(loss) for loss in losses.values()]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
-                else:
+                # else:
+                # TODO: filter out empty online updates
+                elif losses["all"].requires_grad:
                     losses["all"].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
@@ -1090,6 +1093,8 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
+            # TODO: losses for s3gfn. 1. not filtering negative samples during online training
+            # 2. step twice for online and replay
             if is_s3gfn:
                 replay_losses = self._s3gfn_replay_update()
                 losses = {
@@ -1152,20 +1157,42 @@ class GFlowNetAgent:
         else:
             rewards_list = rewards
 
+        # Check validity before splitting
+        if hasattr(self.env, "check_validity"):
+            valid = self.env.check_validity(states)
+        else:
+            valid = [True] * len(states)
+
         positives = [
             (state, traj, reward)
-            for state, traj, reward, is_feasible in zip(
-                states, trajectories, rewards_list, feasible
+            for state, traj, reward, is_valid, is_feasible in zip(
+                states, trajectories, rewards_list, valid, feasible
             )
-            if is_feasible
+            if is_valid and is_feasible
         ]
+
         negatives = [
             (state, traj, reward)
-            for state, traj, reward, is_feasible in zip(
-                states, trajectories, rewards_list, feasible
+            for state, traj, reward, is_valid, is_feasible in zip(
+                states, trajectories, rewards_list, valid, feasible
             )
-            if not is_feasible
+            if is_valid and not is_feasible
         ]
+
+        # positives = [
+        #     (state, traj, reward)
+        #     for state, traj, reward, is_feasible in zip(
+        #         states, trajectories, rewards_list, feasible
+        #     )
+        #     if is_feasible
+        # ]
+        # negatives = [
+        #     (state, traj, reward)
+        #     for state, traj, reward, is_feasible in zip(
+        #         states, trajectories, rewards_list, feasible
+        #     )
+        #     if not is_feasible
+        # ]
 
         if positives:
             pos_states, pos_trajs, pos_rewards = zip(*positives)
@@ -1327,7 +1354,8 @@ class GFlowNetAgent:
 
             # Log replay buffer rewards
             if self.buffer.replay_updated:
-                rewards_replay = self.buffer.replay.rewards
+                rewards_replay = self.buffer.replay.rewards.to_numpy(dtype=np.float64)
+                # rewards_replay = self.buffer.replay.rewards
                 self.logger.log_rewards_and_scores(
                     rewards_replay,
                     np.log(rewards_replay),

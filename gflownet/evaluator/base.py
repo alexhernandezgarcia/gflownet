@@ -608,6 +608,18 @@ class BaseEvaluator(AbstractEvaluator):
                 **plot_kwargs,
             )
 
+        fig_categorical_reward_samples = None
+
+        if hasattr(self.gfn.env, "plot_categorical_reward_samples"):
+            fig_categorical_reward_samples = (
+                self.gfn.env.plot_categorical_reward_samples(
+                    x_sampled,
+                    sample_space_batch,
+                    rewards_sample_space,
+                    **plot_kwargs,
+                )
+            )
+
         if hasattr(self.gfn.env, "plot_kde"):
             sample_space_batch, _ = self.gfn.get_sample_space_and_reward()
             if kde_pred is not None:
@@ -661,4 +673,5 @@ class BaseEvaluator(AbstractEvaluator):
             "Reward KDE": fig_kde_true,
             "Samples TopK": fig_samples_topk,
             "Scatterplot Rewards vs. Probs": fig_scatter_rewards_probs,
+            "Categorical reward samples": fig_categorical_reward_samples,
         }

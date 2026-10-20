@@ -706,7 +706,8 @@ class BaseBuffer:
                     f"Data set does not contain reward(s) or score(s) key. "
                     "Cannot sample in weighted mode."
                 )
-            scores = df[score].values
+            # scores = df[score].values
+            scores = df[score].to_numpy(dtype=np.float64)
 
             # Turn scores into probabilities
             if np.any(scores < 0):

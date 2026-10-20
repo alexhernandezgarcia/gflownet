@@ -26,6 +26,19 @@ class S3TrajectoryBalance(TrajectoryBalance):
 
     def compute(self, batch: Batch, get_sublosses: bool = False):
         losses = self.compute_losses_of_batch(batch)
+
+        # #TODO: Filter out infeasible states
+        states = batch.get_terminating_states(sort_by="trajectory")
+        feasible = batch.readonly_env.check_feasibility(states)
+        mask = torch.as_tensor(feasible, dtype=torch.bool, device=losses.device)
+        losses = losses[mask]
+
+        # TODO: When there are no feasible states, return 0
+        if losses.numel() == 0:
+            zero = losses.new_zeros(())
+            result = {"tb": zero, "all": zero}
+            return result if get_sublosses else zero
+
         aggregated = self.aggregate_losses_of_batch(losses, batch)
         if get_sublosses:
             return aggregated
