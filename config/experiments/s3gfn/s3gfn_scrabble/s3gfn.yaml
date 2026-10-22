@@ -10,10 +10,10 @@ defaults:
 
 buffers:
   replay_reward:
-    replay_capacity: 20
+    replay_capacity: 100
     reject_duplicate_trajectories: true
   replay_negative:
-    replay_capacity: 20
+    replay_capacity: 100
     reject_duplicate_trajectories: true
   test:
     test:
@@ -40,13 +40,13 @@ gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size:
-      forward: 10
-      backward_replay_reward: 5
+      forward: 100
+      backward_replay_reward: 20
       backward_dataset: 0
-    lr: 0.001
-    z_dim: 8
+    lr: 0.0001
+    z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 200
+    n_train_steps: 5000
   replay_sampling: weighted
 
 policy:
@@ -72,11 +72,11 @@ logger:
 
 evaluator:
   first_it: True
-  period: 25
-  n: 100
-  checkpoints_period: 50
+  period: 500
+  n: 1000
+  checkpoints_period: 500
 
-n_samples: 50
+n_samples: 1000
 
 hydra:
   run:
