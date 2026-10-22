@@ -8,7 +8,7 @@ defined as in Figure 2 of the GFlowNet Foundations paper, Bengio et al (JMLR, 20
 """
 
 import random
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import torch.nn.functional as F
 from torchtyping import TensorType
@@ -72,8 +72,12 @@ class Toy(GFlowNetEnv):
             10: (-1,),
         },
         action_space_only_valid: bool = True,
+        infeasible_states: Optional[List[Union[int, str, List[int]]]] = None,
         **kwargs,
     ):
+        self.infeasible_states = {
+            self._parse_state_idx(state) for state in infeasible_states or []
+        }
         # Convert the iterable with the target states in connections into a tuple for
         # efficiency
         self.connections = {k: tuple(v) for k, v in connections.items()}
@@ -296,6 +300,24 @@ class Toy(GFlowNetEnv):
         A state in environment format.
         """
         return [int(readable.strip("s"))]
+
+    def check_feasibility(self, states: List[List[int]]) -> List[bool]:
+        """
+        Labels toy states as feasible according to optional state-index constraints.
+        """
+        if self.infeasible_states:
+            return [state[0] not in self.infeasible_states for state in states]
+        return [True] * len(states)
+
+    @staticmethod
+    def _parse_state_idx(state: Union[int, str, List[int], Tuple[int]]) -> int:
+        if isinstance(state, int):
+            return state
+        if isinstance(state, str):
+            return int(state.strip().lstrip("s"))
+        if isinstance(state, (list, tuple)) and len(state) == 1:
+            return int(state[0])
+        raise ValueError(f"Could not parse toy state identifier: {state}")
 
     def get_all_terminating_states(self) -> List[List[int]]:
         """

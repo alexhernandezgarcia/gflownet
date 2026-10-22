@@ -53,6 +53,7 @@ class BaseBuffer:
         test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
+        reject_duplicate_trajectories: bool = False,
         diversity_check_value_similarity: float = 0.1,
         progress_process_dataset: bool = False,
         **kwargs,
@@ -134,6 +135,7 @@ class BaseBuffer:
         self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
         self.check_diversity = check_diversity
+        self.reject_duplicate_trajectories = reject_duplicate_trajectories
         self.diversity_check_value_similarity = diversity_check_value_similarity
         self.progress_process_dataset = progress_process_dataset
         if self.use_main_buffer:
@@ -142,6 +144,7 @@ class BaseBuffer:
             )
         else:
             self.main = None
+        self.buffer_name = kwargs.get("buffer_name")
         self.replay, self.replay_csv = self.init_replay(replay_buffer)
         self.replay_updated = False
         self.save_replay()
@@ -230,7 +233,8 @@ class BaseBuffer:
                     "trajectories_readable",
                 ],
             )
-            replay_csv = self.datadir / f"replay_{self.replay_criterion}.csv"
+            name = self.buffer_name or self.replay_criterion
+            replay_csv = self.datadir / f"replay_{name}.csv"
 
         return replay, replay_csv
 
@@ -298,11 +302,16 @@ class BaseBuffer:
             Iteration number.
         buffer : str
             Identifier of the buffer: main or replay
+        criterion : str
+            Identifier of the replay insertion criterion. Options: greater, fifo.
         """
         if self.replay_criterion.startswith("reward"):
-            if torch.is_tensor(rewards):
-                values = rewards.tolist()
-                do_update = False
+            values = (
+                rewards.tolist()
+                if torch.is_tensor(rewards)
+                else list(rewards)
+            )
+            do_update = False
         elif self.replay_criterion.startswith("loss") and torch.is_tensor(losses):
             if torch.is_tensor(losses):
                 values = losses.detach().tolist()
@@ -334,9 +343,15 @@ class BaseBuffer:
         elif buffer == "replay":
             if self.replay_capacity > 0:
                 self.replay_updated = False
-                self.replay = self._add_greater(
-                    samples, trajectories, values, do_update, it
-                )
+                if criterion == "greater":
+                    self.replay = self._add_greater(samples, trajectories, values, do_update, it)
+                elif criterion == "fifo":
+                    self.replay = self._add_fifo(samples, trajectories, values, it)
+                else:
+                    raise ValueError(
+                        f"Unknown criterion identifier. Received {criterion}, "
+                        "expected greater or fifo"
+                    )
         else:
             raise ValueError(
                 f"Unknown buffer identifier. Received {buffer}, expected main or replay"
@@ -385,6 +400,58 @@ class BaseBuffer:
         self.save_replay()
         return self.replay
 
+    def _add_fifo(
+        self,
+        samples: List,
+        trajectories: List,
+        rewards: List,
+        it: int,
+    ):
+        """
+        Adds a batch of samples to the replay buffer in FIFO order.
+
+        New samples are appended until the replay capacity is reached. Once full, the
+        oldest sample is evicted before appending the next sample.
+        """
+        for sample, traj, reward in zip(samples, trajectories, rewards):
+            self._add_fifo_single_sample(sample, traj, reward, it)
+        self.save_replay()
+        return self.replay
+
+    def _add_fifo_single_sample(self, sample, trajectory, reward, it):
+        """
+        Adds one sample to replay with first-in first-out eviction.
+        """
+        if self._has_duplicate_trajectory(trajectory):
+            return
+
+        if len(self.replay) >= self.replay_capacity:
+            self.replay.drop(self.replay.index[0], inplace=True)
+
+        self.replay_updated = True
+        if torch.is_tensor(sample):
+            sample = sample.tolist()
+        if torch.is_tensor(trajectory):
+            trajectory = trajectory.tolist()
+        if torch.is_tensor(reward):
+            reward = reward.item()
+        self.replay = pd.concat(
+            [
+                self.replay,
+                pd.DataFrame(
+                    {
+                        "samples": [sample],
+                        "trajectories": [trajectory],
+                        "values": [reward],
+                        "iter": [it],
+                        "samples_readable": [self.env.state2readable(sample)],
+                        "trajectories_readable": [self.env.traj2readable(trajectory)],
+                    }
+                ),
+            ],
+            ignore_index=True,
+        )
+
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
     def _add_greater_single_sample(self, sample, trajectory, value, it):
@@ -410,7 +477,10 @@ class BaseBuffer:
         -------
         self.replay : The updated replay buffer
         """
-        # If the buffer is not full, sample can be added to the buffer. Otherwise,
+        if self._has_duplicate_trajectory(trajectory):
+            return
+
+        # If the buffer is not full, sample can be added to the buffer
         # initialize to False for now.
         if len(self.replay) < self.replay_capacity:
             can_add = True
@@ -475,6 +545,21 @@ class BaseBuffer:
             ignore_index=True,
         )
 
+    def _has_duplicate_trajectory(self, trajectory) -> bool:
+        if not self.reject_duplicate_trajectories:
+            return False
+        trajectory = self._canonicalize_trajectory(trajectory)
+        for replay_trajectory in self.replay["trajectories"]:
+            if self._canonicalize_trajectory(replay_trajectory) == trajectory:
+                return True
+        return False
+
+    def _canonicalize_trajectory(self, trajectory):
+        if torch.is_tensor(trajectory):
+            trajectory = trajectory.tolist()
+        if isinstance(trajectory, (list, tuple)):
+            return tuple(self._canonicalize_trajectory(item) for item in trajectory)
+        return trajectory
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
     def _add_greater_update_single_sample(self, sample, trajectory, value, it) -> bool:
@@ -738,7 +823,8 @@ class BaseBuffer:
                     f"Data set does not contain values, reward(s) or score(s) key. "
                     "Cannot sample in weighted mode."
                 )
-            scores = df[score].values
+            # scores = df[score].values
+            scores = df[score].to_numpy(dtype=np.float64)
 
             # Turn scores into probabilities
             if np.any(scores < 0):

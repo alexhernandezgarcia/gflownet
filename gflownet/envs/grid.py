@@ -61,6 +61,7 @@ class Grid(GFlowNetEnv):
         max_dim_per_action: int = 1,
         cell_min: float = -1,
         cell_max: float = 1,
+        infeasible_states: Optional[List[List[int]]] = None,
         **kwargs,
     ):
         assert n_dim > 0
@@ -78,6 +79,10 @@ class Grid(GFlowNetEnv):
         self.source = [0 for _ in range(self.n_dim)]
         # End-of-sequence action
         self.eos = tuple([0 for _ in range(self.n_dim)])
+        # Infeasible states
+        self.infeasible_states = {
+            tuple(state) for state in (infeasible_states or [])
+        }
         # Base class init
         super().__init__(**kwargs)
 
@@ -283,12 +288,14 @@ class Grid(GFlowNetEnv):
         """
         # Generic pre-step checks
         do_step, self.state, action = self._pre_step(
-            action, skip_mask_check or self.skip_mask_check
+            action, 
+            skip_mask_check = skip_mask_check or self.skip_mask_check
         )
         if not do_step:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
+        #TODO: redundant check?
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
@@ -414,7 +421,101 @@ class Grid(GFlowNetEnv):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("top", size="5%", pad=0.05)
         ax.set_xticks(np.arange(start=0, stop=img.shape[0], step=step_ticks))
-        ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        # TODO: fix this
+        # ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        ticks = np.arange(0, img.shape[1], step_ticks)
+        ax.set_yticks(ticks, labels=img.shape[1] - 1 - ticks)
         cax.set_title(title)
         plt.colorbar(ax_img, cax=cax, orientation="horizontal")
         cax.xaxis.set_ticks_position("top")
+
+    def check_feasibility(self, states: List[List[int]]) -> List[bool]:
+        return [
+            tuple(state) not in self.infeasible_states
+            for state in states
+        ]
+
+    def plot_categorical_reward_samples(
+        self,
+        samples,
+        samples_reward,
+        rewards,
+        dpi: int = 150,
+        **kwargs,
+    ):
+        samples = torch2np(samples)
+        rewards = torch2np(rewards).reshape(-1)
+
+        #get all states
+        states = self.get_all_terminating_states()
+        assert len(states) == len(rewards)
+
+        # compute state probabilities from samples
+        state_to_idx = {
+            tuple(state): idx for idx, state in enumerate(states)
+        }
+        counts = np.zeros(len(states), dtype=float)
+
+        for sample in samples:
+            state = tuple(np.asarray(sample).astype(int).tolist())
+            if state in state_to_idx:
+                counts[state_to_idx[state]] += 1
+
+        sample_probs = counts / max(counts.sum(), 1.0)
+
+        # compute reward probabilities from categorical distribution
+        reward_sum = rewards.sum()
+        if reward_sum > 0:
+            reward_probs = rewards / reward_sum
+        else:
+            reward_probs = np.zeros_like(rewards)
+
+        feasible = self.check_feasibility(states)
+
+        # plot
+        x = np.arange(len(states))
+        width = 0.4
+
+        fig, ax = plt.subplots(
+            figsize=(max(8, 0.55 * len(states)), 4.5),
+            dpi=dpi,
+        )
+
+        ax.bar(
+            x - width / 2,
+            reward_probs,
+            width,
+            label="Reward",
+        )
+        ax.bar(
+            x + width / 2,
+            sample_probs,
+            width,
+            label="Samples",
+        )
+
+        # highlight infeasible states
+        for idx, is_feasible in enumerate(feasible):
+            if not is_feasible:
+                ax.axvspan(
+                    idx - 0.5,
+                    idx + 0.5,
+                    color="red",
+                    alpha=0.12,
+                )
+
+        labels = [self.state2readable(state) for state in states]
+        ax.set_xticks(x, labels=labels, rotation=60, ha="right")
+
+        for label, is_feasible in zip(ax.get_xticklabels(), feasible):
+            if not is_feasible:
+                label.set_color("red")
+                label.set_fontweight("bold")
+
+        ax.set_xlabel("Terminal state")
+        ax.set_ylabel("Probability")
+        ax.set_title("Reward vs. sampled categorical distribution")
+        ax.legend()
+
+        fig.tight_layout()
+        return fig

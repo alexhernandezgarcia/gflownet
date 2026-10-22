@@ -1,0 +1,82 @@
+# @package _global_
+# Toy TB baseline with reward-prioritized replay enabled.
+
+defaults:
+  - override /env: grid
+  - override /gflownet: trajectorybalance
+  - override /loss: s3gfn
+  # - override /loss: trajectorybalance
+  - override /proxy: box/corners
+  - override /logger: wandb
+
+buffers:
+  replay_reward:
+    replay_capacity: 100
+    reject_duplicate_trajectories: true
+  replay_negative:
+    replay_capacity: 100
+    reject_duplicate_trajectories: true
+  test:
+    test:
+      type: all
+
+env:
+  n_dim: 2
+  length: 10
+  infeasible_states:
+    - [2, 1]
+    - [2, 3]
+    - [1, 7]
+    - [8, 8]
+  # n_dim: 3
+  # length: 3
+  # infeasible_states:
+  #   - [1, 1, 1]
+  #   - [2, 2, 2]
+  #   - [1, 2, 0]
+
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_replay_reward: 20
+      backward_dataset: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+  replay_sampling: weighted
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 64
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+logger:
+  do:
+    online: False
+  lightweight: False
+  project_name: "s3gfn_grid"
+  run_name: "Grid TB replay"
+  tags:
+    - gflownet
+    - s3gfn
+    - grid
+    - tb
+    - replay
+
+evaluator:
+  first_it: True
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+n_samples: 1000
+
+hydra:
+  run:
+    dir: ${user.logdir.root}/s3gfn_grid/s3gfn/${now:%Y-%m-%d_%H-%M-%S_%f}

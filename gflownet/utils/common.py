@@ -301,6 +301,7 @@ def gflownet_from_config(config, env=None):
                 env=env,
                 proxy=proxy,
                 datadir=logger.datadir,
+                buffer_name=buffer_name
             )
     else:
         # This enables backward compatibility with previous config files that do not define a

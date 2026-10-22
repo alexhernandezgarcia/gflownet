@@ -73,6 +73,7 @@ class Scrabble(GFlowNetEnv):
         letters: Iterable = None,
         max_length: int = 7,
         pad_token: str = "0",
+        infeasible_states: Optional[List[str]] = None,
         **kwargs,
     ):
         # Main attributes
@@ -93,6 +94,11 @@ class Scrabble(GFlowNetEnv):
         self.source = [self.pad_idx] * self.max_length
         # End-of-sequence action
         self.eos = (self.eos_idx,)
+        # Infeasible states
+        self.infeasible_states = {
+            tuple(self.token2idx[token] for token in pattern)
+            for pattern in (infeasible_states or [])
+        }
         # Base class init
         super().__init__(**kwargs)
 
@@ -398,3 +404,19 @@ class Scrabble(GFlowNetEnv):
             return state.index(self.pad_idx)
         else:
             return len(state)
+
+    def check_feasibility(self, states: List[List[int]]) -> List[bool]:
+        results = []
+
+        for state in states:
+            tokens = self._unpad(state)
+
+            infeasible = any(
+                tuple(tokens[i : i + len(pattern)]) == pattern
+                for pattern in self.infeasible_states
+                for i in range(len(tokens) - len(pattern) + 1)
+            )
+
+            results.append(not infeasible)
+
+        return results

@@ -88,6 +88,7 @@ class GFlowNetAgent:
             - ``"test"``: A test set for evaluation.
             - ``"replay_reward"``: A replay buffer based on the reward values.
             - ``"replay_loss"``: A replay buffer based on the loss values.
+            - ``"replay_negative": A replay buffer for in-feasible samples.
         forward_policy : gflownet.policy.base.Policy
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
@@ -897,6 +898,113 @@ class GFlowNetAgent:
 
         return batch, times
 
+    def _build_backward_batch_from_replay(
+        self,
+        replay,
+        n_samples: int,
+        sampling_mode: str,
+        replay_buffer,
+        env_instances: List[GFlowNetEnv],
+        env_cond: Optional[GFlowNetEnv] = None,
+        train: bool = True,
+    ):
+        batch_replay = Batch(
+            env=self.env,
+            proxy=self.proxy,
+            device=self.device,
+            float_type=self.float,
+            collect_forwards_masks=True,
+            collect_backwards_masks=self.collect_backwards_masks,
+        )
+        if n_samples <= 0 or replay is None or len(replay) == 0:
+            return batch_replay
+
+        envs = [env_instances.pop().reset(idx) for idx in range(n_samples)]
+        x_replay = replay_buffer.select(
+            replay,
+            n_samples,
+            sampling_mode,
+            self.rng,
+        )["samples"].values.tolist()
+        for env, x in zip(envs, x_replay):
+            env.set_state(x, done=True)
+
+        while envs:
+            actions, logprobs, logprobs_rev = self.sample_actions(
+                envs,
+                batch_replay,
+                env_cond,
+                backward=True,
+                no_random=not train,
+                compute_reversed_logprobs=self.collect_reversed_logprobs,
+            )
+            envs, actions, valids = self.step(envs, actions, backward=True)
+            batch_replay.add_to_batch(
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
+            )
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        return batch_replay
+
+    def _s3gfn_replay_update(self):
+        zero = torch.zeros((), device=self.device, dtype=self.float)
+        losses = {
+            "replay_tb": zero,
+            "aux": zero,
+            "all": zero,
+        }
+        n_aux = self.batch_size.backward_replay_reward
+        if (
+              n_aux <= 0
+              or "replay_reward" not in self.buffers
+              or "replay_negative" not in self.buffers
+              or self.buffers.replay_reward.replay is None
+              or self.buffers.replay_negative.replay is None
+              or len(self.buffers.replay_reward.replay) == 0
+              or len(self.buffers.replay_negative.replay) == 0
+          ):
+              return losses
+
+        env_instances = [self.env_maker() for _ in range(2 * n_aux)]
+        batch_pos = self._build_backward_batch_from_replay(
+            self.buffers.replay_reward.replay,
+            n_aux,
+            self.replay_sampling,
+            self.buffers.replay_reward,
+            env_instances,
+        )
+        batch_neg = self._build_backward_batch_from_replay(
+            self.buffers.replay_negative.replay,
+            n_aux,
+            "uniform",
+            self.buffers.replay_negative,
+            env_instances,
+        )
+        if len(batch_pos) == 0 or len(batch_neg) == 0:
+            return losses
+
+        losses = self.loss.compute_replay_loss(batch_pos, batch_neg)
+        if not all([torch.isfinite(loss) for loss in losses.values()]):
+            if self.logger.debug:
+                print("S3GFN replay loss is not finite - skipping replay update")
+            return {
+                "replay_tb": zero,
+                "aux": zero,
+                "all": zero,
+            }
+        losses["all"].backward()
+        if self.clip_grad_norm > 0:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), self.clip_grad_norm)
+        self.opt.step()
+        self.lr_scheduler.step()
+        self.opt.zero_grad()
+        return losses
+
     @torch.no_grad()
     def estimate_logprobs_data(
         self,
@@ -1137,6 +1245,8 @@ class GFlowNetAgent:
                 self.evaluator.eval_and_log_top_k(self.it)
 
             t0_iter = time.time()
+            is_s3gfn = getattr(self.loss, "uses_s3gfn_aux", False)
+            # TODO: flag of using s3gfn loss
             batch = Batch(
                 env=self.env,
                 proxy=self.proxy,
@@ -1147,8 +1257,14 @@ class GFlowNetAgent:
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
                     n_train=self.batch_size.backward_dataset,
-                    n_replay_reward=self.batch_size.backward_replay_reward,
-                    n_replay_loss=self.batch_size.backward_replay_loss,
+                    n_replay_reward=(
+                        0 if is_s3gfn
+                        else self.batch_size.backward_replay_reward
+                    ),
+                    n_replay_loss=(
+                        0 if is_s3gfn
+                        else self.batch_size.backward_replay_loss
+                    ),
                     collect_forwards_masks=True,
                     collect_backwards_masks=self.collect_backwards_masks,
                 )
@@ -1159,7 +1275,9 @@ class GFlowNetAgent:
                 if not torch.isfinite(losses["all"]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
-                else:
+                # else:
+                # TODO: filter out empty online updates
+                elif losses["all"].requires_grad:
                     losses["all"].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
@@ -1168,6 +1286,16 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
+            # TODO: losses for s3gfn. 1. not filtering negative samples during online training
+            # 2. step twice for online and replay
+            if is_s3gfn:
+                replay_losses = self._s3gfn_replay_update()
+                losses = {
+                    "tb": losses["all"],
+                    "replay_tb": replay_losses["replay_tb"],
+                    "aux": replay_losses["aux"],
+                    "all": losses["all"] + replay_losses["all"],
+                }
 
             # Log training iteration: progress bar, buffers, metrics, intermediate
             # models
@@ -1209,6 +1337,78 @@ class GFlowNetAgent:
         # Close logger
         if self.use_context is False:
             self.logger.end()
+
+    def _add_split_replay(self, states, trajectories, rewards, feasible):
+        """
+        Adds feasible samples to the main replay buffer and infeasible samples to the
+        optional negative replay buffer.
+        """
+        self.buffers.replay_reward.replay_updated = False
+        self.buffers.replay_negative.replay_updated = False
+        if torch.is_tensor(rewards):
+            rewards_list = rewards.tolist()
+        else:
+            rewards_list = rewards
+
+        # Check validity before splitting
+        if hasattr(self.env, "check_validity"):
+            valid = self.env.check_validity(states)
+        else:
+            valid = [True] * len(states)
+
+        positives = [
+            (state, traj, reward)
+            for state, traj, reward, is_valid, is_feasible in zip(
+                states, trajectories, rewards_list, valid, feasible
+            )
+            if is_valid and is_feasible
+        ]
+
+        negatives = [
+            (state, traj, reward)
+            for state, traj, reward, is_valid, is_feasible in zip(
+                states, trajectories, rewards_list, valid, feasible
+            )
+            if is_valid and not is_feasible
+        ]
+
+        # positives = [
+        #     (state, traj, reward)
+        #     for state, traj, reward, is_feasible in zip(
+        #         states, trajectories, rewards_list, feasible
+        #     )
+        #     if is_feasible
+        # ]
+        # negatives = [
+        #     (state, traj, reward)
+        #     for state, traj, reward, is_feasible in zip(
+        #         states, trajectories, rewards_list, feasible
+        #     )
+        #     if not is_feasible
+        # ]
+
+        if positives:
+            pos_states, pos_trajs, pos_rewards = zip(*positives)
+            self.buffers.replay_reward.add(
+                list(pos_states),
+                list(pos_trajs),
+                list(pos_rewards),
+                None,
+                self.it,
+                buffer="replay",
+                criterion="greater",
+            )
+        if negatives:
+            neg_states, neg_trajs, neg_rewards = zip(*negatives)
+            self.buffers.replay_negative.add(
+                list(neg_states),
+                list(neg_trajs),
+                list(neg_rewards),
+                None,
+                self.it,
+                buffer="replay",
+                criterion="fifo",
+            )
 
     @torch.no_grad()
     def log_train_iteration(self, pbar: tqdm, losses: List, batch: Batch, times: dict):
@@ -1264,12 +1464,21 @@ class GFlowNetAgent:
                 states_term,
                 actions_trajectories,
                 rewards,
+                None,
                 self.it,
                 buffer="main",
             )
 
         # Update reward replay buffer
-        if "replay_reward" in self.buffers:
+        if "replay_negative" in self.buffers:
+            feasible = self.env.check_feasibility(states_term)
+            self._add_split_replay(
+                states_term,
+                actions_trajectories,
+                rewards,
+                feasible,
+            )
+        elif "replay_reward" in self.buffers:
             self.buffers.replay_reward.add(
                 states_term,
                 actions_trajectories,
@@ -1355,7 +1564,7 @@ class GFlowNetAgent:
                 "replay_reward" in self.buffers
                 and self.buffers.replay_reward.replay_updated
             ):
-                values_replay = self.buffers.replay_reward.replay["values"].values
+                values_replay = self.buffers.replay_reward.replay["values"].to_numpy(dtype=np.float64)
                 self.logger.log_rewards_and_scores(
                     values_replay,
                     np.log(values_replay),
@@ -1368,7 +1577,7 @@ class GFlowNetAgent:
                 "replay_loss" in self.buffers
                 and self.buffers.replay_loss.replay_updated
             ):
-                values_replay = self.buffers.replay_loss.replay["values"].values
+                values_replay = self.buffers.replay_loss.replay["values"].to_numpy(dtype=np.float64)
                 self.logger.log_min_max_mean(
                     values_replay,
                     step=self.it,
