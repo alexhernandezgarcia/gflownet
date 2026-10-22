@@ -6,6 +6,7 @@ from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import torch
 from numpy import array
 from omegaconf import OmegaConf
@@ -250,6 +251,37 @@ class Logger:
 
         self.log_metrics(metrics, step=step, use_context=use_context)
 
+    def log_min_max_mean(
+        self,
+        values: Union[npt.NDArray, TensorType["n_samples"]],
+        step: int,
+        prefix: str,
+        use_context: bool = True,
+    ):
+        """
+        Logs the minimum, maximum and mean of the values passed as arguments.
+
+        Parameters
+        ----------
+        values : tensor
+            Values corresponding to batch of states.
+        step : int
+            The training iteration number.
+        prefix : str
+            Prefix to be added to the metric names.
+        use_context : bool
+            If True, prepend self.context + / to the key of the metric.
+        """
+        if not self.do.online:
+            return
+
+        metrics = {
+            f"{prefix} min": values.min(),
+            f"{prefix} max": values.max(),
+            f"{prefix} mean": values.mean(),
+        }
+        self.log_metrics(metrics, step=step, use_context=use_context)
+
     def log_metrics(
         self,
         metrics: dict,
@@ -294,7 +326,7 @@ class Logger:
         state_flow,
         logZ,
         optimizer,
-        buffer,
+        buffers,
         step: int,
         final: bool = False,
     ):
@@ -336,20 +368,32 @@ class Logger:
             logZ_ckpt = None
 
         # Buffer
-        buffer_ckpt = {
+        buffers_ckpt = {
             "train": None,
             "test": None,
-            "replay": None,
+            "replay_reward": None,
+            "replay_loss": None,
         }
-        if hasattr(buffer, "train") and buffer.train is not None:
-            if hasattr(buffer.train_config, "pkl") and buffer.train_config.pkl:
-                buffer_ckpt["train"] = str(buffer.train_config.pkl)
-        if hasattr(buffer, "test") and buffer.test is not None:
-            if hasattr(buffer.test_config, "pkl") and buffer.test_config.pkl:
-                buffer_ckpt["test"] = str(buffer.test_config.pkl)
-        if hasattr(buffer, "replay") and len(buffer.replay) > 0:
-            if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
-                buffer_ckpt["replay"] = str(buffer.replay_csv)
+        if "train" in buffers:
+            buffer = buffers.train
+            if hasattr(buffer, "train") and buffer.train is not None:
+                if hasattr(buffer.train_config, "pkl") and buffer.train_config.pkl:
+                    buffers_ckpt["train"] = str(buffer.train_config.pkl)
+        if "test" in buffers:
+            buffer = buffers.test
+            if hasattr(buffer, "test") and buffer.test is not None:
+                if hasattr(buffer.test_config, "pkl") and buffer.test_config.pkl:
+                    buffers_ckpt["test"] = str(buffer.test_config.pkl)
+        if "replay_reward" in buffers:
+            buffer = buffers.replay_reward
+            if hasattr(buffer, "replay") and len(buffer.replay) > 0:
+                if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
+                    buffers_ckpt["replay_reward"] = str(buffer.replay_csv)
+        if "replay_loss" in buffers:
+            buffer = buffers.replay_loss
+            if hasattr(buffer, "replay") and len(buffer.replay) > 0:
+                if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
+                    buffers_ckpt["replay_loss"] = str(buffer.replay_csv)
 
         # WandB run ID
         if self.do.online:
@@ -364,7 +408,7 @@ class Logger:
             "state_flow": state_flow_ckpt,
             "logZ": logZ_ckpt,
             "optimizer": optimizer.state_dict(),
-            "buffer": buffer_ckpt,
+            "buffers": buffers_ckpt,
             "run_id": run_id_ckpt,
         }
         torch.save(checkpoint, ckpt_path)

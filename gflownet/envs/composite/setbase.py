@@ -324,6 +324,8 @@ class BaseSet(CompositeBase):
             )
         return action_space
 
+    # TODO: Currently returns True for backward actions that "deactivate" the
+    # sub-environment, but permutation is not done for those.
     def action_produces_permutation(
         self, action: Tuple, is_backward: bool = False
     ) -> bool:
@@ -357,7 +359,7 @@ class BaseSet(CompositeBase):
         """
         if (
             not self.can_alternate_subenvs
-            and not is_backward
+            and is_backward
             and action[0] == -1
             and action != self.eos
         ):
@@ -1117,11 +1119,113 @@ class BaseSet(CompositeBase):
 
         return parents, actions
 
+    def _get_unique_substates(
+        self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
+    ) -> Tuple[Dict, int]:
+        """
+        Determines which sub-states of a unique environment are unique.
+
+        Each substate of a unique environment is compared against the other substates
+        of the corresponing environment. If a substate has been already matched to
+        another one, the comparison is skipped.
+
+        Parameters
+        ----------
+        idx_unique : int
+            The index of the unique environment type whose substates should be
+            compared.
+        state : dict
+            A state of the Set environment. If None, self.state is used.
+        done_only : bool
+            Whether to compare only the done sub-environments.
+
+        Returns
+        -------
+        unique_substates : list
+            A list containing the correspondences between substates, indicated by an
+            integer. All substates of a different unique environment than the queried
+            one are set to -1. For the substates of the queried environment, each
+            unique substate is assigned an arbitrary index, starting from 0, such that
+            all identical substates are assigned the same index. If ``done_only`` is
+            True, all non-done substates are assigned -1, even if they correspond to
+            the queried environment.
+        """
+        unique_indices = self._get_unique_indices(state)
+        dones = self._get_dones(state)
+        n_substates = len(unique_indices)
+        if done_only:
+            dones = self._get_dones(state)
+        else:
+            dones = [True] * n_substates
+
+        # Find relevant substates and initialize output list
+        unique_substates = [-1] * n_substates
+        indices_relevant = []
+        offset = 0
+        for idx, (idx_u, done) in enumerate(zip(unique_indices, dones)):
+            if idx_u == idx_unique and done:
+                indices_relevant.append(idx)
+                unique_substates[idx] = offset
+                offset += 1
+        n_relevant = len(indices_relevant)
+
+        # If there are less than two relevant states, return immediately
+        if n_relevant < 2:
+            return unique_substates
+
+        # Collect substates of done instances
+        substates = [self._get_substate(state, idx) for idx in indices_relevant]
+
+        # Compare all relevant sub-states:
+        # - We compare each substate with the other substates except with itself
+        # - If a substate has been already matched to another one, we skip the
+        # comparison
+        # - If two states are found to be equal, we assign them the same identity
+        # indices
+        matched_substates = [False] * n_substates
+        for idx_x, substate_x in zip(indices_relevant, substates):
+            for idx_y, substate_y in zip(indices_relevant, substates):
+                # Skip if the indices of both substates are the same
+                if idx_x == idx_y:
+                    continue
+                # Skip if the substates have already been matched to another state
+                if matched_substates[idx_x] or matched_substates[idx_y]:
+                    continue
+                # If a match is found, set the index of new match to the index of the
+                # first reference.
+                # If substates are dictionaries and have the key "_keys", compare
+                # using the Set's equal(). Otherwise, use the parent's equal().
+                if (
+                    type(substate_x) == dict
+                    and "_keys" in substate_x
+                    and type(substate_y) == dict
+                    and "_keys" in substate_y
+                ):
+                    substate_match = self.equal(substate_x, substate_y)
+                else:
+                    substate_match = GFlowNetEnv.equal(substate_x, substate_y)
+                if substate_match:
+                    unique_substates[idx_y] = unique_substates[idx_x]
+                    matched_substates[idx_y] = True
+            matched_substates[idx_x] = True
+
+        return unique_substates
+
     def _permute_substates(
         self, idx_unique: int, state: Optional[Dict] = None, done_only: bool = True
     ) -> Tuple[Dict, int]:
         """
         Permutes the sub-states of a given unique environment.
+
+        This method does not perform a full permutation. Since actions always take
+        place on the last substate, only the last substate is swapped with another
+        substate. Furthermore, if the state contains identical substates, these are
+        considered only once in the permutation. Concretely, the permutation consists
+        of the following steps:
+            1. Identify the unique substates corresponding to the relevant unique
+            environment.
+            2. Among the unique substates, one of the them is selected randomly.
+            3. The selected substate is swapped with the current last state.
 
         The permutation is reflected only in the list stored in the key ``_keys`` of
         the dictionary, which contains the actual keys where the states are stored.
@@ -1129,8 +1233,8 @@ class BaseSet(CompositeBase):
         sub-states.
 
         If ``done_only`` is True (default), then only the done sub-environments are
-        permuted.  Otherwise, all sub-environments of the specified unique environment
-        are permuted.
+        considered in the permutation. Otherwise, all sub-environments of the specified
+        unique environment are considered.
 
         Parameters
         ----------
@@ -1147,41 +1251,40 @@ class BaseSet(CompositeBase):
         state : dict
             The updated state
         indices_relevant : int
-            The indices of the relevant elements whose keys are permuted, which
-            correspond to the indices of the specified type and (if ``done_only`` is
-            True) are also done. Note that the returned indices are the actual indices
-            and not the substate keys. These indices are not permuted.
+            The indices of the relevant elements, which correspond to the indices of
+            the specified type and (if ``done_only`` is True) are also done. Note that
+            the returned indices are the actual indices and not the substate keys.
+            These indices are not permuted.
         """
-        state = self._get_state(state)
-        unique_indices = self._get_unique_indices(state)
         keys = self._get_keys(state)
-        if done_only:
-            dones = self._get_dones(state)
-        else:
-            dones = [True] * len(keys)
+        unique_substates = self._get_unique_substates(idx_unique, state, done_only)
 
-        # Find all done sub-environments of the relevant unique environment
-        indices_relevant, keys_to_permute = zip(
-            *[
-                (idx, key)
-                for idx, (idx_u, key, done) in enumerate(
-                    zip(unique_indices, keys, dones)
-                )
-                if idx_u == idx_unique and done
-            ]
-        )
+        # Determine the relevant keys
+        indices_relevant = []
+        indices_to_permute = []
+        indices_unique_processed = []
+        for idx, idx_u in enumerate(unique_substates):
+            if idx_u == -1:
+                continue
+            indices_relevant.append(idx)
+            if idx_u in indices_unique_processed:
+                continue
+            indices_to_permute.append(idx)
+            indices_unique_processed.append(idx_u)
 
-        # If there are not any indices to permute, return immediately
-        if len(indices_relevant) <= 1:
+        # If there are not any keys to permute, return immediately
+        if len(indices_to_permute) < 2:
             return state, indices_relevant
 
-        # Permute relevant keys and update keys of state
-        keys_to_permute = list(keys_to_permute)
-        random.shuffle(keys_to_permute)
-        for idx, key in zip(indices_relevant, keys_to_permute):
-            keys[idx] = key
+        # Permute indices and update keys of state
+        idx_selected = random.choice(indices_to_permute)
+        idx_last = indices_relevant[-1]
+        if idx_selected == idx_last:
+            return state, indices_relevant
+        key_selected = keys[idx_selected]
+        keys[idx_selected] = keys[idx_last]
+        keys[idx_last] = key_selected
         state = self._set_keys(keys, state)
-
         return state, indices_relevant
 
     def sample_actions_batch(
@@ -1331,21 +1434,30 @@ class BaseSet(CompositeBase):
                 is_backward,
             )
             # Apply permutation correction for backward toggle actions with a
-            # stochastic component (not EOS, not when can_alternate_subenvs is True)
+            # stochastic component (not EOS and from inactive state and not when
+            # can_alternate_subenvs is True)
             if is_backward and not self.can_alternate_subenvs:
                 eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+                # First selection: Actions are stochastic if they are set actions and
+                # not EOS
                 is_stochastic = torch.zeros_like(is_set)
                 is_stochastic[is_set] = torch.any(actions[is_set] != eos_tensor, dim=1)
+                # Refined selection: Actions are stochastic only if they are from an
+                # inactive state
+                states_stochastic = []
+                for idx, (state, iss) in enumerate(zip(states_from, is_stochastic)):
+                    if not iss:
+                        continue
+                    if self._get_active_subenv(state) == -1:
+                        states_stochastic.append(state)
+                    else:
+                        is_stochastic[idx] = False
                 if any(is_stochastic):
                     logprobs_set[
                         is_stochastic[is_set]
-                    ] -= self._get_logprobs_of_permutations(
+                    ] += self._get_logprobs_of_permutations(
                         actions[is_stochastic],
-                        [
-                            state
-                            for state, do_keep in zip(states_from, is_stochastic)
-                            if do_keep
-                        ],
+                        states_stochastic,
                     )
 
         # Get the active sub-environment of each mask from the one-hot prefix
@@ -1420,13 +1532,9 @@ class BaseSet(CompositeBase):
         probability. In order to correctly assign the transition probabilities, we need
         to calculate the log-probability of these transitions.
 
-        If all substates involved in the permutation are identical, the probability of
-        the transition is one. Otherwise, the log-probability is $-\log(P)$, where $P$
-        is the number of permutations. If all substates involved in the permutation are
-        different, the number of permutations is equal to $n!$, where $n$ is the number
-        of substates. However, if there exist subsets of the states that are identical,
-        the number of permutations is equal to $n! / (m_1! * m_2! * \ldots)$, where
-        $m_i$ are the multiplicities of identical subsets of substates.
+        Since only the last relevant substate is randomly swapped with one of the other
+        unique relevant substate, the number of permutations is equal to the number of
+        unique relevant states, $n$. Therefore, the log probability is $-log(n)$.
 
         Parameters
         ----------
@@ -1450,74 +1558,19 @@ class BaseSet(CompositeBase):
             # Get the unique environment index from the toggle action
             idx_unique = action[1]
 
-            # Get unique indices and done flags from state
-            unique_indices = self._get_unique_indices(state)
-            dones = self._get_dones(state)
-
-            # Find all done instances of this unique environment type
-            indices_relevant = [
-                idx
-                for idx, (idx_u, done) in enumerate(zip(unique_indices, dones))
-                if idx_u == idx_unique and done
-            ]
-            n_done = len(indices_relevant)
-
-            # No correction needed if fewer than 2 done instances
-            if n_done <= 1:
-                continue
-
-            # Collect substates of done instances
-            substates = [self._get_substate(state, idx) for idx in indices_relevant]
-
-            # Count multiplicities of each substate:
-            # - All substates are initialized to present once
-            # - We compare each substate with the other substates except with itself
-            # - If a substate has been already matched to another one, we skip the
-            # comparison
-            # - If two states are found to be equal, we increase by one the
-            # multiplicity of the first one and set to zero the multiplicity of the
-            # second one
-            multiplicities = [1] * n_done
-            matched_substates = [False] * n_done
-            for idx_x, substate_x in enumerate(substates):
-                for idx_y, substate_y in enumerate(substates):
-                    # Skip if the indices of both substates are the same
-                    if idx_x == idx_y:
-                        continue
-                    # Skip if the substates have already been matched to another state
-                    if matched_substates[idx_x] or matched_substates[idx_y]:
-                        continue
-                    # If a match is found, increase the multiplicity of the first
-                    # substate and set to zero the multiplicity of the second one
-                    # If substates are dictionaries and have the key "_keys", compare
-                    # using the Set's equal(). Otherwise, use the parent's equal().
-                    if (
-                        type(substate_x) == dict
-                        and "_keys" in substate_x
-                        and type(substate_y) == dict
-                        and "_keys" in substate_y
-                    ):
-                        substate_match = self.equal(substate_x, substate_y)
-                    else:
-                        substate_match = GFlowNetEnv.equal(substate_x, substate_y)
-                    if substate_match:
-                        multiplicities[idx_x] += 1
-                        multiplicities[idx_y] = 0
-                        matched_substates[idx_y] = True
-                matched_substates[idx_x] = True
-
-            # Compute number of unique permutations: n! / (m1! * m2! * ...)
-            # In log space: log(n!) - sum(log(mi!))
-            log_n_factorial = torch.lgamma(
-                torch.tensor(n_done + 1, dtype=self.float, device=self.device)
+            # Get unique substates
+            unique_substates = self._get_unique_substates(
+                idx_unique, state, done_only=True
             )
-            multiplicities = torch.tensor(
-                multiplicities, dtype=self.float, device=self.device
+
+            # Get number of unique states
+            unique_substates = tlong(unique_substates, device=self.device)
+            unique_substates = unique_substates[unique_substates != -1]
+            n_unique = torch.unique(unique_substates).shape[0]
+
+            logprobs[idx] = -torch.log(
+                tfloat(n_unique, device=self.device, float_type=self.float)
             )
-            multiplicities = multiplicities[multiplicities > 0]
-            multiplicities += 1
-            log_denominator = torch.sum(torch.lgamma(multiplicities))
-            logprobs[idx] = log_n_factorial - log_denominator
 
         return logprobs
 

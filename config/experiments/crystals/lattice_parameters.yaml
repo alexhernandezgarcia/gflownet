@@ -28,7 +28,7 @@ gflownet:
     batch_size:
       forward: 90
       backward_dataset: 0
-      backward_replay: 10
+      backward_replay_reward: 10
     lr: 0.001
     z_dim: 16
     lr_z_mult: 100

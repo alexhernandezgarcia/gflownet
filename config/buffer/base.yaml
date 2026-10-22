@@ -2,6 +2,7 @@ _target_: gflownet.buffer.base.BaseBuffer
 
 replay_buffer: null
 replay_capacity: 0
+replay_criterion: "reward"
 
 # Train and test data
 # Both train and test are dictionaries with the following keys:
@@ -42,7 +43,7 @@ reject_duplicate_trajectories: False
 # respect to R(x) is smaller than diversity_check_reward_similarity times the
 # difference between the maximum reward and the minimum reward in the replay
 # buffer.
-diversity_check_reward_similarity: 0.1
+diversity_check_value_similarity: 0.1
 
 # Whether to show a progress bar while processing the data sets. False by default.
 progress_process_dataset: False

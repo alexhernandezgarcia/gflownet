@@ -1,0 +1,75 @@
+# @package _global_
+# Toy TB baseline with reward-prioritized replay enabled.
+
+defaults:
+  - override /env: toy
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: toy
+  - override /logger: wandb
+
+buffer:
+  replay_capacity: 20
+  reject_duplicate_trajectories: false
+  test:
+    type: all
+
+negative_buffer:
+  _target_: gflownet.buffer.base.BaseBuffer
+  replay_capacity: 20
+  reject_duplicate_trajectories: false
+  train:
+    type: null
+  test:
+    type: null
+
+env:
+  infeasible_states:
+    - s3
+    - s4
+
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay: 5
+      backward_dataset: 0
+    lr: 0.001
+    z_dim: 8
+    lr_z_mult: 100
+    n_train_steps: 50
+  replay_sampling: permutation
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 64
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "s3gfn_toy"
+  run_name: "Toy TB replay"
+  tags:
+    - gflownet
+    - s3gfn
+    - toy
+    - tb
+    - replay
+
+evaluator:
+  first_it: True
+  period: 25
+  n: 100
+  checkpoints_period: 50
+
+n_samples: 50
+
+hydra:
+  run:
+    dir: ${user.logdir.root}/s3gfn_toy/tb_replay/${now:%Y-%m-%d_%H-%M-%S_%f}

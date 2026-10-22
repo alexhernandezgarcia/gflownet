@@ -34,7 +34,7 @@ from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class BaseEvaluator(AbstractEvaluator):
-    def __init__(self, gfn_agent=None, **config):
+    def __init__(self, gfn_agent=None, reward_sampling_method="rejection", **config):
         """
         Base evaluator class for GFlowNetAgent.
 
@@ -55,6 +55,7 @@ class BaseEvaluator(AbstractEvaluator):
         details about other methods and attributes, including the
         :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
         """
+        self.reward_sampling_method = reward_sampling_method
         super().__init__(gfn_agent, **config)
 
     def define_new_metrics(self):
@@ -367,7 +368,7 @@ class BaseEvaluator(AbstractEvaluator):
 
         x_sampled = density_true = density_pred = None
 
-        if self.gfn.buffer.test_config.type == "all":
+        if self.gfn.buffers.test.test_config.type == "all":
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
@@ -388,7 +389,7 @@ class BaseEvaluator(AbstractEvaluator):
                 else:
                     density_true = rewards / z_true
                     if not has_infeasible:
-                        with open(self.gfn.buffer.test_config.pkl, "wb") as f:
+                        with open(self.gfn.buffers.test.test_config.pkl, "wb") as f:
                             dict_tt["density_true"] = density_true
                             pickle.dump(dict_tt, f)
             hist = defaultdict(int)
@@ -402,9 +403,9 @@ class BaseEvaluator(AbstractEvaluator):
         elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states(proxy=True)
+            x_sampled = self.gfn.env.states2kde(batch.get_terminating_states())
             # TODO make it work with conditional env
-            x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
+            x_tt = self.gfn.env.states2kde(x_tt)
             kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
                 kernel=self.config.kde.kernel,
@@ -415,8 +416,10 @@ class BaseEvaluator(AbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.gfn.env.states2proxy(
-                    self.gfn.sample_from_reward(n_samples=self.config.n)
+                x_from_reward = self.gfn.env.states2kde(
+                    self.gfn.sample_from_reward(
+                        n_samples=self.config.n, method=self.reward_sampling_method
+                    )
                 )
                 # Fit KDE with samples from reward
                 kde_true = self.gfn.env.fit_kde(
@@ -429,7 +432,7 @@ class BaseEvaluator(AbstractEvaluator):
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true and kde_true to pickled test dict
-                with open(self.gfn.buffer.test_config.pkl, "wb") as f:
+                with open(self.gfn.buffers.test.test_config.pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
                     dict_tt["kde_true"] = kde_true
                     pickle.dump(dict_tt, f)
@@ -510,7 +513,7 @@ class BaseEvaluator(AbstractEvaluator):
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if self.gfn.buffer.test is None:
+        if "test" not in self.gfn.buffers or self.gfn.buffers.test.test is None:
             return {
                 "metrics": {
                     k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
@@ -519,9 +522,9 @@ class BaseEvaluator(AbstractEvaluator):
                 "data": {},
             }
 
-        with open(self.gfn.buffer.test_config.pkl, "rb") as f:
+        with open(self.gfn.buffers.test.test_config.pkl, "rb") as f:
             dict_tt = pickle.load(f)
-        x_tt = self.gfn.buffer.test.samples.values.tolist()
+        x_tt = self.gfn.buffers.test.test.samples.values.tolist()
         all_data = {}
         all_metrics = {}
 

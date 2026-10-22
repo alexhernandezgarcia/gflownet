@@ -1,0 +1,83 @@
+# @package _global_
+# Toy TB baseline with reward-prioritized replay enabled.
+
+defaults:
+  - override /env: scrabble
+  - override /gflownet: trajectorybalance
+  - override /loss: s3gfn
+  - override /proxy: scrabble
+  - override /logger: wandb
+
+buffers:
+  replay_reward:
+    replay_capacity: 20
+    reject_duplicate_trajectories: true
+  replay_negative:
+    replay_capacity: 20
+    reject_duplicate_trajectories: true
+  test:
+    test:
+      type: all
+
+env:
+  max_length: 7
+  infeasible_states:
+    - "YY"
+  # infeasible_states:
+  #   - [1, 1]
+  #   - [2, 2]
+  # n_dim: 3
+  # length: 3
+  # infeasible_states:
+  #   - [1, 1, 1]
+  #   - [2, 2, 2]
+  #   - [1, 2, 0]
+
+# proxy:
+#   vocabulary_check: True
+
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 10
+      backward_replay_reward: 5
+      backward_dataset: 0
+    lr: 0.001
+    z_dim: 8
+    lr_z_mult: 100
+    n_train_steps: 200
+  replay_sampling: weighted
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 64
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+logger:
+  do:
+    online: False
+  lightweight: False
+  project_name: "s3gfn_scrabble"
+  run_name: "scrabble TB replay"
+  tags:
+    - gflownet
+    - s3gfn
+    - scrabble
+    - tb
+    - replay
+
+evaluator:
+  first_it: True
+  period: 25
+  n: 100
+  checkpoints_period: 50
+
+n_samples: 50
+
+hydra:
+  run:
+    dir: ${user.logdir.root}/s3gfn_scrabble/s3gfn/${now:%Y-%m-%d_%H-%M-%S_%f}

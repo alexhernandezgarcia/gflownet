@@ -74,6 +74,11 @@ def main(config):
             n_trj = min(len(x_sampled), 100)
             save_toy_sample_summary(gflownet, x_sampled, batch, n_trj)
 
+    # Print reward-based replay buffer
+    if gflownet.has_replay_reward and len(gflownet.buffers.replay_reward.replay) > 0:
+        print("\nReplay buffer:")
+        print(gflownet.buffers.replay_reward.replay)
+
     # Close logger
     # TODO: make it gflownet.end() - perhaps there are other things to end
     gflownet.logger.end()
