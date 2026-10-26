@@ -1,0 +1,4 @@
+# This is just an alias for subtrajectorybalance,
+# so that we can do loss=subtb instead of loss=subtrajectorybalance
+defaults:
+  - subtrajectorybalance
