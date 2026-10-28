@@ -935,6 +935,35 @@ class GFlowNetAgent:
         return logprobs_estimates, logprobs_std, probs_std
 
     @torch.no_grad()
+    def _logz_logweights(self, batch: Batch) -> TensorType["n_trajectories"]:
+        r"""
+        Computes the per-trajectory log-weights used in the logZ estimators.
+
+        $$
+        \log w = \log R(x) + \log P_B(\tau \mid x) - \log P_F(\tau)
+        $$
+
+        Parameters
+        ----------
+        batch : :py:class:`gflownet.utils.batch.Batch`
+            A batch of complete trajectories, with a proxy set so that the rewards
+            of the terminating states can be computed.
+
+        Returns
+        -------
+        torch.Tensor
+            Log-weight of each trajectory.
+        """
+        logprobs_f = compute_logprobs_trajectories(
+            batch, self.env, forward_policy=self.forward_policy, backward=False
+        )
+        logprobs_b = compute_logprobs_trajectories(
+            batch, self.env, backward_policy=self.backward_policy, backward=True
+        )
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
+        return logrewards + logprobs_b - logprobs_f
+
+    @torch.no_grad()
     def estimate_logz(
         self,
         data: Union[List, str],
@@ -1049,14 +1078,7 @@ class GFlowNetAgent:
                 )
                 envs = [env for env in envs if not env.equal(env.state, env.source)]
 
-            logprobs_f = compute_logprobs_trajectories(
-                batch, self.env, forward_policy=self.forward_policy, backward=False
-            )
-            logprobs_b = compute_logprobs_trajectories(
-                batch, self.env, backward_policy=self.backward_policy, backward=True
-            )
-            logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
-            logz_estimates.append(logrewards + logprobs_b - logprobs_f)
+            logz_estimates.append(self._logz_logweights(batch))
 
             init_batch += batch_size
             end_batch = min(end_batch + batch_size, n_states)
