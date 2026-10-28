@@ -924,19 +924,19 @@ class Sequence(CompositeBase):
                 n = self._seq_length(self.state)
                 freeze_dir_ind = 0 if action[2] == _LEFT else -1
                 # only when the correct backward action is chosen
-                if self.state["_indices"][freeze_dir_ind] != n - 1:
-                    if self.right_only:
-                        allowed_action = "right_only"
-                    elif self.left_only:
-                        allowed_action = "left_only"
-                    else:
-                        allowed_action = "both"
-                    new_state = self._get_random_equivalent_sequence(
-                        self.state,
-                        allowed_action=allowed_action,
-                        freeze_direction=action[2],
-                    )
-                    self.set_state(new_state, done=False)
+                # if self.state["_indices"][freeze_dir_ind] != n - 1:
+                if self.right_only:
+                    allowed_action = "right_only"
+                elif self.left_only:
+                    allowed_action = "left_only"
+                else:
+                    allowed_action = "both"
+                new_state = self._get_random_equivalent_sequence(
+                    self.state,
+                    allowed_action=allowed_action,
+                    freeze_direction=action[2],
+                )
+                self.set_state(new_state, done=False)
                 # activate the previous subenvironment from the action[1] and the direction action[2]
                 self.state["_active"] = (
                     _ACTIVE_LEFT if action[2] == _LEFT else _ACTIVE_RIGHT
