@@ -370,7 +370,7 @@ class BaseEvaluator(AbstractEvaluator):
                 raise ValueError("sampled_states must not be empty.")
             sampled_states = sampled_states[: self.config.n_logz_samples]
 
-        logz_est = self.gfn.estimate_logz_data(
+        logz_est = self.gfn.estimate_logz(
             sampled_states,
             n_trajectories=self.config.n_trajs_logz,
             max_data_size=max(

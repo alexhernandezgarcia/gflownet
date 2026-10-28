@@ -935,7 +935,7 @@ class GFlowNetAgent:
         return logprobs_estimates, logprobs_std, probs_std
 
     @torch.no_grad()
-    def estimate_logz_data(
+    def estimate_logz(
         self,
         data: Union[List, str],
         n_trajectories: int = 1,
