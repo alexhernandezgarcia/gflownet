@@ -16,11 +16,16 @@ logprobs_batch_size: 100
 logprobs_bootstrap_size: 10000
 # Maximum number of test data points to compute log likelihood probs.
 max_data_logprobs: 1e5
-# Number of backward trajectories per terminating state for logZ estimation
+# Number of backward trajectories per terminating state (logz_est)
 n_trajs_logz: 10
-# Number of forward samples drawn from the trained GFN to estimate logZ
+# Number of terminating states sampled to estimate logZ (logz_est)
 n_logz_samples: 100
+# Number of terminating states processed at a time (logz_est)
 logz_batch_size: 100
+# Number of forward trajectories sampled to estimate logZ (logz_est_fwd)
+n_logz_samples_forward: 100
+# Number of forward trajectories sampled at a time (logz_est_fwd)
+logz_batch_size_forward: 100
 # Number of points to obtain a grid to estimate the reward density
 n_grid: 40000
 train_log_period: 1
