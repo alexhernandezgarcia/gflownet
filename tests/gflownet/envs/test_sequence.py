@@ -5,6 +5,8 @@ The common test battery (``common.BaseTestsDiscrete`` / ``common.BaseTestsContin
 is wired in at the bottom of the file.
 """
 
+from itertools import permutations
+
 import common
 import numpy as np
 import pytest
@@ -303,112 +305,6 @@ def test__left_only_and_right_only_cannot_be_combined():
             ],
             [(-1, 0, 1)],
         ),
-        (
-            "env_grid",
-            {
-                "_active": _ACTIVE_NONE,
-                "_dones": [1, 1, 1, 1],
-                "_envs_unique": [0, 0, 0, 0],
-                "_indices": [3, 2, 1, 0],
-                0: [0, 0],
-                1: [0, 1],
-                2: [0, 0],
-                3: [1, 1],
-            },
-            [
-                {
-                    "_active": _ACTIVE_LEFT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [3, 2, 1, 0],
-                    0: [0, 0],
-                    1: [0, 1],
-                    2: [0, 0],
-                    3: [1, 1],
-                },
-                {
-                    "_active": _ACTIVE_RIGHT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [2, 1, 0, 3],
-                    0: [0, 1],
-                    1: [0, 0],
-                    2: [1, 1],
-                    3: [0, 0],
-                },
-                {
-                    "_active": _ACTIVE_LEFT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [3, 2, 0, 1],
-                    0: [0, 1],
-                    1: [0, 0],
-                    2: [0, 0],
-                    3: [1, 1],
-                },
-                {
-                    "_active": _ACTIVE_RIGHT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [2, 0, 1, 3],
-                    0: [0, 0],
-                    1: [0, 1],
-                    2: [1, 1],
-                    3: [0, 0],
-                },
-                {
-                    "_active": _ACTIVE_LEFT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [3, 0, 1, 2],
-                    0: [0, 0],
-                    1: [0, 1],
-                    2: [0, 0],
-                    3: [1, 1],
-                },
-                {
-                    "_active": _ACTIVE_RIGHT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [0, 1, 2, 3],
-                    0: [1, 1],
-                    1: [0, 0],
-                    2: [0, 1],
-                    3: [0, 0],
-                },
-                {
-                    "_active": _ACTIVE_LEFT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [3, 1, 0, 2],
-                    0: [0, 1],
-                    1: [0, 0],
-                    2: [0, 0],
-                    3: [1, 1],
-                },
-                {
-                    "_active": _ACTIVE_RIGHT,
-                    "_dones": [1, 1, 1, 0],
-                    "_envs_unique": [0, 0, 0, 0],
-                    "_indices": [1, 0, 2, 3],
-                    0: [0, 0],
-                    1: [1, 1],
-                    2: [0, 1],
-                    3: [0, 0],
-                },
-            ],
-            # TODO: Review these actions
-            [
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-                (0, 0, 0),
-            ],
-        ),
     ],
 )
 def test__get_parents__returns_expected(
@@ -430,6 +326,137 @@ def test__get_parents__returns_expected(
     parents_actions_tuple.sort(key=lambda d: d["_indices"])
     parents_actions_exp_tuple.sort(key=lambda d: d["_indices"])
     assert parents_actions_tuple == parents_actions_exp_tuple
+
+
+@pytest.mark.parametrize(
+    "env, state, parents_exp_grouped, parent_actions_exp, n_parents",
+    [
+        (
+            "env_grid",
+            {
+                "_active": _ACTIVE_NONE,
+                "_dones": [1, 1, 1, 1],
+                "_envs_unique": [0, 0, 0, 0],
+                "_indices": [3, 2, 1, 0],
+                0: [0, 0],
+                1: [0, 1],
+                2: [0, 0],
+                3: [1, 1],
+            },
+            [
+                [
+                    {
+                        "_active": _ACTIVE_LEFT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [3, 2, 1, 0],
+                        0: [0, 0],
+                        1: [0, 1],
+                        2: [0, 0],
+                        3: [1, 1],
+                    },
+                    {
+                        "_active": _ACTIVE_LEFT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [3, 2, 0, 1],
+                        0: [0, 1],
+                        1: [0, 0],
+                        2: [0, 0],
+                        3: [1, 1],
+                    },
+                    {
+                        "_active": _ACTIVE_LEFT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [3, 0, 1, 2],
+                        0: [0, 0],
+                        1: [0, 1],
+                        2: [0, 0],
+                        3: [1, 1],
+                    },
+                    {
+                        "_active": _ACTIVE_LEFT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [3, 1, 0, 2],
+                        0: [0, 1],
+                        1: [0, 0],
+                        2: [0, 0],
+                        3: [1, 1],
+                    },
+                ],
+                [
+                    {
+                        "_active": _ACTIVE_RIGHT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [2, 1, 0, 3],
+                        0: [0, 1],
+                        1: [0, 0],
+                        2: [1, 1],
+                        3: [0, 0],
+                    },
+                    {
+                        "_active": _ACTIVE_RIGHT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [2, 0, 1, 3],
+                        0: [0, 0],
+                        1: [0, 1],
+                        2: [1, 1],
+                        3: [0, 0],
+                    },
+                    {
+                        "_active": _ACTIVE_RIGHT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [0, 1, 2, 3],
+                        0: [1, 1],
+                        1: [0, 0],
+                        2: [0, 1],
+                        3: [0, 0],
+                    },
+                    {
+                        "_active": _ACTIVE_RIGHT,
+                        "_dones": [1, 1, 1, 1],
+                        "_envs_unique": [0, 0, 0, 0],
+                        "_indices": [1, 0, 2, 3],
+                        0: [0, 0],
+                        1: [1, 1],
+                        2: [0, 1],
+                        3: [0, 0],
+                    },
+                ],
+            ],
+            [(-1, 0, _LEFT), (-1, 0, _RIGHT)],
+            2,  # n_parents
+        )
+    ],
+)
+def test__get_parents__with_randomization(
+    env, state, parents_exp_grouped, parent_actions_exp, n_parents, request
+):
+    env = request.getfixturevalue(env)
+    parents, parent_actions = env.get_parents(state)
+    parents_actions_exp_tuple = []
+    for parent_duplicates, action in zip(parents_exp_grouped, parent_actions_exp):
+        group = []
+        for parent in parent_duplicates:
+            parent_action = parent.copy()
+            parent_action["action"] = action
+            group.append(parent_action)
+        parents_actions_exp_tuple.append(group)
+    parents_actions_tuple = []
+    for parent, action in zip(parents, parent_actions):
+        parent_action = parent.copy()
+        parent_action["action"] = action
+        parents_actions_tuple.append(parent_action)
+    # assert same number of parents still
+    assert len(parents_actions_tuple) == len(parents_actions_exp_tuple) == n_parents
+    # get atleast one match in every enumerated parent
+    for parent_action in parents_actions_tuple:
+        assert any(parent_action in group for group in parents_actions_exp_tuple)
 
 
 # --------------------------------------------------------------------------- #
