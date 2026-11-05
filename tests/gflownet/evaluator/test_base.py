@@ -48,6 +48,11 @@ def all_reqs():
     return set([r for m in METRICS.values() for r in m["requirements"]])
 
 
+@pytest.fixture
+def on_policy_metrics():
+    return [m for m, v in METRICS.items() if "on_policy" in v["requirements"]]
+
+
 def test__make_metrics__all(dummy_evaluator):
     assert dummy_evaluator.make_metrics("all") == METRICS
 
@@ -251,3 +256,46 @@ def test__eval(gflownet_for_tests, parameterization):
             assert fig is None or isinstance(fig, plt.Figure)
     else:
         raise ValueError(f"Unknown parameterization: {parameterization}")
+
+
+@pytest.mark.parametrize(
+    "config_for_tests",
+    [None, ["env=grid", "env.length=4"], ["env=ctorus"]],
+    indirect=["config_for_tests"],
+)
+def test__compute_on_policy_metrics__returns_floats(
+    gflownet_for_tests, on_policy_metrics
+):
+    results = gflownet_for_tests.evaluator.compute_on_policy_metrics(
+        metrics=on_policy_metrics
+    )
+    assert set(results["metrics"]) == set(on_policy_metrics)
+
+    for k, v in results["metrics"].items():
+        assert isinstance(k, str)
+        assert isinstance(v, float)
+
+    assert 0.0 < results["metrics"]["on_policy_unique_fraction"] <= 1.0
+
+
+def test__compute_on_policy_metrics__constant_env_has_one_unique_sample(
+    gflownet_for_tests,
+):
+    # The default environment (Constant) has a single object
+    evaluator = gflownet_for_tests.evaluator
+    results = evaluator.compute_on_policy_metrics(metrics=["on_policy_unique_fraction"])
+    assert results["metrics"] == {"on_policy_unique_fraction": 1 / evaluator.config.n}
+
+
+@pytest.mark.parametrize(
+    "config_for_tests",
+    [None, ["env=grid", "env.length=4"]],
+    indirect=["config_for_tests"],
+)
+def test__eval__returns_on_policy_metrics_without_test_set(
+    gflownet_for_tests, on_policy_metrics
+):
+    assert not gflownet_for_tests.has_test
+    results = gflownet_for_tests.evaluator.eval(metrics="all")
+    for m in on_policy_metrics:
+        assert isinstance(results["metrics"][m], float)
