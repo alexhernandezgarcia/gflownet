@@ -160,7 +160,45 @@ def load_ising_params(rundir):
 # -----------------------------------------------------------
 
 
-def load_wandb_logZ(wandbdir):
+def load_wandb_logZ(wandbdir, rundir=None):
+    """
+    Loads the learned logZ of a run from WandB.
+
+    Reads the local ``wandb-summary.json`` if present, and otherwise queries the
+    WandB API, which also covers runs that crashed before their summary was
+    finalized.
+
+    Parameters
+    ----------
+    wandbdir : str
+        Path to the ``files`` directory of a WandB run, which holds
+        ``wandb-summary.json``.
+    rundir : str, optional
+        Path to the Hydra run directory, used to read the entity and project
+        from its ``wandb.url`` file. Without it, the API fallback relies on
+        ``wandb-metadata.json`` and the ``WANDB_ENTITY`` / ``WANDB_PROJECT``
+        environment variables.
+
+    Returns
+    -------
+    float
+        The learned logZ, or ``nan`` if it could not be retrieved.
+    """
+
+    def _load_from_wandb_url(path):
+        url_path = os.path.join(path, "wandb.url")
+        if not os.path.exists(url_path):
+            return None, None, None
+        try:
+            with open(url_path, "r") as f:
+                parts = f.read().strip().rstrip("/").split("/")
+        except Exception:
+            return None, None, None
+        # Expected format: https://wandb.ai/<entity>/<project>/runs/<run_id>
+        if len(parts) < 4 or parts[-2] != "runs":
+            return None, None, None
+        return parts[-4], parts[-3], parts[-1]
+
     def _extract_run_id(path):
         run_dir = os.path.basename(os.path.dirname(path.rstrip("/")))
         # Expected format: run-YYYYMMDD_HHMMSS-<run_id>
@@ -180,11 +218,19 @@ def load_wandb_logZ(wandbdir):
             return None, None
 
     def _load_from_wandb_api(path):
-        run_id = _extract_run_id(path)
+        entity = project = run_id = None
+        if rundir is not None:
+            entity, project, run_id = _load_from_wandb_url(rundir)
+
+        if run_id is None:
+            run_id = _extract_run_id(path)
         if run_id is None:
             return None
 
-        entity, project = _load_entity_project(path)
+        if not entity or not project:
+            meta_entity, meta_project = _load_entity_project(path)
+            entity = entity or meta_entity
+            project = project or meta_project
         if not entity:
             entity = os.environ.get("WANDB_ENTITY")
         if not project:
@@ -532,7 +578,7 @@ def run_theory(args):
 def run_gfn_evaluation(args):
     """Run trained GFN evaluation and theoretical comparaison"""
     n_dim, length, J_nn, beta_raw = load_ising_params(args.rundir)
-    logZ_gfn = load_wandb_logZ(args.wandbdir)
+    logZ_gfn = load_wandb_logZ(args.wandbdir, rundir=args.rundir)
     # convert negative GFN beta to physical beta
     beta = abs(beta_raw)
 
