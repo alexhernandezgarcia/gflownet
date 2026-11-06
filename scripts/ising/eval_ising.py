@@ -254,7 +254,8 @@ def maybe_sample(args):
         f"python {eval_script} "
         f"rundir={os.path.abspath(args.rundir)} "
         f"n_samples={args.n_samples} "
-        f"sampling_batch_size={args.sampling_batch_size}"
+        f"sampling_batch_size={args.sampling_batch_size} "
+        f"samples_only=true"
     )
 
     print("Running:", cmd)
