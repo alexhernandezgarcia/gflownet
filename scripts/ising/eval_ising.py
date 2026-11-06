@@ -24,11 +24,11 @@ Theoretical only:
 """
 
 import argparse
-import itertools
 import json
 import os
 import pickle
 import subprocess
+import time
 import warnings
 
 import numpy as np
@@ -85,6 +85,23 @@ def parse_args():
         type=int,
         default=10,
         help="Number of backward trajectories per sampled terminal state for logZ estimation.",
+    )
+    eval_parser.add_argument(
+        "--estimate_logz_forward",
+        action="store_true",
+        help="Estimate logZ from on-policy forward trajectories.",
+    )
+    eval_parser.add_argument(
+        "--n_logz_samples_forward",
+        type=int,
+        default=100,
+        help="Number of forward trajectories used in logZ estimation.",
+    )
+    eval_parser.add_argument(
+        "--logz_batch_size_forward",
+        type=int,
+        default=100,
+        help="Batch size for sampling forward trajectories in logZ estimation.",
     )
     eval_parser.add_argument(
         "--resample",
@@ -246,33 +263,50 @@ def maybe_sample(args):
 
 
 def estimate_logz_from_eval(args, sampled_states=None):
-    """Estimate logZ from evaluator-driven model samples.
+    """
+    Estimates logZ from a trained GFlowNet through the evaluator API.
 
-    Loads a trained GFlowNet from a run directory, enables evaluator-side logZ
-    estimation, and returns the scalar estimate produced by
-    :py:meth:`gflownet.evaluator.base.BaseEvaluator.eval`.
+    Loads the run's last checkpoint, overrides the evaluator's logZ settings from
+    ``args``, and runs
+    :py:meth:`gflownet.evaluator.base.BaseEvaluator.eval` once per requested
+    estimator. Two estimators are available, selected by ``--estimate_logz`` and
+    ``--estimate_logz_forward``. ``logz_est`` draws backward trajectories from a
+    set of terminating states; ``logz_est_fwd`` draws forward trajectories
+    on-policy and is asymptotically unbiased.
 
     Parameters
     ----------
     args : argparse.Namespace
         Parsed CLI arguments. The following attributes are used:
-        ``rundir``, ``n_logz_samples``, ``logz_batch_size``, and
-        ``n_trajs_logz``.
+        ``rundir``, ``estimate_logz``, ``n_logz_samples``, ``logz_batch_size``,
+        ``n_trajs_logz``, ``estimate_logz_forward``, ``n_logz_samples_forward``,
+        and ``logz_batch_size_forward``.
     sampled_states : array-like, optional
-        Optional terminating states reused for logZ estimation. If ``None``,
-        the evaluator samples terminal states from the model policy.
+        Optional terminating states reused for ``logz_est``. If ``None``, the
+        evaluator samples terminating states from the model policy. Ignored by
+        ``logz_est_fwd``, which samples its own trajectories.
 
     Returns
     -------
-    float
-        Estimated log-partition value produced by evaluator metric ``logz_est``.
+    dict
+        One ``float`` per requested estimator, keyed by its evaluator metric name
+        (``logz_est`` for the backward estimator, ``logz_est_fwd`` for the forward
+        one), each paired with a ``<metric>_time_s`` entry giving the wall-clock
+        seconds spent computing it. Empty if neither estimator was requested.
 
     Raises
     ------
     RuntimeError
-        If evaluator output does not contain metric ``logz_est``.
+        If evaluator output does not contain requested metric.
     """
-    print("Running logZ estimation through evaluator API")
+    requested = []
+    if args.estimate_logz:
+        requested.append("logz_est")
+    if args.estimate_logz_forward:
+        requested.append("logz_est_fwd")
+    if not requested:
+        return {}
+    print(f"Running logZ estimation through evaluator API: {', '.join(requested)}")
     gflownet, _ = load_gflownet_from_rundir(
         rundir=os.path.abspath(args.rundir),
         device="cpu",
@@ -282,21 +316,27 @@ def estimate_logz_from_eval(args, sampled_states=None):
     )
 
     evaluator = gflownet.evaluator
-    evaluator.config.compute_logz_est = True
     evaluator.config.n_logz_samples = args.n_logz_samples
     evaluator.config.logz_batch_size = args.logz_batch_size
     evaluator.config.n_trajs_logz = args.n_trajs_logz
-    evaluator.metrics = evaluator.make_metrics("logz_est")
+    evaluator.config.n_logz_samples_forward = args.n_logz_samples_forward
+    evaluator.config.logz_batch_size_forward = args.logz_batch_size_forward
+    evaluator.metrics = evaluator.make_metrics(requested)
     evaluator.reqs = evaluator.make_requirements(metrics=evaluator.metrics)
-
-    result = evaluator.eval(metrics="logz_est", logz_states=sampled_states)
-    logz_est = result.get("metrics", {}).get("logz_est")
-    if logz_est is None:
-        raise RuntimeError(
-            "Could not compute `logz_est` from evaluator. "
-            "Check that the run has a valid checkpoint and environment config."
-        )
-    return float(logz_est)
+    logz_metrics = {}
+    for name in requested:
+        start = time.perf_counter()
+        result = evaluator.eval(metrics=name, logz_states=sampled_states)
+        elapsed = time.perf_counter() - start
+        value = result.get("metrics", {}).get(name)
+        if value is None:
+            raise RuntimeError(
+                f"Could not compute `{name}` from evaluator. Check that the run "
+                "has a valid checkpoint and environment config."
+            )
+        logz_metrics[name] = float(value)
+        logz_metrics[f"{name}_time_s"] = elapsed
+    return logz_metrics
 
 
 # -----------------------------------------------------------
@@ -451,6 +491,7 @@ def theoretical_logZ(beta, L):
 
     return logz
 
+
 def compute_theoretical_quantities(beta, length):
     """
     Compute all available theoretical quantities. For now, only includes logZ.
@@ -459,6 +500,8 @@ def compute_theoretical_quantities(beta, length):
     return {
         "logZ": theoretical_logZ(beta, length),
     }
+
+
 # -----------------------------------------------------------
 # Run modes
 # -----------------------------------------------------------
@@ -489,7 +532,6 @@ def run_gfn_evaluation(args):
     """Run trained GFN evaluation and theoretical comparaison"""
     n_dim, length, J_nn, beta_raw = load_ising_params(args.rundir)
     logZ_gfn = load_wandb_logZ(args.wandbdir)
-    logZ_estimated = None
     # convert negative GFN beta to physical beta
     beta = abs(beta_raw)
 
@@ -506,8 +548,9 @@ def run_gfn_evaluation(args):
     # Load samples
     samples, energies = load_samples_from_pkl(args.rundir)
 
-    if args.estimate_logz:
-        logZ_estimated = estimate_logz_from_eval(args, sampled_states=samples)
+    logz_metrics = estimate_logz_from_eval(args, sampled_states=samples)
+    logZ_estimated = logz_metrics.get("logz_est")
+    logZ_estimated_fwd = logz_metrics.get("logz_est_fwd")
 
     # Theoretical quantities
     theory = compute_theoretical_quantities(beta, length)
@@ -530,6 +573,9 @@ def run_gfn_evaluation(args):
         "beta_phys": beta,
         "logZ_gfn": logZ_gfn,
         "logZ_estimated": logZ_estimated,
+        "logZ_estimated_fwd": logZ_estimated_fwd,
+        "logz_est_time_s": logz_metrics.get("logz_est_time_s"),
+        "logz_est_fwd_time_s": logz_metrics.get("logz_est_fwd_time_s"),
         "mean_abs_magnetization": m_abs_magnetization,
         "mean_susceptibility": m_susceptibility,
         "mean_energy": m_energy,
@@ -540,7 +586,9 @@ def run_gfn_evaluation(args):
     print("\nEstimated quantities from GFN run:")
     print(f"  logZ from GFN                  = {logZ_gfn:.6f}")
     if logZ_estimated is not None:
-        print(f"  logZ estimated from trajectories = {logZ_estimated:.6f}")
+        print(f"  logZ estimated from backward trajectories = {logZ_estimated:.6f}")
+    if logZ_estimated_fwd is not None:
+        print(f"  logZ estimated from forward trajectories  = {logZ_estimated_fwd:.6f}")
     print(f"  Mean absolute magnetization    = {m_abs_magnetization:.6f}")
     print(f"  Mean susceptibility            = {m_susceptibility:.6f}")
     print(f"  Mean energy                    = {m_energy:.6f}")
