@@ -1,10 +1,11 @@
 """
-Spheres objective function, defined for box-like environments, such as the hyper-grid
+Rings objective function, defined for box-like environments, such as the hyper-grid
 and the cube.
 
-The function places high scores at spheres or rings in the hyper-box centered around
-the source state. The spheres are defined by a mixture of isotropic radial Gaussians.
-Optionally, the scores and can be thresholded in order to make the task harder.
+The function places high scores at rings (or hyper-sphere surfaces) in the hyper-box
+centered around the source state. The rings are defined by a mixture of isotropic
+radial Gaussians. Optionally, the scores and can be thresholded in order to make the
+task harder.
 """
 
 from typing import Iterable
@@ -17,7 +18,7 @@ from gflownet.proxy.base import Proxy
 from gflownet.utils.common import tfloat
 
 
-class Spheres(Proxy):
+class Rings(Proxy):
     """
     It is assumed that the state values will be in the range [-1.0, 1.0].
     """
@@ -30,7 +31,7 @@ class Spheres(Proxy):
         **kwargs,
     ):
         """
-        Initializes an instance of the Spheres proxy.
+        Initializes an instance of the Rings proxy.
 
         Parameters
         ----------
@@ -40,7 +41,7 @@ class Spheres(Proxy):
             A sequence of radii to define the objective function. Each value indicates
             the relative distance to the source state, with 0.0 being the source state
             and 1.0 being the farthest corner. The radii are the same for all
-            dimensions, defining spheres around the source rate.
+            dimensions, defining rings around the source rate.
         sigma : float
             Standard deviation of the Gaussian distributions that make the objective
             function.
@@ -48,7 +49,7 @@ class Spheres(Proxy):
         super().__init__(**kwargs)
         self.n_dim = n_dim
         self.radii = tuple(radii)
-        self.n_spheres = len(self.radii)
+        self.n_rings = len(self.radii)
         self.sigma = sigma
 
     def setup(self, env=None):
