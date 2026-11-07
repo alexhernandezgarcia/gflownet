@@ -63,8 +63,8 @@ logger:
 evaluator:
   first_it: true
   period: 500
-  n: 1000
-  checkpoints_period: 500
+  n: 2000
+  checkpoints_period: 1000
 
 
 # Hydra
