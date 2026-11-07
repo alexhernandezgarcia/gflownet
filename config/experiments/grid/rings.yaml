@@ -4,7 +4,7 @@ defaults:
   - override /env: grid
   - override /gflownet: trajectorybalance
   - override /loss: trajectorybalance
-  - override /proxy: box/spheres
+  - override /proxy: box/rings
   - override /logger: wandb
 
 # Environment
@@ -45,11 +45,11 @@ logger:
     online: False
   lightweight: True
   project_name: "grid"
-  run_name: "20x20 Spheres"
+  run_name: "20x20 Rings"
   tags: 
     - gflownet
     - grid
-    - spheres
+    - rings
 
 # Evaluator
 evaluator:
@@ -62,4 +62,4 @@ evaluator:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/grid/spheres/${now:%Y-%m-%d_%H-%M-%S_%f}
+    dir: ${user.logdir.root}/grid/rings/${now:%Y-%m-%d_%H-%M-%S_%f}
