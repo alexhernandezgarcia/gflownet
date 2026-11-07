@@ -1,6 +1,5 @@
----
 # @package _global_
-
+---
 defaults:
   - override /env: grid
   - override /gflownet: trajectorybalance
@@ -21,6 +20,7 @@ proxy:
     - 0.2
     - 0.8
   sigma: 0.05
+  center: null
 
 # Buffer
 buffer:
