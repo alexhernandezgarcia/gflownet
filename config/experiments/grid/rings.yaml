@@ -1,3 +1,4 @@
+---
 # @package _global_
 
 defaults:
@@ -13,6 +14,13 @@ env:
   length: 20
   max_increment: 1
   max_dim_per_action: 1
+
+# Proxy
+proxy:
+  radii:
+    - 0.2
+    - 0.8
+  sigma: 0.05
 
 # Buffer
 buffer:
@@ -37,23 +45,23 @@ policy:
     n_hid: 128
     n_layers: 2
   backward:
-    shared_weights: True
+    shared_weights: true
 
 # WandB
 logger:
   do:
-    online: False
-  lightweight: True
+    online: false
+  lightweight: true
   project_name: "grid"
   run_name: "20x20 Rings"
-  tags: 
+  tags:
     - gflownet
     - grid
     - rings
 
 # Evaluator
 evaluator:
-  first_it: True
+  first_it: true
   period: 500
   n: 1000
   checkpoints_period: 500
