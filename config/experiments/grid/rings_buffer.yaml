@@ -66,7 +66,7 @@ logger:
 evaluator:
   first_it: true
   period: 500
-  n: 1000
+  n: 2000
   checkpoints_period: 1000
 
 
