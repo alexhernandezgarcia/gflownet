@@ -1,0 +1,76 @@
+# @package _global_
+---
+defaults:
+  - override /env: grid
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: box/rings
+  - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 2
+  length: 20
+  max_increment: 1
+  max_dim_per_action: 1
+
+# Proxy
+proxy:
+  radii:
+    - 0.2
+    - 0.8
+  sigma: 0.05
+  center: null
+
+# Buffer
+buffer:
+  replay_capacity: 25
+  check_diversity: true
+  test:
+    type: all
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 80
+      backward_replay_reward: 20
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 20000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+  backward:
+    shared_weights: true
+
+# WandB
+logger:
+  do:
+    online: false
+  lightweight: true
+  project_name: "grid"
+  run_name: "20x20 Rings"
+  tags:
+    - gflownet
+    - grid
+    - rings
+
+# Evaluator
+evaluator:
+  first_it: true
+  period: 500
+  n: 1000
+  checkpoints_period: 1000
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/rings/${now:%Y-%m-%d_%H-%M-%S_%f}
