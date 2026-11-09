@@ -83,9 +83,69 @@ class Rings(Proxy):
                 self.radii, device=self.device, float_type=self.float
             ).view(1, -1)
 
-    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
-        distances = (
-            torch.linalg.norm(states - self.center_vec, dim=1, keepdim=True)
-            - self.radii_vec
+    def exponential_radial_mixture(
+        self, distances: TensorType["batch"]
+    ) -> TensorType["batch"]:
+        r"""
+        Exponential radial mixture over a set of radii given distances to the center.
+
+        $$y = \sum_i \exp(-\frac{(d-r_i)^2}{2\sigma^2})$$
+
+        Parameters
+        ----------
+        distances : TensorType["batch"]
+            Euclidean distance of each state in a batch to the center of the rings.
+
+        Returns
+        -------
+        TensorType["batch"]
+            Score of each state, that is, the sum over rings of isotropic radial
+            Gaussians evaluated at the distance of each state.
+        """
+        return torch.sum(
+            torch.exp(
+                -0.5 * ((distances.unsqueeze(1) - self.radii_vec) / self.sigma) ** 2
+            ),
+            dim=1,
         )
-        return torch.sum(torch.exp(-0.5 * (distances / self.sigma) ** 2), dim=1)
+
+    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
+        r"""
+        Returns the proxy values of a batch of states.
+
+        $$\sum_i \exp(-\frac{(||x-c||_2-r_i)^2}{2\sigma^2})$$
+
+        with $c$ the center of the rings, and $r_i$ the radius of each ring.
+
+        Parameters
+        ----------
+        states : TensorType["batch", "state_dim"]
+            Batch of states in proxy format.
+
+        Returns
+        -------
+        TensorType["batch"]
+            Proxy value of each state, that is, the sum over rings of isotropic radial
+            Gaussians evaluated at the distance of each state to the center of the
+            rings.
+        """
+        distances = torch.linalg.norm(states - self.center_vec, dim=1)
+        return self.exponential_radial_mixture(distances)
+
+    @property
+    def optimum(self):
+        """
+        Maximum value of the objective function over the hyper-box.
+
+        The score depends only on the distance to the center of the rings, so the
+        maximum over the hyper-box is found by evaluating the radial scores over every
+        distance between 0.0 and the distance between the center and the farthest
+        corner of the hyper-box.
+        """
+        if not hasattr(self, "_optimum"):
+            d_max = torch.linalg.norm(1.0 + self.center_vec.abs(), dim=0)
+            distances = torch.linspace(
+                0.0, d_max, 10001, device=self.device, dtype=self.float
+            )
+            self._optimum = self.exponential_radial_mixture(distances).max()
+        return self._optimum
