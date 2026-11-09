@@ -33,7 +33,8 @@ buffers:
     replay_criterion: loss
     check_diversity: true
   test:
-    type: all
+    test:
+      type: all
 
 # GFlowNet hyperparameters
 gflownet:
