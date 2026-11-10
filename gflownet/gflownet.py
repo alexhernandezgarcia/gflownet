@@ -960,15 +960,15 @@ class GFlowNetAgent:
         }
         n_aux = self.batch_size.backward_replay_reward
         if (
-              n_aux <= 0
-              or "replay_reward" not in self.buffers
-              or "replay_negative" not in self.buffers
-              or self.buffers.replay_reward.replay is None
-              or self.buffers.replay_negative.replay is None
-              or len(self.buffers.replay_reward.replay) == 0
-              or len(self.buffers.replay_negative.replay) == 0
-          ):
-              return losses
+            n_aux <= 0
+            or "replay_reward" not in self.buffers
+            or "replay_negative" not in self.buffers
+            or self.buffers.replay_reward.replay is None
+            or self.buffers.replay_negative.replay is None
+            or len(self.buffers.replay_reward.replay) == 0
+            or len(self.buffers.replay_negative.replay) == 0
+        ):
+            return losses
 
         env_instances = [self.env_maker() for _ in range(2 * n_aux)]
         batch_pos = self._build_backward_batch_from_replay(
@@ -1258,12 +1258,10 @@ class GFlowNetAgent:
                     n_forward=self.batch_size.forward,
                     n_train=self.batch_size.backward_dataset,
                     n_replay_reward=(
-                        0 if is_s3gfn
-                        else self.batch_size.backward_replay_reward
+                        0 if is_s3gfn else self.batch_size.backward_replay_reward
                     ),
                     n_replay_loss=(
-                        0 if is_s3gfn
-                        else self.batch_size.backward_replay_loss
+                        0 if is_s3gfn else self.batch_size.backward_replay_loss
                     ),
                     collect_forwards_masks=True,
                     collect_backwards_masks=self.collect_backwards_masks,
@@ -1564,7 +1562,9 @@ class GFlowNetAgent:
                 "replay_reward" in self.buffers
                 and self.buffers.replay_reward.replay_updated
             ):
-                values_replay = self.buffers.replay_reward.replay["values"].to_numpy(dtype=np.float64)
+                values_replay = self.buffers.replay_reward.replay["values"].to_numpy(
+                    dtype=np.float64
+                )
                 self.logger.log_rewards_and_scores(
                     values_replay,
                     np.log(values_replay),
@@ -1577,7 +1577,9 @@ class GFlowNetAgent:
                 "replay_loss" in self.buffers
                 and self.buffers.replay_loss.replay_updated
             ):
-                values_replay = self.buffers.replay_loss.replay["values"].to_numpy(dtype=np.float64)
+                values_replay = self.buffers.replay_loss.replay["values"].to_numpy(
+                    dtype=np.float64
+                )
                 self.logger.log_min_max_mean(
                     values_replay,
                     step=self.it,

@@ -80,9 +80,7 @@ class Grid(GFlowNetEnv):
         # End-of-sequence action
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Infeasible states
-        self.infeasible_states = {
-            tuple(state) for state in (infeasible_states or [])
-        }
+        self.infeasible_states = {tuple(state) for state in (infeasible_states or [])}
         # Base class init
         super().__init__(**kwargs)
 
@@ -288,14 +286,13 @@ class Grid(GFlowNetEnv):
         """
         # Generic pre-step checks
         do_step, self.state, action = self._pre_step(
-            action, 
-            skip_mask_check = skip_mask_check or self.skip_mask_check
+            action, skip_mask_check=skip_mask_check or self.skip_mask_check
         )
         if not do_step:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
-        #TODO: redundant check?
+        # TODO: redundant check?
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
@@ -430,10 +427,7 @@ class Grid(GFlowNetEnv):
         cax.xaxis.set_ticks_position("top")
 
     def check_feasibility(self, states: List[List[int]]) -> List[bool]:
-        return [
-            tuple(state) not in self.infeasible_states
-            for state in states
-        ]
+        return [tuple(state) not in self.infeasible_states for state in states]
 
     def plot_categorical_reward_samples(
         self,
@@ -446,14 +440,12 @@ class Grid(GFlowNetEnv):
         samples = torch2np(samples)
         rewards = torch2np(rewards).reshape(-1)
 
-        #get all states
+        # get all states
         states = self.get_all_terminating_states()
         assert len(states) == len(rewards)
 
         # compute state probabilities from samples
-        state_to_idx = {
-            tuple(state): idx for idx, state in enumerate(states)
-        }
+        state_to_idx = {tuple(state): idx for idx, state in enumerate(states)}
         counts = np.zeros(len(states), dtype=float)
 
         for sample in samples:

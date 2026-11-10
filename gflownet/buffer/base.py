@@ -306,11 +306,7 @@ class BaseBuffer:
             Identifier of the replay insertion criterion. Options: greater, fifo.
         """
         if self.replay_criterion.startswith("reward"):
-            values = (
-                rewards.tolist()
-                if torch.is_tensor(rewards)
-                else list(rewards)
-            )
+            values = rewards.tolist() if torch.is_tensor(rewards) else list(rewards)
             do_update = False
         elif self.replay_criterion.startswith("loss") and torch.is_tensor(losses):
             if torch.is_tensor(losses):
@@ -344,7 +340,9 @@ class BaseBuffer:
             if self.replay_capacity > 0:
                 self.replay_updated = False
                 if criterion == "greater":
-                    self.replay = self._add_greater(samples, trajectories, values, do_update, it)
+                    self.replay = self._add_greater(
+                        samples, trajectories, values, do_update, it
+                    )
                 elif criterion == "fifo":
                     self.replay = self._add_fifo(samples, trajectories, values, it)
                 else:
@@ -560,6 +558,7 @@ class BaseBuffer:
         if isinstance(trajectory, (list, tuple)):
             return tuple(self._canonicalize_trajectory(item) for item in trajectory)
         return trajectory
+
     # TODO: there may be issues with certain state types
     # TODO: add parameter(s) to control isclose()
     def _add_greater_update_single_sample(self, sample, trajectory, value, it) -> bool:
