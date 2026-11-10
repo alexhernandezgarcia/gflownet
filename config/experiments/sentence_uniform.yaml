@@ -1,0 +1,67 @@
+# @package _global_
+
+defaults:
+   - override /env: sentence
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: uniform
+   - override /logger: wandb
+
+# Environment
+
+# Buffer
+buffer:
+  train: null
+  test: null
+  replay_criterion: reward
+  reject_duplicate_trajectories: false
+  diversity_check_value_similarity: 0.1
+
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_replay_reward: 0
+      backward_replay_loss: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+  backward:
+    shared_weights: True
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "sentence-composite-sequence"
+  run_name: "Sentence Composite Sequence Uniform Default"
+  tags: 
+    - gflownet
+    - sentence
+    - composite-sequence
+    - uniform
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 100
+  n: 500
+  checkpoints_period: 100
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/composite/sequence/sentence/${now:%Y-%m-%d_%H-%M-%S_%f}
