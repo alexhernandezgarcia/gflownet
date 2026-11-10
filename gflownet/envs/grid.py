@@ -61,6 +61,7 @@ class Grid(GFlowNetEnv):
         max_dim_per_action: int = 1,
         cell_min: float = -1,
         cell_max: float = 1,
+        infeasible_states: Optional[List[List[int]]] = None,
         **kwargs,
     ):
         assert n_dim > 0
@@ -78,6 +79,8 @@ class Grid(GFlowNetEnv):
         self.source = [0 for _ in range(self.n_dim)]
         # End-of-sequence action
         self.eos = tuple([0 for _ in range(self.n_dim)])
+        # Infeasible states
+        self.infeasible_states = {tuple(state) for state in (infeasible_states or [])}
         # Base class init
         super().__init__(**kwargs)
 
@@ -283,12 +286,13 @@ class Grid(GFlowNetEnv):
         """
         # Generic pre-step checks
         do_step, self.state, action = self._pre_step(
-            action, skip_mask_check or self.skip_mask_check
+            action, skip_mask_check=skip_mask_check or self.skip_mask_check
         )
         if not do_step:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
+        # TODO: redundant check?
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
@@ -414,7 +418,13 @@ class Grid(GFlowNetEnv):
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("top", size="5%", pad=0.05)
         ax.set_xticks(np.arange(start=0, stop=img.shape[0], step=step_ticks))
-        ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        # TODO: fix this
+        # ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        ticks = np.arange(0, img.shape[1], step_ticks)
+        ax.set_yticks(ticks, labels=img.shape[1] - 1 - ticks)
         cax.set_title(title)
         plt.colorbar(ax_img, cax=cax, orientation="horizontal")
         cax.xaxis.set_ticks_position("top")
+
+    def check_feasibility(self, states: List[List[int]]) -> List[bool]:
+        return [tuple(state) not in self.infeasible_states for state in states]
