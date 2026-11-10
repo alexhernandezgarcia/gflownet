@@ -75,8 +75,11 @@ class Word(GFlowNetEnv):
         letters: Iterable = None,
         max_length: int = 7,
         pad_token: str = "0",
+        allow_empty: bool = False,
         **kwargs,
     ):
+        # allow to end in an empty word
+        self.allow_empty = allow_empty
         # Main attributes
         if letters is None:
             self.letters = LETTERS
@@ -138,10 +141,15 @@ class Word(GFlowNetEnv):
             return [True for _ in range(self.action_space_dim)]
         # If sequence is not at maximum length, all actions are valid
         if state[-1] == self.pad_idx:
-            return [False for _ in range(self.action_space_dim)]
-        # Otherwise, only EOS is valid
-        mask = [True for _ in range(self.action_space_dim)]
-        mask[self.action_space.index(self.eos)] = False
+            mask = [False for _ in range(self.action_space_dim)]
+        else:
+            # Otherwise, only EOS is valid
+            mask = [True for _ in range(self.action_space_dim)]
+        # before returning, we allow/disallow terminating states that are empty
+        if not self.allow_empty and state[0] == self.pad_idx:
+            mask[self.action_space.index(self.eos)] = True
+        else:
+            mask[self.action_space.index(self.eos)] = False
         return mask
 
     def get_parents(
