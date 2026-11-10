@@ -428,4 +428,3 @@ class Grid(GFlowNetEnv):
 
     def check_feasibility(self, states: List[List[int]]) -> List[bool]:
         return [tuple(state) not in self.infeasible_states for state in states]
-
