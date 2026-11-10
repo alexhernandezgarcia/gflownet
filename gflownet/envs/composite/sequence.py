@@ -271,6 +271,16 @@ class Sequence(CompositeBase):
             return -1
         return self._seq_length(state) - 1
 
+    def _set_substate(self, idx_subenv, state_subenv, state=None):
+        state = self.state if state is None else self._get_state(state)
+        state[idx_subenv] = copy(state_subenv)
+        return state
+
+    def _set_subdone(self, idx_subenv, done, state=None):
+        state = self.state if state is None else self._get_state(state)
+        state["_dones"][idx_subenv] = int(done)
+        return state
+
     def _get_substate(self, state: Dict, idx_subenv: Optional[int] = None):
         """
         Returns the substate corresponding to ``idx_subenv``. If ``idx_subenv`` is None,
