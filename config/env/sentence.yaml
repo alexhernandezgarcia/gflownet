@@ -1,0 +1,6 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.sentence.Sentence
+
+id: sentence
