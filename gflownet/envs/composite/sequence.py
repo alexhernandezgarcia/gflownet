@@ -1648,11 +1648,11 @@ class Sequence(CompositeBase):
         else:
             return [state]
 
-    # here we make our own isclose which is used in common tests 
+    # here we make our own isclose which is used in common tests
     def isclose(self, state_x, state_y, rtol=1e-5, atol=1e-8, do_equal=False) -> bool:
         """
         is close for sequence composite in general
-        Checks whether the two input states are close 
+        Checks whether the two input states are close
         uses the gfn>envs>base isclose function
         """
         if isinstance(state_x, dict) and isinstance(state_y, dict):
