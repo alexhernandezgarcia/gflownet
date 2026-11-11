@@ -309,7 +309,7 @@ class Word(GFlowNetEnv):
         """
         state = self._get_state(state)
         state = self._unpad(state)
-        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
+        return "".join(str(self.idx2token[idx]) for idx in state)
 
     def readable2state(self, readable: str) -> List[int]:
         """
@@ -326,7 +326,7 @@ class Word(GFlowNetEnv):
         """
         if readable == "":
             return self.source
-        return self._pad([self.token2idx[token] for token in readable.split(" ")])
+        return self._pad([self.token2idx[char] for char in readable])
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
