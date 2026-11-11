@@ -21,9 +21,7 @@ class Sentence(Sequence):
     ):
 
         # only one subenv lol
-        subenvs = [
-            Word()
-        ]
+        subenvs = [Word()]
 
         # Initialize base Sequence environment
         # CHANGE THIS LATER!
@@ -46,9 +44,11 @@ class Sentence(Sequence):
             # get the class of the subenv so that we can get the state2readable function
             subenv = self._get_env_unique(idx_unique)
             # separate the words with a letter
-            if key==0:
-                # capitalize the first letter 
-                body += str(subenv.state2readable(self._get_substate(state, key))).upper()
+            if key == 0:
+                # capitalize the first letter
+                body += str(
+                    subenv.state2readable(self._get_substate(state, key))
+                ).upper()
             else:
                 body += str(subenv.state2readable(self._get_substate(state, key)))
         return body + "." if self.done else body
