@@ -40,3 +40,21 @@ class TestSentenceBasic(common.BaseTestsDiscrete):
             "test__sample_actions__get_logprobs__batched_backward_trajectories": 10,
             "test__get_logprobs__all_finite_in_accumulated_forward_trajectories": 10,
         }
+
+    def test__state2readable__is_reversible(self, n_repeat=1):
+        """
+        Similar to common tests but here we only look at metastates
+        """
+        method_name = common._get_current_method_name()
+        if hasattr(self, "repeats") and method_name in self.repeats:
+            n_repeat = self.repeats[method_name]
+
+        for _ in range(n_repeat):
+            self.env.reset()
+            while True:
+                if self.env.state["_active"] == 0:  # no word active
+                    state_recovered = self.env.readable2state(self.env.state2readable())
+                    assert self.env.equal(self.env.state, state_recovered)
+                if self.env.done:
+                    break
+                self.env.step_random()
