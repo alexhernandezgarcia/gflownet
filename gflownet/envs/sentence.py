@@ -39,19 +39,30 @@ class Sentence(Sequence):
         """Converts a state into a human-readable representation."""
         state = self._get_state(state)
         indices_seq = state["_indices"]
-        body = ""
+        words = []
         for key in indices_seq:
             idx_unique = state["_envs_unique"][key]
             # get the class of the subenv so that we can get the state2readable function
             subenv = self._get_env_unique(idx_unique)
-            # separate the words with a letter
-            if key == 0:
-                # capitalize the first letter
-                body += str(
-                    subenv.state2readable(self._get_substate(state, key))
-                ).capitalize()
-            else:
-                body += str(
-                    subenv.state2readable(self._get_substate(state, key))
-                ).lower()
+            words.append(subenv.state2readable(self._get_substate(state, key)))
+        body = " ".join(words).capitalize()
         return body + "." if self.done else body
+
+    # make a readable2state
+    def readable2state(self, sentence: str) -> Dict:
+        # it is expecting for words (subenvs) to be space separated
+        words = sentence.strip().rstrip(".").split()
+        # get the subenv object, we know it is only the Word() lol
+        word_env = self._get_env_unique(0)
+        # this is the format of the composite sequence state
+        state = {"_active": 0, "_dones": [], "_envs_unique": [], "_indices": []}
+        for key, word in enumerate(words):
+            word = word.upper()  # upper everything based on Word/scrabble environment
+            if len(word) > word_env.max_length:
+                # catch some errors
+                raise ValueError(f"Word too long for max_length: {word}")
+            state["_envs_unique"].append(0)
+            state["_dones"].append(1)
+            state["_indices"].append(key)
+            state[key] = word_env.readable2state(word)
+        return state
