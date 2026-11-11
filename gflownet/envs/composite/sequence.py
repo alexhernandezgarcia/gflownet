@@ -1453,8 +1453,8 @@ class Sequence(CompositeBase):
     def _get_max_trajectory_length(self) -> int:
         """Upper bound on the trajectory length (including EOS)."""
         max_subenv_traj = max([env.max_traj_length for env in self.envs_unique])
-        # Max elements times (insert action + max actions in subenv) + global EOS
-        return self.max_elements * (1 + max_subenv_traj) + 1
+        # Max elements times (max_subenv_traj + insert empty subenv + toggle) + global EOS
+        return self.max_elements * (2 + max_subenv_traj) + 1
 
     def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
         """Equality between environment instances."""
