@@ -10,7 +10,7 @@ def env():
 
 
 def test__environment_initializes_properly():
-    env = Sentence()
+    env = Sentence(max_sequence_length=5)
     assert True
 
 
