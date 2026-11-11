@@ -114,9 +114,9 @@ def test__step__returns_expected(env, state, action, next_state):
     "state, readable",
     [
         ([0, 0, 0, 0, 0, 0, 0], ""),
-        ([3, 1, 20, 0, 0, 0, 0], "C A T"),
-        ([2, 9, 18, 4, 19, 0, 0], "B I R D S"),
-        ([13, 1, 3, 8, 9, 14, 5], "M A C H I N E"),
+        ([3, 1, 20, 0, 0, 0, 0], "CAT"),
+        ([2, 9, 18, 4, 19, 0, 0], "BIRDS"),
+        ([13, 1, 3, 8, 9, 14, 5], "MACHINE"),
     ],
 )
 def test__state2readable__returns_expected(env, state, readable):
@@ -127,9 +127,9 @@ def test__state2readable__returns_expected(env, state, readable):
     "state, readable",
     [
         ([0, 0, 0, 0, 0, 0, 0], ""),
-        ([3, 1, 20, 0, 0, 0, 0], "C A T"),
-        ([2, 9, 18, 4, 19, 0, 0], "B I R D S"),
-        ([13, 1, 3, 8, 9, 14, 5], "M A C H I N E"),
+        ([3, 1, 20, 0, 0, 0, 0], "CAT"),
+        ([2, 9, 18, 4, 19, 0, 0], "BIRDS"),
+        ([13, 1, 3, 8, 9, 14, 5], "MACHINE"),
     ],
 )
 def test__readable2state__returns_expected(env, state, readable):
