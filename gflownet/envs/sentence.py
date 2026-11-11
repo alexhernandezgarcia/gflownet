@@ -17,6 +17,7 @@ class Sentence(Sequence):
 
     def __init__(
         self,
+        max_sequence_length: int = 5,
         **kwargs,
     ):
 
@@ -28,7 +29,7 @@ class Sentence(Sequence):
         super().__init__(
             envs_unique=tuple(subenvs),
             merge_representations=True,
-            # max_sequence_length=5,
+            max_sequence_length=max_sequence_length,  # possibly, we want to add this to the config file
             right_only=False,
             left_only=False,
             **kwargs,
@@ -48,7 +49,9 @@ class Sentence(Sequence):
                 # capitalize the first letter
                 body += str(
                     subenv.state2readable(self._get_substate(state, key))
-                ).upper()
+                ).capitalize()
             else:
-                body += str(subenv.state2readable(self._get_substate(state, key)))
+                body += str(
+                    subenv.state2readable(self._get_substate(state, key))
+                ).lower()
         return body + "." if self.done else body
