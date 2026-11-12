@@ -6,6 +6,7 @@ TODO:
 
 import copy
 import gc
+import math
 import pickle
 import time
 from collections import defaultdict
@@ -935,6 +936,35 @@ class GFlowNetAgent:
         return logprobs_estimates, logprobs_std, probs_std
 
     @torch.no_grad()
+    def _logz_logweights(self, batch: Batch) -> TensorType["n_trajectories"]:
+        r"""
+        Computes the per-trajectory log-weights used in the logZ estimators.
+
+        $$
+        \log w = \log R(x) + \log P_B(\tau \mid x) - \log P_F(\tau)
+        $$
+
+        Parameters
+        ----------
+        batch : :py:class:`gflownet.utils.batch.Batch`
+            A batch of complete trajectories, with a proxy set so that the rewards
+            of the terminating states can be computed.
+
+        Returns
+        -------
+        torch.Tensor
+            Log-weight of each trajectory.
+        """
+        logprobs_f = compute_logprobs_trajectories(
+            batch, self.env, forward_policy=self.forward_policy, backward=False
+        )
+        logprobs_b = compute_logprobs_trajectories(
+            batch, self.env, backward_policy=self.backward_policy, backward=True
+        )
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
+        return logrewards + logprobs_b - logprobs_f
+
+    @torch.no_grad()
     def estimate_logz(
         self,
         data: Union[List, str],
@@ -1049,14 +1079,7 @@ class GFlowNetAgent:
                 )
                 envs = [env for env in envs if not env.equal(env.state, env.source)]
 
-            logprobs_f = compute_logprobs_trajectories(
-                batch, self.env, forward_policy=self.forward_policy, backward=False
-            )
-            logprobs_b = compute_logprobs_trajectories(
-                batch, self.env, backward_policy=self.backward_policy, backward=True
-            )
-            logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
-            logz_estimates.append(logrewards + logprobs_b - logprobs_f)
+            logz_estimates.append(self._logz_logweights(batch))
 
             init_batch += batch_size
             end_batch = min(end_batch + batch_size, n_states)
@@ -1068,6 +1091,101 @@ class GFlowNetAgent:
         pbar.close()
         pbar2.close()
         return logz_estimate
+
+    @torch.no_grad()
+    def estimate_logz_forward(
+        self,
+        n_samples: int = 1000,
+        batch_size: int = 100,
+        reduction: str = "logmeanexp",
+    ):
+        r"""
+        Estimates the log-partition function from forward trajectories.
+
+        Trajectories are sampled on-policy from $P_F$ and reweighted by
+
+        $$
+        w(\tau) = \frac{R(x) P_B(\tau \mid x)}{P_F(\tau)},
+        $$
+        for which $E_{\tau \sim P_F}[w]=Z$. This is unlike
+        :py:meth:`estimate_logz`, which draws backward trajectories from a data set of
+        terminating states.
+
+        Notes
+        -----
+        The trajectories must be sampled strictly on-policy for the estimate to be
+        valid. The batch is therefore built here rather than with
+        :py:meth:`sample_batch`, which applies ``self.random_action_prob`` and
+        ``self.temperature_logits`` when sampling for training.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of forward trajectories to sample.
+        batch_size : int
+            The number of trajectories to sample at a time.
+        reduction : str
+            ``"logmeanexp"`` returns the scalar estimate of $\log Z$; ``"none"``
+            returns the raw per-trajectory log-weights.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar estimate of $\log Z$, or, if ``reduction="none"``, the
+            per-trajectory log-weights, of shape ``[n_samples]``.
+        """
+        times = {}
+        if reduction not in ("logmeanexp", "none"):
+            raise ValueError(
+                f"reduction must be 'logmeanexp' or 'none', got {reduction}"
+            )
+        logz_estimates = []
+        init_batch = 0
+        end_batch = min(batch_size, n_samples)
+        pbar = tqdm(
+            total=n_samples,
+            disable=self.logger.progressbar["skip"],
+            leave=False,
+            desc="Sampling forward actions to estimate logZ",
+        )
+        while init_batch < n_samples:
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
+            envs = [
+                self.env_maker().set_id(idx) for idx in range(init_batch, end_batch)
+            ]
+            while envs:
+                actions, logprobs, logprobs_rev = self.sample_actions(
+                    envs,
+                    batch,
+                    no_random=True,
+                    times=times,
+                    compute_reversed_logprobs=True,
+                )
+                envs, actions, valids = self.step(envs, actions)
+                batch.add_to_batch(
+                    envs,
+                    actions,
+                    logprobs,
+                    logprobs_rev,
+                    valids,
+                    train=True,
+                )
+                envs = [env for env in envs if not env.done]
+            logz_estimates.append(self._logz_logweights(batch))
+
+            pbar.update(end_batch - init_batch)
+            init_batch += batch_size
+            end_batch = min(end_batch + batch_size, n_samples)
+        logz_estimates = torch.cat(logz_estimates)
+        pbar.close()
+        if reduction == "none":
+            return logz_estimates
+        return torch.logsumexp(logz_estimates, dim=0) - math.log(logz_estimates.numel())
 
     def train(self):
         # Train loop
