@@ -17,7 +17,9 @@ class Sentence(Sequence):
 
     def __init__(
         self,
-        max_sequence_length: int = 5,
+        max_sequence_length: Optional[int] = 5,
+        left_only: Optional[bool] = False,
+        right_only: Optional[bool] = False,
         **kwargs,
     ):
 
@@ -30,8 +32,8 @@ class Sentence(Sequence):
             envs_unique=tuple(subenvs),
             merge_representations=True,
             max_sequence_length=max_sequence_length,  # possibly, we want to add this to the config file
-            right_only=False,
-            left_only=False,
+            right_only=right_only,
+            left_only=left_only,
             **kwargs,
         )
 
