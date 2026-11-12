@@ -1093,7 +1093,12 @@ class GFlowNetAgent:
         return logz_estimate
 
     @torch.no_grad()
-    def estimate_logz_forward(self, n_samples: int = 1000, batch_size: int = 100):
+    def estimate_logz_forward(
+        self,
+        n_samples: int = 1000,
+        batch_size: int = 100,
+        reduction: str = "logmeanexp",
+    ):
         r"""
         Estimates the log-partition function from forward trajectories.
 
@@ -1119,13 +1124,21 @@ class GFlowNetAgent:
             The number of forward trajectories to sample.
         batch_size : int
             The number of trajectories to sample at a time.
+        reduction : str
+            ``"logmeanexp"`` returns the scalar estimate of $\log Z$; ``"none"``
+            returns the raw per-trajectory log-weights.
 
         Returns
         -------
         torch.Tensor
-            Scalar estimate of $\log Z$.
+            Scalar estimate of $\log Z$, or, if ``reduction="none"``, the
+            per-trajectory log-weights, of shape ``[n_samples]``.
         """
         times = {}
+        if reduction not in ("logmeanexp", "none"):
+            raise ValueError(
+                f"reduction must be 'logmeanexp' or 'none', got {reduction}"
+            )
         logz_estimates = []
         init_batch = 0
         end_batch = min(batch_size, n_samples)
@@ -1170,6 +1183,8 @@ class GFlowNetAgent:
             end_batch = min(end_batch + batch_size, n_samples)
         logz_estimates = torch.cat(logz_estimates)
         pbar.close()
+        if reduction == "none":
+            return logz_estimates
         return torch.logsumexp(logz_estimates, dim=0) - math.log(logz_estimates.numel())
 
     def train(self):
