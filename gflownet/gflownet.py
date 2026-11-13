@@ -1135,9 +1135,9 @@ class GFlowNetAgent:
             per-trajectory log-weights, of shape ``[n_samples]``.
         """
         times = {}
-        if reduction not in ("logmeanexp", "none"):
+        if reduction not in ("logmeanexp", "none", "stats"):
             raise ValueError(
-                f"reduction must be 'logmeanexp' or 'none', got {reduction}"
+                f"reduction must be 'logmeanexp', 'none' or 'stats', got {reduction}"
             )
         logz_estimates = []
         init_batch = 0
@@ -1185,6 +1185,8 @@ class GFlowNetAgent:
         pbar.close()
         if reduction == "none":
             return logz_estimates
+        if reduction == "stats":
+            return logz_stats_from_logweights(logz_estimates)
         return torch.logsumexp(logz_estimates, dim=0) - math.log(logz_estimates.numel())
 
     def train(self):
@@ -1569,6 +1571,74 @@ class GFlowNetAgent:
 
         if self.logger.debug:
             print("\nCheckpoint loaded into GFlowNet agent\n")
+
+
+def logz_stats_from_logweights(
+    logw, n_resamples: int = 1000, confidence_level: float = 0.68, chunk: int = 64
+):
+    r"""
+    Bootstraps the forward logZ estimator from its per-trajectory log-weights.
+
+    The effective sample size (ESS) is how many independent samples the $M$
+    trajectories are actually worth, which collapses when a few of them carry
+    most of the weight:
+
+    $$
+    \mathrm{ESS} = \frac{\left(\sum_m w_m\right)^2}{\sum_m w_m^2}
+    $$
+
+    It equals the $1/E_q[w^2]$ of arXiv:2503.08918 only under full support; mode
+    dropping scales it by their EMDM squared. The returned interval is
+    percentile-based rather than a symmetric $\pm\sigma$.
+
+    Parameters
+    ----------
+    logw : torch.Tensor
+        Log-weight of each trajectory, as returned by
+        :py:meth:`GFlowNetAgent.estimate_logz_forward` with ``reduction="none"``.
+    n_resamples : int
+        Number of bootstrap resamples drawn from the log-weights.
+    confidence_level : float
+        Coverage of the returned interval. The default is one standard
+        deviation.
+    chunk : int
+        Number of resamples drawn at a time, bounding the allocation at ``chunk``
+        times the number of log-weights.
+
+    Returns
+    -------
+    dict
+        The estimate ``logZ``, its ``logZ_std`` and percentile interval
+        ``logZ_ci_low`` / ``logZ_ci_high``, the effective sample size as
+        ``ess_per_sample`` (ESS/$M$, in $[1/M, 1]$) and ``ess_total`` (the raw
+        count) and the number of log-weights ``n_logz_samples``.
+    """
+    logw = torch.as_tensor(logw, dtype=torch.float64).flatten()
+    n_weights = logw.numel()
+    log_n = math.log(n_weights)
+    logz = torch.logsumexp(logw, dim=0) - log_n
+    replicates = []
+    for start in range(0, n_resamples, chunk):
+        resampled = bootstrap_samples(logw, num_samples=min(chunk, n_resamples - start))
+        replicates.append(torch.logsumexp(resampled, dim=0) - log_n)
+    replicates = torch.cat(replicates)
+    tail = (1.0 - confidence_level) / 2.0
+    quantiles = torch.quantile(
+        replicates, torch.tensor([tail, 1.0 - tail], dtype=replicates.dtype)
+    )
+    # Log-space form of ESS/M.
+    log_ess = 2.0 * (logz + log_n) - log_n - torch.logsumexp(2.0 * logw, dim=0)
+    ess = float(torch.exp(log_ess))
+    return {
+        "logZ": float(logz),
+        "logZ_std": float(replicates.std(unbiased=True)),
+        "logZ_ci_low": float(quantiles[0]),
+        "logZ_ci_high": float(quantiles[1]),
+        "confidence_level": confidence_level,
+        "ess_per_sample": ess,
+        "ess_total": ess * n_weights,
+        "n_logz_samples": int(n_weights),
+    }
 
 
 def make_opt(params, logZ, config):
