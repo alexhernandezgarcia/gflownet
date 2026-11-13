@@ -34,6 +34,7 @@ import warnings
 import numpy as np
 import yaml
 
+from gflownet.gflownet import logz_stats_from_logweights
 from gflownet.utils.common import load_gflownet_from_rundir
 
 # -----------------------------------------------------------
@@ -102,6 +103,19 @@ def parse_args():
         type=int,
         default=100,
         help="Batch size for sampling forward trajectories in logZ estimation.",
+    )
+    eval_parser.add_argument(
+        "--n_bootstrap",
+        type=int,
+        default=1000,
+        help="Bootstrap resamples for the forward logZ error bar. 0 disables it.",
+    )
+    eval_parser.add_argument(
+        "--logz_weights",
+        type=str,
+        default=None,
+        help="Path to a .npy of forward log-weights saved by an earlier run. "
+        "Recomputes the statistics from them instead of sampling again.",
     )
     eval_parser.add_argument(
         "--resample",
@@ -327,7 +341,7 @@ def estimate_logz_from_eval(args, sampled_states=None):
         Parsed CLI arguments. The following attributes are used:
         ``rundir``, ``estimate_logz``, ``n_logz_samples``, ``logz_batch_size``,
         ``n_trajs_logz``, ``estimate_logz_forward``, ``n_logz_samples_forward``,
-        and ``logz_batch_size_forward``.
+        ``logz_batch_size_forward``, ``n_bootstrap`` and ``logz_weights``.
     sampled_states : array-like, optional
         Optional terminating states reused for ``logz_est``. If ``None``, the
         evaluator samples terminating states from the model policy. Ignored by
@@ -339,7 +353,10 @@ def estimate_logz_from_eval(args, sampled_states=None):
         One ``float`` per requested estimator, keyed by its evaluator metric name
         (``logz_est`` for the backward estimator, ``logz_est_fwd`` for the forward
         one), each paired with a ``<metric>_time_s`` entry giving the wall-clock
-        seconds spent computing it. Empty if neither estimator was requested.
+        seconds spent computing it. With ``n_bootstrap > 0`` the forward entry
+        is accompanied by the error bars and effective sample size of
+        :py:func:`gflownet.gflownet.logz_stats_from_logweights`. Empty if
+        neither estimator was requested.
 
     Raises
     ------
@@ -349,41 +366,112 @@ def estimate_logz_from_eval(args, sampled_states=None):
     requested = []
     if args.estimate_logz:
         requested.append("logz_est")
-    if args.estimate_logz_forward:
+    # With error bars the forward estimator is computed from its log-weights
+    # rather than through the evaluator, so that the trajectories are sampled
+    # only once -- or not at all, when a saved set of weights is reused.
+    bootstrap_fwd = args.estimate_logz_forward and args.n_bootstrap > 0
+    if args.estimate_logz_forward and not bootstrap_fwd:
         requested.append("logz_est_fwd")
-    if not requested:
+    if not requested and not bootstrap_fwd:
         return {}
-    print(f"Running logZ estimation through evaluator API: {', '.join(requested)}")
-    gflownet, _ = load_gflownet_from_rundir(
-        rundir=os.path.abspath(args.rundir),
-        device="cpu",
-        no_wandb=True,
-        print_config=False,
-        load_last_checkpoint=True,
-    )
 
-    evaluator = gflownet.evaluator
-    evaluator.config.n_logz_samples = args.n_logz_samples
-    evaluator.config.logz_batch_size = args.logz_batch_size
-    evaluator.config.n_trajs_logz = args.n_trajs_logz
-    evaluator.config.n_logz_samples_forward = args.n_logz_samples_forward
-    evaluator.config.logz_batch_size_forward = args.logz_batch_size_forward
-    evaluator.metrics = evaluator.make_metrics(requested)
-    evaluator.reqs = evaluator.make_requirements(metrics=evaluator.metrics)
     logz_metrics = {}
-    for name in requested:
-        start = time.perf_counter()
-        result = evaluator.eval(metrics=name, logz_states=sampled_states)
-        elapsed = time.perf_counter() - start
-        value = result.get("metrics", {}).get(name)
-        if value is None:
-            raise RuntimeError(
-                f"Could not compute `{name}` from evaluator. Check that the run "
-                "has a valid checkpoint and environment config."
-            )
-        logz_metrics[name] = float(value)
-        logz_metrics[f"{name}_time_s"] = elapsed
+    needs_sampling = bootstrap_fwd and args.logz_weights is None
+    if requested or needs_sampling:
+        gflownet, _ = load_gflownet_from_rundir(
+            rundir=os.path.abspath(args.rundir),
+            device="cpu",
+            no_wandb=True,
+            print_config=False,
+            load_last_checkpoint=True,
+        )
+    else:
+        gflownet = None
+
+    if requested:
+        print(f"Running logZ estimation through evaluator API: {', '.join(requested)}")
+        evaluator = gflownet.evaluator
+        evaluator.config.n_logz_samples = args.n_logz_samples
+        evaluator.config.logz_batch_size = args.logz_batch_size
+        evaluator.config.n_trajs_logz = args.n_trajs_logz
+        evaluator.config.n_logz_samples_forward = args.n_logz_samples_forward
+        evaluator.config.logz_batch_size_forward = args.logz_batch_size_forward
+        evaluator.metrics = evaluator.make_metrics(requested)
+        evaluator.reqs = evaluator.make_requirements(metrics=evaluator.metrics)
+        for name in requested:
+            start = time.perf_counter()
+            result = evaluator.eval(metrics=name, logz_states=sampled_states)
+            elapsed = time.perf_counter() - start
+            value = result.get("metrics", {}).get(name)
+            if value is None:
+                raise RuntimeError(
+                    f"Could not compute `{name}` from evaluator. Check that the run "
+                    "has a valid checkpoint and environment config."
+                )
+            logz_metrics[name] = float(value)
+            logz_metrics[f"{name}_time_s"] = elapsed
+
+    if bootstrap_fwd:
+        logz_metrics.update(forward_logz_stats(args, gflownet))
     return logz_metrics
+
+
+def forward_logz_stats(args, gflownet=None):
+    """
+    Estimates logZ from forward trajectories with bootstrap error bars.
+
+    Samples the trajectories and saves their log-weights, or reuses the weights
+    of an earlier run when ``args.logz_weights`` is set. Sampling is by far the
+    expensive step, so the weights are kept to let the statistics be recomputed
+    without repeating it.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments. Uses ``rundir``, ``logz_weights``,
+        ``n_logz_samples_forward``, ``logz_batch_size_forward`` and
+        ``n_bootstrap``.
+    gflownet : :py:class:`gflownet.gflownet.GFlowNetAgent`, optional
+        The trained agent. Only needed when sampling, that is when
+        ``args.logz_weights`` is ``None``.
+
+    Returns
+    -------
+    dict
+        ``logz_est_fwd`` and ``logz_est_fwd_time_s``, plus the error bars and
+        effective sample size of
+        :py:func:`gflownet.gflownet.logz_stats_from_logweights`.
+    """
+    if args.logz_weights is not None:
+        print(f"Reusing forward log-weights from {args.logz_weights}")
+        logw = np.load(args.logz_weights)
+        elapsed = 0.0
+    else:
+        print("Sampling forward trajectories to estimate logZ")
+        start = time.perf_counter()
+        logw = (
+            gflownet.estimate_logz_forward(
+                n_samples=args.n_logz_samples_forward,
+                batch_size=args.logz_batch_size_forward,
+                reduction="none",
+            )
+            .cpu()
+            .numpy()
+        )
+        elapsed = time.perf_counter() - start
+        out_dir = os.path.join(os.path.abspath(args.rundir), "eval", "samples")
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = os.path.join(out_dir, "logz_logweights_fwd.npy")
+        np.save(out_path, logw)
+        print(f"Saved forward log-weights to {out_path}")
+
+    stats = logz_stats_from_logweights(logw, n_resamples=args.n_bootstrap)
+    metrics = {
+        "logz_est_fwd": stats.pop("logZ"),
+        "logz_est_fwd_time_s": elapsed,
+    }
+    metrics.update(stats)
+    return metrics
 
 
 # -----------------------------------------------------------
@@ -549,6 +637,43 @@ def compute_theoretical_quantities(beta, length):
     }
 
 
+def free_energy_relative_error(logz_hat, logz_theory, logz_ci=None):
+    r"""
+    Relative error of the free energy, the quantity plotted in Figure 3 (left)
+    of https://arxiv.org/abs/2503.08918.
+
+    With $F = -\log Z / \beta$ the inverse temperature cancels, as does any
+    per-site normalisation, leaving
+
+    $$
+    \frac{\hat{F} - F}{|F|} = -\frac{\log \hat{Z} - \log Z}{|\log Z|}
+    $$
+
+    Parameters
+    ----------
+    logz_hat : float
+        Estimated log partition function.
+    logz_theory : float
+        Exact log partition function.
+    logz_ci : tuple of float, optional
+        Lower and upper bounds on ``logz_hat``. The minus sign above swaps the
+        endpoints, so the upper bound on logZ gives the lower bound here.
+
+    Returns
+    -------
+    dict
+        ``dF_over_F`` and, when ``logz_ci`` is given, ``dF_over_F_low`` and
+        ``dF_over_F_high``.
+    """
+    scale = abs(logz_theory)
+    out = {"dF_over_F": -(logz_hat - logz_theory) / scale}
+    if logz_ci is not None:
+        low, high = logz_ci
+        out["dF_over_F_low"] = -(high - logz_theory) / scale
+        out["dF_over_F_high"] = -(low - logz_theory) / scale
+    return out
+
+
 # -----------------------------------------------------------
 # Run modes
 # -----------------------------------------------------------
@@ -630,12 +755,36 @@ def run_gfn_evaluation(args):
         "logZ_theoretical": theory["logZ"],
     }
 
+    # Error bars and effective sample size, when the forward estimator was
+    # bootstrapped, and the relative free-energy error they imply.
+    results.update(
+        {k: v for k, v in logz_metrics.items() if k.startswith(("logZ_", "ess_"))}
+    )
+    if logZ_estimated_fwd is not None:
+        logz_ci = (
+            (logz_metrics["logZ_ci_low"], logz_metrics["logZ_ci_high"])
+            if "logZ_ci_low" in logz_metrics
+            else None
+        )
+        results.update(
+            free_energy_relative_error(
+                logZ_estimated_fwd, theory["logZ"], logz_ci=logz_ci
+            )
+        )
+
     print("\nEstimated quantities from GFN run:")
     print(f"  logZ from GFN                  = {logZ_gfn:.6f}")
     if logZ_estimated is not None:
         print(f"  logZ estimated from backward trajectories = {logZ_estimated:.6f}")
     if logZ_estimated_fwd is not None:
         print(f"  logZ estimated from forward trajectories  = {logZ_estimated_fwd:.6f}")
+    if "dF_over_F" in results:
+        print(f"  Relative free energy error     = {results['dF_over_F']:.3e}")
+    if "ess_total" in results:
+        print(
+            f"  Effective sample size          = {results['ess_total']:.1f} "
+            f"of {results['n_logz_samples']}"
+        )
     print(f"  Mean absolute magnetization    = {m_abs_magnetization:.6f}")
     print(f"  Mean susceptibility            = {m_susceptibility:.6f}")
     print(f"  Mean energy                    = {m_energy:.6f}")
