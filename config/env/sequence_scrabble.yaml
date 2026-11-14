@@ -1,0 +1,6 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.sequence_scrabble.SequenceScrabble
+
+id: sequence_scrabble
