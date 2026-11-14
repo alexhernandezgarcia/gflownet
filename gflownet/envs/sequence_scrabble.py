@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.composite.sequence import Sequence
 from gflownet.envs.scrabble import Scrabble
+from gflownet.utils.common import tlong
 
 
 # Here we will use exactly the same scrabble but we can insert each letter left or right
@@ -37,30 +38,49 @@ class SequenceScrabble(Sequence):
             **kwargs,
         )
 
+        # here we add attributes from the original scrabble that will be needed by the proxy
+        letter_env = self._get_env_unique(0) # we know we only have 1 env
+        # things needed
+        self.pad_token = letter_env.pad_token
+        self.pad_idx = letter_env.pad_idx
+        self.idx2token = letter_env.idx2token
+        self.token2idx = letter_env.token2idx
+        self.max_length = self.max_sequence_length  # word length
+
+    def states2proxy(self, states: List[Dict]):
+        # for the scrabble proxy
+        out = []
+        for state in states:
+            seq = [self._get_substate(state, key)[0] for key in state["_indices"]]
+            seq += [self.pad_idx] * (self.max_length - len(seq))
+            out.append(seq)
+        return tlong(out, device=self.device)
+    
     def state2readable(self, state: Optional[Dict] = None) -> str:
         """Converts a state into a human-readable representation."""
         state = self._get_state(state)
-        indices_seq = state["_indices"]
-        letters = []
-        for key in indices_seq:
-            idx_unique = state["_envs_unique"][key]
-            # get the class of the subenv so that we can get the state2readable function
-            subenv = self._get_env_unique(idx_unique)
-            letters.append(subenv.state2readable(self._get_substate(state, key)))
-        body = " ".join(letters)
+        letter_env = self._get_env_unique(0)
+        body = " ".join(
+            letter_env.state2readable(self._get_substate(state, key))
+            for key in state["_indices"]
+        )
         return body
 
-    # make a readable2state
-    def readable2state(self, scrabble_word: str) -> Dict:
-        # it is expecting for words (subenvs) to be space separated
-        letters = scrabble_word.split(" ")
-        # get the subenv object, we know it is only the Word() lol
-        scrabble_env = self._get_env_unique(0)
-        # this is the format of the composite sequence state
-        state = {"_active": 0, "_dones": [], "_envs_unique": [], "_indices": []}
-        for key, letter in enumerate(letters):
-            state["_envs_unique"].append(0)
-            state["_dones"].append(1)
-            state["_indices"].append(key)
-            state[key] = scrabble_env.readable2state(letter)
+    # careful! for this part, we use a readable2state that will output a state used by the scrabble proxy
+    # def readable2state(self, scrabble_word: str) -> Dict:
+    def readable2state(self, scrabble_word: str) -> List[int]:
+        # # it is expecting for words (subenvs) to be space separated
+        # letters = scrabble_word.split(" ")
+        # # get the subenv object, we know it is only the Word() lol
+        # scrabble_env = self._get_env_unique(0)
+        # # this is the format of the composite sequence state
+        # state = {"_active": 0, "_dones": [], "_envs_unique": [], "_indices": []}
+        # for key, letter in enumerate(letters):
+        #     state["_envs_unique"].append(0)
+        #     state["_dones"].append(1)
+        #     state["_indices"].append(key)
+        #     state[key] = scrabble_env.readable2state(letter)
+        # think about how to make it general
+        idx = [self.token2idx[t] for t in scrabble_word.split(" ")] if scrabble_word else []
+        state = idx + [self.pad_idx] * (self.max_length - len(idx))
         return state
