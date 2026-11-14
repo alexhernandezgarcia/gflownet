@@ -1,0 +1,86 @@
+# @package _global_
+
+defaults:
+   - override /env: sequence_scrabble
+   - override /gflownet: trajectorybalance
+   - override /loss: trajectorybalance
+   - override /proxy: scrabble
+   - override /logger: wandb
+
+# Environment
+env:
+  max_sequence_length: 7
+  left_only: False 
+  right_only: False
+
+
+# Buffer
+buffer:
+  train: null
+  test: 
+    type: random
+    n: 1000
+  replay_criterion: reward
+  reject_duplicate_trajectories: false
+  diversity_check_value_similarity: 0.1
+
+# Proxy
+proxy:
+  vocabulary_check: True
+  reward_min: 1e-8
+  do_clip_rewards: True
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_replay_reward: 0
+      backward_replay_loss: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    shared_weights: False
+    checkpoint: backward
+
+# WandB
+logger:
+  do:
+    online: False
+  lightweight: True
+  project_name: "scrabble-composite-sequence"
+  run_name: "Scrabble Composite Sequence  Default"
+  tags: 
+    - gflownet
+    - composite_sequence
+    - scrabble
+    - scrabble_score
+    - left_right
+    - max_length_7
+
+# Evaluator
+evaluator:
+  first_it: True
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/composite/sequence/scrabble/${now:%Y-%m-%d_%H-%M-%S_%f}
