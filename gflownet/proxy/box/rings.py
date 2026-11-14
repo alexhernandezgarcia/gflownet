@@ -64,6 +64,12 @@ class Rings(Proxy):
     def setup(self, env=None):
         if env:
             self.n_dim = env.n_dim
+        if self.n_dim is None:
+            raise ValueError(
+                "The number of dimensions of the proxy must be set at initialization "
+                "by passing the parameter n_dim or during setup by passing an "
+                "environment with env.n_dim. After setup, self.n_dim remains None."
+            )
         if self.center is None:
             self.center = (0.0,) * self.n_dim
         if len(self.center) != self.n_dim:
