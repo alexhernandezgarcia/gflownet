@@ -5,7 +5,6 @@ and the cube.
 The function places high scores at rings (or hyper-sphere surfaces) in the hyper-box,
 centered around a point defined by the ``center`` parameter, which defaults to the
 domain center. The rings are defined by a mixture of isotropic radial Gaussians.
-Optionally, the scores and can be thresholded.
 """
 
 from typing import Iterable
