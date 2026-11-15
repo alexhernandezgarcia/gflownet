@@ -525,7 +525,7 @@ class GFlowNetAgent:
         env_cond: Optional[GFlowNetEnv] = None,
         is_backward_mask: Optional[bool] = False,
         is_backward_traj: Optional[bool] = False,
-    ) -> List[List[bool]]:
+    ) -> TensorType["batch_size"]:
         """
         Given a batch and/or a list of environments, obtains the mask of invalid
         actions of each environment's current state.
