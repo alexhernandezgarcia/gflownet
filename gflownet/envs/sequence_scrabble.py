@@ -39,7 +39,7 @@ class SequenceScrabble(Sequence):
         )
 
         # here we add attributes from the original scrabble that will be needed by the proxy
-        letter_env = self._get_env_unique(0) # we know we only have 1 env
+        letter_env = self._get_env_unique(0)  # we know we only have 1 env
         # things needed
         self.pad_token = letter_env.pad_token
         self.pad_idx = letter_env.pad_idx
@@ -55,7 +55,7 @@ class SequenceScrabble(Sequence):
             seq += [self.pad_idx] * (self.max_length - len(seq))
             out.append(seq)
         return tlong(out, device=self.device)
-    
+
     def state2readable(self, state: Optional[Dict] = None) -> str:
         """Converts a state into a human-readable representation."""
         state = self._get_state(state)
@@ -81,6 +81,10 @@ class SequenceScrabble(Sequence):
         #     state["_indices"].append(key)
         #     state[key] = scrabble_env.readable2state(letter)
         # think about how to make it general
-        idx = [self.token2idx[t] for t in scrabble_word.split(" ")] if scrabble_word else []
+        idx = (
+            [self.token2idx[t] for t in scrabble_word.split(" ")]
+            if scrabble_word
+            else []
+        )
         state = idx + [self.pad_idx] * (self.max_length - len(idx))
         return state
