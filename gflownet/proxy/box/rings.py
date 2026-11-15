@@ -5,6 +5,16 @@ and the cube.
 The function places high scores at rings (or hyper-sphere surfaces) in the hyper-box,
 centered around a point defined by the ``center`` parameter, which defaults to the
 domain center. The rings are defined by a mixture of isotropic radial Gaussians.
+
+This proxy has been used, for example, in the following articles:
+
+    - `Avoid what you know: Divergent trajectory balance for GFlowNets`_
+    - `Hierarchical Cooperative GFlowNets`_
+    - `Rethinking GFlowNet training: Negative reinforce dynamics`_
+
+.. _`Avoid what you know: Divergent trajectory balance for GFlowNets`: https://arxiv.org/abs/2602.17827
+.. _`Hierarchical Cooperative GFlowNets`: https://arxiv.org/abs/2610.33968
+.. _`Rethinking GFlowNet training: Negative reinforce dynamics`: https://arxiv.org/abs/2610.38994
 """
 
 from typing import Iterable
