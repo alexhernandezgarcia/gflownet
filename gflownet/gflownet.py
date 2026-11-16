@@ -574,9 +574,9 @@ class GFlowNetAgent:
             )
         # Compute masks since a batch was not provided
         else:
-            mask_invalid_actions = tbool(
-                [env.get_mask(backward=is_backward_mask) for env in envs],
-                device=self.device,
+            states, dones = zip(*[(env.state, env.done) for env in envs])
+            mask_invalid_actions = self.env.get_mask_batch(
+                states, dones, backward=is_backward_mask
             )
         # Mask conditioning
         if env_cond is not None:
