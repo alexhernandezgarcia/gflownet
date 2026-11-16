@@ -346,7 +346,7 @@ class GFlowNetEnv:
 
         Returns
         -------
-        A list of boolean values, indicating, for each action in the action space
+        A list of boolean values, indicating, for each action in the action space,
         whether it is invalid from the current state.
         """
         return [False for _ in range(self.action_space_dim)]
@@ -419,7 +419,7 @@ class GFlowNetEnv:
 
         Returns
         -------
-        A list of boolean values, indicating, for each action in the action space
+        A list of boolean values, indicating, for each action in the action space,
         whether it is invalid as a backward transition from the current state.
         """
         state = self._get_state(state)
@@ -474,9 +474,27 @@ class GFlowNetEnv:
         backward: Optional[bool] = False,
     ) -> List:
         """
-        Returns a mask of invalid actions given a state and a done value. Depending on
-        backward, either the forward or the backward mask is returned, by calling the
-        corresponding method.
+        Return a mask of invalid actions given a state, done and transition direction.
+
+        Depending on ``backward``, either the forward or the backward mask is returned,
+        by calling the corresponding method.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used by the
+            subsequent methods.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used by the
+            subsequent methods.
+        backward : bool, optional
+            If True, the mask of invalid actions will correspond to backward
+            transitions. False by default (forward).
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space,
+        whether it is invalid from the current state.
         """
         if backward:
             return self.get_mask_invalid_actions_backward(state, done)
