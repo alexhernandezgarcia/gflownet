@@ -1,0 +1,7 @@
+defaults:
+  - base
+
+_target_: gflownet.losses.subtrajectorybalance.SubTrajectoryBalance
+
+# Weight of the sub-trajectories: a sub-trajectory of length k has weight lambda_^k
+lambda_: 0.9
