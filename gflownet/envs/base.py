@@ -382,7 +382,7 @@ class GFlowNetEnv:
         return tbool(
             [
                 self.get_mask_invalid_actions_forward(state, done)
-                for state, done in zip(states, done)
+                for state, done in zip(states, dones)
             ],
             device=self.device,
         )
@@ -462,7 +462,7 @@ class GFlowNetEnv:
         return tbool(
             [
                 self.get_mask_invalid_actions_backward(state, done)
-                for state, done in zip(states, done)
+                for state, done in zip(states, dones)
             ],
             device=self.device,
         )
