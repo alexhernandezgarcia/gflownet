@@ -1,9 +1,9 @@
 defaults:
   - base
 
-_target_: gflownet.envs.sequences.smiles.Smiles
+_target_: gflownet.envs.sequences.smiles.SmilesBase
 
-id: smiles
+id: smilesbase
 # Min and max length
 min_length: 1
 max_length: 30
