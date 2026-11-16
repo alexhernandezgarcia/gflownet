@@ -9,7 +9,7 @@ import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -327,35 +327,100 @@ class GFlowNetEnv:
 
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[List] = None,
+        state: Optional[Any] = None,
         done: Optional[bool] = None,
-    ) -> List:
+    ) -> List[bool]:
         """
-        Returns a list of length the action space with values:
-            - True if the forward action is invalid from the current state.
-            - False otherwise.
-        For continuous or hybrid environments, this mask corresponds to the discrete
-        part of the action space.
+        Return a mask of invalid actions given a state.
+
+        The returned mask has the length of the action space with values:
+            - ``True`` if the forward action is invalid from the current state.
+            - ``False`` otherwise.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space,
+        whether it is invalid from the current state.
         """
         return [False for _ in range(self.action_space_dim)]
 
+    def get_mask_invalid_actions_forward_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+    ) -> TensorType["batch_size", "action_space_dim"]:
+        """
+        Return the masks of invalid actions given a batch of states.
+
+        By default, this method iterates over the batch of states and computes the mask
+        of invalid actions for each state separately with
+        :py:meth:`~GFlowNetEnv.get_mask_invalid_actions_forward`.
+
+        However, environments that can implement a batch-wise calculation of the masks
+        of invalid actions can re-implement this method for better efficiency.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+
+        Returns
+        -------
+        A 2D tensor containing the masks of forward invalid actions for the input batch
+        of states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        return tbool(
+            [
+                self.get_mask_invalid_actions_forward(state, done)
+                for state, done in zip(states, dones)
+            ],
+            device=self.device,
+        )
+
     def get_mask_invalid_actions_backward(
         self,
-        state: Optional[List] = None,
+        state: Optional[Any] = None,
         done: Optional[bool] = None,
         parents_a: Optional[List] = None,
-    ) -> List:
+    ) -> List[bool]:
         """
-        Returns a list of length the action space with values:
-            - True if the backward action is invalid from the current state.
-            - False otherwise.
-        For continuous or hybrid environments, this mask corresponds to the discrete
-        part of the action space.
+        Return a mask of invalid backward actions given a state.
 
-        The base implementation below should be common to all discrete spaces as it
-        relies on get_parents, which is environment-specific and must be implemented.
-        Continuous environments will probably need to implement its specific version of
+        The returned mask has the length of the action space with values:
+            - ``True`` if the backward action is invalid from the current state.
+            - ``False`` otherwise.
+
+        The base implementation below is valid for all discrete spaces as it relies on
+        :py:meth:`~GFlowNetEnv.get_parents`, which is environment-specific and must be
+        implemented. However, any environment can always re-implement this method, for
+        example to improve the efficiency.
+
+        Continuous environments will probably need to implement a specific version of
         this method.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used.
+        parents_a : List, optional
+            An optional list of parent actions. Ignored in most cases.
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space,
+        whether it is invalid as a backward transition from the current state.
         """
         state = self._get_state(state)
         done = self._get_done(done)
@@ -366,6 +431,42 @@ class GFlowNetEnv:
             mask[self.action_space.index(pa)] = False
         return mask
 
+    def get_mask_invalid_actions_backward_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+    ) -> TensorType["batch_size", "action_space_dim"]:
+        """
+        Return the masks of invalid backward actions given a batch of states.
+
+        By default, this method iterates over the batch of states and computes the mask
+        of invalid actions for each state separately with
+        :py:meth:`~GFlowNetEnv.get_mask_invalid_actions_backward`.
+
+        However, environments that can implement a batch-wise calculation of the masks
+        of invalid actions can re-implement this method for better efficiency.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+
+        Returns
+        -------
+        A 2D tensor containing the masks of backward invalid actions for the input batch
+        of states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        return tbool(
+            [
+                self.get_mask_invalid_actions_backward(state, done)
+                for state, done in zip(states, dones)
+            ],
+            device=self.device,
+        )
+
     def get_mask(
         self,
         state: Optional[List] = None,
@@ -373,14 +474,66 @@ class GFlowNetEnv:
         backward: Optional[bool] = False,
     ) -> List:
         """
-        Returns a mask of invalid actions given a state and a done value. Depending on
-        backward, either the forward or the backward mask is returned, by calling the
-        corresponding method.
+        Return a mask of invalid actions given a state, done and transition direction.
+
+        Depending on ``backward``, either the forward or the backward mask is returned,
+        by calling the corresponding method.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used by the
+            subsequent methods.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used by the
+            subsequent methods.
+        backward : bool, optional
+            If True, the mask of invalid actions will correspond to backward
+            transitions. False by default (forward).
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space,
+        whether it is invalid from the current state.
         """
         if backward:
             return self.get_mask_invalid_actions_backward(state, done)
         else:
             return self.get_mask_invalid_actions_forward(state, done)
+
+    def get_mask_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+        backward: Optional[bool] = False,
+    ) -> List:
+        """
+        Return the masks of invalid actions given a batch of states, dones and
+        transition direction.
+
+        Depending on ``backward``, either the forward or the backward masks are
+        returned, by calling the corresponding method.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+        backward : bool, optional
+            If True, the masks of invalid actions will correspond to backward
+            transitions. False by default (forward).
+
+        Returns
+        -------
+        A 2D tensor containing the masks of invalid actions for the input batch of
+        states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        if backward:
+            return self.get_mask_invalid_actions_backward_batch(states, dones)
+        else:
+            return self.get_mask_invalid_actions_forward_batch(states, dones)
 
     def get_valid_actions(
         self,

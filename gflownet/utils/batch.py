@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import List, Optional, Tuple, Union
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -1812,6 +1812,74 @@ class Batch:
                 "item must be one of: state, parent, action, done, mask_f[orward] or "
                 "mask_b[ackward]"
             )
+
+    # TODO: improve reuse of pieces of code
+    # TODO: better handle storage in the batch and retrieval of existing items
+    def get_item_batch(
+        self,
+        item: str,
+        envs: List[GFlowNetEnv],
+        backward: bool = False,
+    ) -> List[Any]:
+        """
+        Returns the item specified by ``item`` for a batch of environments.
+
+        Parameters
+        ----------
+        item : str
+            String identifier of the item to retrieve from the batch. Options:
+                - mask_f[orward]
+                - mask_b[ackward]
+        envs : List[GFlowNetEnv]
+            A list of environment instances.
+        backward : bool
+            Whether the trajectory is sampling backward. False (forward) by default.
+
+        Returns
+        -------
+        A batch of the requested items if they are available or None otherwise.
+        """
+        # Get batch index corresponding to each environment
+        batch_indices = [
+            self.traj_idx_action_idx_to_batch_idx(env.id, env.n_actions, backward)
+            for env in envs
+        ]
+
+        # If any of the batch indices is None, get the states and dones from the
+        # environments
+        if any([idx is None for idx in batch_indices]):
+            if item == "mask_f" or item == "mask_forward":
+                states, dones = zip(*[(env.state, env.done) for env in envs])
+                masks_f = envs[0].get_mask_invalid_actions_forward_batch(states, dones)
+                return masks_f
+            elif item == "mask_b" or item == "mask_backward":
+                states, dones = zip(*[(env.state, env.done) for env in envs])
+                masks_b = envs[0].get_mask_invalid_actions_backward_batch(states, dones)
+                return masks_b
+            else:
+                raise ValueError(
+                    "item must be one of: mask_f[orward] " "or mask_b[ackward]"
+                )
+
+        # Obtain batch of requested items
+        if item == "mask_f" or item == "mask_forward":
+            states = []
+            dones = []
+            for batch_idx in batch_indices:
+                states.append(self.states[batch_idx])
+                dones.append(self.done[batch_idx])
+            masks_f = envs[0].get_mask_invalid_actions_forward_batch(states, dones)
+            return masks_f
+        elif item == "mask_b" or item == "mask_backward":
+            states = []
+            dones = []
+            for batch_idx in batch_indices:
+                states.append(self.states[batch_idx])
+                dones.append(self.done[batch_idx])
+            masks_b = envs[0].get_mask_invalid_actions_backward_batch(states, dones)
+            return masks_b
+        else:
+            raise ValueError("item must be one of: mask_f[orward] or mask_b[ackward]")
 
     def get_indices_of_previous_transitions(
         self, envs: List[GFlowNetEnv], backward: bool

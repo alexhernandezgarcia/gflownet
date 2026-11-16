@@ -525,7 +525,7 @@ class GFlowNetAgent:
         env_cond: Optional[GFlowNetEnv] = None,
         is_backward_mask: Optional[bool] = False,
         is_backward_traj: Optional[bool] = False,
-    ) -> List[List[bool]]:
+    ) -> TensorType["batch_size"]:
         """
         Given a batch and/or a list of environments, obtains the mask of invalid
         actions of each environment's current state.
@@ -562,33 +562,18 @@ class GFlowNetAgent:
             return None
         if batch is not None:
             if is_backward_mask:
-                mask_invalid_actions = tbool(
-                    [
-                        batch.get_item("mask_backward", env, backward=is_backward_traj)
-                        for env in envs
-                    ],
-                    device=self.device,
-                )
+                batch_item = "mask_backward"
             else:
-                mask_invalid_actions = tbool(
-                    [
-                        batch.get_item("mask_forward", env, backward=is_backward_traj)
-                        for env in envs
-                    ],
-                    device=self.device,
-                )
+                batch_item = "mask_forward"
+            mask_invalid_actions = batch.get_item_batch(
+                batch_item, envs, backward=is_backward_traj
+            )
         # Compute masks since a batch was not provided
         else:
-            if is_backward_mask:
-                mask_invalid_actions = tbool(
-                    [env.get_mask_invalid_actions_backward() for env in envs],
-                    device=self.device,
-                )
-            else:
-                mask_invalid_actions = tbool(
-                    [env.get_mask_invalid_actions_forward() for env in envs],
-                    device=self.device,
-                )
+            states, dones = zip(*[(env.state, env.done) for env in envs])
+            mask_invalid_actions = self.env.get_mask_batch(
+                states, dones, backward=is_backward_mask
+            )
         # Mask conditioning
         if env_cond is not None:
             mask_invalid_actions = tbool(

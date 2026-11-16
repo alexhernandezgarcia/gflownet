@@ -4,7 +4,7 @@ import pytest
 import torch
 from utils_for_tests import ch_tmpdir, load_base_test_config
 
-from gflownet.utils.batch import compute_logprobs_trajectories
+from gflownet.utils.batch import Batch, compute_logprobs_trajectories
 from gflownet.utils.common import gflownet_from_config, tfloat
 
 
@@ -31,6 +31,67 @@ def gfn_grid():
         print(f"Current GFlowNetAgent execution directory: {tmpdir}")
         gfn = gflownet_from_config(config)
     return gfn
+
+
+def get_n_envs_reset(gfn, n_envs):
+    """
+    Returns n reset environments.
+    """
+    env_instances = gfn.get_env_instances(n_envs)
+    envs = [env_instances.pop().reset(idx) for idx in range(n_envs)]
+    return envs
+
+
+def get_n_envs_with_random_states(gfn, n_envs):
+    """
+    Returns n environments with random states.
+    """
+    envs = get_n_envs_reset(gfn, n_envs)
+    for env in envs:
+        _, _ = env.trajectory_random()
+    return envs
+
+
+@pytest.mark.parametrize(
+    "gfn",
+    [
+        "gfn_grid",
+        "gfn_ccube",
+    ],
+)
+@pytest.mark.parametrize(
+    "is_backward_mask",
+    [
+        True,
+        False,
+    ],
+)
+def test__get_masks__returns_expected(gfn, is_backward_mask, request):
+    gfn = request.getfixturevalue(gfn)
+    envs = get_n_envs_with_random_states(gfn, n_envs=10)
+    batch = Batch(env=gfn.env, device=gfn.device, float_type=gfn.float)
+
+    # Get masks directly from the environment
+    masks_exp = []
+    for env in envs:
+        if is_backward_mask is False:
+            masks_exp.append(env.get_mask_invalid_actions_forward())
+        else:
+            masks_exp.append(env.get_mask_invalid_actions_backward())
+
+    # Get masks with gfn._get_masks() without batch
+    masks = gfn._get_masks(envs, is_backward_mask=is_backward_mask)
+
+    # Compare expected and obtained masks
+    for mask_e, mask_o in zip(masks_exp, masks):
+        assert mask_e == mask_o.tolist()
+
+    # Get masks with gfn._get_masks() wit batch
+    masks = gfn._get_masks(envs, batch, is_backward_mask=is_backward_mask)
+
+    # Compare expected and obtained masks
+    for mask_e, mask_o in zip(masks_exp, masks):
+        assert mask_e == mask_o.tolist()
 
 
 @pytest.mark.parametrize(
