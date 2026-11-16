@@ -501,6 +501,40 @@ class GFlowNetEnv:
         else:
             return self.get_mask_invalid_actions_forward(state, done)
 
+    def get_mask_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+        backward: Optional[bool] = False,
+    ) -> List:
+        """
+        Return the masks of invalid actions given a batch of states, dones and
+        transition direction.
+
+        Depending on ``backward``, either the forward or the backward masks are
+        returned, by calling the corresponding method.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+        backward : bool, optional
+            If True, the masks of invalid actions will correspond to backward
+            transitions. False by default (forward).
+
+        Returns
+        -------
+        A 2D tensor containing the masks of invalid actions for the input batch of
+        states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        if backward:
+            return self.get_mask_invalid_actions_backward_batch(states, dones)
+        else:
+            return self.get_mask_invalid_actions_forward_batch(states, dones)
+
     def get_valid_actions(
         self,
         mask: Optional[bool] = None,
