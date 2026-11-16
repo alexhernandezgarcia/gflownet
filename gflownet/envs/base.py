@@ -9,7 +9,7 @@ import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -331,7 +331,7 @@ class GFlowNetEnv:
         done: Optional[bool] = None,
     ) -> List[bool]:
         """
-        Return a mask of invalid action given a state.
+        Return a mask of invalid actions given a state.
 
         The returned mask has the length of the action space with values:
             - ``True`` if the forward action is invalid from the current state.
@@ -351,6 +351,42 @@ class GFlowNetEnv:
         """
         return [False for _ in range(self.action_space_dim)]
 
+    def get_mask_invalid_actions_forward_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+    ) -> TensorType["batch_size", "action_space_dim"]:
+        """
+        Return the masks of invalid actions given a batch of states.
+
+        By default, this method iterates over the batch of states and computes the mask
+        of invalid actions for each state separately with
+        :py:meth:`~GFlowNetEnv.get_mask_invalid_actions_forward`.
+
+        However, environments that can implement a batch-wise calculation of the masks
+        of invalid actions can re-implement this method for better efficiency.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+
+        Returns
+        -------
+        A 2D tensor containing the masks of forward invalid actions for the input batch
+        of states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        return tbool(
+            [
+                self.get_mask_invalid_actions_forward(state, done)
+                for state, done in zip(states, done)
+            ],
+            device=self.device,
+        )
+
     def get_mask_invalid_actions_backward(
         self,
         state: Optional[Any] = None,
@@ -358,7 +394,7 @@ class GFlowNetEnv:
         parents_a: Optional[List] = None,
     ) -> List[bool]:
         """
-        Return a mask of invalid backward action given a state.
+        Return a mask of invalid backward actions given a state.
 
         The returned mask has the length of the action space with values:
             - ``True`` if the backward action is invalid from the current state.
@@ -394,6 +430,42 @@ class GFlowNetEnv:
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
         return mask
+
+    def get_mask_invalid_actions_backward_batch(
+        self,
+        states: Iterable[Any],
+        dones: Iterable[bool],
+    ) -> TensorType["batch_size", "action_space_dim"]:
+        """
+        Return the masks of invalid backward actions given a batch of states.
+
+        By default, this method iterates over the batch of states and computes the mask
+        of invalid actions for each state separately with
+        :py:meth:`~GFlowNetEnv.get_mask_invalid_actions_backward`.
+
+        However, environments that can implement a batch-wise calculation of the masks
+        of invalid actions can re-implement this method for better efficiency.
+
+        Parameters
+        ----------
+        states : Iterable[Any]
+            A batch of states in environment format.
+        dones : Iterable[bool]
+            A batch of done flags.
+
+        Returns
+        -------
+        A 2D tensor containing the masks of backward invalid actions for the input batch
+        of states. The 0th dimension corresponds to the states and the 1st dimension to
+        the actions (mask).
+        """
+        return tbool(
+            [
+                self.get_mask_invalid_actions_backward(state, done)
+                for state, done in zip(states, done)
+            ],
+            device=self.device,
+        )
 
     def get_mask(
         self,
