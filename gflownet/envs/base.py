@@ -9,7 +9,7 @@ import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -327,35 +327,64 @@ class GFlowNetEnv:
 
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[List] = None,
+        state: Optional[Any] = None,
         done: Optional[bool] = None,
-    ) -> List:
+    ) -> List[bool]:
         """
-        Returns a list of length the action space with values:
-            - True if the forward action is invalid from the current state.
-            - False otherwise.
-        For continuous or hybrid environments, this mask corresponds to the discrete
-        part of the action space.
+        Return a mask of invalid action given a state.
+
+        The returned mask has the length of the action space with values:
+            - ``True`` if the forward action is invalid from the current state.
+            - ``False`` otherwise.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used.
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space
+        whether it is invalid from the current state.
         """
         return [False for _ in range(self.action_space_dim)]
 
     def get_mask_invalid_actions_backward(
         self,
-        state: Optional[List] = None,
+        state: Optional[Any] = None,
         done: Optional[bool] = None,
         parents_a: Optional[List] = None,
-    ) -> List:
+    ) -> List[bool]:
         """
-        Returns a list of length the action space with values:
-            - True if the backward action is invalid from the current state.
-            - False otherwise.
-        For continuous or hybrid environments, this mask corresponds to the discrete
-        part of the action space.
+        Return a mask of invalid backward action given a state.
 
-        The base implementation below should be common to all discrete spaces as it
-        relies on get_parents, which is environment-specific and must be implemented.
-        Continuous environments will probably need to implement its specific version of
+        The returned mask has the length of the action space with values:
+            - ``True`` if the backward action is invalid from the current state.
+            - ``False`` otherwise.
+
+        The base implementation below is valid for all discrete spaces as it relies on
+        :py:meth:`~GFlowNetEnv.get_parents`, which is environment-specific and must be
+        implemented. However, any environment can always re-implement this method, for
+        example to improve the efficiency.
+
+        Continuous environments will probably need to implement a specific version of
         this method.
+
+        Parameters
+        ----------
+        state : Any, optional
+            Input state in environment format. If None, self.state is used.
+        done : bool, optional
+            Whether the trajectory is done. If None, self.done is used.
+        parents_a : List, optional
+            An optional list of parent actions. Ignored in most cases.
+
+        Returns
+        -------
+        A list of boolean values, indicating, for each action in the action space
+        whether it is invalid as a backward transition from the current state.
         """
         state = self._get_state(state)
         done = self._get_done(done)
