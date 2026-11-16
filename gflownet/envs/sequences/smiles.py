@@ -14,7 +14,7 @@ from gflownet.envs.sequences.smiles_organic_vocab_genetic_gfn import (
 from gflownet.utils.common import tlong
 
 
-class Smiles(SequenceBase):
+class SmilesBase(SequenceBase):
     """
     A SMILES sequence environment whose tokens are random SMILES tokens.
 
