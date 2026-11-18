@@ -1404,7 +1404,7 @@ class Batch:
         else:
             raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
         if self._proxy_values_available is False or force_recompute is True:
-            self._compute_rewards(log, do_non_terminating=False)
+            self._compute_rewards(log=False, do_non_terminating=False)
         done = self.get_done()[indices]
         return self.proxy_values[indices][done]
 
