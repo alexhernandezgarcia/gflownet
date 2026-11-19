@@ -1,0 +1,22 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.nacctorus.NonAcyclicContinuousTorus
+
+id: nacctorus
+# Dimensions of hypertorus
+n_dim: 2
+policy_encoding_dim_per_angle: null
+# Policy distribution
+n_comp: 3
+vonmises_min_concentration: 4
+# Parameters of the fixed policy output distribution
+fixed_distr_params:
+  vonmises_mean: 0.0
+  vonmises_concentration: 1.0
+  bernoulli_logit: 0.0 # prob to sample 1 is 0.5
+# Parameters of the random policy output distribution
+random_distr_params:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.01
+  bernoulli_logit: 0.0  # prob to sample 1 is 0.5
