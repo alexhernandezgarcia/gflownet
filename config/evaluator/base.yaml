@@ -3,6 +3,7 @@ _target_: gflownet.evaluator.base.BaseEvaluator
 # config formerly from logger.test
 first_it: True
 period: 100
+# Number of samples to compute the density (L1, KL, JSD) and on-policy metrics
 n: 100
 kde:
   bandwidth: 0.1
