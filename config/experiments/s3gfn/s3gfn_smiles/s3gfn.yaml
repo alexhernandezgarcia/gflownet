@@ -1,0 +1,85 @@
+# @package _global_
+
+defaults:
+  - override /env: sequences/smiles
+  - override /gflownet: trajectorybalance
+  - override /loss: s3gfn
+  - override /proxy: smiles_qed
+  - override /logger: wandb
+
+buffer:
+  replay_capacity: 20
+  reject_duplicate_trajectories: true
+
+  # Not iterative space
+  test:
+    type: null
+
+negative_buffer:
+  _target_: gflownet.buffer.base.BaseBuffer
+  replay_capacity: 20
+  reject_duplicate_trajectories: true
+
+  train:
+    type: null
+
+  test:
+    type: null
+
+env:
+  min_length: 1
+  max_length: 16
+  sa_threshold: 3.0
+
+gflownet:
+  random_action_prob: 0.1
+  replay_sampling: weighted
+
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_replay: 20
+      backward_dataset: 0
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 5000
+
+policy:
+  _target_: gflownet.policy.causalLM.CausalLMPolicy
+
+  forward:
+    type: causal_lm
+    model_name: ibm-research/GP-MoLFormer-Uniq
+    trust_remote_code: true
+
+  backward:
+    type: uniform
+    shared_weights: false
+
+logger:
+  do:
+    online: false
+
+  lightweight: false
+  project_name: s3gfn_smiles
+  run_name: smiles-mlp-smoke-test
+
+  tags:
+    - gflownet
+    - s3gfn
+    - smiles
+    - mlp
+    - smoke-test
+
+evaluator:
+  first_it: true
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+n_samples: 500
+
+hydra:
+  run:
+    dir: ${user.logdir.root}/s3gfn_smiles/s3gfn/${now:%Y-%m-%d_%H-%M-%S_%f}
