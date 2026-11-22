@@ -1559,31 +1559,52 @@ class ContinuousCube(CubeBase):
         return self.state, action, True
 
     # TODO: make generic for continuous environments?
-    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
+    def step(
+        self,
+        action: Tuple[float],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. An action is the absolute increment of each
         dimension.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action to be executed. An action is a tuple of length n_dim, with the
             absolute increment for each dimension.
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if self.done:
+        # Generic pre-step checks, with no mask check because the environment is
+        # continuous and passing a representative action
+        do_step = self._pre_step(
+            action=self.action2representative(action),
+            backward=False,
+            skip_mask_check=True,
+            skip_trajectory_check=skip_trajectory_check,
+        )
+        if not do_step:
             return self.state, action, False
+
         if action == self.eos:
             assert self._get_effective_dims(self.state) != self._get_effective_dims(
                 self.source

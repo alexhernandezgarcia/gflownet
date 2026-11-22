@@ -113,7 +113,10 @@ class Constant(GFlowNetEnv):
             return [], []
 
     def step(
-        self, action: Tuple[int], skip_mask_check: bool = False
+        self,
+        action: Tuple[int],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> [List[int], Tuple[int], bool]:
         """
         Executes step given an action.
@@ -122,28 +125,34 @@ class Constant(GFlowNetEnv):
         ----------
         action : tuple
             Action to be executed.
-
         skip_mask_check : bool
+            Ignored.
+        skip_trajectory_check : bool
             Ignored.
 
         Returns
         -------
         self.state : list, dict, tensor, array
             The state after executing the action
-
         action : tuple
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        if self.done:
+        # Generic pre-step checks, by skipping mask check and trakectory check
+        do_step = self._pre_step(
+            action=action,
+            backward=False,
+            skip_mask_check=True,
+            skip_trajectory_check=True,
+        )
+        if not do_step:
             return self.state, action, False
-        else:
-            assert action == self.eos
-            self.done = True
-            self.n_actions += 1
-            return self.state, action, True
+
+        self.n_actions += 1
+        assert action == self.eos
+        self.done = True
+        return self.state, action, True
 
     def _get_max_trajectory_length(self) -> int:
         """

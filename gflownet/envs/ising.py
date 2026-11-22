@@ -230,7 +230,10 @@ class Ising(GFlowNetEnv):
         return parents, p_actions
 
     def step(
-        self, action: Tuple[int, int], skip_mask_check: bool = False
+        self,
+        action: Tuple[int, int],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> [List[int], Tuple[int], bool]:
         """
         Executes step given an action.
@@ -251,6 +254,12 @@ class Ising(GFlowNetEnv):
         skip_mask_check : bool
             If True, skip computing forward mask of invalid actions to check if the
             action is valid.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
@@ -262,10 +271,11 @@ class Ising(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action = self._pre_step(
+        do_step = self._pre_step(
             action=action,
             backward=False,
-            skip_mask_check=skip_mask_check or self.skip_mask_check,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+            skip_trajectory_check=skip_trajectory_check,
         )
         if not do_step:
             return self.state, action, False
