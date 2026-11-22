@@ -19,6 +19,7 @@ import torch
 from torch.distributions import Bernoulli, Categorical
 from torchtyping import TensorType
 
+from gflownet.envs.caches.base import BaseMaskCache
 from gflownet.utils.common import (
     copy,
     set_device,
@@ -34,6 +35,9 @@ CMAP = mpl.colormaps["cividis"]
 Plotting colour map (cividis).
 """
 
+# Cache to store whether actions are invalid because they cannot reach EOS
+MASK_CACHE = BaseMaskCache()
+
 
 class GFlowNetEnv:
     """
@@ -47,15 +51,19 @@ class GFlowNetEnv:
         env_id: Union[int, str] = "env",
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
+        max_attempts_step_random: int = 10,
         skip_mask_check: bool = False,
         conditional: bool = False,
         continuous: bool = False,
+        use_mask_cache: bool = False,
         **kwargs,
     ):
         # Flag whether env is conditional
         self.conditional = conditional
         # Flag whether env is continuous
         self.continuous = continuous
+        # Maximum number of attempts for step_random()
+        self.max_attempts_step_random = max_attempts_step_random
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
@@ -82,6 +90,12 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
+        # Mask cache: only used if environment can sample invalid actions
+        self.use_mask_cache = use_mask_cache
+        if self.use_mask_cache and self.can_sample_invalid():
+            self._cache_mask = MASK_CACHE
+        else:
+            self._cache_mask = None
 
     @abstractmethod
     def get_action_space(self):
@@ -171,6 +185,31 @@ class GFlowNetEnv:
         The maximum number of steps in a trajectory of the environment.
         """
         return self._max_traj_length
+
+    def can_sample_invalid(self, state=None) -> bool:
+        """
+        Returns whether the environment can sample invalid actions.
+
+        If a state is passed, the method may compute whether invalid actions can be
+        sampled specifically from this state.
+
+        The notion of invalid actions in this method refers to (forward) actions that
+        are not captured as invalid by the mask (the mask of invalid actions is False)
+        but are not truly valid because a terminating state could not be reached
+        thereafter.
+
+        Parameters
+        ----------
+        state
+            A state in environment format.
+
+        Returns
+        -------
+        bool
+            Whether the environment can sample invalid actions (optionally) from the
+            state passed as parameter.
+        """
+        return False
 
     def action2representative(self, action: Tuple) -> int:
         """
@@ -439,33 +478,35 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
-    # TODO: consider returning only do_step
     def _pre_step(
-        self, action: Tuple[int], backward: bool = False, skip_mask_check: bool = False
+        self,
+        action: Tuple[int],
+        backward: bool = False,
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> Tuple[bool, List[int], Tuple[int]]:
         """
         Performs generic checks shared by the step() and step_backward() (backward must
         be True) methods of all environments.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action from the action space.
-
         skip_mask_check : bool
-            If True, skip computing forward mask of invalid actions to check if the
-            action is valid.
+            If True (False by default), skip computing forward mask of invalid actions
+            to check if the action is valid. False by default.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
         do_step : bool
-            If True, step() should continue further, False otherwise.
-
-        self.state : list
-            The sequence after executing the action
-
-        action : int
-            Action index
+            Whether step() should continue further (True) or return immediately (False).
         """
         # If action not found in action space raise an error
         if action not in self.action_space:
@@ -475,46 +516,66 @@ class GFlowNetEnv:
         # If backward and state is source, step should not proceed.
         if backward is True:
             if self.equal(self.state, self.source) and action != self.eos:
-                return False, self.state, action
+                return False
         # If forward and env is done, step should not proceed.
         else:
             if self.done:
-                return False, self.state, action
+                return False
         # If action is in invalid mask (not in valid actions), step should not proceed.
         if not (self.skip_mask_check or skip_mask_check):
             if action not in self.get_valid_actions(backward=backward):
-                return False, self.state, action
-        return True, self.state, action
+                return False
+        # If forward and action cannot reach a terminating state, step should not
+        # proceed.
+        if (
+            not backward
+            and not skip_trajectory_check
+            and self.can_sample_invalid(self.state)
+        ):
+            if not self.action_can_reach_eos(action):
+                return False
+        return True
 
     @abstractmethod
     def step(
-        self, action: Tuple[int], skip_mask_check: bool = False
+        self,
+        action: Tuple[int],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action from the action space.
-
         skip_mask_check : bool
             If True, skip computing forward mask of invalid actions to check if the
             action is valid.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action index
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        _, self.state, action = self._pre_step(action, skip_mask_check)
+        do_step = self._pre_step(
+            action=action,
+            backward=False,
+            skip_mask_check=skip_mask_check,
+            skip_trajectory_check=skip_trajectory_check,
+        )
         return None, None, None
 
     def step_backwards(
@@ -551,7 +612,9 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
+        do_step = self._pre_step(
+            action=action, backward=True, skip_mask_check=skip_mask_check
+        )
         if not do_step:
             return self.state, action, False
         parents, parents_a = self.get_parents()
@@ -749,14 +812,23 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def step_random(self, backward: bool = False):
+    def step_random(self, backward: bool = False, max_attempts: int = None):
         """
         Samples a random action and executes the step.
+
+        If the environment is known to be able to sample invalid actions, the sampled
+        action is not valid and max_attempts is larger than 1, then new actions will be
+        sampled up to max_attempts times. This mechanism is useful in environments that
+        implement (a part of) the action validity after attempting a step.
 
         Parameters
         ----------
         backward : bool
             If True, the step is performed backwards. False by default.
+        max_attempts : int
+            The maximum number of attempts allowed to sample a valid action. If it is
+            None (default), and the environment can sample invalid actions, then
+            ``self.max_attempts_step_random`` (default 1) is used.
 
         Returns
         -------
@@ -768,19 +840,43 @@ class GFlowNetEnv:
 
         valid : bool
             False, if the action is not allowed for the current state.
+
+        Raises
+        ------
+        RuntimeError
+            If the maximum number of iterations is reached without sampling a valid
+            action.
         """
-        mask_invalid = tbool(
-            self.get_mask(backward=backward), device=self.device
-        ).unsqueeze(0)
-        action = self.sample_actions_batch(
-            self.random_policy_output.clone().unsqueeze(0),
-            mask_invalid,
-            [self.state],
-            backward,
-        )[0]
-        if backward:
-            return self.step_backwards(action)
-        return self.step(action)
+        if max_attempts is None:
+            if self.can_sample_invalid(self.state):
+                max_attempts = self.max_attempts_step_random
+            else:
+                max_attempts = 1
+        for attempt in range(max_attempts):
+            mask_invalid = tbool(
+                self.get_mask(backward=backward), device=self.device
+            ).unsqueeze(0)
+            action = self.sample_actions_batch(
+                self.random_policy_output.clone().unsqueeze(0),
+                mask_invalid,
+                [self.state],
+                backward,
+            )[0]
+
+            if backward:
+                state, action, valid = self.step_backwards(action)
+            else:
+                state, action, valid = self.step(action)
+
+            if valid:
+                break
+        else:
+            raise RuntimeError(
+                f"Maximum number of attempts {max_attempts} reached before sampling a "
+                "valid action"
+            )
+
+        return state, action, valid
 
     def trajectory_random(self, backward: bool = False):
         """
@@ -1397,6 +1493,197 @@ class GFlowNetEnv:
                     continue
         return True
 
+    def can_reach_eos(self, state=None):
+        """Returns True if the state allows reaching a terminating state.
+
+        A terminating state is a state from which an end-of-sequence (EOS) action is
+        valid.
+
+        This method calls, for each valid action, the recursive method
+        :py:meth:`gflownet.envs.base.GFlowNetEnv._action_can_reach_eos`,
+        which changes the environment's state. This method is simply a wrapper around
+        it to be able to reset the original state.
+
+        Parameters
+        ----------
+        state
+            The state to be checked. If None, self.state is used.
+
+        Returns
+        -------
+        bool
+            True if a terminating state is reachable, False otherwise.
+        """
+        actions = self.get_valid_actions(state=state, backward=False)
+        # If EOS is already in the valid actions, then return True immediately
+        if self.eos in actions:
+            return True
+
+        # If any of the valid actions in the cache, then return True immediately too
+        if self._cache_mask:
+            for action in actions:
+                if state is None:
+                    action_is_invalid = self._cache_mask.get(self.state, action, self)
+                else:
+                    action_is_invalid = self._cache_mask.get(state, action, self)
+                if action_is_invalid is not None and not action_is_invalid:
+                    return True
+
+        # Make copy of the original state, done and number of actions so that they can
+        # be set back at the end.
+        state_orig = copy(self.state)
+        done = self.done
+        n_actions = self.n_actions
+        # If a state is passed, set it as current state (will make a copy internally)
+        if state is not None:
+            self.set_state(state)
+
+        # For each valid action recursively check if a terminating state can be reached
+        for action in actions:
+            if self.action_can_reach_eos(action, is_recursive=True):
+                result = True
+                break
+        else:
+            result = False
+
+        # Reset state, done, number of actions and return
+        self.set_state(state_orig, done)
+        self.n_actions = n_actions
+        return result
+
+    def action_can_reach_eos(
+        self, action: Tuple, state=None, is_recursive: bool = False
+    ):
+        """Returns True if the action allows reaching a terminating state.
+
+        A terminating state is a state from which an end-of-sequence (EOS) action is
+        valid.
+
+        This method calls the recursive method
+        :py:meth:`gflownet.envs.base.GFlowNetEnv._action_can_reach_eos`,
+        which changes the environment's state. This method is simply a wrapper around
+        it to be able to reset the original state.
+
+        Parameters
+        ----------
+        action : tuple
+            The action to be checked.
+        state
+            The state from which the action is taken. If None, self.state is used.
+        is_recursive : bool
+            Whether the call to the method is the first of one of a potential recursion
+            (False) or whether the call is part of the recursion (True), that is not
+            the first call by an external method. This flag is included because certain
+            expensive operations are only needed in the first (external) call.
+
+        Returns
+        -------
+        bool
+            True if a terminating state is reachable, False otherwise.
+        """
+        # If action is EOS (and no state is passed), return True immediately.
+        if state is None and action == self.eos:
+            return True
+
+        # If the state and action are already in the cache, return the stored value
+        if self._cache_mask:
+            if state is None:
+                action_is_invalid = self._cache_mask.get(self.state, action, self)
+            else:
+                action_is_invalid = self._cache_mask.get(state, action, self)
+            if action_is_invalid is not None:
+                # Return the reverse of the value stored in the cache
+                return not action_is_invalid
+
+        # Make copy of the original state, done and number of actions so that they can
+        # be set back at the end. This is only done for the first (external) call of
+        # the method and is skipped in the recursive calls.
+        if not is_recursive:
+            state_orig = copy(self.state)
+            done = self.done
+            n_actions = self.n_actions
+            # Set the state to force changing the reference of self.state. This is
+            # important to not make undesirable changes to the original reference,
+            # which may be used in meta-environments such as Stack or Set.
+            self.set_state(state_orig)
+            # If a state is passed, set it as current state
+            if state is not None:
+                self.set_state(state)
+
+        # Call recursive method, which will apply the action on the current state
+        result = self._action_can_reach_eos(action)
+
+        # Reset state, done, number of actions and return. This is skipped during the
+        # recursive calls.
+        if not is_recursive:
+            self.set_state(state_orig, done)
+            self.n_actions = n_actions
+
+        return result
+
+    def _action_can_reach_eos(self, action: Tuple):
+        """Returns True if the action allows reaching a terminating state.
+
+        This method recursively (depth-first) explores the graph of reachable states
+        from the current state (self.state) and returns True as soon as a terminating
+        state (a state from which EOS is a valid action) is reached. If no terminating
+        state is found, False is returned.
+
+        If `self._cache_mask` is not None, then the cache will be used. This
+        cache must implement the following methods:
+            - `get(state, action, self)`
+            - `set(is_invalid, state, action, self)`
+
+        Note that the cache stores whether the action is invalid, as in the mask of
+        invalid actions. This is the inverse value that is returned by the method.
+
+        Parameters
+        ----------
+        action : tuple
+            The action to be checked.
+
+        Returns
+        -------
+        bool
+            True if a terminating state is reachable, False otherwise.
+        """
+        # Perform action to be checked
+        state_prev = self.state.copy()
+        _, _, valid = self.step(action, skip_trajectory_check=True)
+        # If action was invalid, return False
+        if not valid:
+            if self._cache_mask:
+                self._cache_mask.set(True, state_prev, action, self)
+            return False
+        # Copy state so that it can be set back later
+        state = self.state.copy()
+
+        # If trajectory is done, the action must be EOS and True is returned
+        if self.done:
+            assert action == self.eos
+            if self._cache_mask:
+                self._cache_mask.set(False, state_prev, action, self)
+            return True
+
+        # For each valid action, starting with EOS, recursively check if a terminating
+        # state can be reached
+        actions = self.get_valid_actions(backward=False)
+        if self.eos in actions:
+            actions.remove(self.eos)
+            actions = [self.eos] + actions
+        for a in actions:
+            if self.action_can_reach_eos(a, is_recursive=True):
+                if self._cache_mask:
+                    self._cache_mask.set(False, state_prev, action, self)
+                return True
+            # Reset state to continue the depth-first search
+            if not self.equal(self.state, state):
+                self.set_state(state)
+        else:
+            if self._cache_mask:
+                self._cache_mask.set(True, state_prev, action, self)
+            return False
+
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions
     ):
@@ -1435,6 +1722,41 @@ class GFlowNetEnv:
                 traj_list, traj_actions_list, current_traj + [p], current_actions + [a]
             )
         return traj_list, traj_actions_list
+
+    def get_mask_caches(self) -> Tuple[dict, dict]:
+        """
+        Returns the caches (forward and backward) used to store the (in)validity of
+        actions given states.
+
+        If no cache is used, None is returned for both caches.
+
+        Returns
+        -------
+        cache_fw : dict
+            The cache of forward actions.
+        cache_bw : dict
+            The cache of backward actions.
+        """
+        if not self.use_mask_cache:
+            return None, None
+        return self._cache_mask.get_caches()
+
+    def load_mask_caches(self, cache_fw: dict, cache_bw: dict):
+        """
+        Loads the caches (forward and backward) used to store the (in)validity of
+        actions given states.
+
+        If no cache is used, nothing is done.
+
+        Parameters
+        ----------
+        cache_fw : dict
+            The cache of forward actions.
+        cache_bw : dict
+            The cache of backward actions.
+        """
+        if self.use_mask_cache:
+            self._cache_mask.load_caches(cache_fw, cache_bw)
 
     @torch.no_grad()
     def compute_train_energy_proxy_and_rewards(self):

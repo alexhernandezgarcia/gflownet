@@ -492,7 +492,8 @@ class BaseTestsCommon:
                     _, action, valid = env.step(action)
 
                     # Action must be valid and logprob must be finite and non-zero
-                    assert valid
+                    if not env.can_sample_invalid:
+                        assert valid
                     assert torch.isfinite(logprob)
                     assert logprob > -1e6
 
@@ -674,15 +675,18 @@ class BaseTestsCommon:
             # Apply steps
             states_next = []
             dones_next = []
+            valids = []
             for state, action, logprob in zip(states, actions, logprobs):
                 env = self.env.copy().reset()
                 env.set_state(state)
                 _, _, valid = env.step(action)
                 states_next.append(env.state)
                 dones_next.append(env.done)
+                valids.append(valid)
 
                 # Action must be valid and logprob must be finite and non-zero
-                assert valid
+                if not env.can_sample_invalid:
+                    assert valid
                 assert torch.isfinite(logprob)
                 assert logprob > -1e6
 
@@ -700,8 +704,14 @@ class BaseTestsCommon:
                 states_from=states_next,
                 is_backward=True,
             )
-            assert torch.all(torch.isfinite(logprobs))
-            assert torch.all(logprobs > -1e6)
+            if not self.env.can_sample_invalid:
+                assert torch.all(torch.isfinite(logprobs))
+                assert torch.all(logprobs > -1e6)
+            else:
+                valids = torch.tensor(valids)
+                assert torch.all(torch.isfinite(logprobs[valids]))
+                assert torch.all(logprobs[valids] > -1e6)
+                assert torch.all(torch.isinf(logprobs[~valids]))
 
     def test__get_logprobs__all_finite_in_random_backward_transitions(
         self, n_repeat=1, n_states=3
