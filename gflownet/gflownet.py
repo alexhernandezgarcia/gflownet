@@ -1203,6 +1203,7 @@ class GFlowNetAgent:
             logZ=self.logZ,
             optimizer=self.opt,
             buffers=self.buffers,
+            env=self.env,
             step=self.it,
             final=True,
         )
@@ -1394,6 +1395,7 @@ class GFlowNetAgent:
                 logZ=self.logZ,
                 optimizer=self.opt,
                 buffers=self.buffers,
+                env=self.env,
                 step=self.it,
             )
         t1_model = time.time()
@@ -1618,6 +1620,7 @@ class GFlowNetAgent:
                 - "buffers": A dictionary with keys 'train', 'test' 'replay_reward' and
                   'replay_loss', with the relative paths of the corresponding data
                   sets.
+                - "env": A dictionary with keys 'cache_mask_fw', and 'cache_mask_bw'.
         """
         # Iteration: increment by one
         self.it = checkpoint["step"] + 1
@@ -1644,6 +1647,11 @@ class GFlowNetAgent:
 
         # Optimizer
         self.opt.load_state_dict(checkpoint["optimizer"])
+
+        # Environment
+        self.env.load_mask_caches(
+            checkpoint["env"]["cache_mask_fw"], checkpoint["env"]["cache_mask_bw"]
+        )
 
         if self.logger.debug:
             print("\nCheckpoint loaded into GFlowNet agent\n")
