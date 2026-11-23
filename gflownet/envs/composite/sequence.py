@@ -50,6 +50,7 @@ other keys:
 
 import ast
 import math
+import random
 import uuid
 from collections import Counter
 from typing import Dict, Iterable, List, Optional, Tuple, Union
@@ -693,14 +694,9 @@ class Sequence(CompositeBase):
                 allowed_action = "left_only"
             else:
                 allowed_action = "both"
-            parents = self._enumerate_all_states_for_the_sequence(
-                state=parent, allowed_action=allowed_action
+            parents = self._choose_random_parents_of_the_sequence(
+                parent, allowed_action=allowed_action
             )
-            # remove duplicated parents randomly
-            if len(parents) >= 4:
-                parents = self._get_random_parents_of_same_action(
-                    parents, allowed_action=allowed_action
-                )
             # same action since it goes to EOS of the same subenv
             actions = [
                 self._pad_action(
@@ -830,16 +826,6 @@ class Sequence(CompositeBase):
                 direction = action[2]
                 idx_unique = action[1]
                 key = self._seq_length(self.state)
-                # before inserting the subenv, get a random representation of the state
-                # i hope this is correct
-                # if len(self.state["_indices"]) > 1 and not (
-                #     self.left_only or self.right_only
-                # ):
-                #     # new state (i hope it is always correct)
-                #     new_state = self._get_random_equivalent_sequence(
-                #         self.state, allowed_action="both"
-                #     )
-                #     self.set_state(new_state, done=False)
                 new_subenv = self._make_subenv_instance(idx_unique, key)
                 self.subenvs = list(self.subenvs) + [new_subenv]
                 self.state["_envs_unique"].append(idx_unique)
@@ -1170,7 +1156,6 @@ class Sequence(CompositeBase):
         """
         logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
         for idx, state in enumerate(states):
-            # n_unique = len(self._enumerate_all_states_for_the_sequence(state))
             n_indices = len(copy(state)["_indices"])
             if n_indices <= 2:
                 n_unique = 1
@@ -1531,34 +1516,129 @@ class Sequence(CompositeBase):
         self, state, allowed_action="both", freeze_direction=None
     ):
         # allowed action can be 'both', 'left_only', 'right_only'
-        """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
+            # catch
             return state
-        all_possible_states = self._enumerate_all_states_for_the_sequence(
-            state, allowed_action=allowed_action
-        )
+        n = len(state["_indices"])
+        original_active = int(state["_active"])
+        old_envs_unique = list(state["_envs_unique"])
+        old_indices = list(state["_indices"])
+        old_dones = list(state["_dones"])
+        new_state = copy(state)
+        new_envs_unique = list(state["_envs_unique"])
+        new_dones = list(state["_dones"])
         # ok so here we add an option to "not touch" the last active direction
         if freeze_direction is not None:
             if freeze_direction == _LEFT:
                 # freeze the first index
-                freeze_dir_index = 0
+                direction = "left"
             elif freeze_direction == _RIGHT:
                 # get the last subenv
-                freeze_dir_index = -1
+                direction = "right"
             else:
                 print("freeze direction should be ", _LEFT, _RIGHT)
-            n = len(state["_indices"])
-            # filter state where the same direction is there
-            all_possible_states = [
-                s
-                for s in all_possible_states
-                if s["_indices"][freeze_dir_index] == n - 1
+        else:
+            direction = "both"
+        random_bit = random.getrandbits(n - 2)
+        random_representation = self._get_indices_from_bits(
+            choice=random_bit, n=n, direction=direction
+        )
+        for ind in range(n):
+            new_state[random_representation[ind]] = copy(state)[old_indices[ind]]
+            new_envs_unique[random_representation[ind]] = old_envs_unique[
+                old_indices[ind]
             ]
-        # then choose a random state among the possible states with uniform probability
-        chosen_state = all_possible_states[np.random.choice(len(all_possible_states))]
-        return chosen_state
+            new_dones[random_representation[ind]] = old_dones[old_indices[ind]]
+        new_state["_indices"] = random_representation
+        new_state["_envs_unique"] = new_envs_unique
+        new_state["_dones"] = new_dones
+        # fix the active bool to the correct one based on the order of the indices
+        if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+            if random_representation[0] < random_representation[-1]:
+                new_state["_active"] = _ACTIVE_RIGHT
+            else:
+                new_state["_active"] = _ACTIVE_LEFT
+        return new_state
+
+    def _get_indices_from_bits(self, choice, n, direction):
+        # do the catch first
+        if n < 2:
+            return [0]
+        # convert the number to int
+        choice = int(choice)
+        indices = [0]
+        for i in range(n - 2):
+            next_ind = max(indices) + 1
+            # operate with the binary number
+            indices = (
+                [next_ind] + indices if (choice >> i) & 1 else indices + [next_ind]
+            )
+        if direction == "left":
+            return [n - 1] + indices
+        elif direction == "right":
+            return indices + [n - 1]
+        else:
+            if np.random.random() < 0.5:
+                return [n - 1] + indices
+            else:
+                return indices + [n - 1]
+
+    # rewrite the randomization of parents to prevent oom killed
+    def _choose_random_parents_of_the_sequence(self, state, allowed_action="both"):
+        """
+        replace _enumerate_all_states_for_the_sequence and _get_random_parents_of_same_action.
+        """
+        n = self._seq_length(state)
+
+        original_active = int(state["_active"])
+        old_envs_unique = list(state["_envs_unique"])
+        old_indices = list(state["_indices"])
+        old_dones = list(state["_dones"])
+
+        if n < 2 or allowed_action != "both":
+            # return immediately
+            parent = copy(state)
+            parent["_active"] = (
+                _ACTIVE_LEFT if old_indices[0] == n - 1 else _ACTIVE_RIGHT
+            )
+            return [parent]
+        # the logic goes like this: for each parent, there are 2^(n-2) possible representations
+        # choose one number from 0 to 2^(n-2) exclusive for left and another number among 2^(n-2) for right
+        left_active = random.getrandbits(n - 2)
+        right_active = random.getrandbits(n - 2)
+        left_parent = self._get_indices_from_bits(
+            choice=left_active, n=n, direction="left"
+        )
+        right_parent = self._get_indices_from_bits(
+            choice=right_active, n=n, direction="right"
+        )
+        new_representations = [left_parent, right_parent]
+
+        # after chosing, only then do we complete the dictionaries
+        parents = []
+        for k in range(len(new_representations)):
+            new_state = copy(state)
+            new_dones = list(new_state["_dones"])
+            new_envs_unique = list(new_state["_envs_unique"])
+            for ind in range(len(new_representations[k])):
+                new_state[new_representations[k][ind]] = copy(state)[old_indices[ind]]
+                new_envs_unique[new_representations[k][ind]] = old_envs_unique[
+                    old_indices[ind]
+                ]
+                new_dones[new_representations[k][ind]] = old_dones[old_indices[ind]]
+            new_state["_indices"] = new_representations[k]
+            new_state["_envs_unique"] = new_envs_unique
+            new_state["_dones"] = new_dones
+            # fix the active bool to the correct one based on the order of the indices
+            if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+                if new_representations[k][0] < new_representations[k][-1]:
+                    new_state["_active"] = _ACTIVE_RIGHT
+                else:
+                    new_state["_active"] = _ACTIVE_LEFT
+            parents.append(copy(new_state))
+        return parents
 
     def _get_random_parents_of_same_action(self, parents, allowed_action):
         # function that will force uniqueness in parent-action pairs
