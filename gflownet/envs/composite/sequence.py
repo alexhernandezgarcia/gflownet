@@ -1518,7 +1518,7 @@ class Sequence(CompositeBase):
         # allowed action can be 'both', 'left_only', 'right_only'
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
-        if len(state["_indices"]) < 2:
+        if len(state["_indices"]) < 2 or allowed_action != "both":
             # catch
             return state
         n = len(state["_indices"])
@@ -1639,94 +1639,6 @@ class Sequence(CompositeBase):
                     new_state["_active"] = _ACTIVE_LEFT
             parents.append(copy(new_state))
         return parents
-
-    def _get_random_parents_of_same_action(self, parents, allowed_action):
-        # function that will force uniqueness in parent-action pairs
-        # if more than one parents can be reached using the same action, choose among the parent
-        # return unique_parents
-        # unique-ness refer to unique action that it can take
-        # input will only accept parents (not any state)
-        all_left_parents = [
-            parent_l for parent_l in parents if parent_l["_active"] == -1
-        ]
-        all_right_parents = [
-            parent_r for parent_r in parents if parent_r["_active"] == 1
-        ]
-        chosen_left_parent = all_left_parents[np.random.choice(len(all_left_parents))]
-        chosen_right_parent = all_right_parents[
-            np.random.choice(len(all_right_parents))
-        ]
-        if allowed_action == "right_only":
-            return [chosen_right_parent]
-        elif allowed_action == "left_only":
-            return [chosen_left_parent]
-        else:
-            return [chosen_left_parent, chosen_right_parent]
-
-    def _enumerate_all_states_for_the_sequence(self, state, allowed_action="both"):
-        """DONE and TESTED
-        input: state dict
-        output: list of states
-        """
-        # here, we will use indices to arrange the possible representations of the state that will correspond to the same sequence
-        # representations are used with the condition that the next number can only be inserted in left or at the right
-        # so the possible combinations will be 2^n-1 if n=number of elements in the sequence
-        indices = state["_indices"]
-        # indices.sort()
-        indices = list(range(0, max(state["_indices"]) + 1))
-        n_indices = len(indices)
-        original_active = state["_active"]
-        new_envs_unique = copy(state)["_envs_unique"]
-        old_indices = copy(state)["_indices"]
-        # enumerate all the possible index order
-        if n_indices < 2:
-            return [state]
-        if allowed_action == "both":
-            all_representations = [[0, 1], [1, 0]]  # initialize
-            # all_representations = [[0, 1]]  # initialize
-            for i in range(2, n_indices):
-                new_representations = []
-                for j in range(len(all_representations)):
-                    # append in the left
-                    new_representations.append([indices[i]] + all_representations[j])
-                    # append in the right
-                    new_representations.append(all_representations[j] + [indices[i]])
-                all_representations = new_representations
-            # now we have all the representations from the permutation of other subenvs
-            # but we didn't consider the case where
-            # (1) 2 subenvs are the same
-            # and (2) that multiple subenvs can be represented as a single subenv
-            new_representations = all_representations
-            new_state_representations = []
-            # then form the state based on the new_representaions
-            for k in range(len(new_representations)):
-                new_state = copy(state)
-                new_dones = list(copy(new_state)["_dones"])
-                for ind in range(len(new_representations[k])):
-                    new_state[new_representations[k][ind]] = copy(state)[
-                        old_indices[ind]
-                    ]  # this is correct
-                    new_envs_unique[new_representations[k][ind]] = copy(state)[
-                        "_envs_unique"
-                    ][
-                        old_indices[ind]
-                    ]  # this is correct
-                    new_dones[new_representations[k][ind]] = state["_dones"][
-                        old_indices[ind]
-                    ]
-                new_state["_indices"] = new_representations[k]
-                new_state["_envs_unique"] = new_envs_unique
-                new_state["_dones"] = new_dones
-                # fix the active bool to the correct one based on the order of the indices
-                if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
-                    if new_representations[k][0] < new_representations[k][-1]:
-                        new_state["_active"] = _ACTIVE_RIGHT
-                    else:
-                        new_state["_active"] = _ACTIVE_LEFT
-                new_state_representations.append(copy(new_state))
-            return new_state_representations
-        else:
-            return [state]
 
     # here we make our own isclose which is used in common tests
     def isclose(self, state_x, state_y, rtol=1e-5, atol=1e-8, do_equal=False) -> bool:
