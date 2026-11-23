@@ -823,16 +823,6 @@ class Sequence(CompositeBase):
                 direction = action[2]
                 idx_unique = action[1]
                 key = self._seq_length(self.state)
-                # before inserting the subenv, get a random representation of the state
-                # i hope this is correct
-                # if len(self.state["_indices"]) > 1 and not (
-                #     self.left_only or self.right_only
-                # ):
-                #     # new state (i hope it is always correct)
-                #     new_state = self._get_random_equivalent_sequence(
-                #         self.state, allowed_action="both"
-                #     )
-                #     self.set_state(new_state, done=False)
                 new_subenv = self._make_subenv_instance(idx_unique, key)
                 self.subenvs = list(self.subenvs) + [new_subenv]
                 self.state["_envs_unique"].append(idx_unique)
@@ -1163,7 +1153,6 @@ class Sequence(CompositeBase):
         """
         logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
         for idx, state in enumerate(states):
-            # n_unique = len(self._enumerate_all_states_for_the_sequence(state))
             n_indices = len(copy(state)["_indices"])
             if n_indices <= 2:
                 n_unique = 1
@@ -1524,34 +1513,49 @@ class Sequence(CompositeBase):
         self, state, allowed_action="both", freeze_direction=None
     ):
         # allowed action can be 'both', 'left_only', 'right_only'
-        """DONE BUT NOT YET TESTED"""
         # TODO make it flexible for a list of states then combine similar sequences
         # first get all the possible states
         if len(state["_indices"]) < 2:
+            # catch
             return state
-        all_possible_states = self._enumerate_all_states_for_the_sequence(
-            state, allowed_action=allowed_action
-        )
+        n = len(state["_indices"])
+        original_active = int(state["_active"])
+        old_envs_unique = list(state["_envs_unique"])
+        old_indices = list(state["_indices"])
+        old_dones = list(state["_dones"])
+        new_state = copy(state)
+        new_envs_unique = list(state["_envs_unique"])
+        new_dones = list(state["_dones"])
         # ok so here we add an option to "not touch" the last active direction
         if freeze_direction is not None:
             if freeze_direction == _LEFT:
                 # freeze the first index
                 freeze_dir_index = 0
+                direction = "left"
             elif freeze_direction == _RIGHT:
                 # get the last subenv
                 freeze_dir_index = -1
+                direction = "right"
             else:
                 print("freeze direction should be ", _LEFT, _RIGHT)
-            n = len(state["_indices"])
-            # filter state where the same direction is there
-            all_possible_states = [
-                s
-                for s in all_possible_states
-                if s["_indices"][freeze_dir_index] == n - 1
-            ]
-        # then choose a random state among the possible states with uniform probability
-        chosen_state = all_possible_states[np.random.choice(len(all_possible_states))]
-        return chosen_state
+        else: 
+            direction = "both"
+        random_number = np.random.randint(0, 2**(n-2)) #n-1
+        random_representation = self._get_indices_from_number(choice=random_number, n=n, direction=direction)
+        for ind in range(n):
+            new_state[random_representation[ind]] = copy(state)[old_indices[ind]]
+            new_envs_unique[random_representation[ind]] = old_envs_unique[old_indices[ind]]
+            new_dones[random_representation[ind]] = old_dones[old_indices[ind]]
+        new_state["_indices"] = random_representation
+        new_state["_envs_unique"] = new_envs_unique
+        new_state["_dones"] = new_dones
+        # fix the active bool to the correct one based on the order of the indices
+        if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+            if random_representation[0] < random_representation[-1]:
+                new_state["_active"] = _ACTIVE_RIGHT
+            else:
+                new_state["_active"] = _ACTIVE_LEFT
+        return new_state
 
     def _get_indices_from_number(self, choice, n, direction):
         indices = [0]
@@ -1615,15 +1619,15 @@ class Sequence(CompositeBase):
                     old_indices[ind]
                 ]
                 new_dones[new_representations[k][ind]] = old_dones[old_indices[ind]]
-                new_state["_indices"] = new_representations[k]
-                new_state["_envs_unique"] = new_envs_unique
-                new_state["_dones"] = new_dones
-                # fix the active bool to the correct one based on the order of the indices
-                if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
-                    if new_representations[k][0] < new_representations[k][-1]:
-                        new_state["_active"] = _ACTIVE_RIGHT
-                    else:
-                        new_state["_active"] = _ACTIVE_LEFT
+            new_state["_indices"] = new_representations[k]
+            new_state["_envs_unique"] = new_envs_unique
+            new_state["_dones"] = new_dones
+            # fix the active bool to the correct one based on the order of the indices
+            if original_active in [_ACTIVE_LEFT, _ACTIVE_RIGHT]:
+                if new_representations[k][0] < new_representations[k][-1]:
+                    new_state["_active"] = _ACTIVE_RIGHT
+                else:
+                    new_state["_active"] = _ACTIVE_LEFT
             parents.append(copy(new_state))
         return parents
 
