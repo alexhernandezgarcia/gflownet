@@ -1410,7 +1410,7 @@ class Sequence(CompositeBase):
 
     def set_state(self, state: Dict, done: Optional[bool] = False):
         """Sets a state and done, rebuilding the placed sub-environments."""
-        # add a correction for using the device 
+        # add a correction for using the device
         state = {
             k: (v.to(self.device) if torch.is_tensor(v) else v)
             for k, v in state.items()
