@@ -1,0 +1,82 @@
+# @package _global_
+
+defaults:
+  - override /env: base
+  - override /gflownet: trajectorybalance
+  - override /loss: trajectorybalance
+  - override /proxy: sequence
+  - override /logger: wandb
+  - override /evaluator: base
+
+device: cpu
+float_precision: 32
+seed: 0
+n_samples: 10000
+
+env:
+  _target_: gflownet.envs.sequences.Scrabble_Sequence.ScrabbleSequence
+  id: sequence_scrabble
+  right_only: false
+  sequence_length: 8
+  min_length: 8
+
+proxy:
+  pattern: "G A E"
+  pattern_value: 10.0
+  default_value: 0.01
+
+gflownet:
+  random_action_prob: 0.1
+  temperature_logits: 1.0
+  optimizer:
+    batch_size:
+      forward: 64
+      backward_dataset: 0
+      backward_replay: 0
+    lr: 0.001
+    z_dim: 1
+    lr_z_mult: 10
+    n_train_steps: 5000
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+    shared_weights: false
+    checkpoint: backward
+
+buffer:
+  replay_capacity: 0
+  train:
+    type: null
+  test:
+    type: null
+
+evaluator:
+  first_it: false
+  period: 500
+  top_k_period: -1
+  train_log_period: 100
+  checkpoints_period: 500
+
+logger:
+  do:
+    online: True
+  project_name: sequence_abcdefgh_gae_direct
+  lightweight: true
+  tags: [sequence, gae, direct, bidirectional]
+
+hydra:
+  job:
+    chdir: true
+  run:
+    dir: ${user.logdir.root}/sequence_abcdefgh_gae_direct/bidirectional/seed_${seed}/${now:%Y-%m-%d_%H-%M-%S_%f}
+  sweep:
+    dir: ${user.logdir.root}/sequence_abcdefgh_gae_direct/bidirectional/multirun/${now:%Y-%m-%d_%H-%M-%S_%f}
+    subdir: seed_${seed}

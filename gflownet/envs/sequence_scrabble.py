@@ -1,7 +1,6 @@
 """
 Environment to test sequence scrabble
 """
-
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -14,93 +13,16 @@ from gflownet.envs.composite.sequence import Sequence
 from gflownet.envs.scrabble import Scrabble
 from gflownet.utils.common import copy
 
+from itertools import product
+from string import ascii_uppercase
 
-# HERE create 3 unique environments
-class ScrabbleD(Scrabble):
-    def __init__(self, **kwargs):
-        kwargs.setdefault("letters", ["D"])
-        kwargs.setdefault("max_length", 1)
-        super().__init__(**kwargs)
-    
-    def state2readable(self, state: List[int] = None) -> str:
-        """
-        Converts a state into a human-readable string.
-
-        The output string contains the letter corresponding to each index in the state,
-        separated by spaces.
-
-        Args
-        ----
-        states : tensor
-            A state in environment format. If None, self.state is used.
-
-        Returns
-        -------
-        A string of space-separated letters.
-        """
-        if state == self.source: 
-            return "<SOURCE_D>"
+class OneLetterScrabble(Scrabble):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         state = self._get_state(state)
-        state = self._unpad(state)
-        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
-
-class ScrabbleA(Scrabble):
-    def __init__(self, **kwargs):
-        kwargs.setdefault("letters", ["A"])
-        kwargs.setdefault("max_length", 1)
-        super().__init__(**kwargs)
-            
-    def state2readable(self, state: List[int] = None) -> str:
-        """
-        Converts a state into a human-readable string.
-
-        The output string contains the letter corresponding to each index in the state,
-        separated by spaces.
-
-        Args
-        ----
-        states : tensor
-            A state in environment format. If None, self.state is used.
-
-        Returns
-        -------
-        A string of space-separated letters.
-        """
-        if state == self.source: 
-            return "<SOURCE_A>"
-        state = self._get_state(state)
-        state = self._unpad(state)
-        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
-
-class ScrabbleF(Scrabble):
-    def __init__(self, **kwargs):
-        kwargs.setdefault("letters", ["F"])
-        kwargs.setdefault("max_length", 1)
-        super().__init__(**kwargs)
-            
-    def state2readable(self, state: List[int] = None) -> str:
-        """
-        Converts a state into a human-readable string.
-
-        The output string contains the letter corresponding to each index in the state,
-        separated by spaces.
-
-        Args
-        ----
-        states : tensor
-            A state in environment format. If None, self.state is used.
-
-        Returns
-        -------
-        A string of space-separated letters.
-        """
-        if state == self.source: 
-            return "<SOURCE_F>"
-        state = self._get_state(state)
-        state = self._unpad(state)
-        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
-
-
+        mask = super().get_mask_invalid_actions_forward(state, done)
+        if state == self.source:
+            mask[self.action_space.index(self.eos)] = True
+        return mask
 
 # THIS IS THE COMPOSITE ENV
 class SequenceScrabble(Sequence):
@@ -110,22 +32,29 @@ class SequenceScrabble(Sequence):
 
     def __init__(
         self,
+        right_only=False,
+        sequence_length=4,
+        min_sequence_length=4,
         **kwargs,
     ):
-
         # Initialize list of subenvs:
+        #subenvs = [
+        #        OneLetterScrabble(letters=["A"], max_length=1),
+        #        OneLetterScrabble(["B"], max_length=1),
+        #        OneLetterScrabble(["C"], max_length=1),
+        #        OneLetterScrabble(["D"], max_length=1)
+        #    ]
         subenvs = [
-            ScrabbleD(),
-            ScrabbleA(),
-            ScrabbleF(),
+            OneLetterScrabble(letters=[letter], max_length=1)
+            for letter in ascii_uppercase[:sequence_length]
         ]
-
         # Initialize base Stack environment
         super().__init__(
             envs_unique=tuple(subenvs),
             merge_representations=True,
-            max_sequence_length=3,
-            right_only=False,
+            max_sequence_length=sequence_length,
+            min_sequence_length=min_sequence_length,
+            right_only=right_only,
             left_only=False,
             **kwargs,
         )
@@ -176,3 +105,26 @@ class SequenceScrabble(Sequence):
             # this part is to remove spaces between the letters in the subenv, this is needed
             body += str(subenv.state2readable(self._get_substate(state, key))).replace(" ", "")
         return body
+
+    def states2proxy(self, states):
+        return [self.state2readable(state) for state in states]
+
+    def get_all_states(self):
+        """enumerate all intermedia states"""
+        states = []
+        env = self.copy()
+
+        for length in range(self.max_sequence_length + 1):
+            for indices in product(range(self.n_unique_envs), repeat=length):
+                env.reset()
+                for index in indices:
+                    direction =0 if env.is_source() else 1
+
+                    env.step((-1, index, direction))
+                    env.step((index, 1, 0))
+                    env.step((index, -1, 0))
+                    env.step((-1, index, direction))
+
+                states.append(copy(env.state))
+        
+        return states

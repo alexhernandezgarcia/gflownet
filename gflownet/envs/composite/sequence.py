@@ -115,6 +115,7 @@ class Sequence(CompositeBase):
         envs_unique: Optional[Iterable[GFlowNetEnv]] = None,
         subenvs: Optional[Iterable[GFlowNetEnv]] = None,
         max_sequence_length: Optional[int] = None,
+        min_sequence_length: Optional[int] = None,
         left_only: Optional[bool] = False,
         right_only: Optional[bool] = False,
         do_random_subenvs: Optional[bool] = False,
@@ -188,6 +189,7 @@ class Sequence(CompositeBase):
                 "The number of preset sub-environments exceeds max_sequence_length."
             )
         self.max_sequence_length = max_sequence_length
+        self.min_sequence_length = min_sequence_length
         self.max_elements = max_sequence_length
 
         # Number of meta-actions and dimensionality of the one-hot mask prefix
@@ -464,9 +466,9 @@ class Sequence(CompositeBase):
                         core[self._insert_id(_RIGHT, t)] = False
         # Global EOS
         if remaining is None:
-            eos_ok = length >= 1
+            eos_ok = length >= self.min_sequence_length 
         else:
-            eos_ok = length >= 1 and sum(remaining.values()) == 0
+            eos_ok = length >= self.min_sequence_length and sum(remaining.values()) == 0
         if eos_ok:
             core[2 * U] = False  # Allow EOS which is at position n_meta_actions - 1
         return core
@@ -1442,7 +1444,7 @@ class Sequence(CompositeBase):
         """Upper bound on the trajectory length (including EOS)."""
         max_subenv_traj = max([env.max_traj_length for env in self.envs_unique])
         # Max elements times (insert action + max actions in subenv) + global EOS
-        return self.max_elements * (1 + max_subenv_traj) + 1
+        return self.max_elements * (2 + max_subenv_traj) + 1
 
     def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
         """Equality between environment instances."""

@@ -132,7 +132,7 @@ class Logger:
 
     def write_url_file(self):
         if self.wandb is not None:
-            self.url = self.wandb.run.get_url()
+            self.url = self.run.url
             if self.url:
                 with open(self.logdir / "wandb.url", "w") as f:
                     f.write(self.url + "\n")
