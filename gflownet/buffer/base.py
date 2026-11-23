@@ -53,7 +53,7 @@ class BaseBuffer:
         test: Dict = None,
         use_main_buffer=False,
         check_diversity: bool = False,
-        diversity_check_reward_similarity: float = 0.1,
+        diversity_check_value_similarity: float = 0.1,
         progress_process_dataset: bool = True,
         **kwargs,
     ):
