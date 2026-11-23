@@ -416,7 +416,10 @@ class ContinuousTorus(GFlowNetEnv):
             self.state = copy(self.source)
 
     def step(
-        self, action: Tuple[float], skip_mask_check: bool = False
+        self,
+        action: Tuple[float],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Executes forward step given an action.
@@ -428,36 +431,46 @@ class ContinuousTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
-
         skip_mask_check : bool
             Ignored because the action space space is fully continuous, therefore there
             is nothing to check.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        # If done is True, return invalid
-        if self.done:
+        # Generic pre-step checks, with no mask check because the environment is
+        # continuous and passing a representative action
+        do_step = self._pre_step(
+            action=self.action2representative(action),
+            backward=False,
+            skip_mask_check=True,
+            skip_trajectory_check=skip_trajectory_check,
+        )
+        if not do_step:
             return self.state, action, False
+
+        self.n_actions += 1
         # If action is EOS, check that the number of steps is equal to the trajectory
-        # length, set done to True, increment n_actions and return same state
-        elif action == self.eos:
+        # length and set done to True
+        if action == self.eos:
             assert self.state[-1] == self.length_traj
             self.done = True
-            self.n_actions += 1
             return self.state, self.eos, True
         # Otherwise perform action
         else:
-            self.n_actions += 1
             self._step(action, backward=False)
             return self.state, action, True
 
@@ -474,7 +487,6 @@ class ContinuousTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
-
         skip_mask_check : bool
             Ignored because the action space space is fully continuous, therefore there
             is nothing to check.
@@ -483,24 +495,32 @@ class ContinuousTorus(GFlowNetEnv):
         -------
         self.state : list
             The sequence after executing the action
-
         action : int
             Action executed
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        # If done is True, set done to False, increment n_actions and return same state
+        # Generic pre-step checks, with no mask check because the environment is
+        # continuous and passing a representative action
+        do_step = self._pre_step(
+            action=self.action2representative(action),
+            backward=True,
+            skip_mask_check=True,
+            skip_trajectory_check=True,
+        )
+        if not do_step:
+            return self.state, action, False
+
+        self.n_actions += 1
+        # If done is True, set done to False and return same state
         if self.done:
             assert action == self.eos
             self.done = False
-            self.n_actions += 1
             return self.state, action, True
         # Otherwise perform action
         else:
             assert action != self.eos
-            self.n_actions += 1
             self._step(action, backward=True)
             return self.state, action, True
 

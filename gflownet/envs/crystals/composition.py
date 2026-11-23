@@ -575,14 +575,27 @@ class Composition(GFlowNetEnv):
                     actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(
+        self,
+        action: Tuple[int, int],
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
+    ) -> Tuple[dict, Tuple[int, int], bool]:
         """
         Executes step given an action.
 
-        Args
-        ----
+        Parameters
+        ----------
         action : tuple
             Action to be executed. See: get_action_space()
+        skip_mask_check : bool
+            If True (False by default), skip computing forward mask of invalid actions
+            to check if the action is valid. False by default.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid()` returns False.
 
         Returns
         -------
@@ -595,8 +608,15 @@ class Composition(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, return invalid
-        if self.done:
+        # Pre-step
+        do_step = self._pre_step(
+            action=action,
+            backward=False,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+            skip_trajectory_check=skip_trajectory_check,
+        )
+        # If step should not proceed based on pre-step, return immediately
+        if not do_step:
             return self.state, action, False
         # If action not found in action space raise an error
         if action not in self.action_space:

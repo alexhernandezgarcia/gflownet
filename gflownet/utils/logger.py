@@ -322,6 +322,7 @@ class Logger:
         logZ,
         optimizer,
         buffers,
+        env,
         step: int,
         final: bool = False,
     ):
@@ -390,6 +391,13 @@ class Logger:
                 if hasattr(buffer, "replay_csv") and buffer.replay_csv is not None:
                     buffers_ckpt["replay_loss"] = str(buffer.replay_csv)
 
+        # Environment
+        env_ckpt = {
+            "cache_mask_fw": None,
+            "cache_mask_bw": None,
+        }
+        env_ckpt["cache_mask_fw"], env_ckpt["cache_mask_bw"] = env.get_mask_caches()
+
         # WandB run ID
         if self.do.online:
             run_id_ckpt = self.run.id
@@ -404,6 +412,7 @@ class Logger:
             "logZ": logZ_ckpt,
             "optimizer": optimizer.state_dict(),
             "buffers": buffers_ckpt,
+            "env": env_ckpt,
             "run_id": run_id_ckpt,
         }
         torch.save(checkpoint, ckpt_path)

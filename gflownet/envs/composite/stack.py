@@ -188,6 +188,33 @@ class Stack(CompositeBase):
         """
         return sum([subenv.max_traj_length for subenv in self.subenvs])
 
+    def can_sample_invalid(self, state=None) -> bool:
+        """
+        Returns whether the environment can sample invalid actions.
+
+        If no state is passed, True is returned if any sub-environment can sample
+        invalid actions. If a state is passed, True is only returned if the
+        sub-environment corresponding to the stage of the state can sample invalid
+        actions.
+
+        Parameters
+        ----------
+        state
+            A state in environment format.
+
+        Returns
+        -------
+        bool
+            Whether the environment can sample invalid actions (optionally) from the
+            state passed as parameter.
+        """
+        if state is None:
+            # Return whether any sub-environment can sample invalid actions
+            return any([subenv.can_sample_invalid() for subenv in self.subenvs])
+        active_subenv = self._get_active_subenv(state)
+        state_subenv = self._get_substate(state, active_subenv)
+        return self.subenvs[active_subenv].can_sample_invalid(state_subenv)
+
     def get_mask_invalid_actions_forward(
         self, state: Optional[Dict] = None, done: Optional[bool] = None
     ) -> List[bool]:
@@ -515,7 +542,10 @@ class Stack(CompositeBase):
         return parents, parent_actions
 
     def step(
-        self, action: Tuple, skip_mask_check: bool = False
+        self,
+        action: Tuple,
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> Tuple[List, Tuple, bool]:
         """
         Executes forward step given an action.
@@ -529,6 +559,15 @@ class Stack(CompositeBase):
         ----------
         action : tuple
             Action to be executed. The input action is global, that is padded.
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
@@ -555,9 +594,11 @@ class Stack(CompositeBase):
         # Skip mask check if stage is continuous
         if subenv.continuous:
             skip_mask_check = True
-        do_step, _, _ = subenv._pre_step(
-            action_to_check,
+        do_step = subenv._pre_step(
+            action=action_to_check,
+            backward=False,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),
+            skip_trajectory_check=skip_trajectory_check,
         )
         if not do_step:
             return self.state, action, False
@@ -588,7 +629,10 @@ class Stack(CompositeBase):
         return self.state, action, valid
 
     def step_backwards(
-        self, action: Tuple, skip_mask_check: bool = False
+        self,
+        action: Tuple,
+        skip_mask_check: bool = False,
+        skip_trajectory_check: bool = False,
     ) -> Tuple[List, Tuple, bool]:
         """
         Executes backward step given an action.
@@ -601,6 +645,15 @@ class Stack(CompositeBase):
         ----------
         action : tuple
             Action to be executed. The input action is global, that is padded.
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+        skip_trajectory_check : bool
+            If True (False by default), skip checking whether the action can reach a
+            terminating state. Note that the check will also be skipped (regardless of
+            the value of `skip_trajectory_check` if the environment cannot sample
+            invalid actions, that is if `self.can_sample_invalid(self.state)` returns
+            False.
 
         Returns
         -------
@@ -634,10 +687,11 @@ class Stack(CompositeBase):
         # Skip mask check if stage is continuous
         if subenv.continuous:
             skip_mask_check = True
-        do_step, _, _ = subenv._pre_step(
-            action_to_check,
+        do_step = subenv._pre_step(
+            action=action_to_check,
             backward=True,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),
+            skip_trajectory_check=skip_trajectory_check,
         )
         if not do_step:
             return self.state, action, False
@@ -950,3 +1004,50 @@ class Stack(CompositeBase):
                 return False
         else:
             return True
+
+    def get_mask_caches(self) -> Tuple[dict, dict]:
+        """
+        Returns the caches used to store the (in)validity of actions given states.
+
+        It collects the caches of all sub-environments (which have caches) and
+        organises them into a dictionary with the stages as keys.
+
+        If no sub-environment uses a cache, it returns None for both forward and
+        backward cache.
+
+        Returns
+        -------
+        cache_fw : dict
+            A dictionary of the sub-environments' caches of forward actions.
+        cache_bw : dict
+            A dictionary of the sub-environments' caches of backward actions.
+        """
+        if not self.use_mask_cache:
+            return None, None
+        cache_fw = {}
+        cache_bw = {}
+        for idx, subenv in enumerate(self.subenvs):
+            if subenv._cache_mask is not None:
+                cache_fw[idx], cache_bw[idx] = subenv.get_mask_caches()
+        return cache_fw, cache_bw
+
+    def load_mask_caches(self, cache_fw: dict, cache_bw: dict):
+        """
+        Loads the caches used to store the (in)validity of actions given states.
+
+        It iterates over the sub-environments and loads their specific caches if they
+        use them.
+
+        If no sub-environment uses a cache, nothing is done.
+
+        Parameters
+        ----------
+        cache_fw : dict
+            A dictionary of caches of forward actions.
+        cache_bw : dict
+            A dictionary of caches of backward actions.
+        """
+        if self.use_mask_cache:
+            for idx, subenv in enumerate(self.subenvs):
+                if idx in cache_fw and idx in cache_bw:
+                    subenv.load_mask_caches(cache_fw[idx], cache_bw[idx])
