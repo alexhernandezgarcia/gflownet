@@ -50,6 +50,7 @@ other keys:
 
 import ast
 import math
+import random
 import uuid
 from collections import Counter
 from typing import Dict, Iterable, List, Optional, Tuple, Union
@@ -693,7 +694,9 @@ class Sequence(CompositeBase):
                 allowed_action = "left_only"
             else:
                 allowed_action = "both"
-            parents = self._choose_random_parents_of_the_sequence(parent, allowed_action=allowed_action)
+            parents = self._choose_random_parents_of_the_sequence(
+                parent, allowed_action=allowed_action
+            )
             # same action since it goes to EOS of the same subenv
             actions = [
                 self._pad_action(
@@ -1530,21 +1533,23 @@ class Sequence(CompositeBase):
         if freeze_direction is not None:
             if freeze_direction == _LEFT:
                 # freeze the first index
-                freeze_dir_index = 0
                 direction = "left"
             elif freeze_direction == _RIGHT:
                 # get the last subenv
-                freeze_dir_index = -1
                 direction = "right"
             else:
                 print("freeze direction should be ", _LEFT, _RIGHT)
-        else: 
+        else:
             direction = "both"
-        random_number = np.random.randint(0, 2**(n-2)) #n-1
-        random_representation = self._get_indices_from_number(choice=random_number, n=n, direction=direction)
+        random_bit = random.getrandbits(n - 2)
+        random_representation = self._get_indices_from_bits(
+            choice=random_bit, n=n, direction=direction
+        )
         for ind in range(n):
             new_state[random_representation[ind]] = copy(state)[old_indices[ind]]
-            new_envs_unique[random_representation[ind]] = old_envs_unique[old_indices[ind]]
+            new_envs_unique[random_representation[ind]] = old_envs_unique[
+                old_indices[ind]
+            ]
             new_dones[random_representation[ind]] = old_dones[old_indices[ind]]
         new_state["_indices"] = random_representation
         new_state["_envs_unique"] = new_envs_unique
@@ -1557,14 +1562,18 @@ class Sequence(CompositeBase):
                 new_state["_active"] = _ACTIVE_LEFT
         return new_state
 
-    def _get_indices_from_number(self, choice, n, direction):
+    def _get_indices_from_bits(self, choice, n, direction):
+        # do the catch first
+        if n < 2:
+            return [0]
+        # convert the number to int
+        choice = int(choice)
         indices = [0]
         for i in range(n - 2):
             next_ind = max(indices) + 1
+            # operate with the binary number
             indices = (
-                [next_ind] + indices
-                if int(choice / 2 ** (i)) % 2 == 1
-                else indices + [next_ind]
+                [next_ind] + indices if (choice >> i) & 1 else indices + [next_ind]
             )
         if direction == "left":
             return [n - 1] + indices
@@ -1597,12 +1606,12 @@ class Sequence(CompositeBase):
             return [parent]
         # the logic goes like this: for each parent, there are 2^(n-2) possible representations
         # choose one number from 0 to 2^(n-2) exclusive for left and another number among 2^(n-2) for right
-        left_active = np.random.randint(0, 2 ** (n - 2))
-        right_active = np.random.randint(0, 2 ** (n - 2))
-        left_parent = self._get_indices_from_number(
+        left_active = random.getrandbits(n - 2)
+        right_active = random.getrandbits(n - 2)
+        left_parent = self._get_indices_from_bits(
             choice=left_active, n=n, direction="left"
         )
-        right_parent = self._get_indices_from_number(
+        right_parent = self._get_indices_from_bits(
             choice=right_active, n=n, direction="right"
         )
         new_representations = [left_parent, right_parent]
