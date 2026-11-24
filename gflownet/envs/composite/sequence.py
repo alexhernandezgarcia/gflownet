@@ -52,7 +52,7 @@ import ast
 import math
 import random
 import uuid
-from collections import Counter
+from collections import Counter, deque
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
@@ -229,6 +229,15 @@ class Sequence(CompositeBase):
 
         # The sequence is continuous if any unique environment is continuous
         self.continuous = any([env.continuous for env in self.envs_unique])
+        self._substates_row = torch.cat(
+            [
+                se.state2policy(se.source).tile((self.max_elements,))
+                for se in self.envs_unique
+            ],
+            dim=0,
+        )
+        self.subenvs = []
+        self._subenv_types = []
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -538,10 +547,6 @@ class Sequence(CompositeBase):
             key = length - 1  # Most recently inserted subenv always has index len-1
             idx_unique = state["_envs_unique"][key]
             # fix the backward action to include the toggle
-            # get the direction of where to go
-            direction = _LEFT if state["_indices"][0] == key else _RIGHT
-            subenv = self._get_env_unique(idx_unique)
-            substate = self._get_substate(state, key)
             core = [True] * self.n_meta_actions
             # backwards allow toggle of left or right depending on right_only and left_only
             left_key, right_key = state["_indices"][0], state["_indices"][-1]
@@ -970,10 +975,14 @@ class Sequence(CompositeBase):
                         self.state, allowed_action=allowed_action
                     )
                     # backward should also go to the new random representation of the same state
-                    self.set_state(new_state, done=False)
+                    self.set_state(
+                        new_state, done=False
+                    )  # removing this because of redunduncy, please change if you find it faulty in the future
                     # set the states of the subenv to map the correct subenv index
                     for k, sub in enumerate(self.subenvs):
-                        sub.set_state(self.state[k], done=bool(self.state["_dones"][k]))
+                        sub.set_state(
+                            copy(self.state[k]), done=bool(self.state["_dones"][k])
+                        )
             return self.state, action, True
 
         # Case 2: Sub-environment action
@@ -1069,7 +1078,7 @@ class Sequence(CompositeBase):
         # Sample actions from the Categorical distributions defined by the logits
         action_indices = Categorical(logits=logits_sampling).sample()
         # Build actions
-        actions = [self.action_space[idx] for idx in action_indices]
+        actions = [self.action_space[idx] for idx in action_indices.tolist()]
         return actions
 
     def sample_actions_batch(
@@ -1086,6 +1095,7 @@ class Sequence(CompositeBase):
             mask[:, : self._prefix_dim], axis=1
         )  # One True if sub-env active
         is_meta = torch.logical_not(is_active)
+        is_active_list = is_active.tolist()  # to make for-loop faster
 
         # Sample actions states that are active at meta-level
         if torch.any(is_meta):
@@ -1107,7 +1117,7 @@ class Sequence(CompositeBase):
 
         # Organize states with an active sub-env by unique env type
         indices_unique_int = indices_active.tolist()
-        states_active = [s for s, a in zip(states_from, is_active) if a]
+        states_active = [s for s, a in zip(states_from, is_active_list) if a]
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         for state, idx_unique in zip(states_active, indices_unique_int):
             key = self._seq_length(state) - 1  # Active sub-env is last one
@@ -1121,30 +1131,34 @@ class Sequence(CompositeBase):
             if not torch.any(env_mask):
                 continue
             env = self._get_env_unique(idx)
-            actions_dict[idx] = env.sample_actions_batch(
-                self._get_policy_outputs_of_env_unique(
-                    policy_outputs[is_active][env_mask], idx
-                ),
-                self._extract_core_mask(mask[is_active][env_mask], idx),
-                states_dict[idx],
-                is_backward,
-                random_action_prob,
-                temperature_logits,
+            actions_dict[idx] = deque(
+                env.sample_actions_batch(
+                    self._get_policy_outputs_of_env_unique(
+                        policy_outputs[is_active][env_mask], idx
+                    ),
+                    self._extract_core_mask(mask[is_active][env_mask], idx),
+                    states_dict[idx],
+                    is_backward,
+                    random_action_prob,
+                    temperature_logits,
+                )
             )
 
         # Assemble actions in "active sub-env state" batch order
         actions_active = [
-            self._pad_action(actions_dict[idx].pop(0), idx)
+            self._pad_action(actions_dict[idx].popleft(), idx)
             for idx in indices_unique_int
         ]
 
         # Assemble meta + active sub-env state actions in original batch order
         actions = []
-        for a in is_active:
+        actions_active = deque(actions_active)
+        actions_meta = deque(actions_meta)
+        for a in is_active_list:
             if a:
-                actions.append(actions_active.pop(0))
+                actions.append(actions_active.popleft())
             else:
-                actions.append(actions_meta.pop(0))
+                actions.append(actions_meta.popleft())
         return actions
 
     def _get_logprobs_of_same_sequences(
@@ -1154,16 +1168,12 @@ class Sequence(CompositeBase):
         """
         Follows the implementation of BaseSet
         """
-        logprobs = torch.zeros(len(states), dtype=self.float, device=self.device)
-        for idx, state in enumerate(states):
-            n_indices = len(copy(state)["_indices"])
-            if n_indices <= 2:
-                n_unique = 1
-            else:
-                n_unique = 2 ** (n_indices - 2)
-            logprobs[idx] = -torch.log(
-                tfloat(n_unique, device=self.device, float_type=self.float)
-            )
+        log2 = math.log(2.0)
+        values = []
+        for state in states:
+            n = len(state["_indices"])
+            values.append(-(n - 2) * log2 if n > 2 else 0.0)
+        logprobs = tfloat(values, device=self.device, float_type=self.float)
         return logprobs
 
     def get_logprobs(
@@ -1180,6 +1190,7 @@ class Sequence(CompositeBase):
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
 
         is_active = torch.any(mask[:, : self._prefix_dim], axis=1)
+        is_active_list = is_active.tolist()
         is_meta = torch.logical_not(is_active)
 
         # Get log-probs for states active at meta-level
@@ -1192,24 +1203,6 @@ class Sequence(CompositeBase):
                 is_backward,
             )
 
-            # here we also recompute probabilities for states representing equivalent sequences
-            # if is_backward:
-            #     eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
-            #     # filter out eos actions
-            #     is_stochastic = torch.zeros_like(is_meta)
-            #     is_stochastic[is_meta] = torch.any(actions[is_meta] != eos_tensor, dim=1)
-            #     # Copy part of setbase
-            #     if torch.any(is_stochastic):
-            #         # remove the eos actions
-            #         states_stochastic = [
-            #             s for s, f in zip(states_from, is_stochastic) if f
-            #         ]
-            #         # log(n) correction for multiple states of the parent of the same sequences
-            #         # not sure yet if it is the parent that should be considered
-            #         logprobs[is_stochastic] += self._get_logprobs_of_same_sequences(
-            #             states_stochastic
-            #         )
-
         # Extract unique env idx for states active at sub-env level
         indices_active = torch.where(mask[is_active, : self._prefix_dim])[1]
         if len(indices_active) == 0:
@@ -1217,7 +1210,7 @@ class Sequence(CompositeBase):
 
         # Organize states by unique sub-env idx
         indices_unique_int = indices_active.tolist()
-        states_active = [s for s, a in zip(states_from, is_active) if a]
+        states_active = [s for s, a in zip(states_from, is_active_list) if a]
         states_dict = {idx: [] for idx in range(self.n_unique_envs)}
         for state, idx_unique in zip(states_active, indices_unique_int):
             key = self._seq_length(state) - 1
@@ -1266,23 +1259,24 @@ class Sequence(CompositeBase):
         n_states = len(states)
         U = self.n_unique_envs
         M = self.max_elements
-
-        substates = torch.tile(
-            torch.cat(
-                [
-                    subenv.state2policy(subenv.source).tile((M,))
-                    for subenv in self.envs_unique
-                ],
-                dim=0,
-            ),
-            (n_states, 1),
-        )
+        if self._substates_row.device != self.device:
+            self._substates_row = self._substates_row.to(self.device)
+        substates = self._substates_row.tile((n_states, 1))
         device = substates.device
         # active 3 refers to left/none/right
         active = torch.zeros((n_states, 3), dtype=self.float, device=device)
         remaining = torch.zeros((n_states, U), dtype=self.float, device=device)
         dones = torch.zeros((n_states, M), dtype=self.float, device=device)
         pos_type = torch.zeros((n_states, M * U), dtype=self.float, device=device)
+
+        # compute this before the for loop
+        envs_u = [self._get_env_unique(t) for t in range(U)]
+        dims_u = [e.policy_input_dim for e in envs_u]
+        offsets_u = []
+        off = 0
+        for t in range(U):
+            offsets_u.append(off)
+            off += dims_u[t] * M
 
         for i, state in enumerate(states):
             # _ACTIVE_LEFT = -1 _ACTIVE_NONE = 0 _ACTIVE_RIGHT = 1
@@ -1297,16 +1291,18 @@ class Sequence(CompositeBase):
                 pos_type[i, pos * U + state["_envs_unique"][key]] = 1.0
             # Fill substates, grouped per unique type
             indices_unique = np.array(state["_envs_unique"])
-            offset = 0
             for t in range(U):
-                subenv = self._get_env_unique(t)
                 keys = np.where(indices_unique == t)[0]
                 if len(keys) > 0:
-                    sub = subenv.states2policy(
-                        [self._get_substate(state, int(k)) for k in keys]
-                    ).flatten()
-                    substates[i, offset : offset + sub.shape[0]] = sub
-                offset += subenv.policy_input_dim * M
+                    sub = (
+                        envs_u[t]
+                        .states2policy(
+                            [self._get_substate(state, int(k)) for k in keys]
+                        )
+                        .flatten()
+                    )
+                    base = offsets_u[t]
+                    substates[i, base : base + sub.shape[0]] = sub
 
         return torch.cat([active, remaining, dones, pos_type, substates], dim=1)
 
@@ -1315,17 +1311,27 @@ class Sequence(CompositeBase):
         Proxy representation: for each state, the list of the sub-environments' proxy
         representations, in the spatial (sequence) order.
         """
-        states_proxy = []
-        for state in states:
-            seq = []
-            for key in state["_indices"]:
-                idx_unique = state["_envs_unique"][key]
-                substate = self._get_substate(state, key)
-                seq.append(
-                    self._get_env_unique(idx_unique).state2proxy(substate)[0]
-                )  # [0] because of length-1 batch
-            states_proxy.append(seq)
-        return states_proxy
+        U = self.n_unique_envs
+        envs_u = [self._get_env_unique(t) for t in range(U)]
+        subs = [[] for _ in range(U)]
+        slots = [[] for _ in range(U)]
+        out = []
+        for i, state in enumerate(states):
+            idxs = state["_indices"]
+            eu = state["_envs_unique"]
+            out.append([None] * len(idxs))
+            for pos, key in enumerate(idxs):
+                t = eu[key]
+                subs[t].append(self._get_substate(state, key))
+                slots[t].append((i, pos))
+        for t in range(U):
+            if not subs[t]:
+                continue
+            conv = envs_u[t].states2proxy(subs[t])
+            for (i, pos), c in zip(slots[t], conv):
+                out[i][pos] = c
+
+        return out
 
     def state2readable(self, state: Optional[Dict] = None) -> str:
         """Converts a state into a human-readable representation."""
@@ -1391,6 +1397,7 @@ class Sequence(CompositeBase):
     def reset(self, env_id: Union[int, str] = None):
         """Resets the environment to an empty sequence."""
         self.subenvs = []
+        self._subenv_types = []
         self.state = {
             "_active": _ACTIVE_NONE,
             "_dones": [],
@@ -1410,12 +1417,23 @@ class Sequence(CompositeBase):
 
     def set_state(self, state: Dict, done: Optional[bool] = False):
         """Sets a state and done, rebuilding the placed sub-environments."""
-        self.subenvs = []
-        for key, idx_unique in enumerate(state["_envs_unique"]):
-            sub = self._make_subenv_instance(idx_unique, key)
-            # incorporate the dones (finished or not) of the subenv
-            sub.set_state(copy(state[key]), done=bool(state["_dones"][key]))
-            self.subenvs.append(sub)
+        # add a correction for using the device
+        state = {
+            k: (v.to(self.device) if torch.is_tensor(v) else v)
+            for k, v in state.items()
+        }
+        types_new = list(state["_envs_unique"])
+        if types_new == self._subenv_types and len(self.subenvs) == len(types_new):
+            # Same structure: reuse instances, only refresh their substates
+            for key, sub in enumerate(self.subenvs):
+                sub.set_state(copy(state[key]), done=bool(state["_dones"][key]))
+        else:
+            self.subenvs = []
+            for key, idx_unique in enumerate(types_new):
+                sub = self._make_subenv_instance(idx_unique, key)
+                sub.set_state(copy(state[key]), done=bool(state["_dones"][key]))
+                self.subenvs.append(sub)
+            self._subenv_types = types_new
         return super().set_state(state, done)
 
     def is_source(self, state: Optional[Dict] = None) -> bool:
@@ -1443,6 +1461,7 @@ class Sequence(CompositeBase):
 
     def __eq__(self, other, ignored_keys: List[str] = []) -> bool:
         """Equality between environment instances."""
+        ignored_keys = ignored_keys + ["_substates_row"]
         if self.do_random_subenvs:
             ignored_keys = ignored_keys + ["subenvs", "state", "source"]
         return super().__eq__(other, ignored_keys=ignored_keys)
@@ -1529,6 +1548,7 @@ class Sequence(CompositeBase):
         new_state = copy(state)
         new_envs_unique = list(state["_envs_unique"])
         new_dones = list(state["_dones"])
+        state_copy = copy(state)
         # ok so here we add an option to "not touch" the last active direction
         if freeze_direction is not None:
             if freeze_direction == _LEFT:
@@ -1546,7 +1566,7 @@ class Sequence(CompositeBase):
             choice=random_bit, n=n, direction=direction
         )
         for ind in range(n):
-            new_state[random_representation[ind]] = copy(state)[old_indices[ind]]
+            new_state[random_representation[ind]] = state_copy[old_indices[ind]]
             new_envs_unique[random_representation[ind]] = old_envs_unique[
                 old_indices[ind]
             ]
@@ -1596,10 +1616,11 @@ class Sequence(CompositeBase):
         old_envs_unique = list(state["_envs_unique"])
         old_indices = list(state["_indices"])
         old_dones = list(state["_dones"])
+        state_copy = copy(state)
 
         if n < 2 or allowed_action != "both":
             # return immediately
-            parent = copy(state)
+            parent = state_copy
             parent["_active"] = (
                 _ACTIVE_LEFT if old_indices[0] == n - 1 else _ACTIVE_RIGHT
             )
@@ -1620,10 +1641,10 @@ class Sequence(CompositeBase):
         parents = []
         for k in range(len(new_representations)):
             new_state = copy(state)
-            new_dones = list(new_state["_dones"])
-            new_envs_unique = list(new_state["_envs_unique"])
+            new_dones = list(old_dones)
+            new_envs_unique = list(old_envs_unique)
             for ind in range(len(new_representations[k])):
-                new_state[new_representations[k][ind]] = copy(state)[old_indices[ind]]
+                new_state[new_representations[k][ind]] = state_copy[old_indices[ind]]
                 new_envs_unique[new_representations[k][ind]] = old_envs_unique[
                     old_indices[ind]
                 ]
