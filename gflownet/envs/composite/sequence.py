@@ -119,6 +119,7 @@ class Sequence(CompositeBase):
         left_only: Optional[bool] = False,
         right_only: Optional[bool] = False,
         do_random_subenvs: Optional[bool] = False,
+        skip_mask_check: Optional[bool] = True,
         **kwargs,
     ):
         """
@@ -153,6 +154,7 @@ class Sequence(CompositeBase):
         self.left_only = left_only
         self.right_only = right_only
         self.do_random_subenvs = do_random_subenvs
+        self.skip_mask_check = skip_mask_check
 
         # Determine the unique environments
         if envs_unique is None:
