@@ -1,5 +1,5 @@
 """
-Environment to test sequence sentence using word subenv
+Environment to test sequence sentence using smiles
 """
 
 from typing import Dict, Iterable, List, Optional, Tuple, Union
@@ -42,6 +42,7 @@ class Smiles(Sequence):
         self._vocab_by_len = sorted(
             (tok for tok in subenvs[0].smiles_vocab if tok), key=len, reverse=True
         )
+        self._vocab_set = set(subenvs[0].smiles_vocab)
 
         # Initialize base Sequence environment
         # CHANGE THIS LATER!
@@ -57,30 +58,36 @@ class Smiles(Sequence):
     def states2proxy(self, states: List[Dict]) -> List[str]:
         # for the SEH proxy
         token_env = self._get_env_unique(0)
-        smiles = []
+        all_subs = []
+        lengths = []
         for state in states:
-            substates = [self._get_substate(state, key) for key in state["_indices"]]
-            if not substates:
-                smiles.append("")
-                continue
-            smiles.append("".join(token_env.states2proxy(substates)))
-        return smiles
+            idxs = state["_indices"]
+            lengths.append(len(idxs))
+            for key in idxs:
+                all_subs.append(state[key])
+        if not all_subs:
+            return [""] * len(states)
+        tokens = token_env.states2proxy(all_subs)
+        tokenized_list = []
+        pos = 0
+        for L in lengths:
+            tokenized_list.append("".join(tokens[pos : pos + L]))
+            pos += L
+        return tokenized_list
 
     def state2readable(self, state: Optional[Dict] = None) -> str:
         state = self._get_state(state)
-        tokens = []
-        for key in state["_indices"]:
-            idx_unique = state["_envs_unique"][key]
-            subenv = self._get_env_unique(idx_unique)
-            tokens.append(subenv.state2readable(self._get_substate(state, key)))
-        return " ".join(tokens)
+        token_env = self._get_env_unique(0)
+        return " ".join(
+            token_env.state2readable(state[key]) for key in state["_indices"]
+        )
 
     def readable2state(self, readable: str) -> Dict:
         tokens = readable.split()
         token_env = self._get_env_unique(0)
         state = {"_active": 0, "_dones": [], "_envs_unique": [], "_indices": []}
         for key, token in enumerate(tokens):
-            if token not in token_env.smiles_vocab:
+            if token not in self._vocab_set:
                 raise ValueError(f"Unknown SMILES token: {token}")
             state["_envs_unique"].append(0)
             state["_dones"].append(1)
