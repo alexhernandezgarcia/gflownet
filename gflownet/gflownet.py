@@ -1577,19 +1577,13 @@ def logz_stats_from_logweights(
     logw, n_resamples: int = 1000, confidence_level: float = 0.68, chunk: int = 64
 ):
     r"""
-    Bootstraps the forward logZ estimator from its per-trajectory log-weights.
-
-    The effective sample size (ESS) is how many independent samples the $M$
-    trajectories are actually worth, which collapses when a few of them carry
-    most of the weight:
+    Computes the forward logZ estimate from its per-trajectory log-weights, with
+    bootstrap error bars and the effective sample size (ESS), that is how many
+    independent samples the $M$ trajectories are worth:
 
     $$
     \mathrm{ESS} = \frac{\left(\sum_m w_m\right)^2}{\sum_m w_m^2}
     $$
-
-    It equals the $1/E_q[w^2]$ of arXiv:2503.08918 only under full support; mode
-    dropping scales it by their EMDM squared. The returned interval is
-    percentile-based rather than a symmetric $\pm\sigma$.
 
     Parameters
     ----------
