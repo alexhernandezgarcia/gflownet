@@ -391,10 +391,7 @@ class BaseTestsCommon:
         produce permutations, such as the Set, with certain configurations.
         """
         # Skip for certain environments until fixed:
-        skip_envs = [
-            "SetFlex",
-            "SetFix",
-        ]  # TODO: handle this using the count instead.
+        skip_envs = []  # TODO: handle this using the count instead.
         if self.env.__class__.__name__ in skip_envs:
             warnings.warn("Skipping test for this specific environment.")
             return
