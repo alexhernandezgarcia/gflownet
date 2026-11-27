@@ -1,0 +1,20 @@
+# @package _global_
+# Same experiment as classification_tree.yaml (Adam, lr 0.01), but with
+# gradient-norm clipping enabled. Motivation: the mid-training loss
+# explosions correlate with rare trajectories whose logreward is far from
+# the running range, which produce a single enormous TB gradient; clipping
+# the global grad norm caps that step while leaving typical steps untouched.
+# Note: clipping is applied to the policy parameters only, not to logZ
+# (see GFlowNetAgent.parameters() and the clip call in gflownet.py).
+
+defaults:
+  - tree/classification_tree
+  - _self_
+
+gflownet:
+  optimizer:
+    # Max global L2 norm of the policy gradients; 0.0 disables clipping.
+    # Sensible scan range: 0.1 .. 10. Start at 1.0; if W&B shows typical
+    # (non-exploding) grad norms above that, raise it so clipping only
+    # triggers on the outlier steps.
+    clip_grad_norm: 1.0

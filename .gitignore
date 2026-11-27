@@ -16,3 +16,29 @@ playground/
 .DS_Store
 docs/_build/
 logs
+
+# Gitignores added by the DT-GFN project
+
+gflownet-env/
+.claude/
+wandb/
+dt-gfn/
+dt-gfn_modified/
+reg_benchmarks/results
+reg_benchmarks/slurm
+class_baselines/slurm
+class_baselines/results
+
+# Raw downloads for the prepare_*.py scripts. Fetch them with the curl command
+# in each script's docstring
+tests/data/tree/credit/credit.csv
+tests/data/tree/jannis2/jannis.csv
+tests/data/tree/jannis4/jannis_41168.pq
+
+# Generated jannis splits: ~27 MB (2-class) and ~39 MB (4-class), they regenerate
+# deterministically from the fixed seeds
+tests/data/tree/jannis2/jannis2_*.csv
+tests/data/tree/jannis4/jannis4_*.csv
+
+# Figures for thesis report
+figures_dt-gfn/

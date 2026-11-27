@@ -1,6 +1,31 @@
 defaults:
   - base
 
-_target_: gflownet.proxy.tree.TreeProxy
+_target_: gflownet.proxy.tree.CategoricalTreeProxy
 
-use_prior: False
+# The proxy returns log-posterior values, so we exponentiate to get positive rewards.
+# reward = alpha * exp(beta * log_posterior)
+# beta acts as a temperature: p(x) ∝ posterior^beta. It must be 1.0 to sample
+# from the true (untempered) Bayesian posterior. Underflow of
+# exp(log_posterior) in the replay buffer is handled by setting
+# buffer.store_log_rewards=True, not by tempering the reward.
+reward_function: exponential
+reward_function_kwargs:
+  beta: 1.0
+  alpha: 1.0
+
+# Structure prior type: "node_count", "exponential", "bcart", or "none"
+prior_type: node_count
+
+# Dirichlet concentration prior over leaf class probabilities
+# alpha_type: "uniform" (all classes equal) or "label_counts" (proportional to frequencies)
+alpha_type: uniform
+alpha_value: 1.0
+
+# Prior-specific parameters
+# - beta: coefficient for "exponential" prior (log_prior = -beta * n_internal_nodes)
+beta: 1.0
+# - sigma: base split probability for "bcart" prior
+sigma: 0.95
+# - phi: depth decay exponent for "bcart" prior (p_split = sigma * (1+depth)^(-phi))
+phi: 2.0

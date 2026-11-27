@@ -5,7 +5,7 @@ import torch_geometric
 from torch_geometric.data import Batch
 from torch_geometric.nn import global_add_pool
 
-from gflownet.envs.tree import Tree
+from gflownet.envs.tree.origtree import TreeOrig
 from gflownet.policy.base import Policy
 
 
@@ -142,7 +142,7 @@ class SimpleTreeModel(torch.nn.Module):
 
     def forward(self, x):
         batch = Batch.from_data_list(
-            [Tree.state2pyg(state, self.n_features) for state in x]
+            [TreeOrig.state2pyg(state, self.n_features) for state in x]
         )
         return self.model(batch)
 

@@ -49,6 +49,7 @@ class BaseBuffer:
         replay_buffer: Union[str, PosixPath] = None,
         replay_capacity: int = 0,
         replay_criterion: str = "reward",
+        store_log_rewards: bool = False,
         train: Dict = None,
         test: Dict = None,
         use_main_buffer=False,
@@ -79,6 +80,20 @@ class BaseBuffer:
             replay buffer. The valid options are:
                 - reward[s]: the replay buffer stores samples with the largest rewards.
                 - loss[es]: the replay buffer stores samples with the largest loss.
+        store_log_rewards : bool
+            Only relevant with the reward criterion. If True, the values stored in
+            the "values" column of the buffers are
+            log-rewards instead of (linear) rewards, and weighted selection computes
+            the sampling probabilities with a numerically stable softmax over the
+            log values (see :py:meth:`select`). This avoids float underflow when
+            the log-rewards are large and negative (for example Bayesian
+            log-posteriors over a data set), in which case exp(log-reward) collapses
+            to exactly 0.0, freezing the insertion criterion (0.0 > 0.0 is never
+            True) and producing invalid (0/0 = NaN) weighted-sampling
+            probabilities. Since the log is monotone, the insertion criterion is
+            unaffected by storing log values. The caller is responsible for passing
+            log-rewards to :py:meth:`add` when this flag is True. False by default,
+            which preserves the original behavior.
         train : dict
             A dictionary describing the training data. The dictionary can have the
             following keys:
@@ -130,6 +145,7 @@ class BaseBuffer:
         self.proxy = proxy
         self.replay_capacity = replay_capacity
         self.replay_criterion = replay_criterion
+        self.store_log_rewards = store_log_rewards
         self.train_config = self._process_data_config(train)
         self.test_config = self._process_data_config(test)
         self.use_main_buffer = use_main_buffer
@@ -300,13 +316,14 @@ class BaseBuffer:
             Identifier of the buffer: main or replay
         """
         if self.replay_criterion.startswith("reward"):
-            if torch.is_tensor(rewards):
-                values = rewards.tolist()
-                do_update = False
-        elif self.replay_criterion.startswith("loss") and torch.is_tensor(losses):
+            values = rewards.tolist() if torch.is_tensor(rewards) else list(rewards)
+            do_update = False
+        elif self.replay_criterion.startswith("loss") and losses is not None:
             if torch.is_tensor(losses):
                 values = losses.detach().tolist()
-                do_update = True
+            else:
+                values = list(losses)
+            do_update = True
         else:
             raise ValueError(
                 f"Unknown criterion identifier. Received {buffer}, "
@@ -675,6 +692,7 @@ class BaseBuffer:
         n: int,
         mode: str = "permutation",
         rng: Optional[np.random.Generator] = None,
+        scores_are_log: bool = False,
     ) -> pd.DataFrame:
         """
         Selects a subset of n data points from data_dict, according to the criterion
@@ -706,6 +724,17 @@ class BaseBuffer:
         rng : np.random.Generator
             A numpy random number generator, used for the permutation mode. Ignored
             otherwise.
+
+        scores_are_log : bool
+            If True, the scores used by the weighted mode are log values (for
+            example log-rewards, see ``store_log_rewards``), and the sampling
+            probabilities are computed with a softmax over the scores. The
+            softmax is mathematically equivalent to normalizing the exponential
+            of the scores, but numerically stable: it never materializes the
+            exponentials, which would under- or overflow for scores of large
+            magnitude. False by default, in which case the scores are treated
+            as linear values and normalized by their sum (with a fallback to a
+            softmax if any score is negative, kept for backward compatibility).
 
         Returns
         -------
@@ -741,7 +770,12 @@ class BaseBuffer:
             scores = df[score].values
 
             # Turn scores into probabilities
-            if np.any(scores < 0):
+            if scores_are_log:
+                # The scores are log values: softmax yields probabilities
+                # proportional to exp(scores) without materializing the
+                # exponentials, which could under- or overflow.
+                scores = softmax(scores)
+            elif np.any(scores < 0):
                 scores = softmax(scores)
             else:
                 scores = scores / np.sum(scores)

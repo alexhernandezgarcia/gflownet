@@ -1,0 +1,897 @@
+"""
+Unit tests for aggregate_treeclass_results.py (pure helpers + the collectors).
+
+Run from the repo root (venv active):
+
+    pytest gflownet/envs/tree/helpers_for_experiments/test_aggregate_treeclass_results.py -v
+
+No wandb access or real runs needed: everything runs on synthetic records and
+temporary directories.
+"""
+
+import json
+from datetime import datetime
+
+import pytest
+from omegaconf import OmegaConf
+
+from gflownet.envs.tree.helpers_for_experiments import (
+    aggregate_treeclass_results as agg,
+)
+
+TREE_TARGET = "gflownet.envs.tree.tree.Tree"
+
+
+# ---------------------------------------------------------------------------
+# Helpers to build synthetic configs / records
+# ---------------------------------------------------------------------------
+
+
+def make_config(seed=0, lr=0.001, data_path="/data/iris/iris_1.csv", **extra):
+    """A minimal but realistic resolved tree config."""
+    cfg = {
+        "env": {"_target_": TREE_TARGET, "data_path": data_path, "max_depth": 5},
+        "gflownet": {
+            "optimizer": {"n_train_steps": 1000, "lr": lr},
+            "random_action_prob": 0.1,
+        },
+        "policy": {"_target_": "gflownet.policy.mlp.MLPPolicy", "backward": None},
+        "seed": seed,
+        "logger": {"run_name": "run", "logdir": {"path": "/logs/CAMP/run"}},
+        "user": {"name": "someone"},
+    }
+    cfg.update(extra)
+    return cfg
+
+
+def make_record(
+    ghash="aaaaaaaa",
+    split="1",
+    launched=100.0,
+    recency=0.0,
+    settings=None,
+    metrics=None,
+    campaign="CAMP",
+    task="classification",
+    dataset="iris",
+    debug=False,
+    run_name="run",
+    **extra,
+):
+    rec = {
+        "task": task,
+        "dataset": dataset,
+        "split": split,
+        "hash": ghash,
+        # Real records always carry the full settings dict produced by
+        # settings_from_config (with "?" defaults for missing keys).
+        "settings": (
+            settings
+            if settings is not None
+            else agg.settings_from_config(make_config())
+        ),
+        "config": {},
+        "run_name": run_name,
+        "campaign": campaign,
+        "debug": debug,
+        "metrics": metrics if metrics is not None else {},
+        "launched": launched,
+        "recency": recency,
+    }
+    rec.update(extra)
+    return rec
+
+
+# ---------------------------------------------------------------------------
+# normalize_numbers
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_numbers_integer_floats():
+    assert agg.normalize_numbers(1.0) == 1
+    assert isinstance(agg.normalize_numbers(1.0), int)
+    assert agg.normalize_numbers(1.5) == 1.5
+
+
+def test_normalize_numbers_recurses_into_dicts_and_lists():
+    obj = {"a": 2.0, "b": [3.0, 3.5, {"c": 4.0}], "d": "1.0"}
+    out = agg.normalize_numbers(obj)
+    assert out == {"a": 2, "b": [3, 3.5, {"c": 4}], "d": "1.0"}
+    assert isinstance(out["b"][2]["c"], int)
+
+
+def test_normalize_numbers_leaves_bools_and_none_alone():
+    assert agg.normalize_numbers(True) is True
+    assert agg.normalize_numbers(None) is None
+
+
+# ---------------------------------------------------------------------------
+# fmt_mean_std
+# ---------------------------------------------------------------------------
+
+
+def test_fmt_mean_std_empty_is_dash():
+    assert agg.fmt_mean_std([], 3) == "-"
+    assert agg.fmt_mean_std([float("nan")], 1) == "-"
+
+
+def test_fmt_mean_std_single_value_zero_std():
+    assert agg.fmt_mean_std([0.5], 1) == "0.5000 ± 0.0000"
+
+
+def test_fmt_mean_std_marks_missing_values():
+    # 2 finite values but 3 expected -> [n=2] suffix.
+    assert agg.fmt_mean_std([1.0, 2.0], 3).endswith("[n=2]")
+    assert "[n=" not in agg.fmt_mean_std([1.0, 2.0], 2)
+
+
+def test_fmt_mean_std_precision_switches_at_100():
+    assert agg.fmt_mean_std([250.0], 1).startswith("250.0 ")
+    assert agg.fmt_mean_std([2.5], 1).startswith("2.5000 ")
+
+
+def test_fmt_mean_std_uses_sample_std():
+    # ddof=1: std of [1, 3] is sqrt(2), not 1.
+    assert agg.fmt_mean_std([1.0, 3.0], 2) == "2.0000 ± 1.4142"
+
+
+# ---------------------------------------------------------------------------
+# dedupe
+# ---------------------------------------------------------------------------
+
+
+def test_dedupe_eval_keeps_newest_mtime(capsys):
+    old = make_record(recency=100.0, run_name="old")
+    new = make_record(recency=200.0, run_name="new")
+    kept = agg.dedupe([old, new], "eval")
+    assert [r["run_name"] for r in kept] == ["new"]
+    assert "duplicate eval runs" in capsys.readouterr().out
+
+
+def test_dedupe_wandb_keeps_furthest_step_then_latest_launch():
+    slow = make_record(recency=(500, 100.0), run_name="far")
+    fast = make_record(recency=(100, 999.0), run_name="near-but-newer")
+    kept = agg.dedupe([slow, fast], "wandb")
+    assert [r["run_name"] for r in kept] == ["far"]
+    # Equal step: latest launch wins.
+    a = make_record(recency=(500, 100.0), run_name="a")
+    b = make_record(recency=(500, 200.0), run_name="b")
+    assert [r["run_name"] for r in agg.dedupe([a, b], "wandb")] == ["b"]
+
+
+def test_dedupe_keeps_different_splits_hashes_and_campaigns(capsys):
+    recs = [
+        make_record(split="1"),
+        make_record(split="2"),
+        make_record(split="1", ghash="bbbbbbbb"),
+        make_record(split="1", campaign="OTHER_CAMPAIGN"),
+    ]
+    assert len(agg.dedupe(recs, "eval")) == 4
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_dedupe_same_config_in_two_campaigns_is_not_merged(capsys):
+    # A control configuration relaunched unchanged in a later campaign keeps
+    # both records (one row per campaign), whatever their eval recency.
+    a = make_record(campaign="REG_PRIOR", recency=100.0, run_name="a")
+    b = make_record(campaign="REG_DIVBUF", recency=200.0, run_name="b")
+    kept = agg.dedupe([a, b], "eval")
+    assert sorted(r["campaign"] for r in kept) == ["REG_DIVBUF", "REG_PRIOR"]
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_dedupe_winner_inherits_earliest_launch():
+    # wandb: a resume is a new run (created later) that progressed further;
+    # it wins but keeps the original launch time.
+    original = make_record(recency=(100, 10.0), launched=10.0, run_name="orig")
+    resumed = make_record(recency=(500, 999.0), launched=999.0, run_name="resumed")
+    (kept,) = agg.dedupe([original, resumed], "wandb")
+    assert kept["run_name"] == "resumed"
+    assert kept["launched"] == 10.0
+    # An unknown launch time (0.0) never wins the minimum.
+    unknown = make_record(recency=(50, 0.0), launched=0.0, run_name="unknown")
+    later = make_record(recency=(60, 500.0), launched=500.0, run_name="later")
+    (kept,) = agg.dedupe([unknown, later], "wandb")
+    assert kept["launched"] == 500.0
+
+
+def test_dedupe_rejects_mixed_recency_types():
+    recs = [make_record(recency=100.0), make_record(recency=(1, 2.0), split="2")]
+    with pytest.raises(AssertionError):
+        agg.dedupe(recs, "eval")
+
+
+# ---------------------------------------------------------------------------
+# group_identity: disk vs wandb configs must hash identically
+# ---------------------------------------------------------------------------
+
+
+def test_group_identity_ignores_run_identity_keys():
+    a = make_config(data_path="/data/iris/iris_1.csv")
+    b = make_config(data_path="/data/iris/iris_2.csv")
+    b["logger"] = {"run_name": "other", "logdir": {"path": "/elsewhere"}}
+    b["user"] = {"name": "someone-else"}
+    b["_wandb"] = {"cli_version": "0.17"}
+    ia, ib = agg.group_identity(a), agg.group_identity(b)
+    assert ia["hash"] == ib["hash"]
+    assert (ia["split"], ib["split"]) == ("1", "2")
+    assert ia["dataset"] == ib["dataset"] == "iris"
+
+
+def test_group_identity_float_int_roundtrip_same_hash():
+    # Disk yaml yields 1000.0 / 0.0, wandb round-trips them as 1000 / 0.
+    disk = make_config()
+    disk["gflownet"]["optimizer"]["n_train_steps"] = 1000.0
+    wandb_style = make_config()
+    wandb_style["gflownet"]["optimizer"]["n_train_steps"] = 1000
+    assert agg.group_identity(disk)["hash"] == agg.group_identity(wandb_style)["hash"]
+
+
+def test_group_identity_different_hyperparams_different_hash():
+    assert (
+        agg.group_identity(make_config(lr=0.001))["hash"]
+        != agg.group_identity(make_config(lr=0.01))["hash"]
+    )
+
+
+def test_group_identity_non_tree_env_is_none():
+    cfg = make_config()
+    cfg["env"]["_target_"] = "gflownet.envs.grid.Grid"
+    assert agg.group_identity(cfg) is None
+
+
+def test_group_identity_extra_excluded_keys():
+    a, b = make_config(), make_config()
+    b["torch_profile"] = True
+    assert agg.group_identity(a)["hash"] != agg.group_identity(b)["hash"]
+    assert (
+        agg.group_identity(a, ("torch_profile",))["hash"]
+        == agg.group_identity(b, ("torch_profile",))["hash"]
+    )
+
+
+# ---------------------------------------------------------------------------
+# campaign_from_config / parse_wandb_created_at / fmt_launch / is_debug
+# ---------------------------------------------------------------------------
+
+
+def test_campaign_from_config_parent_of_logdir_path():
+    cfg = {"logger": {"logdir": {"path": "/scratch/gflownet-logs/MAGIC_STAB/run_ab12"}}}
+    assert agg.campaign_from_config(cfg, "fallback") == "MAGIC_STAB"
+
+
+def test_campaign_from_config_fallback():
+    assert agg.campaign_from_config({}, "proj") == "proj"
+    assert agg.campaign_from_config({"logger": {"logdir": {"path": None}}}, "p") == "p"
+
+
+def test_parse_wandb_created_at():
+    assert agg.parse_wandb_created_at("2026-08-27T17:49:00Z") > 0
+    assert agg.parse_wandb_created_at(None) == 0.0
+    assert agg.parse_wandb_created_at("not-a-date") == 0.0
+    # Z suffix and explicit offset are the same instant.
+    assert agg.parse_wandb_created_at("2026-08-27T17:49:00Z") == (
+        agg.parse_wandb_created_at("2026-08-27T17:49:00+00:00")
+    )
+
+
+def test_fmt_launch_unknown():
+    assert agg.fmt_launch(0.0) == "?"
+    assert agg.fmt_launch(1735689600.0).startswith("20")
+
+
+def test_is_debug():
+    assert agg.is_debug("DEBUG_iris_run")
+    assert agg.is_debug("iris", "SMOKE_TEST/dir")
+    assert not agg.is_debug("MAGIC_STAB_magic1")
+
+
+# ---------------------------------------------------------------------------
+# build_table
+# ---------------------------------------------------------------------------
+
+
+def _three_split_group(ghash="aaaaaaaa", launched=100.0, acc=0.9):
+    return [
+        make_record(
+            ghash=ghash,
+            split=str(i),
+            launched=launched + i,
+            metrics={"test_acc_top1": acc},
+        )
+        for i in (1, 2, 3)
+    ]
+
+
+def test_build_table_hides_groups_below_min_splits():
+    recs = _three_split_group("aaaaaaaa") + [make_record(ghash="bbbbbbbb", split="1")]
+    df, n_hidden = agg.build_table(recs, ["test_acc_top1"], "eval", min_splits=3)
+    assert list(df["config"]) == ["aaaaaaaa"]
+    assert n_hidden == 1
+    df_all, n_hidden_all = agg.build_table(
+        recs, ["test_acc_top1"], "eval", min_splits=1
+    )
+    assert len(df_all) == 2 and n_hidden_all == 0
+
+
+def test_build_table_column_order_and_campaign():
+    df, _ = agg.build_table(_three_split_group(), ["test_acc_top1"], "eval", 3)
+    assert list(df.columns[:3]) == ["config", "campaign", "launched"]
+    assert df.iloc[0]["campaign"] == "CAMP"
+    # wandb tables get the same leading columns plus last_step/state.
+    wrecs = [
+        make_record(split=str(i), recency=(10, 1.0), step=10, state="finished")
+        for i in (1, 2, 3)
+    ]
+    dfw, _ = agg.build_table(wrecs, [], "wandb", 3)
+    assert list(dfw.columns[:3]) == ["config", "campaign", "launched"]
+    assert {"last_step", "state"} <= set(dfw.columns)
+
+
+def test_build_table_sorted_by_launch_newest_first():
+    recs = _three_split_group("aaaaaaaa", launched=100.0) + _three_split_group(
+        "bbbbbbbb", launched=500.0
+    )
+    df, _ = agg.build_table(recs, ["test_acc_top1"], "eval", 3)
+    assert list(df["config"]) == ["bbbbbbbb", "aaaaaaaa"]
+
+
+def test_build_table_renames_mean_n_nodes():
+    recs = [make_record(split=str(i), metrics={"mean_n_nodes": 7.0}) for i in (1, 2, 3)]
+    df, _ = agg.build_table(recs, ["mean_n_nodes"], "eval", 3)
+    assert "mean_n_decisionnodes" in df.columns
+    assert "mean_n_nodes" not in df.columns
+
+
+def test_build_table_same_config_two_campaigns_two_rows():
+    recs = [
+        make_record(
+            split=str(i),
+            campaign="REG_PRIOR",
+            launched=100.0 + i,
+            metrics={"test_acc_top1": 0.8},
+        )
+        for i in (1, 2, 3)
+    ] + [
+        make_record(
+            split=str(i),
+            campaign="REG_DIVBUF",
+            launched=500.0 + i,
+            metrics={"test_acc_top1": 0.9},
+        )
+        for i in (1, 2, 3)
+    ]
+    df, n_hidden = agg.build_table(recs, ["test_acc_top1"], "eval", 3)
+    assert n_hidden == 0
+    assert list(df["campaign"]) == ["REG_DIVBUF", "REG_PRIOR"]  # newest first
+    assert list(df["config"]) == ["aaaaaaaa", "aaaaaaaa"]
+    assert df.iloc[0]["test_acc_top1"].startswith("0.9000")
+    assert df.iloc[1]["test_acc_top1"].startswith("0.8000")
+    assert list(df["n"]) == [3, 3]
+
+
+def test_shared_config_notes():
+    recs = [
+        make_record(campaign="A"),
+        make_record(campaign="B", split="2"),
+        make_record(campaign="A", ghash="bbbbbbbb"),
+    ]
+    notes = agg.shared_config_notes(recs)
+    assert len(notes) == 1
+    assert "aaaaaaaa" in notes[0] and "(A, B)" in notes[0]
+    assert agg.shared_config_notes([make_record(campaign="A")]) == []
+
+
+def test_print_section_notes_shared_configs(capsys):
+    recs = [
+        make_record(split=str(i), campaign=c, metrics={"test_acc_top1": 0.9})
+        for c in ("A", "B")
+        for i in (1, 2, 3)
+    ]
+    agg.print_section("T", {"eval": recs}, diff_configs=False, min_splits=3)
+    assert "was launched in 2 campaigns (A, B)" in capsys.readouterr().out
+
+
+def test_build_table_asserts_on_settings_mismatch_within_group():
+    recs = _three_split_group()
+    recs[1]["settings"] = {"lr": 999}
+    with pytest.raises(AssertionError, match="different settings"):
+        agg.build_table(recs, ["test_acc_top1"], "eval", 3)
+
+
+def test_build_table_aggregates_metrics_over_splits():
+    recs = [
+        make_record(split="1", metrics={"test_acc_top1": 0.8}),
+        make_record(split="2", metrics={"test_acc_top1": 1.0}),
+        make_record(split="3", metrics={}),  # missing metric -> [n=2]
+    ]
+    df, _ = agg.build_table(recs, ["test_acc_top1"], "eval", 3)
+    assert df.iloc[0]["test_acc_top1"].startswith("0.9000 ±")
+    assert df.iloc[0]["test_acc_top1"].endswith("[n=2]")
+    assert df.iloc[0]["n"] == 3
+    # The splits column was dropped for readability: splits are always 1..n.
+    assert "splits" not in df.columns
+
+
+# ---------------------------------------------------------------------------
+# collect_eval_runs on a synthetic runs tree
+# ---------------------------------------------------------------------------
+
+
+def _write_run(root, campaign, name, cfg, metrics, launch=None):
+    run_dir = root / campaign / name
+    (run_dir / ".hydra").mkdir(parents=True)
+    OmegaConf.save(OmegaConf.create(cfg), run_dir / ".hydra" / "config.yaml")
+    (run_dir / "eval_results.json").write_text(json.dumps(metrics))
+    if launch is not None:
+        # Same layout as the record the launchers append to <run_dir>/LAUNCH.
+        (run_dir / "LAUNCH").write_text(
+            f"--- launch {launch} EDT ---\nrun_name     : {name}\n"
+        )
+    return run_dir
+
+
+def _launch_epoch(text):
+    return datetime.strptime(text, "%Y-%m-%d %H:%M:%S").timestamp()
+
+
+def test_collect_eval_runs_end_to_end(tmp_path):
+    for split in (1, 2):
+        _write_run(
+            tmp_path,
+            "CAMPAIGN_A",
+            f"run_split{split}",
+            make_config(data_path=f"/data/iris/iris_{split}.csv"),
+            {"test_acc_top1": 0.9},
+            launch="2026-08-28 15:31:51",
+        )
+    records = agg.collect_eval_runs(tmp_path)
+    assert len(records) == 2
+    rec = records[0]
+    assert rec["task"] == "classification"
+    assert rec["dataset"] == "iris"
+    assert rec["campaign"] == "CAMPAIGN_A"
+    assert rec["metrics"] == {"test_acc_top1": 0.9}
+    assert rec["launched"] == _launch_epoch("2026-08-28 15:31:51")
+    # Both splits share the training configuration -> one group hash.
+    assert len({r["hash"] for r in records}) == 1
+
+
+def test_collect_eval_runs_same_config_two_campaigns_both_kept(tmp_path, capsys):
+    for campaign in ("REG_PRIOR", "REG_DIVBUF"):
+        _write_run(tmp_path, campaign, "run1", make_config(), {"a": 1.0})
+    records = agg.collect_eval_runs(tmp_path)
+    assert sorted(r["campaign"] for r in records) == ["REG_DIVBUF", "REG_PRIOR"]
+    assert len({r["hash"] for r in records}) == 1
+    assert "duplicate" not in capsys.readouterr().out
+
+
+def test_collect_eval_runs_launch_time_independent_of_eval_time(tmp_path):
+    run_dir = _write_run(
+        tmp_path,
+        "CAMP",
+        "run1",
+        make_config(),
+        {"a": 1.0},
+        launch="2026-08-28 15:31:51",
+    )
+    # A later re-evaluation rewrites eval_results.json and must not move the
+    # launch date (only the dedupe recency).
+    (run_dir / "eval_results.json").write_text(json.dumps({"a": 2.0}))
+    (rec,) = agg.collect_eval_runs(tmp_path)
+    assert rec["launched"] == _launch_epoch("2026-08-28 15:31:51")
+    assert rec["recency"] == (run_dir / "eval_results.json").stat().st_mtime
+
+
+# ---------------------------------------------------------------------------
+# launch_time_from_run_dir: LAUNCH file -> wandb folder -> config mtime
+# ---------------------------------------------------------------------------
+
+
+def test_launch_time_first_launch_record_wins(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "LAUNCH").write_text(
+        "--- launch 2026-08-15 16:19:41 EDT ---\nrun_name : x\n"
+        "--- launch 2026-08-15 20:11:33 EDT ---\nrun_name : x\n"
+    )
+    (run_dir / "wandb" / "run-20260815_201201-abc").mkdir(parents=True)
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == _launch_epoch(
+        "2026-08-15 16:19:41"
+    )
+
+
+def test_launch_time_falls_back_to_earliest_wandb_folder(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "wandb" / "run-20260815_201201-later").mkdir(parents=True)
+    (run_dir / "wandb" / "run-20260815_162010-first").mkdir()
+    (run_dir / "wandb" / "debug.log").write_text("")
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == _launch_epoch(
+        "2026-08-15 16:20:10"
+    )
+
+
+def test_launch_time_falls_back_to_config_mtime(tmp_path):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "LAUNCH").write_text("garbage without a launch record\n")
+    (run_dir / "wandb").mkdir()
+    cfg = run_dir / ".hydra" / "config.yaml"
+    assert agg.launch_time_from_run_dir(run_dir, cfg) == cfg.stat().st_mtime
+
+
+# ---------------------------------------------------------------------------
+# Campaign filter: exact match for wandb runs, shared by both sources
+# ---------------------------------------------------------------------------
+
+
+def test_wandb_run_selected_exact_campaign_not_prefix():
+    sel = agg.wandb_run_selected
+    assert sel("REG_DIVBUF_ON_x", "REG_DIVBUF_ON", campaigns={"REG_DIVBUF_ON"})
+    assert not sel(
+        "REG_DIVBUF_ON_RAP02_x", "REG_DIVBUF_ON_RAP02", campaigns={"REG_DIVBUF_ON"}
+    )
+    # No campaign filter: everything; the name prefix is an independent filter.
+    assert sel("anything", "dt-gfn_classification")
+    assert sel("MAGIC_x", "C", name_prefix="MAGIC")
+    assert not sel("OTHER_x", "C", name_prefix="MAGIC")
+
+
+def test_campaigns_from_args(tmp_path):
+    root = agg.default_root()
+    assert agg.campaigns_from_args(None, root) is None
+    assert agg.campaigns_from_args(None, tmp_path / "REG_DIVBUF_ON") == {
+        "REG_DIVBUF_ON"
+    }
+    assert agg.campaigns_from_args("", tmp_path / "REG_DIVBUF_ON") is None
+    assert agg.campaigns_from_args("A,B", root) == {"A", "B"}
+
+
+def test_filter_records_by_campaign_dataset_task():
+    recs = {
+        "eval": [
+            make_record(campaign="A"),
+            make_record(campaign="B"),
+            make_record(campaign="A", dataset="wine"),
+            make_record(campaign="A", task="regression"),
+        ]
+    }
+    assert len(agg.filter_records(recs, campaigns={"A"})["eval"]) == 3
+    out = agg.filter_records(
+        recs, datasets={"iris"}, task="classification", campaigns={"A"}
+    )
+    assert len(out["eval"]) == 1
+    assert agg.filter_records(recs)["eval"] == recs["eval"]
+
+
+def test_collect_eval_runs_skips_resume_and_missing_config(tmp_path, capsys):
+    # A resume dir and a run without .hydra/config.yaml are both skipped.
+    _write_run(tmp_path, "CAMP", "resume", make_config(), {"a": 1.0})
+    bare = tmp_path / "CAMP" / "bare_run"
+    bare.mkdir(parents=True)
+    (bare / "eval_results.json").write_text("{}")
+    records = agg.collect_eval_runs(tmp_path)
+    assert records == []
+    assert "no .hydra/config.yaml" in capsys.readouterr().out
+
+
+def test_collect_eval_runs_warns_on_unresolvable_config(tmp_path, capsys):
+    cfg = make_config()
+    cfg["proxy"] = {"beta": "${oc.env:DOES_NOT_EXIST_ANYWHERE_12345}"}
+    _write_run(tmp_path, "CAMP", "run1", cfg, {"test_acc_top1": 0.5})
+    records = agg.collect_eval_runs(tmp_path)
+    out = capsys.readouterr().out
+    assert "could not resolve config" in out and "UNRESOLVED" in out
+    assert len(records) == 1  # still reported, just with a loud warning
+
+
+def test_collect_eval_runs_skips_corrupt_json(tmp_path, capsys):
+    run_dir = _write_run(tmp_path, "CAMP", "run1", make_config(), {"a": 1.0})
+    (run_dir / "eval_results.json").write_text("{not json")
+    assert agg.collect_eval_runs(tmp_path) == []
+    assert "unreadable eval_results.json" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# prior column
+# ---------------------------------------------------------------------------
+
+CLS_PROXY = {
+    "_target_": "gflownet.proxy.tree.CategoricalTreeProxy",
+    "prior_type": "node_count",
+    "alpha_type": "uniform",
+    "alpha_value": 0.1,
+    "beta": 1.0,
+    "sigma": 0.95,
+    "phi": 2.0,
+    "reward_function_kwargs": {"beta": 1.0, "alpha": 1.0},
+}
+
+REG_PROXY = {
+    "_target_": "gflownet.proxy.regression_tree.NormalGammaTreeProxy",
+    "prior_type": "node_count",
+    "mu_0": None,
+    "kappa_0": 0.1,
+    "alpha_0": 3.0,
+    "beta_0": "overfit",
+    "beta": 1.0,
+    "sigma": 0.95,
+    "phi": 2.0,
+    "reward_function_kwargs": {"beta": 1.0, "alpha": 1.0},
+}
+
+
+def _prior(proxy_overrides=None, base=REG_PROXY):
+    """prior label as it ends up in the settings of a real record, i.e. via
+    group_identity (numbers normalized: 3.0 -> 3)."""
+    cfg = make_config(proxy={**base, **(proxy_overrides or {})})
+    return agg.group_identity(cfg)["settings"]["prior"]
+
+
+def test_prior_label_classification():
+    assert (
+        _prior(base=CLS_PROXY) == "node_count | Dir(alpha_type=uniform alpha_value=0.1)"
+    )
+
+
+def test_prior_label_regression_structure_priors():
+    assert _prior() == "node_count | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    assert _prior({"prior_type": "bcart", "phi": 0.5}) == (
+        "bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+    assert _prior({"prior_type": "exponential", "beta": 0.1}) == (
+        "exponential(beta=0.1) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+    assert _prior({"prior_type": "none"}) == (
+        "none | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+    )
+
+
+def test_prior_label_nig_null_beta0_and_explicit_mu0():
+    assert _prior({"beta_0": None, "alpha_0": 1.5}) == (
+        "node_count | NIG(kappa_0=0.1 alpha_0=1.5 beta_0=null)"
+    )
+    # mu_0 is omitted when null (mean of the targets) and shown when set.
+    assert "mu_0" not in _prior()
+    assert _prior({"mu_0": 2.5}).startswith("node_count | NIG(mu_0=2.5 kappa_0=0.1")
+
+
+def test_prior_label_without_prior_type():
+    # Proxies without a structure prior (e.g. the uniform proxy) show their
+    # class name; a config without a proxy section shows "?".
+    cfg = make_config(proxy={"_target_": "gflownet.proxy.uniform.Uniform"})
+    assert agg.prior_label(cfg) == "Uniform"
+    assert agg.prior_label(make_config()) == "?"
+    assert agg.settings_from_config(make_config())["prior"] == "?"
+
+
+def test_prior_is_a_settings_column_and_changes_the_hash():
+    assert agg.SETTINGS_COLUMNS[-1] == "prior"
+    assert set(agg.SETTINGS_COLUMNS) == set(agg.settings_from_config(make_config()))
+    assert set(agg.SETTINGS_COLUMNS) == set(agg.SETTINGS_CONFIG_KEYS)
+    a = agg.group_identity(make_config(proxy=REG_PROXY))
+    b = agg.group_identity(make_config(proxy={**REG_PROXY, "prior_type": "bcart"}))
+    assert a["hash"] != b["hash"]
+    assert a["settings"]["prior"] != b["settings"]["prior"]
+
+
+def test_build_table_shows_prior_column():
+    recs = [
+        make_record(
+            split=str(i),
+            settings=agg.settings_from_config(make_config(proxy=REG_PROXY)),
+            metrics={"test_forest_rmse": 1.0},
+        )
+        for i in (1, 2, 3)
+    ]
+    df, _ = agg.build_table(recs, ["test_forest_rmse"], "eval", 3)
+    assert (
+        df.iloc[0]["prior"]
+        == "node_count | NIG(kappa_0=0.1 alpha_0=3.0 beta_0=overfit)"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Recipe filters
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_setting_value():
+    norm = agg.normalize_setting_value
+    assert norm("10000") == norm(10000) == norm(1e4)
+    assert norm("1e-3") == norm(0.001) == norm("0.0010")
+    assert norm("-") == norm(0) == norm("0.0")  # clip: "-" means no clipping
+    assert norm("MLP") == norm("mlp") == "mlp"
+    assert norm("?") == "?"
+
+
+def test_setting_matches_plain_columns():
+    m = agg.setting_matches
+    assert m("steps", 10000, ["10000"])
+    assert m("steps", 10000, ["1000", "10000"])
+    assert not m("steps", 1000, ["10000"])
+    assert m("lr", 0.001, ["1e-3"])
+    assert m("clip", "-", ["0"]) and m("clip", "-", ["-"])
+    assert not m("clip", 1.0, ["0"])
+    assert m("policy", "mlp", ["MLP"])
+    assert m("pb_shared", "no", ["no"]) and not m("pb_shared", "yes", ["no"])
+    # Unknown settings ("?" for configs predating a key) never match a value.
+    assert not m("steps", "?", ["10000"])
+
+
+BCART_LABEL = "bcart(sigma=0.95 phi=0.5) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)"
+
+
+def test_prior_matches_tokens():
+    pm = agg.prior_matches
+    assert pm(BCART_LABEL, "bcart")
+    assert pm(BCART_LABEL, "BCART")
+    assert pm(BCART_LABEL, "NIG")
+    assert not pm(BCART_LABEL, "node_count")
+    assert not pm(BCART_LABEL, "bcar")  # tokens, not substrings
+    # key=value tokens, numeric comparison of the value.
+    assert pm(BCART_LABEL, "phi=0.5") and pm(BCART_LABEL, "phi=0.50")
+    assert pm(BCART_LABEL, "alpha_0=3.0") and not pm(BCART_LABEL, "alpha_0=3.5")
+    assert not pm(BCART_LABEL, "phi=2")
+    # Bare values match the value of any key=value token.
+    assert pm(BCART_LABEL, "overfit") and pm(BCART_LABEL, "3.0")
+    assert not pm(BCART_LABEL, "null")
+    # All tokens of a value must occur (AND); a pasted label works.
+    assert pm(BCART_LABEL, "bcart phi=0.5")
+    assert not pm(BCART_LABEL, "bcart phi=2")
+    assert pm(BCART_LABEL, BCART_LABEL)
+    assert pm(BCART_LABEL, "NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)")
+    assert not pm("node_count | NIG(kappa_0=0.1 alpha_0=3 beta_0=null)", BCART_LABEL)
+    # Comma-separated values are alternatives.
+    assert agg.setting_matches("prior", BCART_LABEL, ["node_count", "bcart"])
+    assert not agg.setting_matches("prior", BCART_LABEL, ["node_count", "none"])
+
+
+def _rec_with(**overrides):
+    settings = agg.settings_from_config(make_config(proxy=REG_PROXY))
+    settings.update(overrides)
+    return make_record(settings=settings, run_name=str(overrides))
+
+
+def test_filter_records_by_settings():
+    recs = {
+        "eval": [
+            _rec_with(steps=10000, depth=5),
+            _rec_with(steps=10000, depth=3),
+            _rec_with(steps=1000, depth=5),
+            _rec_with(
+                steps=10000,
+                depth=5,
+                prior="bcart(sigma=0.95 phi=2) | NIG(kappa_0=0.1 alpha_0=3 beta_0=overfit)",
+            ),
+        ]
+    }
+    out = agg.filter_records(recs, settings={"steps": ["10000"]})["eval"]
+    assert [r["settings"]["steps"] for r in out] == [10000, 10000, 10000]
+    # Filters combine with AND, values within a filter with OR.
+    out = agg.filter_records(recs, settings={"steps": ["10000"], "depth": ["5"]})
+    assert len(out["eval"]) == 2
+    out = agg.filter_records(recs, settings={"depth": ["3", "5"], "prior": ["bcart"]})
+    assert len(out["eval"]) == 1 and "bcart" in out["eval"][0]["settings"]["prior"]
+    # Prior tokens: node_count vs bcart, AND within a value.
+    assert (
+        len(agg.filter_records(recs, settings={"prior": ["node_count"]})["eval"]) == 3
+    )
+    assert (
+        len(agg.filter_records(recs, settings={"prior": ["bcart phi=0.5"]})["eval"])
+        == 0
+    )
+    assert len(agg.filter_records(recs, settings={"prior": ["overfit"]})["eval"]) == 4
+    # Records without the setting ("?") are dropped by a filter on it.
+    assert len(agg.filter_records(recs, settings={"opt": ["adam"]})["eval"]) == 0
+    # No filter: untouched.
+    assert agg.filter_records(recs, settings={})["eval"] == recs["eval"]
+
+
+def test_filter_records_uses_recipe_not_wandb_progress():
+    # A wandb run launched for 10000 steps that stopped at step 4000: the
+    # recipe says 10000, so --steps 10000 keeps it and --steps 4000 does not.
+    rec = _rec_with(steps=10000)
+    rec.update(step=4000, state="crashed", recency=(4000, 1.0))
+    recs = {"wandb": [rec]}
+    assert len(agg.filter_records(recs, settings={"steps": ["10000"]})["wandb"]) == 1
+    assert len(agg.filter_records(recs, settings={"steps": ["4000"]})["wandb"]) == 0
+
+
+def test_setting_filters_from_args():
+    parser = agg.build_parser()
+    args = parser.parse_args(
+        [
+            "--steps",
+            "10000",
+            "--depth",
+            "3,5",
+            "--pb-shared",
+            "no",
+            "--rand_prob",
+            "0.1",
+            "--prior",
+            "bcart phi=0.5,node_count",
+            "--clip",
+            "",
+        ]
+    )
+    assert agg.setting_filters_from_args(args) == {
+        "steps": ["10000"],
+        "depth": ["3", "5"],
+        "pb_shared": ["no"],
+        "rand_prob": ["0.1"],
+        "prior": ["bcart phi=0.5", "node_count"],
+    }
+    assert agg.setting_filters_from_args(parser.parse_args([])) == {}
+    # Every settings column has its option; the underscore and dash spellings
+    # of the two-word ones are both accepted.
+    for column in agg.SETTINGS_COLUMNS:
+        assert (
+            getattr(parser.parse_args([f"--{column}", "x"]), f"filter_{column}") == "x"
+        )
+    assert parser.parse_args(["--pb_shared", "yes"]).filter_pb_shared == "yes"
+    assert parser.parse_args(["--rand-prob", "0"]).filter_rand_prob == "0"
+
+
+# ---------------------------------------------------------------------------
+# Metric configuration sanity
+# ---------------------------------------------------------------------------
+
+
+def test_wandb_metrics_no_training_diagnostics():
+    for task, metrics in agg.WANDB_METRICS.items():
+        assert "logZ" not in metrics, task
+        assert "Loss" not in metrics, task
+        assert "Train batch - logrewards mean" not in metrics, task
+
+
+def test_logz_is_a_debug_only_metric():
+    assert "logZ" in agg.DEBUG_EXTRA_WANDB_METRICS
+
+
+# ---------------------------------------------------------------------------
+# print_section: logZ column only in the debugging section
+# ---------------------------------------------------------------------------
+
+
+def _wandb_debug_records():
+    return [
+        make_record(
+            split=str(i),
+            debug=True,
+            recency=(100, 1.0),
+            step=100,
+            state="finished",
+            metrics={"test_top_1_acc": 0.9, "logZ": 12.5},
+        )
+        for i in (1, 2, 3)
+    ]
+
+
+def test_print_section_shows_logz_when_requested(capsys):
+    agg.print_section(
+        "DEBUGGING RUNS",
+        {"wandb": _wandb_debug_records()},
+        diff_configs=False,
+        min_splits=1,
+        extra_wandb_metrics=agg.DEBUG_EXTRA_WANDB_METRICS,
+    )
+    out = capsys.readouterr().out
+    assert "logZ" in out and "12.5000" in out
+
+
+def test_print_section_omits_logz_by_default(capsys):
+    agg.print_section(
+        "TRAINING RUNS",
+        {"wandb": _wandb_debug_records()},
+        diff_configs=False,
+        min_splits=1,
+    )
+    assert "logZ" not in capsys.readouterr().out
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(pytest.main([__file__, "-v"]))
