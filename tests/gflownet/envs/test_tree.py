@@ -3251,10 +3251,10 @@ def test__replay_buffer__log_rewards_keep_ordering_under_float32_underflow(
     # Sanity check of the regime under test: all linear rewards underflow.
     assert all(np.exp(np.float32(lr)) == 0.0 for lr in logrewards)
 
-    buffer.add(states, trajectories, logrewards, 1, buffer="replay")
+    buffer.add(states, trajectories, logrewards, None, 1, buffer="replay")
 
     assert len(buffer.replay) == 3
-    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0, -150.0]
+    assert sorted(buffer.replay["values"].tolist()) == [-300.0, -200.0, -150.0]
 
 
 def test__replay_buffer__log_rewards_insertion_replaces_minimum(
@@ -3270,14 +3270,14 @@ def test__replay_buffer__log_rewards_insertion_replaces_minimum(
     )
     states, trajectories = _build_single_node_states(env, 3)
 
-    buffer.add(states[:2], trajectories[:2], [-400.0, -200.0], 1, buffer="replay")
-    assert sorted(buffer.replay["rewards"].tolist()) == [-400.0, -200.0]
+    buffer.add(states[:2], trajectories[:2], [-400.0, -200.0], None, 1, buffer="replay")
+    assert sorted(buffer.replay["values"].tolist()) == [-400.0, -200.0]
 
     # -300 replaces -400; a subsequent -500 is rejected.
-    buffer.add([states[2]], [trajectories[2]], [-300.0], 2, buffer="replay")
-    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0]
-    buffer.add([states[0]], [trajectories[0]], [-500.0], 3, buffer="replay")
-    assert sorted(buffer.replay["rewards"].tolist()) == [-300.0, -200.0]
+    buffer.add([states[2]], [trajectories[2]], [-300.0], None, 2, buffer="replay")
+    assert sorted(buffer.replay["values"].tolist()) == [-300.0, -200.0]
+    buffer.add([states[0]], [trajectories[0]], [-500.0], None, 3, buffer="replay")
+    assert sorted(buffer.replay["values"].tolist()) == [-300.0, -200.0]
 
 
 def test__replay_buffer__weighted_selection_of_log_rewards_is_stable(
@@ -3295,7 +3295,7 @@ def test__replay_buffer__weighted_selection_of_log_rewards_is_stable(
     )
     states, trajectories = _build_single_node_states(env, 5)
     logrewards = [-500.0, -400.0, -300.0, -200.0, -100.0]
-    buffer.add(states, trajectories, logrewards, 1, buffer="replay")
+    buffer.add(states, trajectories, logrewards, None, 1, buffer="replay")
     assert len(buffer.replay) == 5
 
     selected = BaseBuffer.select(
@@ -3306,7 +3306,7 @@ def test__replay_buffer__weighted_selection_of_log_rewards_is_stable(
         scores_are_log=True,
     )
     assert len(selected) == 10
-    assert (selected["rewards"] == -100.0).all()
+    assert (selected["values"] == -100.0).all()
 
 
 def test__replay_buffer__linear_rewards_underflow_breaks_weighted_selection(
@@ -3324,12 +3324,12 @@ def test__replay_buffer__linear_rewards_underflow_breaks_weighted_selection(
     states, trajectories = _build_single_node_states(env, 4)
     rewards = [float(np.exp(np.float32(lr))) for lr in [-300.0, -200.0, -150.0]]
     assert all(r == 0.0 for r in rewards)
-    buffer.add(states[:3], trajectories[:3], rewards, 1, buffer="replay")
+    buffer.add(states[:3], trajectories[:3], rewards, None, 1, buffer="replay")
     assert len(buffer.replay) == 3
 
     # Insertion is frozen: a fourth all-zero-reward sample can never displace
     # any of the three stored ones.
-    buffer.add([states[3]], [trajectories[3]], [0.0], 2, buffer="replay")
+    buffer.add([states[3]], [trajectories[3]], [0.0], None, 2, buffer="replay")
     readable_new = env.state2readable(states[3])
     assert readable_new not in buffer.replay["samples_readable"].tolist()
 

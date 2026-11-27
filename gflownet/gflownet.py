@@ -22,6 +22,7 @@ import torch.nn as nn
 from torchtyping import TensorType
 from tqdm import tqdm, trange
 
+from gflownet.buffer.base import BaseBuffer
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
 from gflownet.utils.batch import Batch, compute_logprobs_trajectories
@@ -45,7 +46,7 @@ class GFlowNetAgent:
         float_precision,
         loss,
         optimizer,
-        buffer,
+        buffers,
         forward_policy,
         backward_policy,
         mask_invalid_actions,
@@ -81,8 +82,13 @@ class GFlowNetAgent:
             objectives, for example Flow Matching or Trajectory Balance.
         optimizer : dict
             Optimizer config dictionary. See gflownet.yaml:optimizer for details.
-        buffer : dict
-            Buffer config dictionary. See gflownet.yaml:buffer for details.
+        buffers : dict
+            A dictionary of Buffers. The following keys are supported:
+            - ``"train"``: A train set to sample backward trajectories for the training
+              batches.
+            - ``"test"``: A test set for evaluation.
+            - ``"replay_reward"``: A replay buffer based on the reward values.
+            - ``"replay_loss"``: A replay buffer based on the loss values.
         forward_policy : gflownet.policy.base.Policy
             The forward policy to be used for training. Parameterized from
             `gflownet.yaml:forward_policy` and parsed with
@@ -167,18 +173,39 @@ class GFlowNetAgent:
             )
         # Logging
         self.logger = logger
+
         # Buffers
+        self.buffers = buffers
+        # For backward compatibility, the dictionary of buffers may have a single buffer
+        # with key "_backward_compatible_buffer" containing all buffer-related elements
+        self.buffer_is_backward_compatible = (
+            "_backward_compatible_buffer" in buffers and len(buffers) == 1
+        )
+        if self.buffer_is_backward_compatible:
+            self.buffers["buffer"] = self.buffers.pop("_backward_compatible_buffer")
+        # TODO: allow different sampling strategies for different replay buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
-        self.buffer = buffer
-        # Train set statistics and reward normalization constant
-        if self.buffer.train is not None:
+        # Train set: the train set is defined in a buffer with name "train" with the
+        # attribute "train".
+        if "train" in self.buffers and self.buffers.train.train is not None:
+            self.has_train = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].train is not None
+        ):
+            self.has_train = True
+            self.buffers["train"] = self.buffers["buffer"]
+        else:
+            self.has_train = False
+        if self.has_train:
+            # Train set statistics and reward normalization constant
             scores_stats_tr = [
-                self.buffer.min_tr,
-                self.buffer.max_tr,
-                self.buffer.mean_tr,
-                self.buffer.std_tr,
-                self.buffer.max_norm_tr,
+                self.buffers.train.min_tr,
+                self.buffers.train.max_tr,
+                self.buffers.train.mean_tr,
+                self.buffers.train.std_tr,
+                self.buffers.train.max_norm_tr,
             ]
             print("\nTrain data")
             print(f"\tMean score: {scores_stats_tr[2]}")
@@ -186,14 +213,81 @@ class GFlowNetAgent:
             print(f"\tMin score: {scores_stats_tr[0]}")
             print(f"\tMax score: {scores_stats_tr[1]}")
         else:
-            scores_stats_tr = None
-        # Test set statistics
-        if self.buffer.test is not None:
+            print(
+                "\tImportant: offline trajectories will NOT be sampled. In order to "
+                " sample offline trajectories, the train configuration of the buffer "
+                " should be provided."
+            )
+        # Test set: the test set is defined in a buffer with name "test" with the
+        # attribute "test".
+        if "test" in self.buffers and self.buffers.test.test is not None:
+            self.has_test = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].test is not None
+        ):
+            self.has_test = True
+            self.buffers["test"] = self.buffers["buffer"]
+        else:
+            self.has_test = False
+        if self.has_test:
+            # Test set statistics
             print("\nTest data")
-            print(f"\tMean score: {self.buffer.test['scores'].mean()}")
-            print(f"\tStd score: {self.buffer.test['scores'].std()}")
-            print(f"\tMin score: {self.buffer.test['scores'].min()}")
-            print(f"\tMax score: {self.buffer.test['scores'].max()}")
+            print(f"\tMean score: {self.buffers.test.test['scores'].mean()}")
+            print(f"\tStd score: {self.buffers.test.test['scores'].std()}")
+            print(f"\tMin score: {self.buffers.test.test['scores'].min()}")
+            print(f"\tMax score: {self.buffers.test.test['scores'].max()}")
+        else:
+            print(
+                "\tImportant: test metrics will NOT be computed. In order to compute "
+                "test metrics, the test configuration of the buffer should be "
+                "provided."
+            )
+        # Reward-based replay buffer: the reward-based replay buffer is defined in a
+        # buffer with name "replay_reward" and reward criterion reward
+        if (
+            "replay_reward" in self.buffers
+            and self.buffers.replay_reward.replay is not None
+            and self.buffers.replay_reward.replay_criterion == "reward"
+        ):
+            self.has_replay_reward = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].replay is not None
+            and self.buffers["buffer"].replay_criterion == "reward"
+        ):
+            self.has_replay_reward = True
+            self.buffers["replay_reward"] = self.buffers["buffer"]
+        else:
+            self.has_replay_reward = False
+        # Loss-based replay buffer: the loss-based replay buffer is defined in a
+        # buffer with name "replay_loss" and reward criterion loss
+        if (
+            "replay_loss" in self.buffers
+            and self.buffers.replay_loss.replay is not None
+            and self.buffers.replay_loss.replay_criterion == "loss"
+        ):
+            self.has_replay_loss = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].replay is not None
+            and self.buffers["buffer"].replay_criterion == "loss"
+        ):
+            self.has_replay_loss = True
+            self.buffers["replay_loss"] = self.buffers["buffer"]
+        else:
+            self.has_replay_loss = False
+        # Main buffer
+        if "main" in self.buffers and self.buffers.main.use_main_buffer:
+            self.has_main_buffer = True
+        elif (
+            self.buffer_is_backward_compatible
+            and self.buffers["buffer"].use_main_buffer
+        ):
+            self.has_main_buffer = True
+            self.buffers["main"] = self.buffers["buffer"]
+        else:
+            self.has_main_buffer = False
 
         # Models
         self.forward_policy = forward_policy
@@ -625,7 +719,8 @@ class GFlowNetAgent:
         self,
         n_forward: int = 0,
         n_train: int = 0,
-        n_replay: int = 0,
+        n_replay_reward: int = 0,
+        n_replay_loss: int = 0,
         env_cond: Optional[GFlowNetEnv] = None,
         train=True,
         progress=False,
@@ -647,7 +742,7 @@ class GFlowNetAgent:
         """
         # Obtain the necessary env instances (one per forward/train/replay trajectory)
         # WARNING : These instances must be reset before use.
-        nb_env_instances_needed = n_forward + n_train + n_replay
+        nb_env_instances_needed = n_forward + n_train + n_replay_reward + n_replay_loss
         env_instances = self.get_env_instances(nb_env_instances_needed)
 
         # PRELIMINARIES: Prepare Batch and environments
@@ -709,10 +804,10 @@ class GFlowNetAgent:
             collect_forwards_masks=collect_forwards_masks,
             collect_backwards_masks=collect_backwards_masks,
         )
-        if n_train > 0 and self.buffer.train is not None:
+        if n_train > 0 and self.has_train:
             envs = [env_instances.pop().reset(idx) for idx in range(n_train)]
-            x_train = self.buffer.select(
-                self.buffer.train, n_train, self.train_sampling, self.rng
+            x_train = BaseBuffer.select(
+                self.buffers.train.train, n_train, self.train_sampling, self.rng
             )["samples"].values.tolist()
             for env, x in zip(envs, x_train):
                 env.set_state(x, done=True)
@@ -752,9 +847,9 @@ class GFlowNetAgent:
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         times["train_actions"] = time.time() - t0_train
 
-        # REPLAY BACKWARD trajectories
+        # REPLAY REWARD BACKWARD trajectories
         t0_replay = time.time()
-        batch_replay = Batch(
+        batch_replay_reward = Batch(
             env=self.env,
             proxy=self.proxy,
             device=self.device,
@@ -763,18 +858,20 @@ class GFlowNetAgent:
             collect_backwards_masks=collect_backwards_masks,
         )
         if (
-            n_replay > 0
-            and self.buffer.replay is not None
-            and len(self.buffer.replay) > 0
+            n_replay_reward > 0
+            and self.has_replay_reward
+            and len(self.buffers.replay_reward.replay) > 0
         ):
+            n_replay = min(n_replay_reward, len(self.buffers.replay_reward.replay))
             envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
-            n_replay = min(n_replay, len(self.buffer.replay))
-            x_replay = self.buffer.select(
-                self.buffer.replay,
+            x_replay = BaseBuffer.select(
+                self.buffers.replay_reward.replay,
                 n_replay,
                 self.replay_sampling,
                 self.rng,
-                scores_are_log=self.buffer.store_log_rewards,
+                scores_are_log=getattr(
+                    self.buffers.replay_reward, "store_log_rewards", False
+                ),
             )["samples"].values.tolist()
             for env, x in zip(envs, x_replay):
                 env.set_state(x, done=True)
@@ -787,7 +884,7 @@ class GFlowNetAgent:
             with torch.set_grad_enabled(store_logprobs):
                 actions, logprobs, logprobs_rev = self.sample_actions(
                     envs,
-                    batch_replay,
+                    batch_replay_reward,
                     env_cond,
                     backward=True,
                     no_random=not train,
@@ -801,7 +898,7 @@ class GFlowNetAgent:
                 logprobs = [None] * len(actions)
                 logprobs_rev = [None] * len(actions)
             # Add to batch
-            batch_replay.add_to_batch(
+            batch_replay_reward.add_to_batch(
                 envs,
                 actions,
                 logprobs,
@@ -812,10 +909,73 @@ class GFlowNetAgent:
             )
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
-        times["replay_actions"] = time.time() - t0_replay
+        times["replay_reward_actions"] = time.time() - t0_replay
+
+        # REPLAY LOSS BACKWARD trajectories
+        t0_replay = time.time()
+        batch_replay_loss = Batch(
+            env=self.env,
+            proxy=self.proxy,
+            device=self.device,
+            float_type=self.float,
+            collect_forwards_masks=collect_forwards_masks,
+            collect_backwards_masks=collect_backwards_masks,
+        )
+        if (
+            n_replay_loss > 0
+            and self.has_replay_loss
+            and len(self.buffers.replay_loss.replay) > 0
+        ):
+            n_replay = min(n_replay_loss, len(self.buffers.replay_loss.replay))
+            envs = [env_instances.pop().reset(idx) for idx in range(n_replay)]
+            x_replay = BaseBuffer.select(
+                self.buffers.replay_loss.replay,
+                n_replay,
+                self.replay_sampling,
+                self.rng,
+            )["samples"].values.tolist()
+            for env, x in zip(envs, x_replay):
+                env.set_state(x, done=True)
+        else:
+            envs = []
+
+        while envs:
+            # Sample backward actions
+            t0_a_envs = time.time()
+            with torch.set_grad_enabled(store_logprobs):
+                actions, logprobs, logprobs_rev = self.sample_actions(
+                    envs,
+                    batch_replay_loss,
+                    env_cond,
+                    backward=True,
+                    no_random=not train,
+                    times=times,
+                    compute_reversed_logprobs=self.collect_reversed_logprobs,
+                )
+            times["actions_envs"] += time.time() - t0_a_envs
+            # Update environments with sampled actions
+            envs, actions, valids = self.step(envs, actions, backward=True)
+            if not store_logprobs:
+                logprobs = [None] * len(actions)
+                logprobs_rev = [None] * len(actions)
+            # Add to batch
+            batch_replay_loss.add_to_batch(
+                envs,
+                actions,
+                logprobs,
+                logprobs_rev,
+                valids,
+                backward=True,
+                train=train,
+            )
+            # Filter out finished trajectories
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        times["replay_loss_actions"] = time.time() - t0_replay
 
         # Merge forward and backward batches
-        batch = batch.merge([batch_forward, batch_train, batch_replay])
+        batch = batch.merge(
+            [batch_forward, batch_train, batch_replay_reward, batch_replay_loss]
+        )
 
         times["all"] = time.time() - t0_all
 
@@ -832,47 +992,80 @@ class GFlowNetAgent:
         bs_num_samples=10000,
     ):
         r"""
-        Estimates the probability of sampling with current GFlowNet policy
-        (self.forward_policy) the objects in a data set given by the argument data. The
-        (log) probabilities are estimated by sampling a number of backward trajectories
-        (n_trajectories) through importance sampling and calculating the forward
-        probabilities of the trajectories.
+        Estimates the log probabilities of sampling the objects in a data set.
+
+        In particular, this method estimates the log probability of sampling each
+        object in a data set given by the argument ``data`` according to the current
+        GFlowNet forward policy, ``self.forward_policy``.
+
+        The log probabilities are estimated through **importance sampling** with the
+        GFlowNet backward policy, ``self.backward_policy``, as the proposal
+        distribution.
+
+        Recall that the likelihood of a sample $x$ is the sum of the likelihoods of all
+        trajectories that end in $x$:
+        $$
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau} P_F(\tau)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau] P_F(\tau)d\tau \\
+        = \mathbb{E}_{P_F(\tau)}[\mathbb{1}[x \rightarrow \perp \in \tau]].
+        $$
+
+        However, this integral (or sum in the discrete case) is intractable in most
+        practical cases.
+
+        Given $N$ samples $\tau_i$ from $P_F(\tau)$, an unbiased Monte Carlo estimator
+        of the above expectation is
+        $$
+        \hat{p}_T(x) = \frac{1}{N} \sum_{i=1}^{N}
+        \mathbb{1}[x \rightarrow \perp \in \tau_i].
+        $$
+
+        However, sampling from $P_F$ to estimate $\hat{p}_T(x)$ is clearly inefficient
+        since most trajectories would not end in $x$.
+
+        This motivates the use of **importance sampling** with a lower-variance
+        proposal distribution, such as the backward policy given sample $x$,
+        $P_B(\tau|x)$:
 
         $$
-        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
-        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
-        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
-        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        p_T(x) = \int_{\tau:x \rightarrow \perp \in \tau}
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x)d\tau \\
+        = \int \mathbb{1}[x \rightarrow \perp \in \tau]
+        \frac{P_F(\tau)}{P_B(\tau|x)}P_B(\tau|x) \\
+        = \mathbb{E}_{P_B(\tau|x)} \left[ \frac{P_F(\tau)}{P_B(\tau|x)} \right].
         $$
 
-        Note: torch.logsumexp is used to compute the log of the sum, in order to have
-        numerical stability, since we have the log PF and log PB, instead of directly
-        PF and PB.
+        If we sample $N$ backward trajectories (``n_trajectories``) following the
+        backward policy, starting from $x$, then we can estimate the log likelihood as
+        $$
+        \log \hat{p}_T(x) = \log \sum_{i=1}^{N} \frac{P_F(\tau_i)}{P_B(\tau_i|x)}
+        - \log N.
+        $$
+
+        Note: ``torch.logsumexp`` is used to compute the log of the sum, in order to
+        have numerical stability, since we have $\log P_F$ and $\log P_B$, instead of
+        directly $P_F$ and $P_B$.
 
         Note: the correct indexing of data points and trajectories is ensured by the
         fact that the indices of the environments are set in a consistent way with the
         indexing when storing the log probabilities.
 
-        Args
-        ----
+        Parameters
+        ----------
         data : list or string
             A data set of terminating states. The data set may be passed directly as a
             list of states, or it may be a string defining the path to a pickled data
             set where the terminating states are stored in key "samples".
-
         n_trajectories : int
             The number of trajectories per object to sample for estimating the log
             probabilities.
-
         max_iters_per_traj : int
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
-
         max_data_size : int
             Maximum number of data points in the data set to avoid an accidental
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
-
         bs_num_samples: int
             Number of bootstrap resampling times for std estimation of logprobs_estimates.
             Doesn't require recomputing of log probabilities, so can be arbitrary large
@@ -882,10 +1075,8 @@ class GFlowNetAgent:
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
-
         logprobs_std: torch.tensor
             Bootstrap std of the logprobs_estimates
-
         probs_std: torch.tensor
             Bootstrap std of the torch.exp(logprobs_estimates)
         """
@@ -1040,7 +1231,8 @@ class GFlowNetAgent:
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
                     n_train=self.batch_size.backward_dataset,
-                    n_replay=self.batch_size.backward_replay,
+                    n_replay_reward=self.batch_size.backward_replay_reward,
+                    n_replay_loss=self.batch_size.backward_replay_loss,
                     collect_forwards_masks=True,
                     collect_backwards_masks=self.collect_backwards_masks,
                 )
@@ -1048,7 +1240,7 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 losses = self.loss.compute(batch, get_sublosses=True)
                 # TODO: deal with this in a better way
-                if not all([torch.isfinite(loss) for loss in losses.values()]):
+                if not torch.isfinite(losses["all"]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                 else:
@@ -1061,7 +1253,7 @@ class GFlowNetAgent:
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
 
-            # Log training iteration: progress bar, buffer, metrics, intermediate
+            # Log training iteration: progress bar, buffers, metrics, intermediate
             # models
             times = self.log_train_iteration(pbar, losses, batch, times)
 
@@ -1094,7 +1286,7 @@ class GFlowNetAgent:
             state_flow=self.state_flow,
             logZ=self.logZ,
             optimizer=self.opt,
-            buffer=self.buffer,
+            buffers=self.buffers,
             step=self.it,
             final=True,
         )
@@ -1109,7 +1301,7 @@ class GFlowNetAgent:
 
         The operations done by this method include:
             - Updating the main buffer
-            - Updating the replay buffer
+            - Updating the replay buffers
             - Logging the rewards and scores of the train batch
             - Logging the losses, logZ, learning rate and other metrics of the training
               process
@@ -1155,30 +1347,42 @@ class GFlowNetAgent:
 
         # The buffers store log-rewards if store_log_rewards is True, otherwise
         # (linear) rewards.
-        if self.buffer.store_log_rewards:
-            rewards_buffer = logrewards
-        else:
-            rewards_buffer = rewards
+        # The flag is read from each buffer, since each buffer has its own config.
+        def _rewards_for(buf):
+            return logrewards if getattr(buf, "store_log_rewards", False) else rewards
 
         # Update main buffer
         actions_trajectories = batch.get_actions_trajectories()
-        if self.buffer.use_main_buffer:
-            self.buffer.add(
+        if self.has_main_buffer and "main" in self.buffers:
+            self.buffers.main.add(
                 states_term,
                 actions_trajectories,
-                rewards_buffer,
+                _rewards_for(self.buffers.main),
+                None,
                 self.it,
                 buffer="main",
             )
 
-        # Update replay buffer
-        self.buffer.add(
-            states_term,
-            actions_trajectories,
-            rewards_buffer,
-            self.it,
-            buffer="replay",
-        )
+        # Update reward replay buffer
+        if "replay_reward" in self.buffers:
+            self.buffers.replay_reward.add(
+                states_term,
+                actions_trajectories,
+                _rewards_for(self.buffers.replay_reward),
+                None,
+                self.it,
+                buffer="replay",
+            )
+        # Update loss replay buffer
+        if "replay_loss" in self.buffers:
+            self.buffers.replay_loss.add(
+                states_term,
+                actions_trajectories,
+                None,
+                losses.pop("units", None),
+                self.it,
+                buffer="replay",
+            )
         t1_buffer = time.time()
         times.update({"buffer": t1_buffer - t0_buffer})
 
@@ -1242,20 +1446,35 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-            # Log replay buffer rewards
-            if self.buffer.replay_updated:
-                rewards_replay = self.buffer.replay.rewards
-                if self.buffer.store_log_rewards:
-                    logrewards_replay = rewards_replay
+            # Log replay buffers values
+            if (
+                "replay_reward" in self.buffers
+                and self.buffers.replay_reward.replay_updated
+            ):
+                values_replay = self.buffers.replay_reward.replay["values"].values
+                if getattr(self.buffers.replay_reward, "store_log_rewards", False):
+                    logrewards_replay = values_replay
                     rewards_replay = np.exp(logrewards_replay)
                 else:
+                    rewards_replay = values_replay
                     logrewards_replay = np.log(rewards_replay)
                 self.logger.log_rewards_and_scores(
                     rewards_replay,
                     logrewards_replay,
                     scores=None,
                     step=self.it,
-                    prefix="Replay buffer -",
+                    prefix="Replay buffer (reward) -",
+                    use_context=self.use_context,
+                )
+            if (
+                "replay_loss" in self.buffers
+                and self.buffers.replay_loss.replay_updated
+            ):
+                values_replay = self.buffers.replay_loss.replay["values"].values
+                self.logger.log_min_max_mean(
+                    values_replay,
+                    step=self.it,
+                    prefix="Replay buffer (loss) -",
                     use_context=self.use_context,
                 )
 
@@ -1276,7 +1495,7 @@ class GFlowNetAgent:
                 state_flow=self.state_flow,
                 logZ=self.logZ,
                 optimizer=self.opt,
-                buffer=self.buffer,
+                buffers=self.buffers,
                 step=self.it,
             )
         t1_model = time.time()
@@ -1498,8 +1717,9 @@ class GFlowNetAgent:
                 - "state_flow": The state dict of the state flow model,
                 - "logZ": The tensor containing the parameters of logZ,
                 - "optimizer": The state dict of the optimizer,
-                - "buffer": A dictionary with keys 'train', 'test' and 'replay', with
-                  the relative paths of the corresponding data sets.
+                - "buffers": A dictionary with keys 'train', 'test' 'replay_reward' and
+                  'replay_loss', with the relative paths of the corresponding data
+                  sets.
         """
         # Iteration: increment by one
         self.it = checkpoint["step"] + 1

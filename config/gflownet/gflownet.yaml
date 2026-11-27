@@ -19,8 +19,10 @@ optimizer:
     forward: 10
     # Backward from training set
     backward_dataset: 0
-    # Backward from replay buffer
-    backward_replay: 0
+    # Backward from reward replay buffer
+    backward_replay_reward: 0
+    # Backward from loss replay buffer
+    backward_replay_loss: 0
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
@@ -49,7 +51,7 @@ epsilon_annealing:
   anneal_steps: null
   # Decay shape: linear | exponential
   schedule: linear
-# Replay buffer
+# Replay buffers
 replay_sampling: permutation
 # Train data set backward sampling
 train_sampling: permutation

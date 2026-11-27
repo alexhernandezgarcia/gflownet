@@ -49,7 +49,12 @@ is_valid_extra() {
 
 # Validate extras
 validate_extras() {
-    IFS=',' read -ra EXTRA_VALUES <<< "$1"  # Split input string by comma
+    # Split input string by comma (zsh uses read -A instead of bash's read -a)
+    if [[ -n "$ZSH_VERSION" ]]; then
+        IFS=',' read -rA EXTRA_VALUES <<< "$1"
+    else
+        IFS=',' read -ra EXTRA_VALUES <<< "$1"
+    fi
     for extra in "${EXTRA_VALUES[@]}"; do
         if ! is_valid_extra "$extra"; then
             echo "Error: Found an invalid value in --extras: '$extra'. Allowed values: ${VALID_EXTRAS[*]}" >&2
@@ -190,7 +195,7 @@ fi
 
 # Install rest of dependencies
 echo "Installing the rest of the dependencies, with extras " "$EXTRAS"
-python -m pip install .["$EXTRAS"]
+python -m pip install ".[$EXTRAS]"
 
 # Exit
 echo "Installation of gflownet package completed!"

@@ -37,7 +37,7 @@ gflownet:
   optimizer:
     batch_size:
       forward: 10
-      backward_replay: 5
+      backward_replay_reward: 5
       backward_dataset: 0
     lr: 0.0001
     z_dim: 16
